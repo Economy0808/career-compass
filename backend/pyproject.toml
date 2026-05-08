@@ -1,7 +1,7 @@
 [project]
 name = "career-compass-backend"
 version = "0.1.0"
-description = "Career Compass — AI 진로 마스터플랜 서비스 백엔드"
+description = "Career Compass - AI career masterplan service backend"
 requires-python = ">=3.11"
 dependencies = [
     "fastapi[standard]>=0.115",
@@ -38,4 +38,5 @@ ignore = ["E501"]
 
 [tool.pytest.ini_options]
 asyncio_mode = "auto"
+asyncio_default_fixture_loop_scope = "session"
 testpaths = ["tests"]
