@@ -57,10 +57,15 @@
 
 ## Directory Layout (locked-in)
 03_Code/
+03_Code/
 ├── backend/        # FastAPI
 │   ├── app/
+│   │   ├── api/         # HTTP routers
+│   │   ├── etl/         # data ingestion functions
+│   │   └── models/      # SQLAlchemy ORM models
+│   ├── alembic/         # DB migrations
+│   ├── scripts/         # one-off scripts that depend on app modules
 │   ├── tests/
-│   ├── alembic/
 │   └── pyproject.toml
 ├── frontend/       # Next.js (Phase 3)
 │   ├── app/

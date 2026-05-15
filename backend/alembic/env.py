@@ -18,10 +18,9 @@ if config.config_file_name is not None:
     fileConfig(config.config_file_name)
 
 # 모델 메타데이터: 마이그레이션 생성 시 여기에 Base.metadata를 등록
-# from app.db.base import Base
-# target_metadata = Base.metadata
-target_metadata = None
-
+from app.db import Base
+import app.models.ncs  # noqa: F401  # 모델을 import해야 metadata에 등록됨
+target_metadata = Base.metadata
 
 def run_migrations_offline() -> None:
     url = config.get_main_option("sqlalchemy.url")
