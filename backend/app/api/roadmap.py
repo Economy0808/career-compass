@@ -8,11 +8,12 @@ from sqlalchemy.orm import selectinload
 from app.db import get_db
 from app.llm import get_llm_client
 from app.llm.base import ChatMessage, LLMClient
-from app.models.roadmap import Milestone, Roadmap, User, compute_progress_pct
+from app.models.roadmap import Follow, Milestone, Roadmap, User, compute_progress_pct
 from app.schemas.roadmap import (
     ChatMessageIn,
     ChatRequest,
     ChatResponse,
+    FeedScope,
     GenerateRequest,
     MilestonePatchRequest,
     MilestonePatchResponse,
@@ -81,9 +82,28 @@ async def generate_roadmap(
 async def get_feed(
     limit: int = Query(20, ge=1, le=100),
     offset: int = Query(0, ge=0),
+    viewer_id: int | None = Query(None),
+    scope: FeedScope = Query("all"),
     db: AsyncSession = Depends(get_db),
 ) -> list[RoadmapCardOut]:
-    """최신순 로드맵 카드 피드."""
+    """최신순 로드맵 카드 피드.
+
+    viewer_id가 있으면 각 카드에 is_following을 채운다. scope=following이면
+    viewer_id가 팔로우하는 유저의 로드맵만 반환한다(viewer_id 필수).
+    """
+    if scope == "following" and viewer_id is None:
+        raise HTTPException(status_code=400, detail="viewer_id is required for scope=following")
+
+    following_ids: set[int] = set()
+    if viewer_id is not None:
+        following_ids = set(
+            (
+                await db.scalars(
+                    select(Follow.followee_id).where(Follow.follower_id == viewer_id)
+                )
+            ).all()
+        )
+
     stmt = (
         select(Roadmap)
         .options(selectinload(Roadmap.user), selectinload(Roadmap.milestones))
@@ -91,8 +111,18 @@ async def get_feed(
         .limit(limit)
         .offset(offset)
     )
+    if scope == "following":
+        if not following_ids:
+            return []
+        stmt = stmt.where(Roadmap.user_id.in_(following_ids))
+
     roadmaps = (await db.scalars(stmt)).all()
-    return [roadmap_to_card(r) for r in roadmaps]
+    return [
+        roadmap_to_card(
+            r, is_following=(r.user_id in following_ids) if viewer_id is not None else None
+        )
+        for r in roadmaps
+    ]
 
 
 @router.patch("/milestones/{milestone_id}", response_model=MilestonePatchResponse)
@@ -123,7 +153,9 @@ async def patch_milestone(
 
 
 @router.get("/{roadmap_id}", response_model=RoadmapDetailOut)
-async def get_roadmap(roadmap_id: int, db: AsyncSession = Depends(get_db)) -> RoadmapDetailOut:
+async def get_roadmap(
+    roadmap_id: int, viewer_id: int | None = Query(None), db: AsyncSession = Depends(get_db)
+) -> RoadmapDetailOut:
     stmt = (
         select(Roadmap)
         .where(Roadmap.id == roadmap_id)
@@ -132,4 +164,14 @@ async def get_roadmap(roadmap_id: int, db: AsyncSession = Depends(get_db)) -> Ro
     roadmap = await db.scalar(stmt)
     if roadmap is None:
         raise HTTPException(status_code=404, detail="roadmap not found")
-    return roadmap_to_detail(roadmap)
+
+    is_following = None
+    if viewer_id is not None:
+        follow = await db.scalar(
+            select(Follow).where(
+                Follow.follower_id == viewer_id, Follow.followee_id == roadmap.user_id
+            )
+        )
+        is_following = follow is not None
+
+    return roadmap_to_detail(roadmap, is_following=is_following)

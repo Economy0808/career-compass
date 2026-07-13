@@ -12,12 +12,17 @@ from pydantic import BaseModel, Field
 from app.models.roadmap import Milestone, MilestoneStatus, Roadmap, User, compute_progress_pct
 
 ChatRole = Literal["user", "assistant"]
+FeedScope = Literal["all", "following"]
 
 
 class UserOut(BaseModel):
     id: int
     display_name: str
     avatar_emoji: str
+
+
+class FollowRequest(BaseModel):
+    follower_id: int
 
 
 class ChatMessageIn(BaseModel):
@@ -61,6 +66,7 @@ class RoadmapDetailOut(BaseModel):
     created_at: datetime
     progress_pct: float
     milestones: list[MilestoneOut]
+    is_following: bool | None = None
 
 
 class RoadmapCardOut(BaseModel):
@@ -70,6 +76,7 @@ class RoadmapCardOut(BaseModel):
     progress_pct: float
     milestone_count: int
     created_at: datetime
+    is_following: bool | None = None
 
 
 class MilestonePatchRequest(BaseModel):
@@ -99,7 +106,7 @@ def milestone_to_out(milestone: Milestone) -> MilestoneOut:
     )
 
 
-def roadmap_to_detail(roadmap: Roadmap) -> RoadmapDetailOut:
+def roadmap_to_detail(roadmap: Roadmap, is_following: bool | None = None) -> RoadmapDetailOut:
     return RoadmapDetailOut(
         id=roadmap.id,
         user=user_to_out(roadmap.user),
@@ -108,10 +115,11 @@ def roadmap_to_detail(roadmap: Roadmap) -> RoadmapDetailOut:
         created_at=roadmap.created_at,
         progress_pct=compute_progress_pct(roadmap.milestones),
         milestones=[milestone_to_out(m) for m in roadmap.milestones],
+        is_following=is_following,
     )
 
 
-def roadmap_to_card(roadmap: Roadmap) -> RoadmapCardOut:
+def roadmap_to_card(roadmap: Roadmap, is_following: bool | None = None) -> RoadmapCardOut:
     return RoadmapCardOut(
         id=roadmap.id,
         user=user_to_out(roadmap.user),
@@ -119,4 +127,5 @@ def roadmap_to_card(roadmap: Roadmap) -> RoadmapCardOut:
         progress_pct=compute_progress_pct(roadmap.milestones),
         milestone_count=len(roadmap.milestones),
         created_at=roadmap.created_at,
+        is_following=is_following,
     )

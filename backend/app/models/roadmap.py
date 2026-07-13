@@ -2,7 +2,7 @@
 from datetime import date, datetime
 from typing import Literal
 
-from sqlalchemy import ForeignKey, func
+from sqlalchemy import ForeignKey, UniqueConstraint, func
 from sqlalchemy.dialects.postgresql import JSONB
 from sqlalchemy.orm import Mapped, mapped_column, relationship
 
@@ -75,6 +75,21 @@ class Milestone(Base):
         if self.due_date < (today or date.today()):
             return "기한초과"
         return "진행중"
+
+
+class Follow(Base):
+    """유저 간 팔로우 관계. 팔로잉 피드와 카드의 is_following 계산에 쓰인다."""
+
+    __tablename__ = "follows"
+    __table_args__ = (UniqueConstraint("follower_id", "followee_id", name="uq_follow_pair"),)
+
+    id: Mapped[int] = mapped_column(primary_key=True, autoincrement=True)
+    follower_id: Mapped[int] = mapped_column(ForeignKey("users.id"), nullable=False)
+    followee_id: Mapped[int] = mapped_column(ForeignKey("users.id"), nullable=False)
+    created_at: Mapped[datetime] = mapped_column(server_default=func.now())
+
+    def __repr__(self) -> str:
+        return f"Follow(follower_id={self.follower_id}, followee_id={self.followee_id})"
 
 
 def compute_progress_pct(milestones: list[Milestone], today: date | None = None) -> float:

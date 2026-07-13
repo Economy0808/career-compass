@@ -2,6 +2,7 @@ from contextlib import asynccontextmanager
 from typing import AsyncGenerator
 
 from fastapi import FastAPI
+from fastapi.middleware.cors import CORSMiddleware
 
 from app.api.health import router as health_router
 from app.api.roadmap import router as roadmap_router
@@ -22,6 +23,14 @@ def create_app() -> FastAPI:
         title="Career Compass API",
         version=settings.app_version,
         lifespan=lifespan,
+    )
+    # 로컬 프론트엔드 개발 서버(Next.js, localhost:3000)에서의 호출 허용.
+    # 인증 없는 프로토타입이라 origin 화이트리스트만으로 충분.
+    app.add_middleware(
+        CORSMiddleware,
+        allow_origins=["http://localhost:3000"],
+        allow_methods=["*"],
+        allow_headers=["*"],
     )
     app.include_router(health_router)
     app.include_router(users_router)
