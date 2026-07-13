@@ -6,8 +6,8 @@ API 페이지: https://www.data.go.kr/data/15128213/openapi.do
   - NCS001: NCS 대분류 코드 조회
   - NCS002: NCS 중분류 코드 조회 (NCS_LCLAS_CD 필수)
   - NCS003: NCS 소분류 코드 조회 (NCS_LCLAS_CD, NCS_MCLAS_CD 필수)
-  - NCS004: NCS 세분류(직무) 코드 조회 (NCS_SCLAS_CD 필수, 가정)
-  - NCS005: NCS 능력단위분류코드 조회 (NCS_CD 필수, 가정)
+  - NCS004: NCS 세분류(직무) 코드 조회 (NCS_LCLAS_CD, NCS_MCLAS_CD, NCS_SCLAS_CD 필수)
+  - NCS005: NCS 능력단위분류코드 조회 (NCS_LCLAS_CD, NCS_MCLAS_CD, NCS_SCLAS_CD, NCS_SUBD_CD 필수)
   - NCS006: NCS 능력단위요소 조회
   - NCS007: NCS 능력단위키워드 검색
 """
@@ -87,17 +87,22 @@ async def fetch_ncs_sclas(lclas_cd: str, mclas_cd: str) -> list[dict]:
     )
 
 
-async def fetch_ncs_job(sclas_cd: str) -> list[dict]:
-    """NCS 세분류(직무) 코드를 조회한다 (NCS004). NCS_SCLAS_CD 필수 (가정)."""
+async def fetch_ncs_job(lclas_cd: str, mclas_cd: str, sclas_cd: str) -> list[dict]:
+    """NCS 세분류(직무) 코드를 조회한다 (NCS004). NCS_LCLAS_CD + NCS_MCLAS_CD + NCS_SCLAS_CD 필수."""
     return await _fetch_all_pages(
         f"{NCS_BASE_URL}/NCS004",
-        {"NCS_SCLAS_CD": sclas_cd},
+        {"NCS_LCLAS_CD": lclas_cd, "NCS_MCLAS_CD": mclas_cd, "NCS_SCLAS_CD": sclas_cd},
     )
 
 
-async def fetch_ncs_ability_unit(ncs_cd: str) -> list[dict]:
-    """NCS 능력단위 코드를 조회한다 (NCS005). NCS_CD 필수 (가정)."""
+async def fetch_ncs_ability_unit(lclas_cd: str, mclas_cd: str, sclas_cd: str, subd_cd: str) -> list[dict]:
+    """NCS 능력단위 코드를 조회한다 (NCS005). NCS_LCLAS_CD + NCS_MCLAS_CD + NCS_SCLAS_CD + NCS_SUBD_CD 필수."""
     return await _fetch_all_pages(
         f"{NCS_BASE_URL}/NCS005",
-        {"NCS_CD": ncs_cd},
+        {
+            "NCS_LCLAS_CD": lclas_cd,
+            "NCS_MCLAS_CD": mclas_cd,
+            "NCS_SCLAS_CD": sclas_cd,
+            "NCS_SUBD_CD": subd_cd,
+        },
     )

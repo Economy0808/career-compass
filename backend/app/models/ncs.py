@@ -74,6 +74,8 @@ class NcsJob(Base):
 
     code: Mapped[str] = mapped_column(String(8), primary_key=True)
     degree: Mapped[int] = mapped_column(Integer, primary_key=True)
+    lclas_code: Mapped[str] = mapped_column(String(2), nullable=False)
+    mclas_code: Mapped[str] = mapped_column(String(4), nullable=False)
     sclas_code: Mapped[str] = mapped_column(String(6), nullable=False)
     name: Mapped[str] = mapped_column(String(100), nullable=False)
     is_current: Mapped[bool] = mapped_column(nullable=False, default=False)
@@ -95,7 +97,7 @@ class NcsAbilityUnit(Base):
 
     code: Mapped[str] = mapped_column(String(14), primary_key=True)
     degree: Mapped[int] = mapped_column(Integer, primary_key=True)
-    job_code: Mapped[str] = mapped_column(String(8), nullable=False)
+    job_code: Mapped[str] = mapped_column(String(8), primary_key=True)
     name: Mapped[str] = mapped_column(String(200), nullable=False)
     is_current: Mapped[bool] = mapped_column(nullable=False, default=False)
 

@@ -40,16 +40,16 @@ _SCLAS_ITEM = {
     "USG_YN": "Y",
 }
 _JOB_ITEM = {
-    "NCS_CD": "01010101",
-    "NCS_CDNM": "프로젝트관리자",
+    "NCS_SUBD_CD": "01010101",
+    "NCS_SUBD_CDNM": "프로젝트관리자",
     "NCS_SCLAS_CD": "010101",
     "NCS_DEGR": "24",
     "USG_YN": "Y",
 }
 _ABILITY_UNIT_ITEM = {
-    "NCS_ABLTY_UNIT_CD": "0101010101_24v1",
-    "NCS_ABLTY_UNIT_CDNM": "프로젝트 범위관리",
-    "NCS_CD": "01010101",
+    "NCS_COMPE_UNIT_CD": "0101010101_24v1",
+    "COMPE_UNIT_NAME": "프로젝트 범위관리",
+    "NCS_SUBD_CD": "01010101",
     "NCS_DEGR": "24",
     "USG_YN": "Y",
 }
@@ -182,7 +182,7 @@ async def test_ingest_ncs_sclas_empty_parent():
 
 async def test_ingest_ncs_job_happy_path():
     session = AsyncMock()
-    session.execute.return_value = _select_result([("010101",)])
+    session.execute.return_value = _select_result([("01", "0101", "010101")])
 
     with (
         patch("app.etl.ncs_ingest._probe_raw", return_value=_raw(_JOB_ITEM)),
@@ -214,7 +214,7 @@ async def test_ingest_ncs_job_empty_parent():
 
 async def test_ingest_ncs_ability_unit_happy_path():
     session = AsyncMock()
-    session.execute.return_value = _select_result([("01010101",)])
+    session.execute.return_value = _select_result([("01", "0101", "010101", "01010101")])
 
     with (
         patch("app.etl.ncs_ingest._probe_raw", return_value=_raw(_ABILITY_UNIT_ITEM)),

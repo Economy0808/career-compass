@@ -23,8 +23,10 @@ from app.ncs_client import (
 _EXPECTED_FIELDS: dict[str, list[str]] = {
     "NCS002": ["NCS_MCLAS_CD", "NCS_MCLAS_CDNM", "NCS_LCLAS_CD", "NCS_DEGR", "USG_YN"],
     "NCS003": ["NCS_SCLAS_CD", "NCS_SCLAS_CDNM", "NCS_MCLAS_CD", "NCS_DEGR", "USG_YN"],
-    "NCS004": ["NCS_CD", "NCS_CDNM", "NCS_SCLAS_CD", "NCS_DEGR", "USG_YN"],
-    "NCS005": ["NCS_ABLTY_UNIT_CD", "NCS_ABLTY_UNIT_CDNM", "NCS_CD", "NCS_DEGR", "USG_YN"],
+    # DUTY_DEF(직무정의), DUTY_ORD 필드도 응답에 포함되나 현재 저장하지 않음
+    "NCS004": ["NCS_SUBD_CD", "NCS_SUBD_CDNM", "NCS_SCLAS_CD", "NCS_DEGR", "USG_YN"],
+    # COMPE_UNIT_DEF, COMPE_UNIT_LEVEL, NCS_CL_CD 필드도 응답에 포함되나 현재 저장하지 않음
+    "NCS005": ["NCS_COMPE_UNIT_CD", "COMPE_UNIT_NAME", "NCS_SUBD_CD", "NCS_DEGR", "USG_YN"],
 }
 
 
@@ -181,27 +183,36 @@ async def ingest_ncs_sclas(session: AsyncSession) -> dict[str, int]:
 async def ingest_ncs_job(session: AsyncSession) -> dict[str, int]:
     """NCS 세분류(직무) 데이터를 API에서 가져와 DB에 UPSERT한다."""
     result = await session.execute(
-        select(NcsSclas.code).where(NcsSclas.is_current.is_(True)).distinct()
+        select(NcsMclas.lclas_code, NcsSclas.mclas_code, NcsSclas.code)
+        .join(NcsMclas, (NcsSclas.mclas_code == NcsMclas.code) & (NcsSclas.degree == NcsMclas.degree))
+        .where(NcsSclas.is_current.is_(True))
+        .distinct()
     )
-    sclas_codes = [r[0] for r in result.all()]
-    if not sclas_codes:
+    sclas_rows = result.all()
+    if not sclas_rows:
         return {"fetched": 0, "upserted": 0}
 
-    raw = await _probe_raw("NCS004", {"NCS_SCLAS_CD": sclas_codes[0]})
+    first_lclas, first_mclas, first_sclas = sclas_rows[0]
+    raw = await _probe_raw(
+        "NCS004",
+        {"NCS_LCLAS_CD": first_lclas, "NCS_MCLAS_CD": first_mclas, "NCS_SCLAS_CD": first_sclas},
+    )
     _assert_fields(raw, _EXPECTED_FIELDS["NCS004"], "NCS004")
 
     total_fetched = total_upserted = 0
-    for sclas_code in sclas_codes:
-        items = await fetch_ncs_job(sclas_code)
+    for lclas_code, mclas_code, sclas_code in sclas_rows:
+        items = await fetch_ncs_job(lclas_code, mclas_code, sclas_code)
         for item in items:
-            code = item["NCS_CD"]
+            code = item["NCS_SUBD_CD"]
             degree = int(item["NCS_DEGR"])
-            name = item["NCS_CDNM"]
+            name = item["NCS_SUBD_CDNM"]
             is_current = item["USG_YN"] == "Y"
             stmt = pg_insert(NcsJob).values(
                 code=code,
                 degree=degree,
-                sclas_code=item["NCS_SCLAS_CD"],
+                lclas_code=lclas_code,
+                mclas_code=mclas_code,
+                sclas_code=sclas_code,
                 name=name,
                 is_current=is_current,
             )
@@ -221,32 +232,43 @@ async def ingest_ncs_job(session: AsyncSession) -> dict[str, int]:
 async def ingest_ncs_ability_unit(session: AsyncSession) -> dict[str, int]:
     """NCS 능력단위 데이터를 API에서 가져와 DB에 UPSERT한다."""
     result = await session.execute(
-        select(NcsJob.code).where(NcsJob.is_current.is_(True)).distinct()
+        select(NcsJob.lclas_code, NcsJob.mclas_code, NcsJob.sclas_code, NcsJob.code)
+        .where(NcsJob.is_current.is_(True))
+        .distinct()
     )
-    job_codes = [r[0] for r in result.all()]
-    if not job_codes:
+    job_rows = result.all()
+    if not job_rows:
         return {"fetched": 0, "upserted": 0}
 
-    raw = await _probe_raw("NCS005", {"NCS_CD": job_codes[0]})
+    first_lclas, first_mclas, first_sclas, first_job = job_rows[0]
+    raw = await _probe_raw(
+        "NCS005",
+        {
+            "NCS_LCLAS_CD": first_lclas,
+            "NCS_MCLAS_CD": first_mclas,
+            "NCS_SCLAS_CD": first_sclas,
+            "NCS_SUBD_CD": first_job,
+        },
+    )
     _assert_fields(raw, _EXPECTED_FIELDS["NCS005"], "NCS005")
 
     total_fetched = total_upserted = 0
-    for job_code in job_codes:
-        items = await fetch_ncs_ability_unit(job_code)
+    for lclas_code, mclas_code, sclas_code, job_code in job_rows:
+        items = await fetch_ncs_ability_unit(lclas_code, mclas_code, sclas_code, job_code)
         for item in items:
-            code = item["NCS_ABLTY_UNIT_CD"]
+            code = item["NCS_COMPE_UNIT_CD"]
             degree = int(item["NCS_DEGR"])
-            name = item["NCS_ABLTY_UNIT_CDNM"]
+            name = item["COMPE_UNIT_NAME"]
             is_current = item["USG_YN"] == "Y"
             stmt = pg_insert(NcsAbilityUnit).values(
                 code=code,
                 degree=degree,
-                job_code=item["NCS_CD"],
+                job_code=job_code,
                 name=name,
                 is_current=is_current,
             )
             stmt = stmt.on_conflict_do_update(
-                index_elements=["code", "degree"],
+                index_elements=["code", "degree", "job_code"],
                 set_={"name": name, "is_current": is_current},
             )
             await session.execute(stmt)
