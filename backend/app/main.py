@@ -4,6 +4,8 @@ from typing import AsyncGenerator
 from fastapi import FastAPI
 
 from app.api.health import router as health_router
+from app.api.roadmap import router as roadmap_router
+from app.api.users import router as users_router
 from app.config import get_settings
 
 
@@ -22,6 +24,8 @@ def create_app() -> FastAPI:
         lifespan=lifespan,
     )
     app.include_router(health_router)
+    app.include_router(users_router)
+    app.include_router(roadmap_router)
     return app
 
 
