@@ -1,23 +1,23 @@
 import type { Metadata } from "next";
-import localFont from "next/font/local";
-import { TopNav } from "@/components/TopNav";
+import { Gowun_Batang, IBM_Plex_Sans_KR } from "next/font/google";
+import { SideNav } from "@/components/SideNav";
 import { UserProvider } from "@/lib/user-context";
 import "./globals.css";
 
-const geistSans = localFont({
-  src: "./fonts/GeistVF.woff",
-  variable: "--font-geist-sans",
-  weight: "100 900",
+const gowun = Gowun_Batang({
+  weight: ["400", "700"],
+  subsets: ["latin"],
+  variable: "--font-gowun",
 });
-const geistMono = localFont({
-  src: "./fonts/GeistMonoVF.woff",
-  variable: "--font-geist-mono",
-  weight: "100 900",
+const plex = IBM_Plex_Sans_KR({
+  weight: ["400", "500", "600", "700"],
+  subsets: ["latin"],
+  variable: "--font-plex",
 });
 
 export const metadata: Metadata = {
-  title: "로드맵 | Career Compass",
-  description: "목표를 말하면 AI가 마일스톤 로드맵을 만들어주는 동행 서비스",
+  title: "Career Compass — 콩나무 로드맵",
+  description: "목표를 심으면 콩나무가 자라는 로드맵 SNS",
 };
 
 export default function RootLayout({
@@ -27,10 +27,10 @@ export default function RootLayout({
 }>) {
   return (
     <html lang="ko">
-      <body className={`${geistSans.variable} ${geistMono.variable} antialiased`}>
+      <body className={`${gowun.variable} ${plex.variable} font-sans antialiased`}>
         <UserProvider>
-          <TopNav />
-          <main className="mx-auto max-w-2xl px-4 pb-24 pt-6">{children}</main>
+          <SideNav />
+          {children}
         </UserProvider>
       </body>
     </html>

@@ -1,182 +1,171 @@
 "use client";
 
 import { useRouter } from "next/navigation";
-import { AnimatePresence, motion } from "framer-motion";
 import { useEffect, useRef, useState } from "react";
-import { ChatBubble, TypingIndicator } from "@/components/ChatBubble";
-import { Button } from "@/components/Button";
 import { postChat, postGenerate } from "@/lib/api";
 import { useUser } from "@/lib/user-context";
-import type { ChatMessageIn } from "@/lib/types";
-
-type Phase = "goal-input" | "chatting" | "done" | "generating";
+import type { ChatMessageIn, ChatRole } from "@/lib/types";
 
 const TYPING_DELAY_MS = 550;
+
+const GREETING =
+  "안녕하세요, 씨앗을 심으러 오셨군요.\n이루고 싶은 목표를 편하게 적어주세요. 콩나무가 자랄 길(마일스톤)을 그려드릴게요.";
+
+function Bubble({ role, content }: { role: ChatRole; content: string }) {
+  const isUser = role === "user";
+  return (
+    <div className={`mb-3.5 flex ${isUser ? "justify-end" : "justify-start"}`}>
+      <div
+        className="max-w-[82%] whitespace-pre-line rounded-2xl border px-[17px] py-[13px] text-[13.5px] leading-[1.65] text-[#dcead8]"
+        style={{
+          background: isUser ? "rgba(63,143,71,.25)" : "rgba(10,26,15,.85)",
+          borderColor: isUser ? "rgba(93,179,91,.35)" : "rgba(143,220,138,.14)",
+        }}
+      >
+        {content}
+      </div>
+    </div>
+  );
+}
+
+function RootingIndicator() {
+  return (
+    <div className="mb-3.5 mt-1 flex items-center gap-1.5 text-[12.5px] text-moss-600">
+      {[0, 1, 2].map((i) => (
+        <span
+          key={i}
+          className="h-[7px] w-[7px] rounded-full bg-bean-400"
+          style={{ animation: `blink 1.2s ${i * 0.2}s infinite` }}
+        />
+      ))}
+      뿌리를 내리는 중…
+    </div>
+  );
+}
 
 export default function NewRoadmapPage() {
   const router = useRouter();
   const { currentUser, loading: userLoading } = useUser();
 
-  const [phase, setPhase] = useState<Phase>("goal-input");
-  const [goalInput, setGoalInput] = useState("");
   const [goalRawText, setGoalRawText] = useState("");
   const [messages, setMessages] = useState<ChatMessageIn[]>([]);
-  const [answerInput, setAnswerInput] = useState("");
+  const [input, setInput] = useState("");
   const [typing, setTyping] = useState(false);
+  const [done, setDone] = useState(false);
+  const [planting, setPlanting] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
   const bottomRef = useRef<HTMLDivElement>(null);
 
   useEffect(() => {
     bottomRef.current?.scrollIntoView({ behavior: "smooth" });
-  }, [messages, typing, phase]);
+  }, [messages, typing, done, planting]);
 
-  async function startChat(e: React.FormEvent) {
-    e.preventDefault();
-    const goal = goalInput.trim();
-    if (!goal) return;
-    setGoalRawText(goal);
-    setPhase("chatting");
-    setTyping(true);
+  async function send() {
+    const text = input.trim();
+    if (!text || typing || done || planting || userLoading) return;
+    setInput("");
     setError(null);
+    setTyping(true);
+
+    // First message plants the goal; later ones answer the AI's questions.
+    const isGoal = goalRawText === "";
+    const goal = isGoal ? text : goalRawText;
+    const nextMessages: ChatMessageIn[] = isGoal
+      ? []
+      : [...messages, { role: "user", content: text }];
+    if (isGoal) setGoalRawText(text);
+    else setMessages(nextMessages);
+
     try {
-      const res = await postChat(goal, []);
+      const res = await postChat(goal, nextMessages);
       await new Promise((r) => setTimeout(r, TYPING_DELAY_MS));
       setMessages(res.messages);
-      setPhase(res.done ? "done" : "chatting");
-    } catch {
-      setError("질문을 불러오지 못했어요. 다시 시도해주세요.");
-      setPhase("goal-input");
-    } finally {
-      setTyping(false);
-    }
-  }
-
-  async function submitAnswer(e: React.FormEvent) {
-    e.preventDefault();
-    const answer = answerInput.trim();
-    if (!answer) return;
-    const nextMessages: ChatMessageIn[] = [...messages, { role: "user", content: answer }];
-    setMessages(nextMessages);
-    setAnswerInput("");
-    setTyping(true);
-    setError(null);
-    try {
-      const res = await postChat(goalRawText, nextMessages);
-      await new Promise((r) => setTimeout(r, TYPING_DELAY_MS));
-      setMessages(res.messages);
-      setPhase(res.done ? "done" : "chatting");
+      setDone(res.done);
     } catch {
       setError("답변을 전달하지 못했어요. 다시 시도해주세요.");
+      if (isGoal) setGoalRawText("");
     } finally {
       setTyping(false);
     }
   }
 
-  async function generateRoadmap() {
-    if (!currentUser) return;
-    setPhase("generating");
+  async function plant() {
+    if (!currentUser || planting) return;
+    setPlanting(true);
     setError(null);
     try {
       const roadmap = await postGenerate(currentUser.id, goalRawText, messages);
       router.push(`/roadmap/${roadmap.id}`);
     } catch {
-      setError("로드맵 생성에 실패했어요. 다시 시도해주세요.");
-      setPhase("done");
+      setError("씨앗을 심지 못했어요. 다시 시도해주세요.");
+      setPlanting(false);
     }
   }
 
-  const awaitingAnswer =
-    phase === "chatting" && !typing && messages.at(-1)?.role === "assistant";
-
-  if (phase === "goal-input") {
-    return (
-      <div className="flex flex-col gap-6 pt-8">
-        <div className="space-y-2">
-          <h1 className="text-2xl font-semibold">어떤 목표를 갖고 있나요?</h1>
-          <p className="text-sm text-muted">
-            편하게 적어주세요. 몇 가지 질문을 거쳐 나만의 로드맵을 함께 만들어볼게요.
-          </p>
-        </div>
-        <form onSubmit={startChat} className="space-y-3">
-          <textarea
-            autoFocus
-            value={goalInput}
-            onChange={(e) => setGoalInput(e.target.value)}
-            placeholder="예) 데이터 분석가가 되고 싶어"
-            rows={4}
-            className="w-full resize-none rounded-3xl border border-border bg-surface p-4 text-sm shadow-soft outline-none focus:ring-2 focus:ring-accent-400"
-          />
-          {error && <p className="text-sm text-overdue-600">{error}</p>}
-          <Button type="submit" disabled={!goalInput.trim() || userLoading}>
-            시작하기
-          </Button>
-        </form>
-      </div>
-    );
-  }
+  const started = goalRawText !== "";
 
   return (
-    <div className="flex min-h-[70vh] flex-col">
-      <div className="flex-1 space-y-3 pb-28">
-        <ChatBubble role="user" content={goalRawText} />
+    <div className="min-h-screen bg-[linear-gradient(180deg,#0a1f11,#06120a_55%)]">
+      <div className="mx-auto flex min-h-screen w-[640px] max-w-[86vw] flex-col pt-[88px]">
+        <h1 className="font-serif text-[30px] font-bold text-moss-100">새 씨앗 심기</h1>
+        <p className="mb-7 mt-[7px] text-[13px] text-moss-600">
+          목표를 말해주면 AI가 콩나무가 자랄 길을 그려드려요
+        </p>
+
+        <Bubble role="assistant" content={GREETING} />
+        {started && <Bubble role="user" content={goalRawText} />}
         {messages.map((m, i) => (
-          <ChatBubble key={i} role={m.role} content={m.content} />
+          <Bubble key={i} role={m.role} content={m.content} />
         ))}
-        <AnimatePresence>{typing && <TypingIndicator />}</AnimatePresence>
-
-        {phase === "done" && (
-          <motion.div
-            initial={{ opacity: 0, y: 12 }}
-            animate={{ opacity: 1, y: 0 }}
-            transition={{ type: "spring", stiffness: 260, damping: 22 }}
-            className="flex flex-col items-center gap-3 rounded-3xl border border-border bg-surface p-6 text-center shadow-soft"
-          >
-            <p className="text-sm text-muted">질문에 모두 답해주셨어요. 로드맵을 만들어볼까요?</p>
-            <Button onClick={generateRoadmap}>로드맵 만들기</Button>
-          </motion.div>
+        {(typing || planting) && <RootingIndicator />}
+        {done && !planting && (
+          <Bubble
+            role="assistant"
+            content="질문에 모두 답해주셨어요. 마음에 들면 아래에서 씨앗을 심어주세요."
+          />
         )}
-
-        {phase === "generating" && (
-          <motion.div
-            initial={{ opacity: 0 }}
-            animate={{ opacity: 1 }}
-            className="flex flex-col items-center gap-3 py-10 text-center"
-          >
-            <motion.span
-              className="text-3xl"
-              animate={{ rotate: 360 }}
-              transition={{ duration: 1.2, repeat: Infinity, ease: "linear" }}
-            >
-              🧭
-            </motion.span>
-            <p className="text-sm text-muted">로드맵을 만들고 있어요...</p>
-          </motion.div>
-        )}
-
-        {error && <p className="text-sm text-overdue-600">{error}</p>}
+        {error && <p className="mb-3 text-[12.5px] text-wither-300">{error}</p>}
         <div ref={bottomRef} />
-      </div>
 
-      {awaitingAnswer && (
-        <form
-          onSubmit={submitAnswer}
-          className="fixed inset-x-0 bottom-0 border-t border-border bg-background/95 backdrop-blur"
-        >
-          <div className="mx-auto flex max-w-2xl items-center gap-2 px-4 py-3">
+        <div className="sticky bottom-0 mt-auto bg-[linear-gradient(transparent,#06120a_45%)] pb-7 pt-4">
+          {done && (
+            <button
+              type="button"
+              onClick={plant}
+              disabled={planting || !currentUser}
+              className="mb-2.5 w-full rounded-xl border border-bean-400 bg-bean-500 p-3.5 text-sm font-bold text-[#f0f7ec] shadow-[0_6px_24px_rgba(63,143,71,.35)] transition-colors hover:bg-[#4aa353] disabled:opacity-60"
+            >
+              {planting ? "심는 중…" : "이 로드맵 심기"}
+            </button>
+          )}
+          <form
+            className="flex gap-2"
+            onSubmit={(e) => {
+              e.preventDefault();
+              void send();
+            }}
+          >
             <input
               autoFocus
-              value={answerInput}
-              onChange={(e) => setAnswerInput(e.target.value)}
-              placeholder="답변을 입력해주세요"
-              className="flex-1 rounded-2xl border border-border bg-surface px-4 py-2.5 text-sm outline-none focus:ring-2 focus:ring-accent-400"
+              value={input}
+              onChange={(e) => setInput(e.target.value)}
+              placeholder={
+                started ? "답변을 입력해주세요" : "예: 3학년 여름에 데이터 분석 인턴 하고 싶어"
+              }
+              disabled={done || planting}
+              className="flex-1 rounded-xl border border-[rgba(143,220,138,.22)] bg-[rgba(255,255,255,.05)] px-4 py-3 text-[13.5px] text-moss-100 outline-none placeholder:text-moss-700 focus:border-[rgba(143,220,138,.45)] disabled:opacity-50"
             />
-            <Button type="submit" disabled={!answerInput.trim()}>
-              전송
-            </Button>
-          </div>
-        </form>
-      )}
+            <button
+              type="submit"
+              disabled={!input.trim() || typing || done || planting}
+              className="rounded-xl border border-[rgba(143,220,138,.28)] bg-[rgba(143,220,138,.13)] px-5 py-3 text-[13px] font-semibold text-bean-100 transition-colors hover:bg-[rgba(143,220,138,.25)] disabled:opacity-50"
+            >
+              보내기
+            </button>
+          </form>
+        </div>
+      </div>
     </div>
   );
 }

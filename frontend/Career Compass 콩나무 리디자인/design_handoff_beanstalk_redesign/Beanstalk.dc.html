@@ -1,0 +1,487 @@
+<!DOCTYPE html>
+<html>
+<head>
+<meta charset="utf-8">
+<meta name="viewport" content="width=device-width, initial-scale=1">
+<script src="./support.js"></script>
+</head>
+<body>
+<x-dc>
+<helmet>
+<link rel="preconnect" href="https://fonts.googleapis.com">
+<link href="https://fonts.googleapis.com/css2?family=Gowun+Batang:wght@400;700&family=IBM+Plex+Sans+KR:wght@400;500;600;700&display=swap" rel="stylesheet">
+<style>
+html,body{margin:0;height:100%;background:#06120a}
+a{color:#8fd694}a:hover{color:#c3ecbc}
+::-webkit-scrollbar{width:10px}::-webkit-scrollbar-thumb{background:rgba(143,220,138,.18);border-radius:6px}::-webkit-scrollbar-track{background:transparent}
+@keyframes drawBranch{from{stroke-dashoffset:300}to{stroke-dashoffset:0}}
+@keyframes sprout{0%{transform:scale(0)}65%{transform:scale(1.18)}100%{transform:scale(1)}}
+@keyframes twinkle{0%,100%{opacity:.2}50%{opacity:.95}}
+@keyframes floaty{0%,100%{transform:translate(0,0)}25%{transform:translate(14px,-24px)}50%{transform:translate(-10px,-40px)}75%{transform:translate(9px,-14px)}}
+@keyframes sway{0%,100%{transform:rotate(-2deg)}50%{transform:rotate(2.4deg)}}
+@keyframes fall{0%{transform:translateY(0) rotate(0deg);opacity:1}85%{opacity:1}100%{transform:translateY(105vh) rotate(680deg);opacity:0}}
+@keyframes glowPulse{0%,100%{opacity:.5;transform:translateX(-50%) scale(1)}50%{opacity:.95;transform:translateX(-50%) scale(1.07)}}
+@keyframes blink{0%,100%{opacity:.25}50%{opacity:1}}
+</style>
+</helmet>
+<div style="position:relative;width:100%;height:100vh;overflow:hidden;background:#06120a;font-family:'IBM Plex Sans KR',sans-serif;color:#e6f2e4;word-break:keep-all">
+<nav style="position:absolute;top:22px;left:22px;z-index:60;display:flex;flex-direction:column;gap:5px;background:rgba(6,18,10,.74);border:1px solid rgba(143,220,138,.15);border-radius:16px;padding:14px;backdrop-filter:blur(10px);width:168px;box-shadow:0 10px 30px rgba(0,0,0,.4)">
+<div style="margin:2px 2px 10px">
+<div style="font-family:'Gowun Batang',serif;font-size:15px;font-weight:700;color:#eaf5e6">Career Compass</div>
+<div style="font-size:10.5px;color:#7fae83;letter-spacing:.08em;margin-top:2px">콩나무 로드맵</div>
+</div>
+<button onClick="{{ goMy }}" style="display:flex;align-items:center;gap:9px;padding:9px 11px;border-radius:10px;border:none;cursor:pointer;font-family:inherit;font-size:13px;font-weight:600;text-align:left;background:{{ navMyBg }};color:{{ navMyFg }}" style-hover="background:rgba(143,220,138,.16)"><svg width="18" height="18" viewBox="0 0 24 24" fill="none"><path d="M12 22V10.5" stroke="currentColor" stroke-width="2" stroke-linecap="round"></path><path d="M12 12.5C12 9 9 7 5 7C5 10.5 8 12.5 12 12.5Z" fill="currentColor"></path><path d="M12 10C12 7 14.5 5 18 5C18 8.5 15.5 10 12 10Z" fill="currentColor"></path></svg>내 콩나무</button>
+<button onClick="{{ goFeed }}" style="display:flex;align-items:center;gap:9px;padding:9px 11px;border-radius:10px;border:none;cursor:pointer;font-family:inherit;font-size:13px;font-weight:600;text-align:left;background:{{ navFeedBg }};color:{{ navFeedFg }}" style-hover="background:rgba(143,220,138,.16)"><svg width="18" height="18" viewBox="0 0 24 24" fill="none"><path d="M6 21v-7M12 21V8M18 21v-9" stroke="currentColor" stroke-width="2" stroke-linecap="round"></path><circle cx="6" cy="12" r="2" fill="currentColor"></circle><circle cx="12" cy="6" r="2" fill="currentColor"></circle><circle cx="18" cy="10" r="2" fill="currentColor"></circle></svg>로드맵 숲</button>
+<button onClick="{{ goNew }}" style="display:flex;align-items:center;gap:9px;padding:9px 11px;border-radius:10px;border:none;cursor:pointer;font-family:inherit;font-size:13px;font-weight:600;text-align:left;background:{{ navNewBg }};color:{{ navNewFg }}" style-hover="background:rgba(143,220,138,.16)"><svg width="18" height="18" viewBox="0 0 24 24" fill="none"><circle cx="12" cy="12" r="9" stroke="currentColor" stroke-width="2"></circle><path d="M12 8v8M8 12h8" stroke="currentColor" stroke-width="2" stroke-linecap="round"></path></svg>새 씨앗 심기</button>
+</nav>
+
+<sc-if value="{{ isRoadmap }}" hint-placeholder-val="{{ true }}">
+<div style="position:absolute;inset:0">
+<div ref="{{ scrollRef }}" style="position:absolute;inset:0;overflow-y:auto;overflow-x:hidden">
+<div style="position:relative;width:100%;height:{{ worldH }}px;background:{{ worldBg }}">
+{{ stalkSvg }}
+<div style="position:absolute;top:120px;left:50%;transform:translateX(-50%);width:620px;max-width:86vw;text-align:center;z-index:5">
+<sc-if value="{{ glow }}" hint-placeholder-val="{{ false }}"><div style="position:absolute;top:-70px;left:50%;transform:translateX(-50%);width:560px;height:360px;border-radius:50%;background:radial-gradient(closest-side, rgba(240,232,180,.3), rgba(240,232,180,0));animation:glowPulse 3.6s ease-in-out infinite;pointer-events:none"></div></sc-if>
+<div style="position:relative;font-size:11.5px;font-weight:600;letter-spacing:.22em;color:#9db8c9;margin-bottom:14px">최종 목표</div>
+<div style="position:relative;font-family:'Gowun Batang',serif;font-size:34px;font-weight:700;line-height:1.45;color:#f2f7ee;text-shadow:0 2px 24px rgba(10,30,50,.8)">{{ goalText }}</div>
+<div style="position:relative;font-size:13px;color:#a8c2b3;margin-top:14px">{{ goalSub }}</div>
+<sc-if value="{{ ribbon }}" hint-placeholder-val="{{ false }}"><div style="position:relative;margin-top:14px;display:inline-block;padding:7px 18px;border-radius:99px;background:rgba(240,232,180,.13);border:1px solid rgba(240,232,180,.45);color:#f0e8b4;font-size:12.5px;font-weight:600">콩나무가 다 자랐어요 · 목표 달성</div></sc-if>
+</div>
+<sc-for list="{{ nodes }}" as="m" hint-placeholder-count="4">
+<div style="position:absolute;top:{{ m.top }}px;left:{{ m.leftCss }};width:292px;z-index:6">
+<div style="background:rgba(7,22,12,.78);border:1px solid rgba(143,220,138,.16);border-radius:14px;padding:14px 16px;backdrop-filter:blur(6px);box-shadow:0 8px 26px rgba(0,0,0,.38)">
+<div style="display:flex;align-items:center;gap:8px;margin-bottom:6px">
+<span style="font-family:'Gowun Batang',serif;font-size:13px;color:#7fae83">{{ m.num }}</span>
+<span style="font-size:11px;font-weight:600;letter-spacing:.04em;padding:2px 9px;border-radius:99px;background:{{ m.chipBg }};color:{{ m.chipFg }}">{{ m.status }}</span>
+<span style="margin-left:auto;font-size:11px;color:#6f8f74">{{ m.due }}</span>
+</div>
+<div style="font-size:15.5px;font-weight:700;color:#eaf5e6;line-height:1.35;margin-bottom:4px">{{ m.title }}</div>
+<div style="font-size:12.5px;color:#a9c3aa;line-height:1.55">{{ m.description }}</div>
+<sc-if value="{{ m.note }}" hint-placeholder-val="{{ false }}"><div style="font-size:11.5px;color:#d8b078;margin-top:7px">{{ m.note }}</div></sc-if>
+<sc-if value="{{ m.canToggle }}" hint-placeholder-val="{{ true }}">
+<button onClick="{{ m.onToggle }}" style="margin-top:11px;display:inline-flex;align-items:center;gap:7px;font-size:12.5px;font-weight:600;padding:7px 14px;border-radius:99px;cursor:pointer;white-space:nowrap;font-family:inherit;border:1px solid {{ m.btnBorder }};background:{{ m.btnBg }};color:{{ m.btnFg }}" style-hover="filter:brightness(1.25)">{{ m.toggleLabel }}</button>
+</sc-if>
+</div>
+</div>
+</sc-for>
+<div style="position:absolute;left:50%;transform:translateX(-50%);bottom:118px;z-index:6;display:flex;flex-direction:column;align-items:center;gap:8px;text-align:center">
+<div style="width:70px;height:70px;border-radius:50%;background:rgba(16,36,21,.92);border:2px solid #3f6f49;display:flex;align-items:center;justify-content:center;font-size:34px;box-shadow:0 0 34px rgba(93,179,91,.28)">{{ ownerEmoji }}</div>
+<div style="font-size:14px;font-weight:700;color:#eaf5e6">{{ ownerName }}</div>
+<div style="font-size:11.5px;color:#7fae83">{{ startedLabel }}</div>
+</div>
+</div>
+</div>
+{{ burstEl }}
+<div style="position:absolute;top:22px;right:26px;z-index:55;display:flex;align-items:center;gap:10px;background:rgba(6,18,10,.74);border:1px solid rgba(143,220,138,.15);border-radius:99px;padding:8px 10px 8px 15px;backdrop-filter:blur(10px)">
+<span style="font-size:16px">{{ ownerEmoji }}</span>
+<span style="font-size:13px;font-weight:600;color:#eaf5e6">{{ ownerLabel }}</span>
+<span style="font-size:11.5px;color:#7fae83;white-space:nowrap">{{ goalSub }}</span>
+<sc-if value="{{ notMine }}" hint-placeholder-val="{{ false }}">
+<button onClick="{{ onFollowActive }}" style="padding:6px 15px;border-radius:99px;cursor:pointer;white-space:nowrap;font-family:inherit;font-size:12px;font-weight:600;border:1px solid {{ afBorder }};background:{{ afBg }};color:{{ afFg }}" style-hover="filter:brightness(1.25)">{{ activeFollowLabel }}</button>
+</sc-if>
+</div>
+</div>
+</sc-if>
+
+<sc-if value="{{ isFeed }}" hint-placeholder-val="{{ false }}">
+<div style="position:absolute;inset:0;overflow-y:auto;background:linear-gradient(180deg,#0a1f11,#06120a 60%)">
+<div style="margin:0 40px 0 230px;max-width:1040px;padding:88px 0 90px">
+<div style="font-family:'Gowun Batang',serif;font-size:30px;font-weight:700;color:#eaf5e6">로드맵 숲</div>
+<div style="font-size:13px;color:#7fae83;margin-top:7px">친구들의 콩나무가 자라는 곳 — 눌러서 구경해 보세요</div>
+<div style="display:flex;gap:8px;margin:24px 0 20px">
+<button onClick="{{ filterAll }}" style="padding:7px 18px;border-radius:99px;cursor:pointer;white-space:nowrap;font-family:inherit;font-size:12.5px;font-weight:600;border:1px solid {{ fAllBorder }};background:{{ fAllBg }};color:{{ fAllFg }}">전체</button>
+<button onClick="{{ filterFollowing }}" style="padding:7px 18px;border-radius:99px;cursor:pointer;white-space:nowrap;font-family:inherit;font-size:12.5px;font-weight:600;border:1px solid {{ fFolBorder }};background:{{ fFolBg }};color:{{ fFolFg }}">팔로잉</button>
+</div>
+<div style="display:grid;grid-template-columns:repeat(auto-fill,minmax(252px,1fr));gap:18px">
+<sc-for list="{{ feed }}" as="it" hint-placeholder-count="4">
+<div onClick="{{ it.onOpen }}" style="cursor:pointer;background:linear-gradient(180deg, rgba(14,33,20,.55), rgba(8,20,12,.85));border:1px solid rgba(143,220,138,.13);border-radius:18px;padding:16px 18px;transition:border-color .2s, transform .2s" style-hover="border-color:rgba(143,220,138,.4);transform:translateY(-3px)">
+<div style="height:150px;display:flex;justify-content:center">{{ it.mini }}</div>
+<div style="font-size:15px;font-weight:700;color:#eaf5e6;margin-top:6px;line-height:1.4">{{ it.title }}</div>
+<div style="display:flex;align-items:center;gap:7px;margin-top:9px">
+<span style="font-size:15px">{{ it.emoji }}</span>
+<span style="font-size:12.5px;color:#a9c3aa">{{ it.name }}</span>
+<span style="margin-left:auto;font-size:12px;color:#8fdc8a;font-weight:600">{{ it.pctLabel }}</span>
+</div>
+<div style="display:flex;align-items:center;margin-top:12px;padding-top:12px;border-top:1px solid rgba(143,220,138,.1)">
+<span style="font-size:11.5px;color:#6f8f74">마일스톤 {{ it.count }}</span>
+<button onClick="{{ it.onFollow }}" style="margin-left:auto;padding:5px 14px;border-radius:99px;cursor:pointer;white-space:nowrap;font-family:inherit;font-size:12px;font-weight:600;border:1px solid {{ it.fBorder }};background:{{ it.fBg }};color:{{ it.fFg }}" style-hover="filter:brightness(1.3)">{{ it.followLabel }}</button>
+</div>
+</div>
+</sc-for>
+</div>
+</div>
+</div>
+</sc-if>
+
+<sc-if value="{{ isNew }}" hint-placeholder-val="{{ false }}">
+<div style="position:absolute;inset:0;overflow-y:auto;background:linear-gradient(180deg,#0a1f11,#06120a 55%)">
+<div style="width:640px;max-width:86vw;margin:0 auto;padding:88px 0 0;display:flex;flex-direction:column;min-height:100%;box-sizing:border-box">
+<div style="font-family:'Gowun Batang',serif;font-size:30px;font-weight:700;color:#eaf5e6">새 씨앗 심기</div>
+<div style="font-size:13px;color:#7fae83;margin:7px 0 28px">목표를 말해주면 AI가 콩나무가 자랄 길을 그려드려요</div>
+<sc-for list="{{ chat }}" as="c" hint-placeholder-count="1">
+<div style="display:flex;justify-content:{{ c.justify }};margin-bottom:14px">
+<div style="max-width:82%;padding:13px 17px;border-radius:16px;background:{{ c.bg }};border:1px solid {{ c.border }};color:#dcead8;font-size:13.5px;line-height:1.65;white-space:pre-line">{{ c.text }}
+<sc-if value="{{ c.plan }}" hint-placeholder-val="{{ false }}">
+<div style="margin-top:12px;display:flex;flex-direction:column;gap:8px">
+<sc-for list="{{ c.plan }}" as="p" hint-placeholder-count="5">
+<div style="display:flex;gap:11px;align-items:baseline;background:rgba(143,220,138,.06);border-radius:10px;padding:10px 13px">
+<span style="font-family:'Gowun Batang',serif;color:#7fae83;font-size:12px">{{ p.num }}</span>
+<div><div style="font-weight:700;font-size:13px;color:#eaf5e6">{{ p.title }}</div><div style="font-size:12px;color:#a9c3aa;margin-top:3px;line-height:1.5">{{ p.desc }}</div></div>
+</div>
+</sc-for>
+</div>
+</sc-if>
+</div>
+</div>
+</sc-for>
+<sc-if value="{{ thinking }}" hint-placeholder-val="{{ false }}">
+<div style="display:flex;gap:6px;align-items:center;color:#7fae83;font-size:12.5px;margin:4px 0 14px"><span style="width:7px;height:7px;border-radius:50%;background:#5db35b;animation:blink 1.2s infinite"></span><span style="width:7px;height:7px;border-radius:50%;background:#5db35b;animation:blink 1.2s .2s infinite"></span><span style="width:7px;height:7px;border-radius:50%;background:#5db35b;animation:blink 1.2s .4s infinite"></span>뿌리를 내리는 중…</div>
+</sc-if>
+<div style="position:sticky;bottom:0;padding:16px 0 28px;background:linear-gradient(transparent, #06120a 45%);margin-top:auto">
+<sc-if value="{{ hasPlan }}" hint-placeholder-val="{{ false }}">
+<button onClick="{{ plant }}" style="width:100%;margin-bottom:10px;padding:14px;border-radius:12px;background:#3f8f47;color:#f0f7ec;font-family:inherit;font-size:14px;font-weight:700;border:1px solid #5db35b;cursor:pointer;box-shadow:0 6px 24px rgba(63,143,71,.35)" style-hover="background:#4aa353">이 로드맵 심기</button>
+</sc-if>
+<div style="display:flex;gap:8px">
+<input value="{{ chatInput }}" onChange="{{ onChatInput }}" onKeyDown="{{ onChatKey }}" placeholder="예: 3학년 여름에 데이터 분석 인턴 하고 싶어" style="flex:1;padding:12px 16px;border-radius:12px;border:1px solid rgba(143,220,138,.22);background:rgba(255,255,255,.05);color:#eaf5e6;font-family:inherit;font-size:13.5px;outline:none">
+<button onClick="{{ sendChat }}" style="padding:12px 20px;border-radius:12px;border:1px solid rgba(143,220,138,.28);background:rgba(143,220,138,.13);color:#b9eab2;font-family:inherit;font-size:13px;font-weight:600;cursor:pointer" style-hover="background:rgba(143,220,138,.25)">보내기</button>
+</div>
+</div>
+</div>
+</div>
+</sc-if>
+</div>
+</x-dc>
+<script type="text/x-dc" data-dc-script data-props="{&quot;fireflies&quot;:{&quot;editor&quot;:&quot;boolean&quot;,&quot;default&quot;:true,&quot;tsType&quot;:&quot;boolean&quot;,&quot;section&quot;:&quot;분위기&quot;},&quot;sway&quot;:{&quot;editor&quot;:&quot;boolean&quot;,&quot;default&quot;:true,&quot;tsType&quot;:&quot;boolean&quot;,&quot;section&quot;:&quot;분위기&quot;},&quot;celebratePreview&quot;:{&quot;editor&quot;:&quot;boolean&quot;,&quot;default&quot;:false,&quot;tsType&quot;:&quot;boolean&quot;,&quot;section&quot;:&quot;연출&quot;}}">
+class Component extends DCLogic {
+  state = {
+    view: 'roadmap', activeId: 'r-me', myId: 'r-me', feedFilter: 'all',
+    roadmaps: Component.seed(),
+    chat: [{role:'ai', text:'안녕하세요, 씨앗을 심으러 오셨군요.\n이루고 싶은 목표를 편하게 적어주세요. 콩나무가 자랄 길(마일스톤)을 그려드릴게요.'}],
+    chatInput: '', pendingPlan: null, thinking: false,
+    sprout: null, burst: 0,
+  };
+  static ms(rows){return rows.map((r,i)=>({order_index:i,title:r[0],description:r[1],due_date:r[2],status:r[3],is_completed_manual:r[3]==='완료'}));}
+  static pct(ms){return Math.round(100*ms.filter(m=>m.status==='완료').length/ms.length);}
+  static seed(){
+    const mk=(id,name,emoji,title,goal,started,follow,rows,mine)=>{const milestones=Component.ms(rows);return{id,user:{display_name:name,avatar_emoji:emoji},title,goal_raw_text:goal,milestones,progress_pct:Component.pct(milestones),is_following:follow,started,mine:!!mine};};
+    return [
+      mk('r-me','김하늘','🧭','백엔드 개발자 첫 인턴','2027년 여름, 백엔드 개발자 인턴으로 첫 출근하기','2026.02.01',false,[
+        ['CS 기초 다지기','자료구조 강의 완강 + 핵심 개념 노트 정리','2026-03-15','완료'],
+        ['Python · Git 습관 만들기','매일 커밋 30일 챌린지, 협업 워크플로 익히기','2026-04-10','완료'],
+        ['SQL · 데이터베이스 기초','SQLD 수준의 쿼리 작성과 간단한 스키마 설계','2026-05-08','완료'],
+        ['나만의 API 서버 배포','FastAPI로 만든 서비스를 실제 서버에 올리기','2026-06-30','기한초과'],
+        ['알고리즘 스터디 주 3회','백준 골드 문제를 스터디원들과 함께 풀기','2026-08-20','진행중'],
+        ['포트폴리오 · 이력서 완성','프로젝트 2개를 스토리로 엮은 포트폴리오','2026-10-01','진행중'],
+        ['동계 인턴 5곳 지원','자소서 마감 캘린더를 만들고 순서대로 제출','2026-11-15','진행중'],
+      ],true),
+      mk('r1','이도윤','🎒','스웨덴 교환학생 가기','3학년 봄학기, 스웨덴에서 교환학생으로 공부하기','2026.03.10',true,[
+        ['학점 3.8 방어전','전공 필수 과목 집중 관리','2026-06-20','완료'],
+        ['IELTS 6.5 달성','스피킹 스터디 + 주 2회 모의시험','2026-08-30','완료'],
+        ['교환 프로그램 지원서','자기소개서와 수학계획서 작성','2026-10-15','진행중'],
+        ['생활비 300만원 저축','주말 알바 + 교내 장학금 신청','2026-12-01','진행중'],
+        ['비자 · 기숙사 준비','출국 서류 체크리스트 완료','2027-01-20','진행중'],
+      ]),
+      mk('r2','박세린','🎨','UX 포트폴리오 완성','부끄럽지 않은 UX 포트폴리오로 첫 공모전 수상하기','2025.11.20',true,[
+        ['디자인 기초 이론','타이포·컬러·레이아웃 책 2권 정독','2026-01-10','완료'],
+        ['Figma 완전 정복','주 1회 UI 클론 연습 3개월','2026-02-28','완료'],
+        ['리디자인 프로젝트','자주 쓰는 앱 하나를 뜯어고치기','2026-04-15','완료'],
+        ['사용자 인터뷰 5명','근거 있는 디자인으로 다듬기','2026-05-30','완료'],
+        ['공모전 출품','팀을 꾸려 최종 출품하기','2026-06-30','완료'],
+      ]),
+      mk('r3','정우진','⚽','축구 데이터 분석가 되기','K리그 구단의 데이터 분석가로 일하기','2026.05.02',false,[
+        ['파이썬 기초','판다스로 경기 기록 다뤄보기','2026-06-15','완료'],
+        ['통계 개념 잡기','확률·통계 강의 완주하기','2026-08-01','진행중'],
+        ['경기 분석 글 3편','블로그에 데이터 분석 아티클 연재','2026-09-20','진행중'],
+        ['분석 커뮤니티 활동','오픈소스 축구 데이터 프로젝트 참여','2026-11-05','진행중'],
+        ['구단 인턴십 지원','시즌 오프 채용 공고에 지원','2027-01-10','진행중'],
+      ]),
+      mk('r4','최유나','📚','심리학 복수전공 진입','심리학 복수전공 승인받고 대학원 랩 인턴 시작하기','2026.01.15',false,[
+        ['심리학개론 A+','교양 심리학 과목 최고 학점 받기','2026-06-20','완료'],
+        ['전공 진입 요건 채우기','선수과목 2개 이수','2026-08-30','완료'],
+        ['복수전공 지원서 제출','학업계획서 작성하고 제출','2026-09-10','완료'],
+        ['관심 랩 조사하기','논문 5편 읽고 교수님 컨택 메일 보내기','2026-07-01','기한초과'],
+        ['랩 인턴 면접','연구 참여 의사 밝히고 면접 보기','2026-12-15','진행중'],
+      ]),
+      mk('r5','한지민','☕','내 브랜드 카페 창업','졸업 전에 팝업 카페로 내 브랜드 검증하기','2026.06.20',false,[
+        ['바리스타 자격증','2급 필기 + 실기 합격','2026-09-30','완료'],
+        ['시그니처 메뉴 개발','레시피 10개 테스트하기','2026-11-20','진행중'],
+        ['상권 · 원가 공부','창업 스터디 참여하기','2027-01-15','진행중'],
+        ['운영 자금 모으기','지원사업 공고 3곳 지원','2027-03-01','진행중'],
+        ['주말 팝업 오픈','학교 축제에서 첫 판매','2027-05-10','진행중'],
+      ]),
+    ];
+  }
+  static plan(goal){
+    const g=goal.length>18?goal.slice(0,18)+'…':goal;
+    return [
+      ['현재 위치 점검','"'+g+'"와 관련된 내 경험·지식을 한 페이지로 정리하기'],
+      ['기초 다지기','입문 강의나 책 1개를 정해 4주 안에 완주하기'],
+      ['작게 실험하기','주말 이틀짜리 미니 프로젝트로 직접 부딪혀보기'],
+      ['사람 만나기','현직자·선배 커피챗 2회, 관련 커뮤니티 1곳 가입하기'],
+      ['증명 만들기','결과물을 공개하고 피드백 받아 다음 학기 계획 세우기'],
+    ].map((a,i)=>({num:'0'+(i+1),title:a[0],desc:a[1]}));
+  }
+  scrollRef=(el)=>{this._scroll=el;};
+  componentDidMount(){this._needScroll=true;setTimeout(()=>this.doScroll(),120);}
+  componentDidUpdate(){if(this._needScroll&&this.state.view==='roadmap'&&this._scroll&&this._geo)this.doScroll();}
+  doScroll(){
+    const g=this._geo,el=this._scroll;if(!g||!el)return;this._needScroll=false;
+    const rm=this.state.roadmaps.find(r=>r.id===this.state.activeId);
+    const ms=[...rm.milestones].sort((a,b)=>a.order_index-b.order_index);
+    const i=ms.findIndex(m=>m.status!=='완료');
+    const target=i<0?0:Math.max(0,g.yOf(i)-el.clientHeight*0.52);
+    el.scrollTop=target;
+  }
+  open(id){this._needScroll=true;this.setState({view:'roadmap',activeId:id});}
+  follow(id){this.setState(s=>({roadmaps:s.roadmaps.map(r=>r.id===id?{...r,is_following:!r.is_following}:r)}));}
+  toggle(id,idx){
+    this.setState(s=>{
+      const roadmaps=s.roadmaps.map(r=>{
+        if(r.id!==id)return r;
+        const milestones=r.milestones.map(m=>{
+          if(m.order_index!==idx)return m;
+          const done=!m.is_completed_manual;
+          const status=done?'완료':(new Date(m.due_date)<new Date('2026-07-14')?'기한초과':'진행중');
+          return {...m,is_completed_manual:done,status};
+        });
+        return {...r,milestones,progress_pct:Component.pct(milestones)};
+      });
+      const rm=roadmaps.find(r=>r.id===id);
+      const justDone=rm.milestones.find(m=>m.order_index===idx).is_completed_manual;
+      return {roadmaps,sprout:justDone?{id,idx,t:Date.now()}:null,burst:(justDone&&rm.progress_pct===100)?Date.now():s.burst};
+    });
+  }
+  send=()=>{
+    const t=this.state.chatInput.trim();if(!t||this.state.thinking)return;
+    this.setState(s=>({chat:[...s.chat,{role:'user',text:t}],chatInput:'',thinking:true}));
+    setTimeout(()=>{
+      const plan=Component.plan(t);
+      this.setState(s=>({thinking:false,pendingPlan:{goal:t,items:plan},chat:[...s.chat,{role:'ai',text:'좋은 목표네요. "'+t+'" 까지 이렇게 자라볼까요?\n마음에 들면 아래에서 씨앗을 심어주세요. 순서와 내용은 심은 뒤에도 바꿀 수 있어요.',plan}]}));
+    },1100);
+  };
+  plant=()=>{
+    const p=this.state.pendingPlan;if(!p)return;
+    const milestones=p.items.map((it,i)=>{
+      const d=new Date(2026,7+i,14);
+      const due=d.getFullYear()+'-'+('0'+(d.getMonth()+1)).slice(-2)+'-'+('0'+d.getDate()).slice(-2);
+      return {order_index:i,title:it.title,description:it.desc,due_date:due,status:'진행중',is_completed_manual:false};
+    });
+    const id='r-new-'+Date.now();
+    const rm={id,user:{display_name:'김하늘',avatar_emoji:'🧭'},title:p.goal.slice(0,26),goal_raw_text:p.goal,milestones,progress_pct:0,is_following:false,started:'2026.07.14',mine:true};
+    this._needScroll=true;
+    this.setState(s=>({roadmaps:[...s.roadmaps,rm],pendingPlan:null,myId:id,view:'roadmap',activeId:id,
+      chat:[...s.chat,{role:'ai',text:'씨앗을 심었어요! 이제 물을 주며(마일스톤 완료) 콩나무를 키워보세요.'}]}));
+  };
+  buildStalk(rm){
+    const E=React.createElement,P=this.props;
+    const fireflies=P.fireflies??true, sway=P.sway??true, preview=(P.celebratePreview??false)&&rm.mine;
+    const ms=[...rm.milestones].sort((a,b)=>a.order_index-b.order_index);
+    const n=ms.length,SEG=360,GROUND=560,SKY=780,W=880,CX=440;
+    const H=SKY+n*SEG+GROUND;
+    const pct=rm.progress_pct;
+    const done100=pct>=100||preview;
+    const sx=y=>CX+46*Math.sin(y/230)+16*Math.sin(y/93);
+    const yOf=i=>H-GROUND-(i+0.5)*SEG;
+    const stemTop=SKY-140, stemBot=H-GROUND+180;
+    const pts=[];for(let y=stemBot;y>=stemTop;y-=20)pts.push([sx(y),y]);
+    let topDone=-1;ms.forEach((m,i)=>{if(m.status==='완료')topDone=i;});
+    const splitY=pct>=100?stemTop:(topDone>=0?yOf(topDone)-80:stemBot-140);
+    const dOf=a=>a.map((p,i)=>(i?'L':'M')+p[0].toFixed(1)+','+p[1].toFixed(1)).join(' ');
+    const dAll=dOf(pts);
+    const donePts=pts.filter(p=>p[1]>=splitY);
+    const kids=[];
+    // moon + stars
+    kids.push(E('circle',{key:'mh',cx:W-150,cy:200,r:66,fill:'#dfe6d2',opacity:.1}));
+    kids.push(E('circle',{key:'m1',cx:W-150,cy:200,r:38,fill:'#e9edda',opacity:.9}));
+    kids.push(E('circle',{key:'m2',cx:W-161,cy:191,r:29,fill:'#f5f7ea'}));
+    for(let k=0;k<34;k++){kids.push(E('circle',{key:'st'+k,cx:(k*233+57)%W,cy:(k*151+31)%600,r:.8+(k%3)*.7,fill:'#dce8f0',style:{animation:'twinkle '+(2.6+(k%5)*.9)+'s ease-in-out '+(k*.37)+'s infinite'}}));}
+    // clouds
+    const cloud=(kk,x,y,s,o)=>E('g',{key:kk,transform:'translate('+x+' '+y+') scale('+s+')',opacity:o},
+      E('ellipse',{cx:0,cy:0,rx:90,ry:26,fill:'#c7d5e6'}),E('ellipse',{cx:-54,cy:8,rx:56,ry:20,fill:'#b6c6da'}),
+      E('ellipse',{cx:48,cy:6,rx:60,ry:22,fill:'#bccbde'}),E('ellipse',{cx:8,cy:-15,rx:48,ry:20,fill:'#d3dfec'}));
+    kids.push(cloud('c1',CX-150,470,1.5,.34),cloud('c2',CX+200,570,1.05,.24),cloud('c3',CX-30,SKY-150,1.9,.42),cloud('c4',120,330,.9,.18),cloud('c5',W-120,660,.8,.16));
+    // ground hills + grass
+    kids.push(E('ellipse',{key:'g1',cx:CX,cy:H-220,rx:580,ry:240,fill:'#0c2113'}));
+    kids.push(E('ellipse',{key:'g2',cx:CX-200,cy:H-140,rx:500,ry:210,fill:'#081a0d'}));
+    for(let k=0;k<14;k++){const gx=CX-260+k*40,dx=(k%2?1:-1)*(8+k%5*3);
+      kids.push(E('path',{key:'gr'+k,d:'M'+gx+' '+(H-330)+' q '+dx+' -36 '+(dx*1.7)+' -62',stroke:'#1d4526',strokeWidth:3,fill:'none',strokeLinecap:'round'}));}
+    // stem — tapered: thin at top, thick at ground
+    const hw=y=>4.5+9.5*((y-stemTop)/(stemBot-stemTop));
+    const taperPoly=(arr,scale)=>{
+      if(arr.length<2)return '';
+      const L=arr.map(p=>(p[0]-hw(p[1])*scale).toFixed(1)+','+p[1]);
+      const R=[...arr].reverse().map(p=>(p[0]+hw(p[1])*scale).toFixed(1)+','+p[1]);
+      return 'M'+L.join(' L')+' L'+R.join(' L')+'Z';
+    };
+    kids.push(E('path',{key:'sb2',d:taperPoly(pts,2.0),fill:'#0e2013',opacity:.55}));
+    kids.push(E('path',{key:'sb1',d:taperPoly(pts,1.0),fill:'#173420'}));
+    kids.push(E('circle',{key:'sbt',cx:pts[pts.length-1][0],cy:pts[pts.length-1][1],r:hw(stemTop),fill:'#173420'}));
+    if(donePts.length>1){
+      kids.push(E('path',{key:'sd1',d:taperPoly(donePts,2.0),fill:'#2a6134'}));
+      kids.push(E('path',{key:'sd2',d:taperPoly(donePts,1.45),fill:'#3f8f47'}));
+      kids.push(E('circle',{key:'sdt',cx:donePts[donePts.length-1][0],cy:donePts[donePts.length-1][1],r:hw(donePts[donePts.length-1][1])*1.9,fill:'#3f8f47'}));
+      kids.push(E('path',{key:'sd3',d:dOf(donePts.map(p=>[p[0]-hw(p[1])*.7,p[1]])),stroke:'#6cc167',strokeWidth:5,fill:'none',opacity:.65,strokeLinecap:'round'}));
+    }
+    const leaf=(kk,x,y,rot,len,fill)=>E('path',{key:kk,d:'M0 0 Q '+(.38*len)+' '+(-.36*len)+' '+len+' '+(-.08*len)+' Q '+(.42*len)+' '+(.28*len)+' 0 0',fill,transform:'translate('+x+' '+y+') rotate('+rot+')'});
+    const curl=(kk,x,y,s,flip)=>E('path',{key:kk,d:'M0 0 Q 16 -2 22 -14 Q 26 -26 16 -30 Q 7 -33 5 -24 Q 4 -17 11 -16',transform:'translate('+x+' '+y+') scale('+(flip*s)+' '+s+')',stroke:'#5db35b',strokeWidth:3.5,fill:'none',strokeLinecap:'round'});
+    const qp=(p0,p1,p2,t)=>[(1-t)*(1-t)*p0[0]+2*(1-t)*t*p1[0]+t*t*p2[0],(1-t)*(1-t)*p0[1]+2*(1-t)*t*p1[1]+t*t*p2[1]];
+    const flower=(kk,x,y,i)=>{
+      const petals=[];for(let k=0;k<5;k++)petals.push(E('ellipse',{key:k,cx:0,cy:-11,rx:5.5,ry:11,fill:'#efe8bd',transform:'rotate('+(k*72)+')'}));
+      petals.push(E('circle',{key:'c',r:4.5,fill:'#e2b94f'}));
+      return E('g',{key:kk,transform:'translate('+x+' '+y+')',style:sway?{transformBox:'fill-box',transformOrigin:'center',animation:'sway '+(5+(i%4))+'s ease-in-out infinite'}:null},petals);
+    };
+    const nodes=[];
+    const chipMap={'완료':['rgba(93,179,91,.2)','#8fdc8a'],'진행중':['rgba(143,206,122,.13)','#c6ddba'],'기한초과':['rgba(196,154,90,.18)','#d8b078']};
+    ms.forEach((m,i)=>{
+      const y=yOf(i),bx=sx(y),side=i%2?-1:1,st=m.status;
+      const ex=bx+side*(st==='기한초과'?150:178);
+      const ey=st==='기한초과'?y+46:y-30;
+      const c1=[bx+side*84,st==='기한초과'?y+8:y-2];
+      const p0=[bx,y],p2=[ex,ey];
+      const bd='M'+bx+','+y+' Q'+c1[0]+','+c1[1]+' '+ex+','+ey;
+      const sp=this.state.sprout;
+      const anim=sp&&sp.id===rm.id&&sp.idx===m.order_index;
+      const g=[];
+      const bcol=st==='완료'?'#3f8f47':st==='진행중'?'#2c5b36':'#5a4527';
+      g.push(E('path',{key:'b'+(anim?sp.t:''),d:bd,stroke:bcol,strokeWidth:st==='완료'?9:6,fill:'none',strokeLinecap:'round',
+        style:anim?{strokeDasharray:300,strokeDashoffset:0,animation:'drawBranch .55s ease-out'}:null}));
+      if(st==='완료'){
+        const rots=[-46,28,-24,40];
+        [.32,.5,.68,.86].forEach((t,k)=>{const p=qp(p0,c1,p2,t);
+          g.push(leaf('l'+k,p[0],p[1],side===1?rots[k]:180-rots[k],30+k*5,k%2?'#4ea355':'#6abf63'));});
+        g.push(flower('fl',ex,ey,i));
+        g.push(curl('cu',bx-side*16,y-34,1,-side));
+      } else if(st==='진행중'){
+        const p=qp(p0,c1,p2,.55);
+        g.push(leaf('l0',p[0],p[1],side===1?-30:210,24,'#3f7d46'));
+        g.push(E('g',{key:'bud',transform:'translate('+ex+' '+ey+')'},
+          E('path',{d:'M0 7 Q -8 -4 0 -17 Q 8 -4 0 7',fill:'#79b56b'}),
+          E('path',{d:'M0 7 Q -11 5 -9 -6',stroke:'#3f7d46',strokeWidth:3,fill:'none',strokeLinecap:'round'})));
+      } else {
+        [.45,.75].forEach((t,k)=>{const p=qp(p0,c1,p2,t);
+          g.push(leaf('l'+k,p[0],p[1],side===1?48+k*18:132-k*18,28,k?'#6e5430':'#8a6a3a'));});
+        g.push(leaf('le',ex,ey,side===1?70:110,26,'#7a5c33'));
+      }
+      const knot=E('circle',{key:'kn',cx:bx,cy:y,r:8,fill:st==='완료'?'#5db35b':'#1c3a24',stroke:st==='완료'?'#8fdc8a':'#3f6f49',strokeWidth:2.5});
+      if(anim){
+        // branch draws outward from the stem; foliage pops after, scaling from the stem side
+        const branch=g.shift();
+        kids.push(E('g',{key:'ms'+m.order_index+sp.t},branch,
+          E('g',{key:'fol',style:{transformBox:'fill-box',transformOrigin:side===1?'left center':'right center',animation:'sprout .7s cubic-bezier(.34,1.56,.64,1) .38s both'}},g),
+          knot));
+      } else {
+        kids.push(E('g',{key:'ms'+m.order_index},g,knot));
+      }
+      const chip=chipMap[st];
+      nodes.push({key:'n'+m.order_index,top:st==='기한초과'?y-36:y-116,
+        leftCss:side===1?'min(calc(50% + 208px), calc(100% - 312px))':'max(16px, calc(50% - 500px))',
+        num:('0'+(m.order_index+1)).slice(-2),title:m.title,description:m.description,
+        due:'~ '+m.due_date.replace(/-/g,'.'),status:st,chipBg:chip[0],chipFg:chip[1],
+        note:st==='기한초과'?'괜찮아요 — 지금 완료하면 가지가 다시 자라요.':null,
+        canToggle:!!rm.mine,onToggle:()=>this.toggle(rm.id,m.order_index),
+        toggleLabel:st==='완료'?'✓ 완료됨':'완료로 표시',
+        btnBg:st==='완료'?'rgba(93,179,91,.22)':'rgba(255,255,255,.04)',
+        btnBorder:st==='완료'?'rgba(143,220,138,.5)':'rgba(143,220,138,.26)',
+        btnFg:st==='완료'?'#b9eab2':'#cfe6cb'});
+    });
+    // stem tip
+    kids.push(curl('tip',sx(stemTop),stemTop-6,1.3,1));
+    kids.push(leaf('tl1',sx(stemTop)+4,stemTop+26,-64,30,'#4ea355'));
+    kids.push(leaf('tl2',sx(stemTop)-6,stemTop+44,224,26,'#3f7d46'));
+    if(done100)kids.push(flower('topfl',sx(stemTop),stemTop-28,1),E('circle',{key:'tg',cx:sx(stemTop),cy:stemTop-28,r:60,fill:'#f0e8b4',opacity:.14,style:{animation:'twinkle 3s ease-in-out infinite'}}));
+    // celebration: a wave of leaves & blossoms grows up the stalk (no falling petals)
+    const celebrating=preview||(this.state.burst&&Date.now()-this.state.burst<9000&&pct>=100);
+    if(celebrating){
+      for(let k=0;k<20;k++){
+        const cy=stemBot-120-k*((stemBot-stemTop-200)/19);
+        const side2=k%2?1:-1, cx2=sx(cy)+side2*(hw(cy)*.8);
+        const grow={transformBox:'fill-box',transformOrigin:side2===1?'left center':'right center',animation:'sprout .6s cubic-bezier(.34,1.56,.64,1) '+(k*.09)+'s both'};
+        if(k%4===3){
+          kids.push(E('g',{key:'cb'+k+this.state.burst,style:grow},flower('cbf'+k,cx2+side2*16,cy,k)));
+        } else {
+          kids.push(E('g',{key:'cb'+k+this.state.burst,style:grow},
+            leaf('cbl'+k,cx2,cy,side2===1?(k%3)*16-24:180+24-(k%3)*16,26+(k%3)*7,k%2?'#6abf63':'#8fdc8a')));
+        }
+      }
+    }
+    if(fireflies)for(let k=0;k<14;k++){
+      const fy=H-GROUND-((k*467)%(n*SEG)),fx=(k*173+70)%W;
+      kids.push(E('circle',{key:'ff'+k,cx:fx,cy:fy,r:2.4,fill:'#d8e77a',opacity:.85,style:{animation:'floaty '+(6+(k%5))+'s ease-in-out '+(k*.7)+'s infinite'}}));
+    }
+    const svg=E('svg',{width:W,height:H,viewBox:'0 0 '+W+' '+H,style:{position:'absolute',left:'50%',transform:'translateX(-50%)',top:0,display:'block'}},kids);
+    const doneCount=ms.filter(m=>m.status==='완료').length;
+    return {svg,H,nodes,yOf,done100,pct,goalSub:pct+'% 자람 · '+doneCount+'/'+n+' 마일스톤',
+      worldBg:'linear-gradient(180deg,#233a52 0px,#152a3d 460px,#0f2820 '+(SKY+260)+'px,#081a0e 62%,#050e07 100%)'};
+  }
+  mini(rm){
+    const E=React.createElement;
+    const p=Math.max(.07,rm.progress_pct/100),h=112*p,k=[];
+    k.push(E('ellipse',{key:'s',cx:75,cy:133,rx:52,ry:13,fill:'#132a18'}));
+    k.push(E('path',{key:'dark',d:'M75,'+(133-h)+' Q'+(75+6)+','+(133-h-((124-h)/2))+' 75,'+(133-124),stroke:'#1c3a24',strokeWidth:4,fill:'none',strokeLinecap:'round'}));
+    k.push(E('path',{key:'st',d:'M75,133 Q'+(75-11)+','+(133-h*.5)+' 75,'+(133-h),stroke:'#3f8f47',strokeWidth:7,fill:'none',strokeLinecap:'round'}));
+    const leaves=Math.max(1,Math.round(p*4));
+    for(let j=0;j<leaves;j++){const ly=133-h*(j+1)/(leaves+1),side=j%2?1:-1,lx=75+side*13;
+      k.push(E('ellipse',{key:'l'+j,cx:lx,cy:ly,rx:11,ry:5,fill:'#5db35b',transform:'rotate('+(side*-22)+' '+lx+' '+ly+')'}));}
+    if(rm.progress_pct>=100){
+      for(let j=0;j<5;j++)k.push(E('ellipse',{key:'p'+j,cx:75,cy:133-h-9,rx:3.5,ry:8,fill:'#efe8bd',transform:'rotate('+(j*72)+' 75 '+(133-h)+')'}));
+      k.push(E('circle',{key:'pc',cx:75,cy:133-h,r:3.5,fill:'#e2b94f'}));
+    }
+    return E('svg',{width:150,height:150,viewBox:'0 0 150 150'},k);
+  }
+  renderVals(){
+    const s=this.state,E=React.createElement;
+    const rm=s.roadmaps.find(r=>r.id===s.activeId)||s.roadmaps[0];
+    const stalk=s.view==='roadmap'?this.buildStalk(rm):null;
+    this._geo=stalk;
+    const burstEl=null; // celebration now grows leaves along the stalk inside the SVG
+    const filterF=s.feedFilter==='following';
+    const feed=s.roadmaps.filter(r=>!r.mine&&(!filterF||r.is_following)).map(r=>({
+      key:r.id,mini:this.mini(r),title:r.title,name:r.user.display_name,emoji:r.user.avatar_emoji,
+      pctLabel:r.progress_pct+'% 자람',
+      count:r.milestones.filter(m=>m.status==='완료').length+'/'+r.milestones.length,
+      followLabel:r.is_following?'팔로잉':'팔로우',
+      fBg:r.is_following?'rgba(143,220,138,.16)':'rgba(255,255,255,.03)',
+      fBorder:r.is_following?'rgba(143,220,138,.45)':'rgba(143,220,138,.22)',
+      fFg:r.is_following?'#b9eab2':'#9fbfa0',
+      onOpen:()=>this.open(r.id),
+      onFollow:(e)=>{e.stopPropagation();this.follow(r.id);},
+    }));
+    const chat=s.chat.map((c,i)=>({key:i,text:c.text,plan:c.plan||null,
+      justify:c.role==='user'?'flex-end':'flex-start',
+      bg:c.role==='user'?'rgba(63,143,71,.25)':'rgba(10,26,15,.85)',
+      border:c.role==='user'?'rgba(93,179,91,.35)':'rgba(143,220,138,.14)'}));
+    const on='rgba(143,220,138,.16)',onFg='#c8ecc2',off='transparent',offFg='#8aa78d';
+    return {
+      isRoadmap:s.view==='roadmap',isFeed:s.view==='feed',isNew:s.view==='new',
+      goMy:()=>this.open(s.myId),goFeed:()=>this.setState({view:'feed'}),goNew:()=>this.setState({view:'new'}),
+      navMyBg:s.view==='roadmap'?on:off,navMyFg:s.view==='roadmap'?onFg:offFg,
+      navFeedBg:s.view==='feed'?on:off,navFeedFg:s.view==='feed'?onFg:offFg,
+      navNewBg:s.view==='new'?on:off,navNewFg:s.view==='new'?onFg:offFg,
+      scrollRef:this.scrollRef,
+      worldH:stalk?stalk.H:2000,worldBg:stalk?stalk.worldBg:'#06120a',
+      stalkSvg:stalk?stalk.svg:null,nodes:stalk?stalk.nodes:[],
+      glow:stalk?(stalk.done100):false,ribbon:stalk?stalk.pct>=100:false,burstEl,
+      goalText:rm.goal_raw_text,goalSub:stalk?stalk.goalSub:'',
+      ownerEmoji:rm.user.avatar_emoji,ownerName:rm.user.display_name,
+      ownerLabel:rm.mine?'내 콩나무':rm.user.display_name+'의 콩나무',
+      notMine:!rm.mine,activeFollowLabel:rm.is_following?'팔로잉':'팔로우',
+      afBg:rm.is_following?'rgba(143,220,138,.16)':'rgba(255,255,255,.04)',
+      afBorder:rm.is_following?'rgba(143,220,138,.45)':'rgba(143,220,138,.25)',
+      afFg:rm.is_following?'#b9eab2':'#cfe6cb',
+      onFollowActive:()=>this.follow(rm.id),
+      startedLabel:rm.started+' 씨앗 심음',
+      feed,
+      filterAll:()=>this.setState({feedFilter:'all'}),filterFollowing:()=>this.setState({feedFilter:'following'}),
+      fAllBg:!filterF?on:off,fAllFg:!filterF?onFg:offFg,fAllBorder:!filterF?'rgba(143,220,138,.4)':'rgba(143,220,138,.18)',
+      fFolBg:filterF?on:off,fFolFg:filterF?onFg:offFg,fFolBorder:filterF?'rgba(143,220,138,.4)':'rgba(143,220,138,.18)',
+      chat,thinking:s.thinking,hasPlan:!!s.pendingPlan,
+      chatInput:s.chatInput,
+      onChatInput:(e)=>this.setState({chatInput:e.target.value}),
+      onChatKey:(e)=>{if(e.key==='Enter')this.send();},
+      sendChat:this.send,plant:this.plant,
+    };
+  }
+}
+</script>
+</body>
+</html>

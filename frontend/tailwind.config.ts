@@ -1,7 +1,6 @@
 import type { Config } from "tailwindcss";
 
 const config: Config = {
-  darkMode: "media",
   content: [
     "./pages/**/*.{js,ts,jsx,tsx,mdx}",
     "./components/**/*.{js,ts,jsx,tsx,mdx}",
@@ -12,52 +11,58 @@ const config: Config = {
       colors: {
         background: "var(--background)",
         foreground: "var(--foreground)",
-        surface: "var(--surface)",
-        border: "var(--border)",
-        muted: "var(--muted)",
-        ink: {
-          50: "#F7F7F5",
-          100: "#EFEFEA",
-          200: "#E1E0D9",
-          300: "#C9C7BC",
-          400: "#A3A092",
-          500: "#7A776C",
-          600: "#57544B",
-          700: "#3D3B34",
-          800: "#26241F",
-          900: "#171613",
-          950: "#0D0C0A",
+        // Beanstalk greens: stem, leaves, ground
+        bean: {
+          950: "#050e07",
+          900: "#06120a",
+          850: "#081a0e",
+          800: "#0e2013",
+          750: "#132a18",
+          700: "#173420",
+          650: "#1c3a24",
+          600: "#2c5b36",
+          550: "#2a6134",
+          500: "#3f8f47",
+          400: "#5db35b",
+          300: "#6abf63",
+          200: "#8fdc8a",
+          100: "#b9eab2",
         },
-        accent: {
-          50: "#F1F5EC",
-          100: "#E1EAD8",
-          200: "#C3D6B4",
-          300: "#A0BE8B",
-          400: "#7FA669",
-          500: "#5F8A4C",
-          600: "#4B6F3C",
-          700: "#3B5730",
-          800: "#2E4526",
-          900: "#25381F",
+        // Text tones on dark forest background
+        moss: {
+          50: "#f2f7ee",
+          100: "#eaf5e6",
+          300: "#c8ecc2",
+          400: "#a9c3aa",
+          500: "#8aa78d",
+          600: "#7fae83",
+          700: "#6f8f74",
         },
-        overdue: {
-          400: "#D08765",
-          500: "#C15F3C",
-          600: "#A34E30",
+        // Night-sky accents near the goal
+        night: {
+          300: "#9db8c9",
+          700: "#152a3d",
+          800: "#233a52",
         },
-        progress: {
-          400: "#7C9CB8",
-          500: "#5B7A99",
-          600: "#48627E",
+        // Blossom / celebration golds
+        bloom: {
+          100: "#f5f7ea",
+          200: "#efe8bd",
+          300: "#f0e8b4",
+          500: "#e2b94f",
+        },
+        // Overdue "needs watering" browns
+        wither: {
+          300: "#d8b078",
+          500: "#8a6a3a",
+          600: "#7a5c33",
+          700: "#6e5430",
+          800: "#5a4527",
         },
       },
-      borderRadius: {
-        "3xl": "1.75rem",
-        "4xl": "2.25rem",
-      },
-      boxShadow: {
-        soft: "0 1px 2px rgba(23, 22, 19, 0.04), 0 8px 24px rgba(23, 22, 19, 0.06)",
-        softDark: "0 1px 2px rgba(0, 0, 0, 0.2), 0 8px 24px rgba(0, 0, 0, 0.35)",
+      fontFamily: {
+        sans: ["var(--font-plex)", "sans-serif"],
+        serif: ["var(--font-gowun)", "serif"],
       },
     },
   },
