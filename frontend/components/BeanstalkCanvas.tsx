@@ -73,6 +73,9 @@ function curl(key: string, x: number, y: number, s: number, flip: number): React
 }
 
 function flower(key: string, x: number, y: number, i: number, swayEnabled: boolean): ReactNode {
+  // The sway animation must live on its own inner group: CSS transform
+  // animations override the SVG transform attribute, so animating the same
+  // <g> that carries the translate would throw the flower back to (0,0).
   const style: CSSProperties | undefined = swayEnabled
     ? {
         transformBox: "fill-box",
@@ -81,11 +84,13 @@ function flower(key: string, x: number, y: number, i: number, swayEnabled: boole
       }
     : undefined;
   return (
-    <g key={key} transform={`translate(${x} ${y})`} style={style}>
-      {[0, 1, 2, 3, 4].map((k) => (
-        <ellipse key={k} cx={0} cy={-11} rx={5.5} ry={11} fill="#efe8bd" transform={`rotate(${k * 72})`} />
-      ))}
-      <circle r={4.5} fill="#e2b94f" />
+    <g key={key} transform={`translate(${x} ${y})`}>
+      <g style={style}>
+        {[0, 1, 2, 3, 4].map((k) => (
+          <ellipse key={k} cx={0} cy={-11} rx={5.5} ry={11} fill="#efe8bd" transform={`rotate(${k * 72})`} />
+        ))}
+        <circle r={4.5} fill="#e2b94f" />
+      </g>
     </g>
   );
 }
