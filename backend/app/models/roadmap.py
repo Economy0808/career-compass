@@ -12,7 +12,11 @@ MilestoneStatus = Literal["완료", "기한초과", "진행중"]
 
 
 class User(Base):
-    """더미 유저 (인증 없음, 프로토타입용)."""
+    """서비스 유저.
+
+    인증 컬럼은 전부 nullable: 초기 프로토타입의 더미 유저 행은 자격증명이
+    없어 로그인할 수 없는 레거시 데이터로 공존한다.
+    """
 
     __tablename__ = "users"
 
@@ -20,6 +24,16 @@ class User(Base):
     display_name: Mapped[str] = mapped_column(nullable=False)
     avatar_emoji: Mapped[str] = mapped_column(nullable=False)
     created_at: Mapped[datetime] = mapped_column(server_default=func.now())
+
+    # --- auth (nullable for legacy dummy rows) ---
+    username: Mapped[str | None] = mapped_column(unique=True, nullable=True)
+    email: Mapped[str | None] = mapped_column(unique=True, nullable=True)
+    password_hash: Mapped[str | None] = mapped_column(nullable=True)
+    email_verified_at: Mapped[datetime | None] = mapped_column(nullable=True)
+    yonsei_verified_at: Mapped[datetime | None] = mapped_column(nullable=True)
+    # "school_email" | "student_card"
+    verification_method: Mapped[str | None] = mapped_column(nullable=True)
+    role: Mapped[str] = mapped_column(nullable=False, server_default="user")
 
     def __repr__(self) -> str:
         return f"User(id={self.id}, display_name={self.display_name!r})"

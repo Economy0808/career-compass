@@ -5,6 +5,7 @@ from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 
+from app.core.deps import get_current_user_optional, require_yonsei_verified
 from app.db import get_db
 from app.llm import get_llm_client
 from app.llm.base import ChatMessage, LLMClient
@@ -29,7 +30,9 @@ router = APIRouter(prefix="/api/roadmap", tags=["roadmap"])
 
 @router.post("/chat", response_model=ChatResponse)
 async def chat(
-    request: ChatRequest, llm: LLMClient = Depends(get_llm_client)
+    request: ChatRequest,
+    llm: LLMClient = Depends(get_llm_client),
+    _: User = Depends(require_yonsei_verified),
 ) -> ChatResponse:
     """Stateless 질답 진행. 프론트가 messages 전체 히스토리를 들고 재전송한다."""
     llm_messages = [ChatMessage(role=m.role, content=m.content) for m in request.messages]
@@ -47,12 +50,12 @@ async def generate_roadmap(
     request: GenerateRequest,
     llm: LLMClient = Depends(get_llm_client),
     db: AsyncSession = Depends(get_db),
+    user: User = Depends(require_yonsei_verified),
 ) -> RoadmapDetailOut:
-    """완료된 질답을 바탕으로 로드맵+마일스톤을 생성하고 저장한다."""
-    user = await db.get(User, request.user_id)
-    if user is None:
-        raise HTTPException(status_code=404, detail="user not found")
+    """완료된 질답을 바탕으로 로드맵+마일스톤을 생성하고 저장한다.
 
+    작성자는 세션 유저 — 클라이언트가 보낸 user_id를 신뢰하지 않는다.
+    """
     llm_messages = [ChatMessage(role=m.role, content=m.content) for m in request.messages]
     generated = await llm.generate_roadmap(request.goal_raw_text, llm_messages)
 
@@ -82,24 +85,23 @@ async def generate_roadmap(
 async def get_feed(
     limit: int = Query(20, ge=1, le=100),
     offset: int = Query(0, ge=0),
-    viewer_id: int | None = Query(None),
     scope: FeedScope = Query("all"),
     db: AsyncSession = Depends(get_db),
+    viewer: User | None = Depends(get_current_user_optional),
 ) -> list[RoadmapCardOut]:
-    """최신순 로드맵 카드 피드.
+    """최신순 로드맵 카드 피드. 비로그인 열람 허용.
 
-    viewer_id가 있으면 각 카드에 is_following을 채운다. scope=following이면
-    viewer_id가 팔로우하는 유저의 로드맵만 반환한다(viewer_id 필수).
+    viewer는 세션에서 도출한다. scope=following은 로그인 필수.
     """
-    if scope == "following" and viewer_id is None:
-        raise HTTPException(status_code=400, detail="viewer_id is required for scope=following")
+    if scope == "following" and viewer is None:
+        raise HTTPException(status_code=401, detail="로그인이 필요합니다.")
 
     following_ids: set[int] = set()
-    if viewer_id is not None:
+    if viewer is not None:
         following_ids = set(
             (
                 await db.scalars(
-                    select(Follow.followee_id).where(Follow.follower_id == viewer_id)
+                    select(Follow.followee_id).where(Follow.follower_id == viewer.id)
                 )
             ).all()
         )
@@ -119,7 +121,7 @@ async def get_feed(
     roadmaps = (await db.scalars(stmt)).all()
     return [
         roadmap_to_card(
-            r, is_following=(r.user_id in following_ids) if viewer_id is not None else None
+            r, is_following=(r.user_id in following_ids) if viewer is not None else None
         )
         for r in roadmaps
     ]
@@ -130,8 +132,9 @@ async def patch_milestone(
     milestone_id: int,
     request: MilestonePatchRequest,
     db: AsyncSession = Depends(get_db),
+    user: User = Depends(require_yonsei_verified),
 ) -> MilestonePatchResponse:
-    """마일스톤 수동 완료/취소 토글. 수동 체크가 마감일 기반 자동 판단을 덮어쓴다."""
+    """마일스톤 수동 완료/취소 토글. 로드맵 소유자만 가능."""
     stmt = (
         select(Milestone)
         .where(Milestone.id == milestone_id)
@@ -140,6 +143,8 @@ async def patch_milestone(
     milestone = await db.scalar(stmt)
     if milestone is None:
         raise HTTPException(status_code=404, detail="milestone not found")
+    if milestone.roadmap.user_id != user.id:
+        raise HTTPException(status_code=403, detail="내 로드맵의 마일스톤만 수정할 수 있어요.")
 
     milestone.is_completed_manual = request.is_completed
     milestone.completed_at = datetime.now() if request.is_completed else None
@@ -154,7 +159,9 @@ async def patch_milestone(
 
 @router.get("/{roadmap_id}", response_model=RoadmapDetailOut)
 async def get_roadmap(
-    roadmap_id: int, viewer_id: int | None = Query(None), db: AsyncSession = Depends(get_db)
+    roadmap_id: int,
+    db: AsyncSession = Depends(get_db),
+    viewer: User | None = Depends(get_current_user_optional),
 ) -> RoadmapDetailOut:
     stmt = (
         select(Roadmap)
@@ -166,10 +173,10 @@ async def get_roadmap(
         raise HTTPException(status_code=404, detail="roadmap not found")
 
     is_following = None
-    if viewer_id is not None:
+    if viewer is not None:
         follow = await db.scalar(
             select(Follow).where(
-                Follow.follower_id == viewer_id, Follow.followee_id == roadmap.user_id
+                Follow.follower_id == viewer.id, Follow.followee_id == roadmap.user_id
             )
         )
         is_following = follow is not None

@@ -10,8 +10,19 @@ class Settings(BaseSettings):
     app_env: str = "development"
     app_version: str = "0.1.0"
     secret_key: str = "change-me"
-    # data.go.kr API
-    data_go_kr_api_key: str = "6c401b7ab03c87d74f1aac9012388a685ea72b3df52dc87c7e2fcd20907cc565"
+    # data.go.kr API key comes from the environment (.env). The previous
+    # hardcoded default was committed to git history - rotate the key.
+    data_go_kr_api_key: str = ""
+    # Auth / session
+    session_max_age_days: int = 14
+    email_verification_ttl_minutes: int = 10
+    email_verification_max_attempts: int = 5
+    student_card_dir: str = "var/student_cards"
+    student_card_max_bytes: int = 5 * 1024 * 1024
+
+    @property
+    def cookie_secure(self) -> bool:
+        return self.app_env != "development"
 
 @lru_cache
 def get_settings() -> Settings:

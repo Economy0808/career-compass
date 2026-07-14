@@ -21,10 +21,6 @@ class UserOut(BaseModel):
     avatar_emoji: str
 
 
-class FollowRequest(BaseModel):
-    follower_id: int
-
-
 class ChatMessageIn(BaseModel):
     role: ChatRole
     content: str
@@ -42,7 +38,7 @@ class ChatResponse(BaseModel):
 
 
 class GenerateRequest(BaseModel):
-    user_id: int
+    # 작성자는 body가 아니라 세션에서 결정된다 (IDOR 방지).
     goal_raw_text: str
     messages: list[ChatMessageIn] = Field(default_factory=list)
 

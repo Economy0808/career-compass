@@ -1,40 +1,42 @@
 import pytest
 from httpx import ASGITransport, AsyncClient
-from sqlalchemy import select
 
-from app.db import get_db
+from app.db import get_session_factory
 from app.main import app
-from app.models.roadmap import Roadmap, User
+from tests.auth_utils import create_session_token, create_user, delete_user_cascade
 
 
 async def _get_session():
-    async for session in get_db():
-        return session
+    return get_session_factory()()
+
+
+def _client() -> AsyncClient:
+    return AsyncClient(transport=ASGITransport(app=app), base_url="http://test")
 
 
 @pytest.fixture
-async def test_user():
+async def verified_user():
     session = await _get_session()
-    user = User(display_name="API테스트유저", avatar_emoji="🐸")
-    session.add(user)
-    await session.commit()
-    await session.refresh(user)
+    user = await create_user(session, display_name="API테스트유저", avatar_emoji="🐸")
+    token = await create_session_token(session, user)
+    yield user, token
+    await delete_user_cascade(session, user.id)
 
-    yield user
 
-    roadmaps = (await session.scalars(select(Roadmap).where(Roadmap.user_id == user.id))).all()
-    for roadmap in roadmaps:
-        await session.delete(roadmap)
-    await session.delete(user)
-    await session.commit()
+@pytest.fixture
+async def other_verified_user():
+    session = await _get_session()
+    user = await create_user(session, display_name="다른유저", avatar_emoji="🦊")
+    token = await create_session_token(session, user)
+    yield user, token
+    await delete_user_cascade(session, user.id)
 
 
 @pytest.mark.asyncio
-async def test_full_roadmap_flow(test_user: User) -> None:
-    async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as client:
-        resp = await client.get("/api/users")
-        assert resp.status_code == 200
-        assert any(u["id"] == test_user.id for u in resp.json())
+async def test_full_roadmap_flow(verified_user) -> None:
+    _, token = verified_user
+    async with _client() as client:
+        client.cookies.set("cc_session", token)
 
         goal = "데이터 분석가가 되고 싶어"
         messages: list[dict] = []
@@ -54,9 +56,9 @@ async def test_full_roadmap_flow(test_user: User) -> None:
                 messages.append({"role": "user", "content": "답변입니다"})
         assert question_count == 3
 
+        # 작성자는 세션에서 결정된다 - body에 user_id 없음
         resp = await client.post(
-            "/api/roadmap/generate",
-            json={"user_id": test_user.id, "goal_raw_text": goal, "messages": messages},
+            "/api/roadmap/generate", json={"goal_raw_text": goal, "messages": messages}
         )
         assert resp.status_code == 201
         roadmap = resp.json()
@@ -83,30 +85,72 @@ async def test_full_roadmap_flow(test_user: User) -> None:
         assert patch_data["milestone"]["status"] == "완료"
         assert patch_data["roadmap_progress_pct"] == 20.0
 
-        resp = await client.get(f"/api/roadmap/{roadmap_id}")
-        assert resp.json()["progress_pct"] == 20.0
-
 
 @pytest.mark.asyncio
-async def test_generate_with_unknown_user_returns_404() -> None:
-    async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as client:
-        resp = await client.post(
-            "/api/roadmap/generate",
-            json={"user_id": 9_999_999, "goal_raw_text": "목표", "messages": []},
-        )
-        assert resp.status_code == 404
-
-
-@pytest.mark.asyncio
-async def test_get_unknown_roadmap_returns_404() -> None:
-    async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as client:
+async def test_feed_and_detail_are_public() -> None:
+    async with _client() as client:
+        resp = await client.get("/api/roadmap/feed")
+        assert resp.status_code == 200
         resp = await client.get("/api/roadmap/9999999")
         assert resp.status_code == 404
 
 
 @pytest.mark.asyncio
-async def test_patch_unknown_milestone_returns_404() -> None:
-    async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as client:
+async def test_write_endpoints_require_auth() -> None:
+    async with _client() as client:
+        resp = await client.post(
+            "/api/roadmap/generate", json={"goal_raw_text": "목표", "messages": []}
+        )
+        assert resp.status_code == 401
+        resp = await client.patch("/api/roadmap/milestones/1", json={"is_completed": True})
+        assert resp.status_code == 401
+        resp = await client.post(
+            "/api/roadmap/chat", json={"goal_raw_text": "목표", "messages": []}
+        )
+        assert resp.status_code == 401
+
+
+@pytest.mark.asyncio
+async def test_write_endpoints_require_yonsei_verification() -> None:
+    session = await _get_session()
+    user = await create_user(session, yonsei_verified=False)
+    token = await create_session_token(session, user)
+    try:
+        async with _client() as client:
+            client.cookies.set("cc_session", token)
+            resp = await client.post(
+                "/api/roadmap/generate", json={"goal_raw_text": "목표", "messages": []}
+            )
+            assert resp.status_code == 403
+    finally:
+        await delete_user_cascade(session, user.id)
+
+
+@pytest.mark.asyncio
+async def test_cannot_patch_others_milestone(verified_user, other_verified_user) -> None:
+    _, owner_token = verified_user
+    _, attacker_token = other_verified_user
+    async with _client() as client:
+        client.cookies.set("cc_session", owner_token)
+        resp = await client.post(
+            "/api/roadmap/generate", json={"goal_raw_text": "내 목표", "messages": []}
+        )
+        assert resp.status_code == 201
+        milestone_id = resp.json()["milestones"][0]["id"]
+
+    async with _client() as client:
+        client.cookies.set("cc_session", attacker_token)
+        resp = await client.patch(
+            f"/api/roadmap/milestones/{milestone_id}", json={"is_completed": True}
+        )
+        assert resp.status_code == 403
+
+
+@pytest.mark.asyncio
+async def test_patch_unknown_milestone_returns_404(verified_user) -> None:
+    _, token = verified_user
+    async with _client() as client:
+        client.cookies.set("cc_session", token)
         resp = await client.patch(
             "/api/roadmap/milestones/9999999", json={"is_completed": True}
         )

@@ -51,6 +51,9 @@ out/
 # Data dumps (public data, large files)
 data/
 
+# Uploaded student card images (PII - never commit)
+backend/var/
+
 # Alembic
 # alembic/versions/*.py  # Keep migration files in git
 
