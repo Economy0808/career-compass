@@ -63,7 +63,8 @@ async def test_full_roadmap_flow(verified_user) -> None:
         assert resp.status_code == 201
         roadmap = resp.json()
         assert roadmap["title"] == "데이터 분석가 로드맵"
-        assert len(roadmap["milestones"]) == 5
+        milestone_count = len(roadmap["milestones"])
+        assert 5 <= milestone_count <= 8  # 최소 5개, 목표에 따라 가변
         assert roadmap["progress_pct"] == 0.0
         roadmap_id = roadmap["id"]
 
@@ -83,7 +84,7 @@ async def test_full_roadmap_flow(verified_user) -> None:
         assert resp.status_code == 200
         patch_data = resp.json()
         assert patch_data["milestone"]["status"] == "완료"
-        assert patch_data["roadmap_progress_pct"] == 20.0
+        assert patch_data["roadmap_progress_pct"] == round(100 / milestone_count, 1)
 
 
 @pytest.mark.asyncio
