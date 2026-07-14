@@ -11,7 +11,7 @@ import {
 } from "@/components/BeanstalkCanvas";
 import { followUser, getRoadmap, patchMilestone, unfollowUser } from "@/lib/api";
 import { formatDateKo } from "@/lib/format";
-import { useUser } from "@/lib/user-context";
+import { useAuth } from "@/lib/auth-context";
 import type { MilestoneOut, MilestoneStatus, RoadmapDetailOut } from "@/lib/types";
 
 const CHIP_STYLE: Record<MilestoneStatus, { bg: string; fg: string }> = {
@@ -37,7 +37,7 @@ function computePct(milestones: MilestoneOut[]): number {
 
 export default function RoadmapDetailPage({ params }: { params: { id: string } }) {
   const roadmapId = Number(params.id);
-  const { currentUser } = useUser();
+  const { me } = useAuth();
 
   const [roadmap, setRoadmap] = useState<RoadmapDetailOut | null>(null);
   const [loading, setLoading] = useState(true);
@@ -58,7 +58,7 @@ export default function RoadmapDetailPage({ params }: { params: { id: string } }
     setError(null);
     setSprout(null);
     setBurst(0);
-    getRoadmap(roadmapId, currentUser?.id)
+    getRoadmap(roadmapId)
       .then((data) => {
         if (!cancelled) setRoadmap(data);
       })
@@ -71,7 +71,7 @@ export default function RoadmapDetailPage({ params }: { params: { id: string } }
     return () => {
       cancelled = true;
     };
-  }, [roadmapId, currentUser?.id]);
+  }, [roadmapId, me?.id]);
 
   // First entry: land on the lowest incomplete milestone (never scrollIntoView).
   useEffect(() => {
@@ -129,14 +129,14 @@ export default function RoadmapDetailPage({ params }: { params: { id: string } }
   }
 
   async function toggleFollow() {
-    if (!roadmap || !currentUser) return;
+    if (!roadmap || !me?.yonsei_verified) return;
     setFollowPending(true);
     const next = !roadmap.is_following;
     try {
       if (next) {
-        await followUser(roadmap.user.id, currentUser.id);
+        await followUser(roadmap.user.id);
       } else {
-        await unfollowUser(roadmap.user.id, currentUser.id);
+        await unfollowUser(roadmap.user.id);
       }
       setRoadmap((prev) => (prev ? { ...prev, is_following: next } : prev));
     } finally {
@@ -160,7 +160,7 @@ export default function RoadmapDetailPage({ params }: { params: { id: string } }
     );
   }
 
-  const isOwn = currentUser?.id === roadmap.user.id;
+  const isOwn = me?.id === roadmap.user.id;
   const ms = sortedMilestones(roadmap);
   const n = ms.length;
   const H = worldHeight(n);
@@ -292,7 +292,7 @@ export default function RoadmapDetailPage({ params }: { params: { id: string } }
           {isOwn ? "내 콩나무" : `${roadmap.user.display_name}의 콩나무`}
         </span>
         <span className="whitespace-nowrap text-[11.5px] text-moss-600">{goalSub}</span>
-        {!isOwn && currentUser && (
+        {!isOwn && me?.yonsei_verified && (
           <button
             type="button"
             onClick={toggleFollow}

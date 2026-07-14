@@ -1,7 +1,7 @@
 import type { Metadata } from "next";
 import { Gowun_Batang, IBM_Plex_Sans_KR } from "next/font/google";
 import { SideNav } from "@/components/SideNav";
-import { UserProvider } from "@/lib/user-context";
+import { AuthProvider } from "@/lib/auth-context";
 import "./globals.css";
 
 const gowun = Gowun_Batang({
@@ -28,10 +28,10 @@ export default function RootLayout({
   return (
     <html lang="ko">
       <body className={`${gowun.variable} ${plex.variable} font-sans antialiased`}>
-        <UserProvider>
+        <AuthProvider>
           <SideNav />
           {children}
-        </UserProvider>
+        </AuthProvider>
       </body>
     </html>
   );

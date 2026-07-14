@@ -8,6 +8,20 @@ export interface UserOut {
   avatar_emoji: string;
 }
 
+export type CardStatus = "pending" | "approved" | "rejected";
+
+export interface MeOut {
+  id: number;
+  username: string;
+  display_name: string;
+  avatar_emoji: string;
+  email: string;
+  email_verified: boolean;
+  yonsei_verified: boolean;
+  verification_method: "school_email" | "student_card" | null;
+  card_status: CardStatus | null;
+}
+
 export interface ChatMessageIn {
   role: ChatRole;
   content: string;

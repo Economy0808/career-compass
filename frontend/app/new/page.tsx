@@ -3,7 +3,7 @@
 import { useRouter } from "next/navigation";
 import { useEffect, useRef, useState } from "react";
 import { postChat, postGenerate } from "@/lib/api";
-import { useUser } from "@/lib/user-context";
+import { useAuth } from "@/lib/auth-context";
 import type { ChatMessageIn, ChatRole } from "@/lib/types";
 
 const TYPING_DELAY_MS = 550;
@@ -45,7 +45,7 @@ function RootingIndicator() {
 
 export default function NewRoadmapPage() {
   const router = useRouter();
-  const { currentUser, loading: userLoading } = useUser();
+  const { me, loading: authLoading } = useAuth();
 
   const [goalRawText, setGoalRawText] = useState("");
   const [messages, setMessages] = useState<ChatMessageIn[]>([]);
@@ -57,13 +57,20 @@ export default function NewRoadmapPage() {
 
   const bottomRef = useRef<HTMLDivElement>(null);
 
+  // 씨앗 심기는 연세대 인증 필수: 미로그인 → 로그인, 미인증 → 인증 페이지로.
+  useEffect(() => {
+    if (authLoading) return;
+    if (!me) router.push("/login");
+    else if (!me.yonsei_verified) router.push("/verify");
+  }, [authLoading, me, router]);
+
   useEffect(() => {
     bottomRef.current?.scrollIntoView({ behavior: "smooth" });
   }, [messages, typing, done, planting]);
 
   async function send() {
     const text = input.trim();
-    if (!text || typing || done || planting || userLoading) return;
+    if (!text || typing || done || planting || authLoading) return;
     setInput("");
     setError(null);
     setTyping(true);
@@ -91,11 +98,11 @@ export default function NewRoadmapPage() {
   }
 
   async function plant() {
-    if (!currentUser || planting) return;
+    if (!me?.yonsei_verified || planting) return;
     setPlanting(true);
     setError(null);
     try {
-      const roadmap = await postGenerate(currentUser.id, goalRawText, messages);
+      const roadmap = await postGenerate(goalRawText, messages);
       router.push(`/roadmap/${roadmap.id}`);
     } catch {
       setError("씨앗을 심지 못했어요. 다시 시도해주세요.");
@@ -104,6 +111,14 @@ export default function NewRoadmapPage() {
   }
 
   const started = goalRawText !== "";
+
+  if (authLoading || !me?.yonsei_verified) {
+    return (
+      <div className="flex h-screen items-center justify-center bg-[linear-gradient(180deg,#0a1f11,#06120a_55%)]">
+        <p className="animate-pulse text-sm text-moss-600">확인 중…</p>
+      </div>
+    );
+  }
 
   return (
     <div className="min-h-screen bg-[linear-gradient(180deg,#0a1f11,#06120a_55%)]">
@@ -133,7 +148,7 @@ export default function NewRoadmapPage() {
             <button
               type="button"
               onClick={plant}
-              disabled={planting || !currentUser}
+              disabled={planting}
               className="mb-2.5 w-full rounded-xl border border-bean-400 bg-bean-500 p-3.5 text-sm font-bold text-[#f0f7ec] shadow-[0_6px_24px_rgba(63,143,71,.35)] transition-colors hover:bg-[#4aa353] disabled:opacity-60"
             >
               {planting ? "심는 중…" : "이 로드맵 심기"}

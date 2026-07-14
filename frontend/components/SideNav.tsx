@@ -1,10 +1,10 @@
 "use client";
 
+import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
 import { useRef } from "react";
-import { UserSwitcher } from "./UserSwitcher";
 import { getFeed } from "@/lib/api";
-import { useUser } from "@/lib/user-context";
+import { useAuth } from "@/lib/auth-context";
 
 function SproutIcon() {
   return (
@@ -44,23 +44,32 @@ const ITEM_OFF = "text-moss-500";
 export function SideNav() {
   const pathname = usePathname();
   const router = useRouter();
-  const { currentUser } = useUser();
-  // Cache of "my latest roadmap id" per user, valid for this session only.
+  const { me, loading, logout } = useAuth();
+  // Cache of "my latest roadmap id", valid for this session only.
   const myRoadmapCache = useRef<Map<number, number | null>>(new Map());
 
   async function goMyBeanstalk() {
-    if (!currentUser) return;
-    let roadmapId = myRoadmapCache.current.get(currentUser.id);
+    if (!me) {
+      router.push("/login");
+      return;
+    }
+    let roadmapId = myRoadmapCache.current.get(me.id);
     if (roadmapId === undefined) {
       try {
         const cards = await getFeed({ limit: 100 });
-        roadmapId = cards.find((c) => c.user.id === currentUser.id)?.id ?? null;
-        myRoadmapCache.current.set(currentUser.id, roadmapId);
+        roadmapId = cards.find((c) => c.user.id === me.id)?.id ?? null;
+        myRoadmapCache.current.set(me.id, roadmapId);
       } catch {
         roadmapId = null;
       }
     }
     router.push(roadmapId !== null ? `/roadmap/${roadmapId}` : "/new");
+  }
+
+  async function handleLogout() {
+    await logout();
+    myRoadmapCache.current.clear();
+    router.push("/");
   }
 
   return (
@@ -90,8 +99,41 @@ export function SideNav() {
       >
         <SeedIcon />새 씨앗 심기
       </button>
+
       <div className="mt-2 border-t border-[rgba(143,220,138,.12)] pt-2.5">
-        <UserSwitcher />
+        {loading ? (
+          <div className="h-9 w-full animate-pulse rounded-[10px] bg-[rgba(143,220,138,.08)]" />
+        ) : me ? (
+          <div className="flex flex-col gap-1">
+            <Link
+              href="/verify"
+              className="flex items-center gap-2 rounded-[10px] px-[11px] py-2 text-[12.5px] font-semibold !text-moss-400 no-underline transition-colors hover:bg-[rgba(143,220,138,.16)]"
+            >
+              <span className="text-[15px]">{me.avatar_emoji}</span>
+              <span className="truncate">{me.display_name}</span>
+              {!me.yonsei_verified && (
+                <span className="ml-auto shrink-0 rounded-full bg-[rgba(196,154,90,.18)] px-1.5 py-0.5 text-[9.5px] font-semibold text-wither-300">
+                  인증 전
+                </span>
+              )}
+            </Link>
+            <button
+              type="button"
+              onClick={handleLogout}
+              className="rounded-[10px] px-[11px] py-1.5 text-left text-[11.5px] text-moss-700 transition-colors hover:bg-[rgba(143,220,138,.1)] hover:text-moss-400"
+            >
+              로그아웃
+            </button>
+          </div>
+        ) : (
+          <button
+            type="button"
+            onClick={() => router.push("/login")}
+            className={`${ITEM_BASE} ${pathname === "/login" || pathname === "/signup" ? ITEM_ON : ITEM_OFF}`}
+          >
+            <span className="text-[15px]">🔑</span>로그인
+          </button>
+        )}
       </div>
     </nav>
   );

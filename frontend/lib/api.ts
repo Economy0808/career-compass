@@ -2,22 +2,41 @@ import type {
   ChatMessageIn,
   ChatResponse,
   FeedScope,
+  MeOut,
   MilestonePatchResponse,
   RoadmapCardOut,
   RoadmapDetailOut,
-  UserOut,
 } from "./types";
 
 const API_BASE_URL = process.env.NEXT_PUBLIC_API_BASE_URL ?? "http://localhost:8000";
 
+export class ApiError extends Error {
+  status: number;
+  detail: string;
+
+  constructor(status: number, detail: string) {
+    super(detail);
+    this.status = status;
+    this.detail = detail;
+  }
+}
+
 async function request<T>(path: string, init?: RequestInit): Promise<T> {
   const res = await fetch(`${API_BASE_URL}${path}`, {
     cache: "no-store",
-    headers: { "Content-Type": "application/json" },
+    // 세션 쿠키(HttpOnly) 전송 — 유저 식별은 전적으로 서버가 한다.
+    credentials: "include",
     ...init,
   });
   if (!res.ok) {
-    throw new Error(`API ${path} failed with ${res.status}`);
+    let detail = `요청에 실패했어요 (${res.status})`;
+    try {
+      const body = (await res.json()) as { detail?: unknown };
+      if (typeof body.detail === "string") detail = body.detail;
+    } catch {
+      // JSON이 아닌 에러 응답은 기본 메시지 유지
+    }
+    throw new ApiError(res.status, detail);
   }
   if (res.status === 204) {
     return undefined as T;
@@ -25,18 +44,67 @@ async function request<T>(path: string, init?: RequestInit): Promise<T> {
   return res.json() as Promise<T>;
 }
 
-export function getUsers(): Promise<UserOut[]> {
-  return request<UserOut[]>("/api/users");
+function jsonInit(method: string, body: unknown): RequestInit {
+  return {
+    method,
+    headers: { "Content-Type": "application/json" },
+    body: JSON.stringify(body),
+  };
 }
 
+// ---------- auth ----------
+
+export interface SignupInput {
+  username: string;
+  password: string;
+  email: string;
+  display_name: string;
+  avatar_emoji: string;
+  consent: boolean;
+}
+
+export function postSignup(input: SignupInput): Promise<{ detail: string }> {
+  return request("/api/auth/signup", jsonInit("POST", input));
+}
+
+export function postVerifyEmail(email: string, code: string): Promise<{ detail: string }> {
+  return request("/api/auth/verify-email", jsonInit("POST", { email, code }));
+}
+
+export function postLogin(username: string, password: string): Promise<MeOut> {
+  return request("/api/auth/login", jsonInit("POST", { username, password }));
+}
+
+export function postLogout(): Promise<void> {
+  return request("/api/auth/logout", { method: "POST" });
+}
+
+export function getMe(): Promise<MeOut> {
+  return request("/api/auth/me");
+}
+
+export function postSchoolEmailRequest(email: string): Promise<{ detail: string }> {
+  return request("/api/auth/school-email/request", jsonInit("POST", { email }));
+}
+
+export function postSchoolEmailVerify(code: string): Promise<{ detail: string }> {
+  return request("/api/auth/school-email/verify", jsonInit("POST", { code }));
+}
+
+export function postStudentCard(file: File): Promise<{ detail: string }> {
+  const form = new FormData();
+  form.append("file", file);
+  return request("/api/auth/student-card", { method: "POST", body: form });
+}
+
+// ---------- roadmap ----------
+
 export function getFeed(options: {
-  viewerId?: number;
   scope?: FeedScope;
   limit?: number;
   offset?: number;
 }): Promise<RoadmapCardOut[]> {
   const params = new URLSearchParams();
-  if (options.viewerId !== undefined) params.set("viewer_id", String(options.viewerId));
   if (options.scope) params.set("scope", options.scope);
   if (options.limit !== undefined) params.set("limit", String(options.limit));
   if (options.offset !== undefined) params.set("offset", String(options.offset));
@@ -44,52 +112,44 @@ export function getFeed(options: {
   return request<RoadmapCardOut[]>(`/api/roadmap/feed${qs ? `?${qs}` : ""}`);
 }
 
-export function getRoadmap(id: number, viewerId?: number): Promise<RoadmapDetailOut> {
-  const qs = viewerId !== undefined ? `?viewer_id=${viewerId}` : "";
-  return request<RoadmapDetailOut>(`/api/roadmap/${id}${qs}`);
+export function getRoadmap(id: number): Promise<RoadmapDetailOut> {
+  return request<RoadmapDetailOut>(`/api/roadmap/${id}`);
 }
 
 export function postChat(
   goalRawText: string,
   messages: ChatMessageIn[]
 ): Promise<ChatResponse> {
-  return request<ChatResponse>("/api/roadmap/chat", {
-    method: "POST",
-    body: JSON.stringify({ goal_raw_text: goalRawText, messages }),
-  });
+  return request<ChatResponse>(
+    "/api/roadmap/chat",
+    jsonInit("POST", { goal_raw_text: goalRawText, messages })
+  );
 }
 
 export function postGenerate(
-  userId: number,
   goalRawText: string,
   messages: ChatMessageIn[]
 ): Promise<RoadmapDetailOut> {
-  return request<RoadmapDetailOut>("/api/roadmap/generate", {
-    method: "POST",
-    body: JSON.stringify({ user_id: userId, goal_raw_text: goalRawText, messages }),
-  });
+  return request<RoadmapDetailOut>(
+    "/api/roadmap/generate",
+    jsonInit("POST", { goal_raw_text: goalRawText, messages })
+  );
 }
 
 export function patchMilestone(
   milestoneId: number,
   isCompleted: boolean
 ): Promise<MilestonePatchResponse> {
-  return request<MilestonePatchResponse>(`/api/roadmap/milestones/${milestoneId}`, {
-    method: "PATCH",
-    body: JSON.stringify({ is_completed: isCompleted }),
-  });
+  return request<MilestonePatchResponse>(
+    `/api/roadmap/milestones/${milestoneId}`,
+    jsonInit("PATCH", { is_completed: isCompleted })
+  );
 }
 
-export function followUser(userId: number, followerId: number): Promise<void> {
-  return request<void>(`/api/users/${userId}/follow`, {
-    method: "POST",
-    body: JSON.stringify({ follower_id: followerId }),
-  });
+export function followUser(userId: number): Promise<void> {
+  return request<void>(`/api/users/${userId}/follow`, { method: "POST" });
 }
 
-export function unfollowUser(userId: number, followerId: number): Promise<void> {
-  return request<void>(`/api/users/${userId}/follow`, {
-    method: "DELETE",
-    body: JSON.stringify({ follower_id: followerId }),
-  });
+export function unfollowUser(userId: number): Promise<void> {
+  return request<void>(`/api/users/${userId}/follow`, { method: "DELETE" });
 }

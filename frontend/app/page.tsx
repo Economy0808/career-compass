@@ -4,7 +4,7 @@ import { useRouter } from "next/navigation";
 import { useEffect, useState } from "react";
 import { MiniBeanstalk } from "@/components/MiniBeanstalk";
 import { followUser, getFeed, unfollowUser } from "@/lib/api";
-import { useUser } from "@/lib/user-context";
+import { useAuth } from "@/lib/auth-context";
 import type { FeedScope, RoadmapCardOut } from "@/lib/types";
 
 const TABS: { value: FeedScope; label: string }[] = [
@@ -14,7 +14,7 @@ const TABS: { value: FeedScope; label: string }[] = [
 
 export default function FeedPage() {
   const router = useRouter();
-  const { currentUser, loading: userLoading } = useUser();
+  const { me, loading: authLoading } = useAuth();
   const [scope, setScope] = useState<FeedScope>("all");
   const [cards, setCards] = useState<RoadmapCardOut[]>([]);
   const [loading, setLoading] = useState(true);
@@ -22,11 +22,11 @@ export default function FeedPage() {
   const [followPendingId, setFollowPendingId] = useState<number | null>(null);
 
   useEffect(() => {
-    if (userLoading) return;
+    if (authLoading) return;
     let cancelled = false;
     setLoading(true);
     setError(null);
-    getFeed({ viewerId: currentUser?.id, scope: scope === "following" ? "following" : undefined })
+    getFeed({ scope: scope === "following" ? "following" : undefined })
       .then((data) => {
         if (!cancelled) setCards(data);
       })
@@ -39,17 +39,17 @@ export default function FeedPage() {
     return () => {
       cancelled = true;
     };
-  }, [scope, currentUser?.id, userLoading]);
+  }, [scope, me?.id, authLoading]);
 
   async function toggleFollow(card: RoadmapCardOut) {
-    if (!currentUser || followPendingId !== null) return;
+    if (!me?.yonsei_verified || followPendingId !== null) return;
     setFollowPendingId(card.id);
     const next = !card.is_following;
     try {
       if (next) {
-        await followUser(card.user.id, currentUser.id);
+        await followUser(card.user.id);
       } else {
-        await unfollowUser(card.user.id, currentUser.id);
+        await unfollowUser(card.user.id);
       }
       setCards((prev) =>
         prev.map((c) => (c.user.id === card.user.id ? { ...c, is_following: next } : c))
@@ -60,7 +60,7 @@ export default function FeedPage() {
   }
 
   // My own beanstalks live under "내 콩나무", not in the forest.
-  const visibleCards = cards.filter((c) => c.user.id !== currentUser?.id);
+  const visibleCards = cards.filter((c) => c.user.id !== me?.id);
 
   return (
     <div className="min-h-screen bg-[linear-gradient(180deg,#0a1f11,#06120a_60%)]">
@@ -138,7 +138,7 @@ export default function FeedPage() {
                     <span className="text-[11.5px] text-moss-700">
                       마일스톤 {done}/{card.milestone_count}
                     </span>
-                    {currentUser && (
+                    {me?.yonsei_verified && (
                       <button
                         type="button"
                         disabled={followPendingId === card.id}
