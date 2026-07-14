@@ -59,6 +59,7 @@ class MeOut(BaseModel):
     display_name: str
     avatar_emoji: str
     email: str
+    bio: str | None
     email_verified: bool
     yonsei_verified: bool
     verification_method: str | None

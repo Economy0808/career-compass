@@ -19,6 +19,8 @@ class Settings(BaseSettings):
     email_verification_max_attempts: int = 5
     student_card_dir: str = "var/student_cards"
     student_card_max_bytes: int = 5 * 1024 * 1024
+    milestone_image_dir: str = "var/milestone_images"
+    milestone_image_max_bytes: int = 5 * 1024 * 1024
 
     @property
     def cookie_secure(self) -> bool:

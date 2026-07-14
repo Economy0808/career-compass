@@ -9,7 +9,15 @@ from typing import Literal
 
 from pydantic import BaseModel, Field
 
-from app.models.roadmap import Milestone, MilestoneStatus, Roadmap, User, compute_progress_pct
+from app.models.roadmap import (
+    Milestone,
+    MilestonePost,
+    MilestoneStatus,
+    PostComment,
+    Roadmap,
+    User,
+    compute_progress_pct,
+)
 
 ChatRole = Literal["user", "assistant"]
 FeedScope = Literal["all", "following"]
@@ -43,6 +51,17 @@ class GenerateRequest(BaseModel):
     messages: list[ChatMessageIn] = Field(default_factory=list)
 
 
+class MilestonePostOut(BaseModel):
+    caption: str
+    body: str | None
+    has_image: bool
+    image_url: str | None
+    updated_at: datetime
+    like_count: int
+    liked_by_me: bool
+    comment_count: int
+
+
 class MilestoneOut(BaseModel):
     id: int
     order_index: int
@@ -52,6 +71,39 @@ class MilestoneOut(BaseModel):
     is_completed_manual: bool
     completed_at: datetime | None
     status: MilestoneStatus
+    post: MilestonePostOut | None = None
+
+
+class CommentOut(BaseModel):
+    id: int
+    user: UserOut
+    content: str
+    created_at: datetime
+    can_delete: bool
+
+
+class CommentCreateRequest(BaseModel):
+    content: str = Field(min_length=1, max_length=500)
+
+
+class RoadmapPatchRequest(BaseModel):
+    is_featured: bool
+
+
+class UserProfileOut(BaseModel):
+    id: int
+    display_name: str
+    avatar_emoji: str
+    bio: str | None
+    yonsei_verified: bool
+    roadmap_count: int
+    follower_count: int
+    following_count: int
+    is_following: bool | None = None
+
+
+class BioPatchRequest(BaseModel):
+    bio: str = Field(max_length=200)
 
 
 class RoadmapDetailOut(BaseModel):
@@ -73,6 +125,7 @@ class RoadmapCardOut(BaseModel):
     milestone_count: int
     created_at: datetime
     is_following: bool | None = None
+    is_featured: bool = True
 
 
 class MilestonePatchRequest(BaseModel):
@@ -89,7 +142,39 @@ def user_to_out(user: User) -> UserOut:
     return UserOut(id=user.id, display_name=user.display_name, avatar_emoji=user.avatar_emoji)
 
 
-def milestone_to_out(milestone: Milestone) -> MilestoneOut:
+def post_to_out(
+    post: MilestonePost, milestone_id: int, viewer_id: int | None = None
+) -> MilestonePostOut:
+    """post.likes/comments가 eager load된 상태를 전제로 한다."""
+    return MilestonePostOut(
+        caption=post.caption,
+        body=post.body,
+        has_image=post.image_path is not None,
+        image_url=(
+            f"/api/roadmap/milestones/{milestone_id}/post/image?v={int(post.updated_at.timestamp())}"
+            if post.image_path is not None
+            else None
+        ),
+        updated_at=post.updated_at,
+        like_count=len(post.likes),
+        liked_by_me=viewer_id is not None
+        and any(like.user_id == viewer_id for like in post.likes),
+        comment_count=len(post.comments),
+    )
+
+
+def comment_to_out(comment: PostComment, viewer_id: int | None, owner_id: int) -> CommentOut:
+    """owner_id는 기록이 달린 로드맵 소유자 - 본인 댓글 또는 소유자는 삭제 가능."""
+    return CommentOut(
+        id=comment.id,
+        user=user_to_out(comment.user),
+        content=comment.content,
+        created_at=comment.created_at,
+        can_delete=viewer_id is not None and viewer_id in (comment.user_id, owner_id),
+    )
+
+
+def milestone_to_out(milestone: Milestone, viewer_id: int | None = None) -> MilestoneOut:
     return MilestoneOut(
         id=milestone.id,
         order_index=milestone.order_index,
@@ -99,10 +184,13 @@ def milestone_to_out(milestone: Milestone) -> MilestoneOut:
         is_completed_manual=milestone.is_completed_manual,
         completed_at=milestone.completed_at,
         status=milestone.compute_status(),
+        post=post_to_out(milestone.post, milestone.id, viewer_id) if milestone.post else None,
     )
 
 
-def roadmap_to_detail(roadmap: Roadmap, is_following: bool | None = None) -> RoadmapDetailOut:
+def roadmap_to_detail(
+    roadmap: Roadmap, is_following: bool | None = None, viewer_id: int | None = None
+) -> RoadmapDetailOut:
     return RoadmapDetailOut(
         id=roadmap.id,
         user=user_to_out(roadmap.user),
@@ -110,7 +198,7 @@ def roadmap_to_detail(roadmap: Roadmap, is_following: bool | None = None) -> Roa
         goal_raw_text=roadmap.goal_raw_text,
         created_at=roadmap.created_at,
         progress_pct=compute_progress_pct(roadmap.milestones),
-        milestones=[milestone_to_out(m) for m in roadmap.milestones],
+        milestones=[milestone_to_out(m, viewer_id) for m in roadmap.milestones],
         is_following=is_following,
     )
 
@@ -124,4 +212,5 @@ def roadmap_to_card(roadmap: Roadmap, is_following: bool | None = None) -> Roadm
         milestone_count=len(roadmap.milestones),
         created_at=roadmap.created_at,
         is_following=is_following,
+        is_featured=roadmap.is_featured,
     )

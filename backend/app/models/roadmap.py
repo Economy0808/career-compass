@@ -34,6 +34,8 @@ class User(Base):
     # "school_email" | "student_card"
     verification_method: Mapped[str | None] = mapped_column(nullable=True)
     role: Mapped[str] = mapped_column(nullable=False, server_default="user")
+    # 프로필 소개글 (선택, 200자 제한은 스키마에서 강제)
+    bio: Mapped[str | None] = mapped_column(nullable=True)
 
     def __repr__(self) -> str:
         return f"User(id={self.id}, display_name={self.display_name!r})"
@@ -49,6 +51,8 @@ class Roadmap(Base):
     title: Mapped[str] = mapped_column(nullable=False)
     goal_raw_text: Mapped[str] = mapped_column(nullable=False)
     chat_transcript: Mapped[list[dict] | None] = mapped_column(JSONB, nullable=True)
+    # 로드맵 숲(피드)에 노출할지 여부 - 유저가 "메인에 띄우기"로 고른다.
+    is_featured: Mapped[bool] = mapped_column(nullable=False, server_default="true")
     created_at: Mapped[datetime] = mapped_column(server_default=func.now())
 
     user: Mapped[User] = relationship()
@@ -78,6 +82,9 @@ class Milestone(Base):
     created_at: Mapped[datetime] = mapped_column(server_default=func.now())
 
     roadmap: Mapped[Roadmap] = relationship(back_populates="milestones")
+    post: Mapped["MilestonePost | None"] = relationship(
+        back_populates="milestone", cascade="all, delete-orphan"
+    )
 
     def __repr__(self) -> str:
         return f"Milestone(id={self.id}, title={self.title!r})"
@@ -89,6 +96,70 @@ class Milestone(Base):
         if self.due_date < (today or date.today()):
             return "기한초과"
         return "진행중"
+
+
+class MilestonePost(Base):
+    """마일스톤 기록: 사진(선택) + 짤막한 문구 + 줄글. 마일스톤당 최대 1개."""
+
+    __tablename__ = "milestone_posts"
+
+    id: Mapped[int] = mapped_column(primary_key=True, autoincrement=True)
+    milestone_id: Mapped[int] = mapped_column(
+        ForeignKey("milestones.id"), nullable=False, unique=True
+    )
+    image_path: Mapped[str | None] = mapped_column(nullable=True)
+    caption: Mapped[str] = mapped_column(nullable=False)
+    body: Mapped[str | None] = mapped_column(nullable=True)
+    created_at: Mapped[datetime] = mapped_column(server_default=func.now())
+    updated_at: Mapped[datetime] = mapped_column(server_default=func.now(), onupdate=func.now())
+
+    milestone: Mapped[Milestone] = relationship(back_populates="post")
+    likes: Mapped[list["PostLike"]] = relationship(
+        back_populates="post", cascade="all, delete-orphan"
+    )
+    comments: Mapped[list["PostComment"]] = relationship(
+        back_populates="post",
+        order_by="PostComment.created_at",
+        cascade="all, delete-orphan",
+    )
+
+    def __repr__(self) -> str:
+        return f"MilestonePost(id={self.id}, milestone_id={self.milestone_id})"
+
+
+class PostLike(Base):
+    """마일스톤 기록 좋아요. 유저당 기록 하나에 한 번."""
+
+    __tablename__ = "post_likes"
+    __table_args__ = (UniqueConstraint("post_id", "user_id", name="uq_post_like"),)
+
+    id: Mapped[int] = mapped_column(primary_key=True, autoincrement=True)
+    post_id: Mapped[int] = mapped_column(ForeignKey("milestone_posts.id"), nullable=False)
+    user_id: Mapped[int] = mapped_column(ForeignKey("users.id"), nullable=False)
+    created_at: Mapped[datetime] = mapped_column(server_default=func.now())
+
+    post: Mapped[MilestonePost] = relationship(back_populates="likes")
+
+    def __repr__(self) -> str:
+        return f"PostLike(post_id={self.post_id}, user_id={self.user_id})"
+
+
+class PostComment(Base):
+    """마일스톤 기록 댓글."""
+
+    __tablename__ = "post_comments"
+
+    id: Mapped[int] = mapped_column(primary_key=True, autoincrement=True)
+    post_id: Mapped[int] = mapped_column(ForeignKey("milestone_posts.id"), nullable=False)
+    user_id: Mapped[int] = mapped_column(ForeignKey("users.id"), nullable=False)
+    content: Mapped[str] = mapped_column(nullable=False)
+    created_at: Mapped[datetime] = mapped_column(server_default=func.now())
+
+    post: Mapped[MilestonePost] = relationship(back_populates="comments")
+    user: Mapped[User] = relationship()
+
+    def __repr__(self) -> str:
+        return f"PostComment(id={self.id}, post_id={self.post_id})"
 
 
 class Follow(Base):

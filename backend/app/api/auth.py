@@ -31,6 +31,7 @@ from app.core.security import (
     verification_expiry,
     verify_password,
 )
+from app.core.uploads import detect_image_ext
 from app.db import get_db
 from app.email import get_email_sender
 from app.models.account import AuthSession, EmailVerification, StudentCardVerification
@@ -51,10 +52,6 @@ router = APIRouter(prefix="/api/auth", tags=["auth"])
 # 존재하지 않는 유저의 로그인 시도에도 해시 검증 1회를 수행해
 # 응답 시간으로 계정 존재를 추정하기 어렵게 한다.
 _DUMMY_HASH = hash_password("timing-equalizer-not-a-real-password")
-
-# 이미지 매직 바이트 (Content-Type 헤더는 위조 가능하므로 바이트를 직접 본다)
-_JPEG_MAGIC = b"\xff\xd8\xff"
-_PNG_MAGIC = b"\x89PNG\r\n\x1a\n"
 
 
 def _is_yonsei(email: str) -> bool:
@@ -78,6 +75,7 @@ async def _me_out(db: AsyncSession, user: User) -> MeOut:
         display_name=user.display_name,
         avatar_emoji=user.avatar_emoji,
         email=user.email or "",
+        bio=user.bio,
         email_verified=user.email_verified_at is not None,
         yonsei_verified=user.yonsei_verified_at is not None,
         verification_method=user.verification_method,
@@ -300,11 +298,8 @@ async def upload_student_card(
     data = await file.read(settings.student_card_max_bytes + 1)
     if len(data) > settings.student_card_max_bytes:
         raise HTTPException(status_code=413, detail="이미지는 5MB 이하만 올릴 수 있어요.")
-    if data.startswith(_JPEG_MAGIC):
-        ext = "jpg"
-    elif data.startswith(_PNG_MAGIC):
-        ext = "png"
-    else:
+    ext = detect_image_ext(data)
+    if ext is None:
         raise HTTPException(status_code=422, detail="JPEG 또는 PNG 이미지만 올릴 수 있어요.")
 
     card_dir = Path(settings.student_card_dir)
