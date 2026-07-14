@@ -128,8 +128,19 @@ export default function FeedPage() {
                     {card.title}
                   </div>
                   <div className="mt-[9px] flex items-center gap-[7px]">
-                    <span className="text-[15px]">{card.user.avatar_emoji}</span>
-                    <span className="text-[12.5px] text-moss-400">{card.user.display_name}</span>
+                    <button
+                      type="button"
+                      onClick={(e) => {
+                        e.stopPropagation();
+                        router.push(`/profile/${card.user.id}`);
+                      }}
+                      className="flex items-center gap-[7px] rounded-full pr-1 transition-colors hover:text-moss-200"
+                    >
+                      <span className="text-[15px]">{card.user.avatar_emoji}</span>
+                      <span className="text-[12.5px] text-moss-400 hover:underline">
+                        {card.user.display_name}
+                      </span>
+                    </button>
                     <span className="ml-auto text-xs font-semibold text-bean-200">
                       {card.progress_pct}% 자람
                     </span>

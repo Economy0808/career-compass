@@ -2,8 +2,6 @@
 
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
-import { useRef } from "react";
-import { getFeed } from "@/lib/api";
 import { useAuth } from "@/lib/auth-context";
 
 function SproutIcon() {
@@ -45,30 +43,14 @@ export function SideNav() {
   const pathname = usePathname();
   const router = useRouter();
   const { me, loading, logout } = useAuth();
-  // Cache of "my latest roadmap id", valid for this session only.
-  const myRoadmapCache = useRef<Map<number, number | null>>(new Map());
 
-  async function goMyBeanstalk() {
-    if (!me) {
-      router.push("/login");
-      return;
-    }
-    let roadmapId = myRoadmapCache.current.get(me.id);
-    if (roadmapId === undefined) {
-      try {
-        const cards = await getFeed({ limit: 100 });
-        roadmapId = cards.find((c) => c.user.id === me.id)?.id ?? null;
-        myRoadmapCache.current.set(me.id, roadmapId);
-      } catch {
-        roadmapId = null;
-      }
-    }
-    router.push(roadmapId !== null ? `/roadmap/${roadmapId}` : "/new");
+  function goMyBeanstalk() {
+    // 유저는 콩나무를 여러 개 키우므로 내 프로필(콩나무 목록)로 간다.
+    router.push(me ? `/profile/${me.id}` : "/login");
   }
 
   async function handleLogout() {
     await logout();
-    myRoadmapCache.current.clear();
     router.push("/");
   }
 
@@ -81,7 +63,11 @@ export function SideNav() {
       <button
         type="button"
         onClick={goMyBeanstalk}
-        className={`${ITEM_BASE} ${pathname.startsWith("/roadmap") ? ITEM_ON : ITEM_OFF}`}
+        className={`${ITEM_BASE} ${
+          pathname.startsWith("/roadmap") || (me !== null && pathname === `/profile/${me.id}`)
+            ? ITEM_ON
+            : ITEM_OFF
+        }`}
       >
         <SproutIcon />내 콩나무
       </button>
@@ -106,7 +92,7 @@ export function SideNav() {
         ) : me ? (
           <div className="flex flex-col gap-1">
             <Link
-              href="/verify"
+              href={me.yonsei_verified ? `/profile/${me.id}` : "/verify"}
               className="flex items-center gap-2 rounded-[10px] px-[11px] py-2 text-[12.5px] font-semibold !text-moss-400 no-underline transition-colors hover:bg-[rgba(143,220,138,.16)]"
             >
               <span className="text-[15px]">{me.avatar_emoji}</span>

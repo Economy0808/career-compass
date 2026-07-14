@@ -1,5 +1,6 @@
 "use client";
 
+import Link from "next/link";
 import { useEffect, useRef, useState } from "react";
 import {
   BeanstalkCanvas,
@@ -9,10 +10,16 @@ import {
   worldHeight,
   type SproutState,
 } from "@/components/BeanstalkCanvas";
-import { followUser, getRoadmap, patchMilestone, unfollowUser } from "@/lib/api";
+import { MilestonePostModal } from "@/components/MilestonePostModal";
+import { apiUrl, followUser, getRoadmap, patchMilestone, unfollowUser } from "@/lib/api";
 import { formatDateKo } from "@/lib/format";
 import { useAuth } from "@/lib/auth-context";
-import type { MilestoneOut, MilestoneStatus, RoadmapDetailOut } from "@/lib/types";
+import type {
+  MilestoneOut,
+  MilestonePostOut,
+  MilestoneStatus,
+  RoadmapDetailOut,
+} from "@/lib/types";
 
 const CHIP_STYLE: Record<MilestoneStatus, { bg: string; fg: string }> = {
   완료: { bg: "rgba(93,179,91,.2)", fg: "#8fdc8a" },
@@ -47,6 +54,7 @@ export default function RoadmapDetailPage({ params }: { params: { id: string } }
   const [burst, setBurst] = useState(0);
   const [flags, setFlags] = useState<Flags>({ fireflies: true, sway: true, celebratePreview: false });
   const [flagsOpen, setFlagsOpen] = useState(false);
+  const [postMilestoneId, setPostMilestoneId] = useState<number | null>(null);
 
   const scrollRef = useRef<HTMLDivElement>(null);
   const didInitialScroll = useRef(false);
@@ -128,6 +136,16 @@ export default function RoadmapDetailPage({ params }: { params: { id: string } }
     }
   }
 
+  function applyPostChange(milestoneId: number, post: MilestonePostOut | null) {
+    setRoadmap((prev) => {
+      if (!prev) return prev;
+      return {
+        ...prev,
+        milestones: prev.milestones.map((m) => (m.id === milestoneId ? { ...m, post } : m)),
+      };
+    });
+  }
+
   async function toggleFollow() {
     if (!roadmap || !me?.yonsei_verified) return;
     setFollowPending(true);
@@ -170,6 +188,7 @@ export default function RoadmapDetailPage({ params }: { params: { id: string } }
   const preview = flags.celebratePreview && isOwn;
   const showTopBloom = pct >= 100 || preview;
   const celebrating = preview || (burst > 0 && pct >= 100);
+  const postMilestone = ms.find((m) => m.id === postMilestoneId) ?? null;
 
   return (
     <div className="fixed inset-0 overflow-hidden">
@@ -217,10 +236,11 @@ export default function RoadmapDetailPage({ params }: { params: { id: string } }
             const side = milestoneSide(i);
             const chip = CHIP_STYLE[m.status];
             const done = m.status === "완료";
+            const openable = m.post !== null || isOwn;
             return (
               <div
                 key={m.id}
-                className="absolute z-[6] w-[292px]"
+                className="group absolute z-[6] w-[292px]"
                 style={{
                   top: m.status === "기한초과" ? y - 36 : y - 116,
                   left:
@@ -229,7 +249,32 @@ export default function RoadmapDetailPage({ params }: { params: { id: string } }
                       : "max(16px, calc(50% - 500px))",
                 }}
               >
-                <div className="rounded-[14px] border border-[rgba(143,220,138,.16)] bg-[rgba(7,22,12,.78)] px-4 py-3.5 shadow-[0_8px_26px_rgba(0,0,0,.38)] backdrop-blur-[6px]">
+                {/* hover: 폴라로이드 팝오버 (사진 + 문구) */}
+                {m.post && (
+                  <div className="pointer-events-none absolute -top-2 left-1/2 z-20 hidden w-[230px] -translate-x-1/2 -translate-y-full rotate-[-2deg] group-hover:block">
+                    <div className="rounded-[10px] border border-[rgba(240,232,180,.5)] bg-[#f5f2e4] p-2 shadow-[0_14px_40px_rgba(0,0,0,.55)]">
+                      {m.post.has_image && m.post.image_url && (
+                        // eslint-disable-next-line @next/next/no-img-element
+                        <img
+                          src={apiUrl(m.post.image_url)}
+                          alt=""
+                          className="h-[140px] w-full rounded-[6px] object-cover"
+                        />
+                      )}
+                      <p className="mt-1.5 px-1 pb-0.5 font-serif text-[12px] leading-relaxed text-[#3d3b2f]">
+                        “{m.post.caption}”
+                      </p>
+                    </div>
+                  </div>
+                )}
+                <div
+                  onClick={openable ? () => setPostMilestoneId(m.id) : undefined}
+                  className={`rounded-[14px] border border-[rgba(143,220,138,.16)] bg-[rgba(7,22,12,.78)] px-4 py-3.5 shadow-[0_8px_26px_rgba(0,0,0,.38)] backdrop-blur-[6px] ${
+                    openable
+                      ? "cursor-pointer transition-colors hover:border-[rgba(143,220,138,.35)]"
+                      : ""
+                  }`}
+                >
                   <div className="mb-1.5 flex items-center gap-2">
                     <span className="font-serif text-[13px] text-moss-600">
                       {String(m.order_index + 1).padStart(2, "0")}
@@ -253,20 +298,37 @@ export default function RoadmapDetailPage({ params }: { params: { id: string } }
                       괜찮아요 — 지금 완료하면 가지가 다시 자라요.
                     </div>
                   )}
-                  {isOwn && (
-                    <button
-                      type="button"
-                      onClick={() => toggleMilestone(m)}
-                      className="mt-[11px] inline-flex items-center gap-[7px] whitespace-nowrap rounded-full border px-3.5 py-[7px] text-[12.5px] font-semibold transition-[filter] hover:brightness-125"
-                      style={{
-                        background: done ? "rgba(93,179,91,.22)" : "rgba(255,255,255,.04)",
-                        borderColor: done ? "rgba(143,220,138,.5)" : "rgba(143,220,138,.26)",
-                        color: done ? "#b9eab2" : "#cfe6cb",
-                      }}
-                    >
-                      {done ? "✓ 완료됨" : "완료로 표시"}
-                    </button>
-                  )}
+                  <div className="mt-[11px] flex items-center gap-2">
+                    {isOwn && (
+                      <button
+                        type="button"
+                        onClick={(e) => {
+                          e.stopPropagation();
+                          void toggleMilestone(m);
+                        }}
+                        className="inline-flex items-center gap-[7px] whitespace-nowrap rounded-full border px-3.5 py-[7px] text-[12.5px] font-semibold transition-[filter] hover:brightness-125"
+                        style={{
+                          background: done ? "rgba(93,179,91,.22)" : "rgba(255,255,255,.04)",
+                          borderColor: done ? "rgba(143,220,138,.5)" : "rgba(143,220,138,.26)",
+                          color: done ? "#b9eab2" : "#cfe6cb",
+                        }}
+                      >
+                        {done ? "✓ 완료됨" : "완료로 표시"}
+                      </button>
+                    )}
+                    {m.post ? (
+                      <span className="ml-auto whitespace-nowrap text-[11.5px] text-moss-600">
+                        {m.post.has_image ? "📷" : "📝"} 기록 · 🌼 {m.post.like_count} · 💬{" "}
+                        {m.post.comment_count}
+                      </span>
+                    ) : (
+                      isOwn && (
+                        <span className="ml-auto whitespace-nowrap text-[11.5px] text-moss-700 transition-colors group-hover:text-moss-400">
+                          ✎ 기록 남기기
+                        </span>
+                      )
+                    )}
+                  </div>
                 </div>
               </div>
             );
@@ -274,9 +336,12 @@ export default function RoadmapDetailPage({ params }: { params: { id: string } }
 
           {/* Ground — where the seed was planted */}
           <div className="absolute bottom-[118px] left-1/2 z-[6] flex -translate-x-1/2 flex-col items-center gap-2 text-center">
-            <div className="flex h-[70px] w-[70px] items-center justify-center rounded-full border-2 border-[#3f6f49] bg-[rgba(16,36,21,.92)] text-[34px] shadow-[0_0_34px_rgba(93,179,91,.28)]">
+            <Link
+              href={`/profile/${roadmap.user.id}`}
+              className="flex h-[70px] w-[70px] items-center justify-center rounded-full border-2 border-[#3f6f49] bg-[rgba(16,36,21,.92)] text-[34px] no-underline shadow-[0_0_34px_rgba(93,179,91,.28)] transition-shadow hover:shadow-[0_0_44px_rgba(93,179,91,.45)]"
+            >
               {roadmap.user.avatar_emoji}
-            </div>
+            </Link>
             <div className="text-sm font-bold text-moss-100">{roadmap.user.display_name}</div>
             <div className="text-[11.5px] text-moss-600">
               {formatDateKo(roadmap.created_at)} 씨앗 심음
@@ -287,10 +352,15 @@ export default function RoadmapDetailPage({ params }: { params: { id: string } }
 
       {/* Owner chip — fixed to the viewport, top right */}
       <div className="fixed right-[26px] top-[22px] z-[55] flex items-center gap-2.5 rounded-full border border-[rgba(143,220,138,.15)] bg-[rgba(6,18,10,.74)] py-2 pl-[15px] pr-2.5 backdrop-blur-[10px]">
-        <span className="text-base">{roadmap.user.avatar_emoji}</span>
-        <span className="text-[13px] font-semibold text-moss-100">
-          {isOwn ? "내 콩나무" : `${roadmap.user.display_name}의 콩나무`}
-        </span>
+        <Link
+          href={`/profile/${roadmap.user.id}`}
+          className="flex items-center gap-2.5 no-underline"
+        >
+          <span className="text-base">{roadmap.user.avatar_emoji}</span>
+          <span className="text-[13px] font-semibold !text-moss-100 hover:!text-moss-300">
+            {isOwn ? "내 콩나무" : `${roadmap.user.display_name}의 콩나무`}
+          </span>
+        </Link>
         <span className="whitespace-nowrap text-[11.5px] text-moss-600">{goalSub}</span>
         {!isOwn && me?.yonsei_verified && (
           <button
@@ -352,6 +422,17 @@ export default function RoadmapDetailPage({ params }: { params: { id: string } }
           ✦ 분위기
         </button>
       </div>
+
+      {postMilestone && (
+        <MilestonePostModal
+          key={postMilestone.id}
+          milestone={postMilestone}
+          isOwn={isOwn}
+          canInteract={!!me?.yonsei_verified}
+          onClose={() => setPostMilestoneId(null)}
+          onChanged={(post) => applyPostChange(postMilestone.id, post)}
+        />
+      )}
     </div>
   );
 }

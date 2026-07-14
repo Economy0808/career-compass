@@ -1,14 +1,22 @@
 import type {
   ChatMessageIn,
   ChatResponse,
+  CommentOut,
   FeedScope,
   MeOut,
   MilestonePatchResponse,
+  MilestonePostOut,
   RoadmapCardOut,
   RoadmapDetailOut,
+  UserProfileOut,
 } from "./types";
 
 const API_BASE_URL = process.env.NEXT_PUBLIC_API_BASE_URL ?? "http://localhost:8000";
+
+/** 서버가 주는 상대 경로(이미지 등)를 절대 URL로 바꾼다. */
+export function apiUrl(path: string): string {
+  return `${API_BASE_URL}${path}`;
+}
 
 export class ApiError extends Error {
   status: number;
@@ -152,4 +160,79 @@ export function followUser(userId: number): Promise<void> {
 
 export function unfollowUser(userId: number): Promise<void> {
   return request<void>(`/api/users/${userId}/follow`, { method: "DELETE" });
+}
+
+// ---------- milestone posts (기록) ----------
+
+export interface MilestonePostInput {
+  caption: string;
+  body: string;
+  file?: File | null;
+  removeImage?: boolean;
+}
+
+export function putMilestonePost(
+  milestoneId: number,
+  input: MilestonePostInput
+): Promise<MilestonePostOut> {
+  const form = new FormData();
+  form.append("caption", input.caption);
+  if (input.body) form.append("body", input.body);
+  if (input.file) form.append("file", input.file);
+  if (input.removeImage) form.append("remove_image", "true");
+  return request<MilestonePostOut>(`/api/roadmap/milestones/${milestoneId}/post`, {
+    method: "PUT",
+    body: form,
+  });
+}
+
+export function deleteMilestonePost(milestoneId: number): Promise<void> {
+  return request<void>(`/api/roadmap/milestones/${milestoneId}/post`, { method: "DELETE" });
+}
+
+export function likePost(milestoneId: number): Promise<void> {
+  return request<void>(`/api/roadmap/milestones/${milestoneId}/post/like`, { method: "POST" });
+}
+
+export function unlikePost(milestoneId: number): Promise<void> {
+  return request<void>(`/api/roadmap/milestones/${milestoneId}/post/like`, { method: "DELETE" });
+}
+
+export function getComments(milestoneId: number): Promise<CommentOut[]> {
+  return request<CommentOut[]>(`/api/roadmap/milestones/${milestoneId}/post/comments`);
+}
+
+export function postComment(milestoneId: number, content: string): Promise<CommentOut> {
+  return request<CommentOut>(
+    `/api/roadmap/milestones/${milestoneId}/post/comments`,
+    jsonInit("POST", { content })
+  );
+}
+
+export function deleteComment(commentId: number): Promise<void> {
+  return request<void>(`/api/roadmap/comments/${commentId}`, { method: "DELETE" });
+}
+
+// ---------- profile ----------
+
+export function getUserProfile(userId: number): Promise<UserProfileOut> {
+  return request<UserProfileOut>(`/api/users/${userId}`);
+}
+
+export function getUserRoadmaps(userId: number): Promise<RoadmapCardOut[]> {
+  return request<RoadmapCardOut[]>(`/api/users/${userId}/roadmaps`);
+}
+
+export function patchMyBio(bio: string): Promise<UserProfileOut> {
+  return request<UserProfileOut>("/api/users/me", jsonInit("PATCH", { bio }));
+}
+
+export function patchRoadmapFeatured(
+  roadmapId: number,
+  isFeatured: boolean
+): Promise<RoadmapCardOut> {
+  return request<RoadmapCardOut>(
+    `/api/roadmap/${roadmapId}`,
+    jsonInit("PATCH", { is_featured: isFeatured })
+  );
 }

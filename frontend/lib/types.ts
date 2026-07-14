@@ -16,10 +16,42 @@ export interface MeOut {
   display_name: string;
   avatar_emoji: string;
   email: string;
+  bio: string | null;
   email_verified: boolean;
   yonsei_verified: boolean;
   verification_method: "school_email" | "student_card" | null;
   card_status: CardStatus | null;
+}
+
+export interface UserProfileOut {
+  id: number;
+  display_name: string;
+  avatar_emoji: string;
+  bio: string | null;
+  yonsei_verified: boolean;
+  roadmap_count: number;
+  follower_count: number;
+  following_count: number;
+  is_following: boolean | null;
+}
+
+export interface MilestonePostOut {
+  caption: string;
+  body: string | null;
+  has_image: boolean;
+  image_url: string | null;
+  updated_at: string;
+  like_count: number;
+  liked_by_me: boolean;
+  comment_count: number;
+}
+
+export interface CommentOut {
+  id: number;
+  user: UserOut;
+  content: string;
+  created_at: string;
+  can_delete: boolean;
 }
 
 export interface ChatMessageIn {
@@ -42,6 +74,7 @@ export interface MilestoneOut {
   is_completed_manual: boolean;
   completed_at: string | null;
   status: MilestoneStatus;
+  post: MilestonePostOut | null;
 }
 
 export interface RoadmapDetailOut {
@@ -63,6 +96,7 @@ export interface RoadmapCardOut {
   milestone_count: number;
   created_at: string;
   is_following: boolean | null;
+  is_featured: boolean;
 }
 
 export interface MilestonePatchResponse {
