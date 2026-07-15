@@ -22,6 +22,7 @@ from app.db import Base
 import app.models.ncs  # noqa: F401  # 모델을 import해야 metadata에 등록됨
 import app.models.roadmap  # noqa: F401  # 모델을 import해야 metadata에 등록됨
 import app.models.account  # noqa: F401  # 모델을 import해야 metadata에 등록됨
+import app.models.todo  # noqa: F401  # 모델을 import해야 metadata에 등록됨
 target_metadata = Base.metadata
 
 def run_migrations_offline() -> None:
