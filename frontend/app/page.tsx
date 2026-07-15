@@ -124,7 +124,8 @@ export default function FeedPage() {
                   <div className="flex h-[150px] justify-center">
                     <MiniBeanstalk progressPct={card.progress_pct} />
                   </div>
-                  <div className="mt-1.5 text-[15px] font-bold leading-[1.4] text-moss-100">
+                  <div className="mt-1.5 flex items-start gap-1.5 text-[15px] font-bold leading-[1.4] text-moss-100">
+                    {card.is_withered && <span title="시들어버린 콩나무">🥀</span>}
                     {card.title}
                   </div>
                   <div className="mt-[9px] flex items-center gap-[7px]">

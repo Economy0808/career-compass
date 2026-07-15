@@ -55,6 +55,7 @@ export default function RoadmapDetailPage({ params }: { params: { id: string } }
   const [flags, setFlags] = useState<Flags>({ fireflies: true, sway: true, celebratePreview: false });
   const [flagsOpen, setFlagsOpen] = useState(false);
   const [postMilestoneId, setPostMilestoneId] = useState<number | null>(null);
+  const [beansNotice, setBeansNotice] = useState<number | null>(null);
 
   const scrollRef = useRef<HTMLDivElement>(null);
   const didInitialScroll = useRef(false);
@@ -130,6 +131,10 @@ export default function RoadmapDetailPage({ params }: { params: { id: string } }
           milestones: prev.milestones.map((x) => (x.id === m.id ? res.milestone : x)),
         };
       });
+      if (res.beans_awarded) {
+        setBeansNotice(res.beans_awarded);
+        setTimeout(() => setBeansNotice(null), 9000);
+      }
     } catch {
       setRoadmap(snapshot);
       if (next) setSprout(null);
@@ -226,6 +231,18 @@ export default function RoadmapDetailPage({ params }: { params: { id: string } }
             {pct >= 100 && (
               <div className="relative mt-3.5 inline-block rounded-full border border-[rgba(240,232,180,.45)] bg-[rgba(240,232,180,.13)] px-[18px] py-[7px] text-[12.5px] font-semibold text-bloom-300">
                 콩나무가 다 자랐어요 · 목표 달성
+              </div>
+            )}
+            {beansNotice !== null && (
+              <div className="relative mt-2.5 block">
+                <span className="inline-block rounded-full border border-[rgba(240,232,180,.5)] bg-[rgba(240,232,180,.18)] px-[16px] py-[6px] text-[13px] font-bold text-bloom-200">
+                  🫘 콩 {beansNotice}개 수확!
+                </span>
+              </div>
+            )}
+            {roadmap.is_withered && (
+              <div className="relative mt-3.5 inline-block rounded-full border border-[rgba(216,176,120,.45)] bg-[rgba(196,154,90,.14)] px-[18px] py-[7px] text-[12.5px] font-semibold text-wither-300">
+                🥀 시들어버린 콩나무 — 지금이라도 물을 주면 다시 자라요
               </div>
             )}
           </div>

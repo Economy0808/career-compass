@@ -34,6 +34,19 @@ function SeedIcon() {
   );
 }
 
+function BeanIcon() {
+  return (
+    <svg width="18" height="18" viewBox="0 0 24 24" fill="none">
+      <path
+        d="M7 4C4 6 3.5 10.5 6 14c2.6 3.6 7.4 5.4 10.9 4C20 16.8 21 12.5 18.5 9 15.9 5.4 10 2 7 4Z"
+        stroke="currentColor"
+        strokeWidth="2"
+      />
+      <path d="M9 8c1.5 1 4.5 3.5 5.5 6.5" stroke="currentColor" strokeWidth="2" strokeLinecap="round" />
+    </svg>
+  );
+}
+
 const ITEM_BASE =
   "flex w-full items-center gap-[9px] rounded-[10px] px-[11px] py-[9px] text-left text-[13px] font-semibold transition-colors hover:bg-[rgba(143,220,138,.16)]";
 const ITEM_ON = "bg-[rgba(143,220,138,.16)] text-moss-300";
@@ -84,6 +97,13 @@ export function SideNav() {
         className={`${ITEM_BASE} ${pathname === "/new" ? ITEM_ON : ITEM_OFF}`}
       >
         <SeedIcon />새 씨앗 심기
+      </button>
+      <button
+        type="button"
+        onClick={() => router.push("/ranking")}
+        className={`${ITEM_BASE} ${pathname === "/ranking" ? ITEM_ON : ITEM_OFF}`}
+      >
+        <BeanIcon />콩 랭킹
       </button>
 
       <div className="mt-2 border-t border-[rgba(143,220,138,.12)] pt-2.5">

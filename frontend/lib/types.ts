@@ -33,6 +33,21 @@ export interface UserProfileOut {
   follower_count: number;
   following_count: number;
   is_following: boolean | null;
+  bean_balance: number;
+}
+
+export interface BeanRankingEntry {
+  rank: number;
+  user: UserOut;
+  beans_earned: number;
+}
+
+export type BeanPackageId = "bean_10" | "bean_55" | "bean_120";
+
+export interface BeanPurchaseResponse {
+  detail: string;
+  bean_balance: number;
+  receipt_id: string;
 }
 
 export interface MilestonePostOut {
@@ -86,6 +101,7 @@ export interface RoadmapDetailOut {
   progress_pct: number;
   milestones: MilestoneOut[];
   is_following: boolean | null;
+  is_withered: boolean;
 }
 
 export interface RoadmapCardOut {
@@ -97,10 +113,12 @@ export interface RoadmapCardOut {
   created_at: string;
   is_following: boolean | null;
   is_featured: boolean;
+  is_withered: boolean;
 }
 
 export interface MilestonePatchResponse {
   milestone: MilestoneOut;
   roadmap_id: number;
   roadmap_progress_pct: number;
+  beans_awarded: number | null;
 }

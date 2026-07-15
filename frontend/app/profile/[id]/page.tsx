@@ -3,8 +3,11 @@
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useEffect, useState } from "react";
+import { BeanShopModal } from "@/components/BeanShopModal";
 import { MiniBeanstalk } from "@/components/MiniBeanstalk";
 import {
+  ApiError,
+  deleteRoadmap,
   followUser,
   getUserProfile,
   getUserRoadmaps,
@@ -14,6 +17,8 @@ import {
 } from "@/lib/api";
 import { useAuth } from "@/lib/auth-context";
 import type { RoadmapCardOut, UserProfileOut } from "@/lib/types";
+
+const BEAN_DELETE_COST = 10;
 
 export default function ProfilePage({ params }: { params: { id: string } }) {
   const userId = Number(params.id);
@@ -29,6 +34,10 @@ export default function ProfilePage({ params }: { params: { id: string } }) {
   const [editingBio, setEditingBio] = useState(false);
   const [bioInput, setBioInput] = useState("");
   const [bioPending, setBioPending] = useState(false);
+  const [shopOpen, setShopOpen] = useState(false);
+  const [deleteTarget, setDeleteTarget] = useState<RoadmapCardOut | null>(null);
+  const [deletePending, setDeletePending] = useState(false);
+  const [deleteError, setDeleteError] = useState<string | null>(null);
 
   const isOwn = me?.id === userId;
 
@@ -90,6 +99,30 @@ export default function ProfilePage({ params }: { params: { id: string } }) {
       );
     } finally {
       setFeaturePendingId(null);
+    }
+  }
+
+  async function confirmDelete() {
+    if (!deleteTarget || deletePending) return;
+    setDeletePending(true);
+    setDeleteError(null);
+    try {
+      await deleteRoadmap(deleteTarget.id);
+      setCards((prev) => prev.filter((c) => c.id !== deleteTarget.id));
+      setProfile((prev) =>
+        prev
+          ? {
+              ...prev,
+              bean_balance: prev.bean_balance - BEAN_DELETE_COST,
+              roadmap_count: prev.roadmap_count - 1,
+            }
+          : prev
+      );
+      setDeleteTarget(null);
+    } catch (err) {
+      setDeleteError(err instanceof ApiError ? err.detail : "정리에 실패했어요.");
+    } finally {
+      setDeletePending(false);
     }
   }
 
@@ -161,7 +194,7 @@ export default function ProfilePage({ params }: { params: { id: string } }) {
               )}
             </div>
 
-            <div className="mt-2 flex gap-5 text-[12.5px] text-moss-500">
+            <div className="mt-2 flex flex-wrap items-center gap-5 text-[12.5px] text-moss-500">
               <span>
                 콩나무 <b className="text-moss-300">{profile.roadmap_count}</b>
               </span>
@@ -170,6 +203,18 @@ export default function ProfilePage({ params }: { params: { id: string } }) {
               </span>
               <span>
                 팔로잉 <b className="text-moss-300">{profile.following_count}</b>
+              </span>
+              <span>
+                🫘 <b className="text-bloom-300">{profile.bean_balance}</b>
+                {isOwn && (
+                  <button
+                    type="button"
+                    onClick={() => setShopOpen(true)}
+                    className="ml-1.5 rounded-full border border-[rgba(240,232,180,.35)] bg-[rgba(240,232,180,.1)] px-2 py-0.5 text-[10.5px] font-semibold text-bloom-300 transition-colors hover:bg-[rgba(240,232,180,.2)]"
+                  >
+                    + 충전
+                  </button>
+                )}
               </span>
             </div>
 
@@ -245,51 +290,184 @@ export default function ProfilePage({ params }: { params: { id: string } }) {
           </div>
         ) : (
           <div className="grid grid-cols-[repeat(auto-fill,minmax(252px,1fr))] gap-[18px]">
-            {cards.map((card) => {
-              const done = Math.round((card.progress_pct / 100) * card.milestone_count);
-              return (
-                <div
-                  key={card.id}
-                  onClick={() => router.push(`/roadmap/${card.id}`)}
-                  className="cursor-pointer rounded-[18px] border border-[rgba(143,220,138,.13)] bg-[linear-gradient(180deg,rgba(14,33,20,.55),rgba(8,20,12,.85))] px-[18px] py-4 transition-[border-color,transform] duration-200 hover:-translate-y-[3px] hover:border-[rgba(143,220,138,.4)]"
-                >
-                  <div className="flex h-[150px] justify-center">
-                    <MiniBeanstalk progressPct={card.progress_pct} />
-                  </div>
-                  <div className="mt-1.5 text-[15px] font-bold leading-[1.4] text-moss-100">
-                    {card.title}
-                  </div>
-                  <div className="mt-[9px] flex items-center gap-[7px]">
-                    <span className="text-[11.5px] text-moss-700">
-                      마일스톤 {done}/{card.milestone_count}
-                    </span>
-                    <span className="ml-auto text-xs font-semibold text-bean-200">
-                      {card.progress_pct}% 자람
-                    </span>
-                  </div>
-                  {isOwn && (
-                    <div className="mt-3 border-t border-[rgba(143,220,138,.1)] pt-3">
-                      <label
-                        onClick={(e) => e.stopPropagation()}
-                        className="flex cursor-pointer items-center gap-2 text-[11.5px] text-moss-500"
-                      >
-                        <input
-                          type="checkbox"
-                          checked={card.is_featured}
-                          disabled={featurePendingId === card.id}
-                          onChange={() => void toggleFeatured(card)}
-                          className="accent-bean-500"
-                        />
-                        메인에 띄우기 (로드맵 숲 노출)
-                      </label>
+            {cards
+              .filter((c) => !c.is_withered)
+              .map((card) => {
+                const done = Math.round((card.progress_pct / 100) * card.milestone_count);
+                return (
+                  <div
+                    key={card.id}
+                    onClick={() => router.push(`/roadmap/${card.id}`)}
+                    className="cursor-pointer rounded-[18px] border border-[rgba(143,220,138,.13)] bg-[linear-gradient(180deg,rgba(14,33,20,.55),rgba(8,20,12,.85))] px-[18px] py-4 transition-[border-color,transform] duration-200 hover:-translate-y-[3px] hover:border-[rgba(143,220,138,.4)]"
+                  >
+                    <div className="flex h-[150px] justify-center">
+                      <MiniBeanstalk progressPct={card.progress_pct} />
                     </div>
-                  )}
-                </div>
-              );
-            })}
+                    <div className="mt-1.5 text-[15px] font-bold leading-[1.4] text-moss-100">
+                      {card.title}
+                    </div>
+                    <div className="mt-[9px] flex items-center gap-[7px]">
+                      <span className="text-[11.5px] text-moss-700">
+                        마일스톤 {done}/{card.milestone_count}
+                      </span>
+                      <span className="ml-auto text-xs font-semibold text-bean-200">
+                        {card.progress_pct}% 자람
+                      </span>
+                    </div>
+                    {isOwn && (
+                      <div className="mt-3 border-t border-[rgba(143,220,138,.1)] pt-3">
+                        <label
+                          onClick={(e) => e.stopPropagation()}
+                          className="flex cursor-pointer items-center gap-2 text-[11.5px] text-moss-500"
+                        >
+                          <input
+                            type="checkbox"
+                            checked={card.is_featured}
+                            disabled={featurePendingId === card.id}
+                            onChange={() => void toggleFeatured(card)}
+                            className="accent-bean-500"
+                          />
+                          메인에 띄우기 (로드맵 숲 노출)
+                        </label>
+                      </div>
+                    )}
+                  </div>
+                );
+              })}
           </div>
         )}
+
+        {/* 시들어버린 콩나무들 - 마감 +30일 지나도 미완주 */}
+        {cards.some((c) => c.is_withered) && (
+          <>
+            <div className="mb-4 mt-10 flex items-center gap-2">
+              <h2 className="font-serif text-[20px] font-bold text-wither-300">
+                🥀 시들어버린 콩나무들
+              </h2>
+              <span className="text-[11.5px] text-moss-700">
+                마감이 한 달 넘게 지났어요 — 지금이라도 완주하면 되살아나요
+              </span>
+            </div>
+            <div className="grid grid-cols-[repeat(auto-fill,minmax(252px,1fr))] gap-[18px]">
+              {cards
+                .filter((c) => c.is_withered)
+                .map((card) => {
+                  const done = Math.round((card.progress_pct / 100) * card.milestone_count);
+                  return (
+                    <div
+                      key={card.id}
+                      onClick={() => router.push(`/roadmap/${card.id}`)}
+                      className="cursor-pointer rounded-[18px] border border-[rgba(196,154,90,.25)] bg-[linear-gradient(180deg,rgba(40,32,18,.55),rgba(20,15,8,.85))] px-[18px] py-4 transition-[border-color,transform] duration-200 hover:-translate-y-[3px] hover:border-[rgba(216,176,120,.5)]"
+                    >
+                      <div className="flex h-[150px] justify-center opacity-60 saturate-[.35] sepia-[.4]">
+                        <MiniBeanstalk progressPct={card.progress_pct} />
+                      </div>
+                      <div className="mt-1.5 flex items-start gap-1.5 text-[15px] font-bold leading-[1.4] text-wither-300">
+                        <span>🥀</span>
+                        {card.title}
+                      </div>
+                      <div className="mt-[9px] flex items-center gap-[7px]">
+                        <span className="text-[11.5px] text-moss-700">
+                          마일스톤 {done}/{card.milestone_count}
+                        </span>
+                        <span className="ml-auto text-xs font-semibold text-wither-300">
+                          {card.progress_pct}%에서 시듦
+                        </span>
+                      </div>
+                      {isOwn && (
+                        <div className="mt-3 flex items-center border-t border-[rgba(196,154,90,.15)] pt-3">
+                          <span className="text-[11px] text-moss-700">물을 주거나, 정리하거나</span>
+                          <button
+                            type="button"
+                            onClick={(e) => {
+                              e.stopPropagation();
+                              setDeleteError(null);
+                              setDeleteTarget(card);
+                            }}
+                            className="ml-auto rounded-full border border-[rgba(216,176,120,.4)] bg-[rgba(196,154,90,.14)] px-3 py-1.5 text-[11.5px] font-semibold text-wither-300 transition-colors hover:bg-[rgba(196,154,90,.28)]"
+                          >
+                            🫘 {BEAN_DELETE_COST}개로 정리
+                          </button>
+                        </div>
+                      )}
+                    </div>
+                  );
+                })}
+            </div>
+          </>
+        )}
       </div>
+
+      {shopOpen && profile && (
+        <BeanShopModal
+          currentBalance={profile.bean_balance}
+          onClose={() => setShopOpen(false)}
+          onPurchased={(newBalance) =>
+            setProfile((prev) => (prev ? { ...prev, bean_balance: newBalance } : prev))
+          }
+        />
+      )}
+
+      {deleteTarget && profile && (
+        <div
+          className="fixed inset-0 z-[80] flex items-center justify-center bg-[rgba(3,10,5,.72)] px-4 backdrop-blur-[4px]"
+          onClick={() => setDeleteTarget(null)}
+        >
+          <div
+            onClick={(e) => e.stopPropagation()}
+            className="w-full max-w-[380px] rounded-2xl border border-[rgba(216,176,120,.3)] bg-[rgba(22,16,8,.97)] p-6 shadow-[0_20px_60px_rgba(0,0,0,.6)]"
+          >
+            <h2 className="font-serif text-[19px] font-bold text-wither-300">
+              🥀 시든 콩나무 정리
+            </h2>
+            <p className="mt-3 text-[13px] leading-relaxed text-moss-400">
+              <b className="text-moss-100">{deleteTarget.title}</b>
+              을(를) 정리하면 마일스톤과 기록이 모두 사라지고 되돌릴 수 없어요.
+            </p>
+            <p className="mt-2 text-[12.5px] text-moss-500">
+              비용 🫘 {BEAN_DELETE_COST}개 · 보유{" "}
+              <b className={profile.bean_balance >= BEAN_DELETE_COST ? "text-bloom-300" : "text-wither-300"}>
+                {profile.bean_balance}개
+              </b>
+            </p>
+            {profile.bean_balance < BEAN_DELETE_COST && (
+              <p className="mt-2 text-[12px] text-wither-300">
+                콩이 부족해요 — 콩나무를 완주해 수확하거나 충전해주세요.
+              </p>
+            )}
+            {deleteError && <p className="mt-2 text-[12px] text-wither-300">{deleteError}</p>}
+            <div className="mt-5 flex gap-2">
+              <button
+                type="button"
+                onClick={confirmDelete}
+                disabled={deletePending || profile.bean_balance < BEAN_DELETE_COST}
+                className="flex-1 rounded-xl border border-[rgba(216,176,120,.5)] bg-[rgba(196,154,90,.22)] p-3 text-sm font-bold text-wither-300 transition-[filter] hover:brightness-125 disabled:opacity-50"
+              >
+                {deletePending ? "정리 중…" : `🫘 ${BEAN_DELETE_COST}개 쓰고 정리하기`}
+              </button>
+              <button
+                type="button"
+                onClick={() => setDeleteTarget(null)}
+                className="rounded-xl border border-[rgba(143,220,138,.25)] px-4 text-[13px] font-semibold text-moss-400 transition-colors hover:bg-[rgba(143,220,138,.1)]"
+              >
+                취소
+              </button>
+            </div>
+            {profile.bean_balance < BEAN_DELETE_COST && (
+              <button
+                type="button"
+                onClick={() => {
+                  setDeleteTarget(null);
+                  setShopOpen(true);
+                }}
+                className="mt-2 w-full rounded-xl border border-[rgba(240,232,180,.35)] bg-[rgba(240,232,180,.1)] p-2.5 text-[12.5px] font-semibold text-bloom-300 transition-colors hover:bg-[rgba(240,232,180,.2)]"
+              >
+                콩 충전하러 가기
+              </button>
+            )}
+          </div>
+        </div>
+      )}
     </div>
   );
 }

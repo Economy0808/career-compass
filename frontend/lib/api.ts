@@ -1,4 +1,7 @@
 import type {
+  BeanPackageId,
+  BeanPurchaseResponse,
+  BeanRankingEntry,
   ChatMessageIn,
   ChatResponse,
   CommentOut,
@@ -234,5 +237,23 @@ export function patchRoadmapFeatured(
   return request<RoadmapCardOut>(
     `/api/roadmap/${roadmapId}`,
     jsonInit("PATCH", { is_featured: isFeatured })
+  );
+}
+
+// ---------- beans (콩 화폐) ----------
+
+/** 시든 콩나무 정리 (콩 10개 소모) */
+export function deleteRoadmap(roadmapId: number): Promise<void> {
+  return request<void>(`/api/roadmap/${roadmapId}`, { method: "DELETE" });
+}
+
+export function getBeanRanking(): Promise<BeanRankingEntry[]> {
+  return request<BeanRankingEntry[]>("/api/beans/ranking");
+}
+
+export function purchaseBeans(packageId: BeanPackageId): Promise<BeanPurchaseResponse> {
+  return request<BeanPurchaseResponse>(
+    "/api/beans/purchase",
+    jsonInit("POST", { package_id: packageId })
   );
 }
