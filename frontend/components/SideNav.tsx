@@ -47,6 +47,15 @@ function BeanIcon() {
   );
 }
 
+function CalendarIcon() {
+  return (
+    <svg width="18" height="18" viewBox="0 0 24 24" fill="none">
+      <rect x="3.5" y="5" width="17" height="15" rx="2.5" stroke="currentColor" strokeWidth="2" />
+      <path d="M3.5 9.5h17M8 3.5v3M16 3.5v3" stroke="currentColor" strokeWidth="2" strokeLinecap="round" />
+    </svg>
+  );
+}
+
 const ITEM_BASE =
   "flex w-full items-center gap-[9px] rounded-[10px] px-[11px] py-[9px] text-left text-[13px] font-semibold transition-colors hover:bg-[rgba(143,220,138,.16)]";
 const ITEM_ON = "bg-[rgba(143,220,138,.16)] text-moss-300";
@@ -83,6 +92,13 @@ export function SideNav() {
         }`}
       >
         <SproutIcon />내 콩나무
+      </button>
+      <button
+        type="button"
+        onClick={() => router.push(me ? "/schedule" : "/login")}
+        className={`${ITEM_BASE} ${pathname === "/schedule" ? ITEM_ON : ITEM_OFF}`}
+      >
+        <CalendarIcon />일정
       </button>
       <button
         type="button"

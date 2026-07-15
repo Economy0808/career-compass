@@ -20,6 +20,17 @@ export function formatDateKo(iso: string): string {
   ).padStart(2, "0")}`;
 }
 
+/** 로컬 타임존 기준 YYYY-MM-DD (toISOString은 UTC라 날짜가 밀릴 수 있어 직접 구성). */
+export function localISODate(date: Date): string {
+  return `${date.getFullYear()}-${String(date.getMonth() + 1).padStart(2, "0")}-${String(
+    date.getDate()
+  ).padStart(2, "0")}`;
+}
+
+export function todayISODate(): string {
+  return localISODate(new Date());
+}
+
 export function dDayKo(iso: string): string {
   const today = new Date();
   today.setHours(0, 0, 0, 0);
