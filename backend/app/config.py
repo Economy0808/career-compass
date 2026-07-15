@@ -21,6 +21,10 @@ class Settings(BaseSettings):
     student_card_max_bytes: int = 5 * 1024 * 1024
     milestone_image_dir: str = "var/milestone_images"
     milestone_image_max_bytes: int = 5 * 1024 * 1024
+    # Bean economy
+    withered_grace_days: int = 30
+    bean_delete_cost: int = 10
+    bean_reward_multiplier: int = 2
 
     @property
     def cookie_secure(self) -> bool:

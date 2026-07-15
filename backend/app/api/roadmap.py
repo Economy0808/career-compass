@@ -9,12 +9,14 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 
 from app.config import Settings, get_settings
+from app.core.beans import award_completion_if_due, get_balance
 from app.core.deps import get_current_user_optional, require_yonsei_verified
 from app.core.uploads import detect_image_ext, resize_to_jpeg
 from app.db import get_db
 from app.llm import get_llm_client
 from app.llm.base import ChatMessage, LLMClient
 from app.models.roadmap import (
+    BeanTransaction,
     Follow,
     Milestone,
     MilestonePost,
@@ -23,6 +25,7 @@ from app.models.roadmap import (
     Roadmap,
     User,
     compute_progress_pct,
+    compute_withered,
 )
 from app.schemas.roadmap import (
     ChatMessageIn,
@@ -191,12 +194,19 @@ async def patch_milestone(
 
     milestone.is_completed_manual = request.is_completed
     milestone.completed_at = datetime.now() if request.is_completed else None
+
+    # 완주 보상: 진행률이 처음 100%에 도달하면 마일스톤 수 x 2 콩 지급 (1회)
+    settings = get_settings()
+    award = award_completion_if_due(milestone.roadmap, settings)
+    if award is not None:
+        db.add(award)
     await db.commit()
 
     return MilestonePatchResponse(
         milestone=milestone_to_out(milestone, viewer_id=user.id),
         roadmap_id=milestone.roadmap_id,
         roadmap_progress_pct=compute_progress_pct(milestone.roadmap.milestones),
+        beans_awarded=award.amount if award else None,
     )
 
 
@@ -251,6 +261,54 @@ async def patch_roadmap(
     roadmap.is_featured = request.is_featured
     await db.commit()
     return roadmap_to_card(roadmap)
+
+
+@router.delete("/{roadmap_id}", status_code=204)
+async def delete_roadmap(
+    roadmap_id: int,
+    db: AsyncSession = Depends(get_db),
+    user: User = Depends(require_yonsei_verified),
+    settings: Settings = Depends(get_settings),
+) -> None:
+    """시들어버린 콩나무 정리. 콩 10개를 소모하며, 시들지 않은 콩나무는 지울 수 없다."""
+    roadmap = await db.scalar(
+        select(Roadmap)
+        .where(Roadmap.id == roadmap_id)
+        .options(
+            # ORM cascade가 flush 시 lazy load를 타지 않도록 트리 전체를 eager load
+            selectinload(Roadmap.milestones).selectinload(Milestone.post).selectinload(MilestonePost.likes),
+            selectinload(Roadmap.milestones).selectinload(Milestone.post).selectinload(MilestonePost.comments),
+        )
+    )
+    if roadmap is None:
+        raise HTTPException(status_code=404, detail="roadmap not found")
+    if roadmap.user_id != user.id:
+        raise HTTPException(status_code=403, detail="내 콩나무만 정리할 수 있어요.")
+    if not compute_withered(roadmap.milestones, settings.withered_grace_days):
+        raise HTTPException(
+            status_code=409,
+            detail="시들지 않은 콩나무는 지울 수 없어요. 숲에서 숨기려면 '메인에 띄우기'를 꺼주세요.",
+        )
+    balance = await get_balance(db, user.id)
+    if balance < settings.bean_delete_cost:
+        raise HTTPException(
+            status_code=409,
+            detail=f"콩이 부족해요. 정리에는 콩 {settings.bean_delete_cost}개가 필요해요 (보유 {balance}개).",
+        )
+
+    db.add(
+        BeanTransaction(
+            user_id=user.id,
+            amount=-settings.bean_delete_cost,
+            reason="roadmap_deleted",
+            roadmap_title=roadmap.title,
+        )
+    )
+    for m in roadmap.milestones:
+        if m.post:
+            _delete_post_image(m.post)
+    await db.delete(roadmap)
+    await db.commit()
 
 
 # ---------- 마일스톤 기록 (사진 + 문구 + 줄글) ----------

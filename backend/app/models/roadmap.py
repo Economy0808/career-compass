@@ -1,5 +1,5 @@
 """로드맵 SNS 관련 ORM 모델: User, Roadmap, Milestone."""
-from datetime import date, datetime
+from datetime import date, datetime, timedelta
 from typing import Literal
 
 from sqlalchemy import ForeignKey, UniqueConstraint, func
@@ -53,6 +53,8 @@ class Roadmap(Base):
     chat_transcript: Mapped[list[dict] | None] = mapped_column(JSONB, nullable=True)
     # 로드맵 숲(피드)에 노출할지 여부 - 유저가 "메인에 띄우기"로 고른다.
     is_featured: Mapped[bool] = mapped_column(nullable=False, server_default="true")
+    # 완주 보상 콩 지급 시각 - 로드맵당 1회만 지급 (완료 해제/재완료 중복 방지)
+    beans_awarded_at: Mapped[datetime | None] = mapped_column(nullable=True)
     created_at: Mapped[datetime] = mapped_column(server_default=func.now())
 
     user: Mapped[User] = relationship()
@@ -96,6 +98,36 @@ class Milestone(Base):
         if self.due_date < (today or date.today()):
             return "기한초과"
         return "진행중"
+
+
+BeanReason = Literal["roadmap_completed", "bean_purchase", "roadmap_deleted"]
+
+
+class BeanTransaction(Base):
+    """콩 화폐 원장. 보유량 = amount 합계.
+
+    reason:
+    - roadmap_completed: 콩나무 완주 수확 (+) - 주간 랭킹은 이것만 집계
+    - bean_purchase: 현금 구매 (+) - 랭킹 미반영, external_ref에 결제 영수증
+    - roadmap_deleted: 시든 콩나무 정리 비용 (-)
+    """
+
+    __tablename__ = "bean_transactions"
+
+    id: Mapped[int] = mapped_column(primary_key=True, autoincrement=True)
+    user_id: Mapped[int] = mapped_column(ForeignKey("users.id"), nullable=False, index=True)
+    amount: Mapped[int] = mapped_column(nullable=False)
+    reason: Mapped[str] = mapped_column(nullable=False)  # BeanReason
+    # 삭제된 로드맵도 내역이 남도록 FK 대신 제목 스냅샷
+    roadmap_title: Mapped[str | None] = mapped_column(nullable=True)
+    # 결제 영수증 id (bean_purchase일 때)
+    external_ref: Mapped[str | None] = mapped_column(nullable=True)
+    created_at: Mapped[datetime] = mapped_column(server_default=func.now())
+
+    user: Mapped[User] = relationship()
+
+    def __repr__(self) -> str:
+        return f"BeanTransaction(user_id={self.user_id}, amount={self.amount}, reason={self.reason!r})"
 
 
 class MilestonePost(Base):
@@ -183,3 +215,19 @@ def compute_progress_pct(milestones: list[Milestone], today: date | None = None)
         return 0.0
     completed = sum(1 for m in milestones if m.compute_status(today) == "완료")
     return round(completed / len(milestones) * 100, 1)
+
+
+def compute_withered(
+    milestones: list[Milestone], grace_days: int, today: date | None = None
+) -> bool:
+    """시든 콩나무 판정: 마지막 마감일 + 유예기간이 지나도 100% 미만.
+
+    상태와 마찬가지로 저장하지 않고 매 요청 계산 - 늦게라도 완주하면 되살아난다.
+    """
+    if not milestones:
+        return False
+    today = today or date.today()
+    deadline = max(m.due_date for m in milestones)
+    if today <= deadline + timedelta(days=grace_days):
+        return False
+    return compute_progress_pct(milestones, today) < 100.0

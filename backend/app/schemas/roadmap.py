@@ -9,6 +9,7 @@ from typing import Literal
 
 from pydantic import BaseModel, Field
 
+from app.config import get_settings
 from app.models.roadmap import (
     Milestone,
     MilestonePost,
@@ -17,6 +18,7 @@ from app.models.roadmap import (
     Roadmap,
     User,
     compute_progress_pct,
+    compute_withered,
 )
 
 ChatRole = Literal["user", "assistant"]
@@ -100,10 +102,30 @@ class UserProfileOut(BaseModel):
     follower_count: int
     following_count: int
     is_following: bool | None = None
+    bean_balance: int = 0
 
 
 class BioPatchRequest(BaseModel):
     bio: str = Field(max_length=200)
+
+
+class BeanRankingEntry(BaseModel):
+    rank: int
+    user: UserOut
+    beans_earned: int
+
+
+BeanPackageId = Literal["bean_10", "bean_55", "bean_120"]
+
+
+class BeanPurchaseRequest(BaseModel):
+    package_id: BeanPackageId
+
+
+class BeanPurchaseResponse(BaseModel):
+    detail: str
+    bean_balance: int
+    receipt_id: str
 
 
 class RoadmapDetailOut(BaseModel):
@@ -115,6 +137,7 @@ class RoadmapDetailOut(BaseModel):
     progress_pct: float
     milestones: list[MilestoneOut]
     is_following: bool | None = None
+    is_withered: bool = False
 
 
 class RoadmapCardOut(BaseModel):
@@ -126,6 +149,7 @@ class RoadmapCardOut(BaseModel):
     created_at: datetime
     is_following: bool | None = None
     is_featured: bool = True
+    is_withered: bool = False
 
 
 class MilestonePatchRequest(BaseModel):
@@ -136,6 +160,8 @@ class MilestonePatchResponse(BaseModel):
     milestone: MilestoneOut
     roadmap_id: int
     roadmap_progress_pct: float
+    # 이 토글로 완주 보상이 지급됐으면 지급된 콩 개수
+    beans_awarded: int | None = None
 
 
 def user_to_out(user: User) -> UserOut:
@@ -200,6 +226,9 @@ def roadmap_to_detail(
         progress_pct=compute_progress_pct(roadmap.milestones),
         milestones=[milestone_to_out(m, viewer_id) for m in roadmap.milestones],
         is_following=is_following,
+        is_withered=compute_withered(
+            roadmap.milestones, get_settings().withered_grace_days
+        ),
     )
 
 
@@ -213,4 +242,7 @@ def roadmap_to_card(roadmap: Roadmap, is_following: bool | None = None) -> Roadm
         created_at=roadmap.created_at,
         is_following=is_following,
         is_featured=roadmap.is_featured,
+        is_withered=compute_withered(
+            roadmap.milestones, get_settings().withered_grace_days
+        ),
     )

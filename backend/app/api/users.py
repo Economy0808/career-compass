@@ -3,6 +3,7 @@ from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 
+from app.core.beans import get_balance
 from app.core.deps import get_current_user, get_current_user_optional, require_yonsei_verified
 from app.db import get_db
 from app.models.roadmap import Follow, Roadmap, User
@@ -46,6 +47,7 @@ async def _profile_out(
         follower_count=follower_count or 0,
         following_count=following_count or 0,
         is_following=is_following,
+        bean_balance=await get_balance(db, user.id),
     )
 
 

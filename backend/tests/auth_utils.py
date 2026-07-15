@@ -8,7 +8,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.config import get_settings
 from app.core.security import hash_password, hash_token, new_session_token, session_expiry
 from app.models.account import AuthSession, EmailVerification, StudentCardVerification
-from app.models.roadmap import Follow, Roadmap, User
+from app.models.roadmap import BeanTransaction, Follow, Roadmap, User
 
 TEST_PASSWORD = "test-passw0rd!"
 
@@ -62,6 +62,7 @@ async def delete_user_cascade(session: AsyncSession, user_id: int) -> None:
         (AuthSession, AuthSession.user_id),
         (EmailVerification, EmailVerification.user_id),
         (StudentCardVerification, StudentCardVerification.user_id),
+        (BeanTransaction, BeanTransaction.user_id),
     ):
         rows = (await session.scalars(select(model).where(col == user_id))).all()
         for row in rows:
