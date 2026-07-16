@@ -65,7 +65,12 @@ export default function LoginPage() {
             {pending ? "로그인 중…" : "로그인"}
           </button>
         </form>
-        <p className="mt-5 text-center text-[12.5px] text-moss-600">
+        <p className="mt-4 text-center text-[12px] text-moss-700">
+          <Link href="/reset-password" className="font-semibold">
+            비밀번호를 잊으셨나요?
+          </Link>
+        </p>
+        <p className="mt-2 text-center text-[12.5px] text-moss-600">
           아직 씨앗이 없나요?{" "}
           <Link href="/signup" className="font-semibold">
             회원가입

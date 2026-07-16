@@ -8,7 +8,7 @@ from sqlalchemy.orm import Mapped, mapped_column, relationship
 from app.db import Base
 from app.models.roadmap import User
 
-VerificationPurpose = Literal["signup_email", "school_email"]
+VerificationPurpose = Literal["signup_email", "school_email", "password_reset"]
 CardStatus = Literal["pending", "approved", "rejected"]
 
 

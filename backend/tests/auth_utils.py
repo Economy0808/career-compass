@@ -8,7 +8,14 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.config import get_settings
 from app.core.security import hash_password, hash_token, new_session_token, session_expiry
 from app.models.account import AuthSession, EmailVerification, StudentCardVerification
-from app.models.roadmap import BeanTransaction, Follow, Roadmap, User
+from app.models.roadmap import (
+    BeanTransaction,
+    Follow,
+    PostComment,
+    PostLike,
+    Roadmap,
+    User,
+)
 from app.models.todo import TodoCategory, TodoItem
 
 TEST_PASSWORD = "test-passw0rd!"
@@ -64,6 +71,8 @@ async def delete_user_cascade(session: AsyncSession, user_id: int) -> None:
         (EmailVerification, EmailVerification.user_id),
         (StudentCardVerification, StudentCardVerification.user_id),
         (BeanTransaction, BeanTransaction.user_id),
+        (PostLike, PostLike.user_id),  # 유저가 타인 글에 남긴 것 포함 (FK)
+        (PostComment, PostComment.user_id),
         (TodoItem, TodoItem.user_id),  # items before categories (FK)
         (TodoCategory, TodoCategory.user_id),
     ):

@@ -7,6 +7,7 @@ import { BeanShopModal } from "@/components/BeanShopModal";
 import { MiniBeanstalk } from "@/components/MiniBeanstalk";
 import {
   ApiError,
+  deleteAccount,
   deleteRoadmap,
   followUser,
   getUserProfile,
@@ -23,7 +24,7 @@ const BEAN_DELETE_COST = 10;
 export default function ProfilePage({ params }: { params: { id: string } }) {
   const userId = Number(params.id);
   const router = useRouter();
-  const { me, loading: authLoading } = useAuth();
+  const { me, loading: authLoading, logout } = useAuth();
 
   const [profile, setProfile] = useState<UserProfileOut | null>(null);
   const [cards, setCards] = useState<RoadmapCardOut[]>([]);
@@ -38,6 +39,24 @@ export default function ProfilePage({ params }: { params: { id: string } }) {
   const [deleteTarget, setDeleteTarget] = useState<RoadmapCardOut | null>(null);
   const [deletePending, setDeletePending] = useState(false);
   const [deleteError, setDeleteError] = useState<string | null>(null);
+  const [accountModalOpen, setAccountModalOpen] = useState(false);
+  const [accountPassword, setAccountPassword] = useState("");
+  const [accountPending, setAccountPending] = useState(false);
+  const [accountError, setAccountError] = useState<string | null>(null);
+
+  async function confirmDeleteAccount() {
+    if (accountPending || !accountPassword) return;
+    setAccountPending(true);
+    setAccountError(null);
+    try {
+      await deleteAccount(accountPassword);
+      await logout();
+      router.push("/");
+    } catch (err) {
+      setAccountError(err instanceof ApiError ? err.detail : "탈퇴에 실패했어요.");
+      setAccountPending(false);
+    }
+  }
 
   const isOwn = me?.id === userId;
 
@@ -396,6 +415,27 @@ export default function ProfilePage({ params }: { params: { id: string } }) {
             </div>
           </>
         )}
+
+        {/* 위험 구역 — 회원 탈퇴 (본인만) */}
+        {isOwn && (
+          <div className="mt-14 rounded-2xl border border-[rgba(196,154,90,.2)] bg-[rgba(20,15,8,.4)] p-5">
+            <h2 className="text-[14px] font-bold text-wither-300">위험 구역</h2>
+            <p className="mt-1.5 text-[12px] leading-relaxed text-moss-600">
+              회원 탈퇴 시 계정과 모든 콩나무·기록·투두가 영구 삭제되며 되돌릴 수 없어요.
+            </p>
+            <button
+              type="button"
+              onClick={() => {
+                setAccountPassword("");
+                setAccountError(null);
+                setAccountModalOpen(true);
+              }}
+              className="mt-3 rounded-full border border-[rgba(216,176,120,.4)] bg-[rgba(196,154,90,.12)] px-4 py-2 text-[12.5px] font-semibold text-wither-300 transition-colors hover:bg-[rgba(196,154,90,.25)]"
+            >
+              회원 탈퇴
+            </button>
+          </div>
+        )}
       </div>
 
       {shopOpen && profile && (
@@ -406,6 +446,52 @@ export default function ProfilePage({ params }: { params: { id: string } }) {
             setProfile((prev) => (prev ? { ...prev, bean_balance: newBalance } : prev))
           }
         />
+      )}
+
+      {accountModalOpen && (
+        <div
+          className="fixed inset-0 z-[80] flex items-center justify-center bg-[rgba(3,10,5,.72)] px-4 backdrop-blur-[4px]"
+          onClick={() => !accountPending && setAccountModalOpen(false)}
+        >
+          <div
+            onClick={(e) => e.stopPropagation()}
+            className="w-full max-w-[380px] rounded-2xl border border-[rgba(216,176,120,.3)] bg-[rgba(22,16,8,.97)] p-6 shadow-[0_20px_60px_rgba(0,0,0,.6)]"
+          >
+            <h2 className="font-serif text-[19px] font-bold text-wither-300">회원 탈퇴</h2>
+            <p className="mt-3 text-[13px] leading-relaxed text-moss-400">
+              계정과 모든 데이터(콩나무·기록·투두·콩)가 <b className="text-moss-100">영구 삭제</b>
+              되고 되돌릴 수 없어요. 계속하려면 비밀번호를 입력해주세요.
+            </p>
+            <input
+              type="password"
+              autoFocus
+              value={accountPassword}
+              onChange={(e) => setAccountPassword(e.target.value)}
+              placeholder="비밀번호"
+              autoComplete="current-password"
+              className="mt-4 w-full rounded-xl border border-[rgba(143,220,138,.22)] bg-[rgba(255,255,255,.05)] px-4 py-3 text-[13.5px] text-moss-100 outline-none placeholder:text-moss-700 focus:border-[rgba(216,176,120,.5)]"
+            />
+            {accountError && <p className="mt-2 text-[12px] text-wither-300">{accountError}</p>}
+            <div className="mt-5 flex gap-2">
+              <button
+                type="button"
+                onClick={confirmDeleteAccount}
+                disabled={accountPending || !accountPassword}
+                className="flex-1 rounded-xl border border-[rgba(216,176,120,.5)] bg-[rgba(196,154,90,.22)] p-3 text-sm font-bold text-wither-300 transition-[filter] hover:brightness-125 disabled:opacity-50"
+              >
+                {accountPending ? "탈퇴 중…" : "영구 탈퇴하기"}
+              </button>
+              <button
+                type="button"
+                onClick={() => setAccountModalOpen(false)}
+                disabled={accountPending}
+                className="rounded-xl border border-[rgba(143,220,138,.25)] px-4 text-[13px] font-semibold text-moss-400 transition-colors hover:bg-[rgba(143,220,138,.1)] disabled:opacity-50"
+              >
+                취소
+              </button>
+            </div>
+          </div>
+        </div>
       )}
 
       {deleteTarget && profile && (

@@ -95,6 +95,25 @@ export function postLogout(): Promise<void> {
   return request("/api/auth/logout", { method: "POST" });
 }
 
+export function requestPasswordReset(email: string): Promise<{ detail: string }> {
+  return request("/api/auth/password-reset/request", jsonInit("POST", { email }));
+}
+
+export function confirmPasswordReset(
+  email: string,
+  code: string,
+  newPassword: string
+): Promise<{ detail: string }> {
+  return request(
+    "/api/auth/password-reset/confirm",
+    jsonInit("POST", { email, code, new_password: newPassword })
+  );
+}
+
+export function deleteAccount(password: string): Promise<void> {
+  return request<void>("/api/auth/delete-account", jsonInit("POST", { password }));
+}
+
 export function getMe(): Promise<MeOut> {
   return request("/api/auth/me");
 }

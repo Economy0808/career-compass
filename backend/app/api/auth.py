@@ -16,6 +16,7 @@ from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.config import Settings, get_settings
+from app.core.account_deletion import delete_account
 from app.core.deps import get_current_user
 from app.core.rate_limit import rate_limit
 from app.core.security import (
@@ -38,9 +39,12 @@ from app.models.account import AuthSession, EmailVerification, StudentCardVerifi
 from app.models.roadmap import User
 from app.schemas.auth import (
     YONSEI_DOMAIN,
+    DeleteAccountRequest,
     DetailOut,
     LoginRequest,
     MeOut,
+    PasswordResetConfirm,
+    PasswordResetRequest,
     SchoolEmailRequest,
     SchoolEmailVerifyRequest,
     SignupRequest,
@@ -247,6 +251,67 @@ async def me(
     user: User = Depends(get_current_user), db: AsyncSession = Depends(get_db)
 ) -> MeOut:
     return await _me_out(db, user)
+
+
+@router.post("/password-reset/request", response_model=DetailOut)
+async def password_reset_request(
+    request: PasswordResetRequest,
+    db: AsyncSession = Depends(get_db),
+    settings: Settings = Depends(get_settings),
+    _: None = Depends(rate_limit("password-reset", limit=3)),
+) -> DetailOut:
+    """비밀번호 재설정 코드 발송. 유저 열거 방지를 위해 존재 여부와 무관하게 동일 응답."""
+    email = request.email.lower()
+    user = await db.scalar(select(User).where(User.email == email))
+    if user is not None:
+        await _issue_verification(db, user, email, "password_reset", settings)
+        await db.commit()
+    # 이메일이 없어도 성공처럼 응답 (계정 존재 노출 방지)
+    return DetailOut(detail="해당 이메일로 재설정 코드를 보냈어요 (계정이 있는 경우).")
+
+
+@router.post("/password-reset/confirm", response_model=DetailOut)
+async def password_reset_confirm(
+    request: PasswordResetConfirm,
+    db: AsyncSession = Depends(get_db),
+    settings: Settings = Depends(get_settings),
+    _: None = Depends(rate_limit("password-reset", limit=5)),
+) -> DetailOut:
+    generic = HTTPException(status_code=400, detail="인증 코드가 올바르지 않거나 만료되었습니다.")
+    user = await db.scalar(select(User).where(User.email == request.email.lower()))
+    if user is None:
+        raise generic
+    await _consume_verification(db, user.id, "password_reset", request.code, settings)
+
+    user.password_hash = hash_password(request.new_password)
+    # 방어: 기존 세션 전부 폐기 (탈취 대비)
+    sessions = (
+        await db.scalars(
+            select(AuthSession).where(
+                AuthSession.user_id == user.id, AuthSession.revoked_at.is_(None)
+            )
+        )
+    ).all()
+    for s in sessions:
+        s.revoked_at = datetime.now()
+    await db.commit()
+    return DetailOut(detail="비밀번호가 재설정됐어요. 새 비밀번호로 로그인해주세요.")
+
+
+@router.post("/delete-account", status_code=204)
+async def delete_account_endpoint(
+    request: DeleteAccountRequest,
+    response: Response,
+    user: User = Depends(get_current_user),
+    db: AsyncSession = Depends(get_db),
+    settings: Settings = Depends(get_settings),
+    _: None = Depends(rate_limit("delete-account", limit=5)),
+) -> None:
+    """회원 탈퇴 (PIPA 삭제권). 비밀번호 재확인 후 모든 데이터를 하드 삭제한다."""
+    if not verify_password(user.password_hash or "", request.password):
+        raise HTTPException(status_code=401, detail="비밀번호가 올바르지 않습니다.")
+    await delete_account(db, user)
+    clear_session_cookie(response, settings)
 
 
 @router.post("/school-email/request", response_model=DetailOut)
