@@ -51,6 +51,8 @@ class Roadmap(Base):
     title: Mapped[str] = mapped_column(nullable=False)
     goal_raw_text: Mapped[str] = mapped_column(nullable=False)
     chat_transcript: Mapped[list[dict] | None] = mapped_column(JSONB, nullable=True)
+    # 이 로드맵이 그라운딩된 NCS 직무 코드 (있으면 "NCS 직무 기반" 근거 표시)
+    ncs_job_code: Mapped[str | None] = mapped_column(nullable=True)
     # 로드맵 숲(피드)에 노출할지 여부 - 유저가 "메인에 띄우기"로 고른다.
     is_featured: Mapped[bool] = mapped_column(nullable=False, server_default="true")
     # 완주 보상 콩 지급 시각 - 로드맵당 1회만 지급 (완료 해제/재완료 중복 방지)
@@ -207,6 +209,28 @@ class Follow(Base):
 
     def __repr__(self) -> str:
         return f"Follow(follower_id={self.follower_id}, followee_id={self.followee_id})"
+
+
+class JobResearch(Base):
+    """직종별 웹 리서치 캐시. 월간 배치가 채우고 로드맵 생성이 읽는다.
+
+    컴플라이언스: 요약 + 출처 URL만 저장한다 (원문 복제·개인정보 저장 금지).
+    """
+
+    __tablename__ = "job_research"
+
+    id: Mapped[int] = mapped_column(primary_key=True, autoincrement=True)
+    ncs_job_code: Mapped[str] = mapped_column(unique=True, nullable=False, index=True)
+    ncs_job_name: Mapped[str] = mapped_column(nullable=False)
+    summary: Mapped[str] = mapped_column(nullable=False)
+    activities: Mapped[list] = mapped_column(JSONB, nullable=False, server_default="[]")
+    academic_societies: Mapped[list] = mapped_column(JSONB, nullable=False, server_default="[]")
+    expert_insights: Mapped[list] = mapped_column(JSONB, nullable=False, server_default="[]")
+    source_urls: Mapped[list] = mapped_column(JSONB, nullable=False, server_default="[]")
+    refreshed_at: Mapped[datetime] = mapped_column(server_default=func.now())
+
+    def __repr__(self) -> str:
+        return f"JobResearch(job_code={self.ncs_job_code!r}, refreshed_at={self.refreshed_at})"
 
 
 def compute_progress_pct(milestones: list[Milestone], today: date | None = None) -> float:

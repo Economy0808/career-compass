@@ -2,8 +2,16 @@
 
 /chat는 stateless: 프론트가 전체 대화 히스토리(messages)를 들고 있다가
 매 호출마다 재전송한다. 백엔드/LLM 클라이언트는 호출 간 상태를 갖지 않는다.
+
+정밀 생성 파이프라인은 세 단계로 나뉜다 (roadmap_gen 서비스가 오케스트레이션):
+  1. extract_intent  — 유저의 글/파일에서 진로 방향과 현재 수준을 뽑는다 (싼 모델)
+  2. (서비스가 NCS 매칭 + job_research 캐시 조회를 수행)
+  3. synthesize_roadmap — 의중 + NCS 능력단위 + 리서치를 종합해 마일스톤 생성 (강한 모델)
+
+research_job은 요청 경로가 아니라 월간 배치(scripts/refresh_job_research.py)에서만
+호출된다 — 웹 검색을 쓰므로 유저 생성 지연/비용에 영향을 주지 않는다.
 """
-from dataclasses import dataclass
+from dataclasses import dataclass, field
 from datetime import date
 from typing import Literal, Protocol
 
@@ -23,6 +31,15 @@ class ChatTurn:
 
 
 @dataclass
+class CareerIntent:
+    """유저 입력에서 뽑아낸 진로 의중."""
+
+    summary: str  # 한 줄 요약 (유저가 지향하는 것)
+    direction_keywords: list[str]  # NCS 직무 매칭용 키워드 (예: ["데이터 분석", "통계"])
+    current_level: str  # 현재 수준/배경 (예: "1학년, 파이썬 입문")
+
+
+@dataclass
 class GeneratedMilestone:
     title: str
     description: str
@@ -35,13 +52,52 @@ class GeneratedRoadmap:
     milestones: list[GeneratedMilestone]
 
 
+@dataclass
+class AbilityUnitRef:
+    """NCS 능력단위 참조 (그라운딩 입력)."""
+
+    code: str
+    name: str
+
+
+@dataclass
+class JobResearchResult:
+    """직종별 웹 리서치 결과 — 요약 + 출처 링크만 (원문 복제 금지)."""
+
+    summary: str
+    activities: list[str] = field(default_factory=list)  # 대외활동/공모전 등
+    academic_societies: list[str] = field(default_factory=list)  # 학회 (연세/수도권)
+    expert_insights: list[str] = field(default_factory=list)  # 전문가 글 요지 (익명 요약)
+    source_urls: list[str] = field(default_factory=list)  # 출처 링크
+
+
+@dataclass
+class RoadmapContext:
+    """synthesize_roadmap에 넘기는 그라운딩 컨텍스트."""
+
+    intent: CareerIntent
+    ncs_job_name: str | None = None
+    ability_units: list[AbilityUnitRef] = field(default_factory=list)
+    research: JobResearchResult | None = None
+
+
 class LLMClient(Protocol):
     async def chat(self, goal_raw_text: str, messages: list[ChatMessage]) -> ChatTurn:
         """지금까지의 질답(messages)을 보고 다음 질문을 내거나 종료를 판단한다."""
         ...
 
-    async def generate_roadmap(
+    async def extract_intent(
         self, goal_raw_text: str, messages: list[ChatMessage]
-    ) -> GeneratedRoadmap:
-        """완료된 질답(messages)을 바탕으로 구조화된 로드맵을 생성한다."""
+    ) -> CareerIntent:
+        """유저 입력에서 진로 방향·현재 수준을 구조화해 뽑는다 (싼 모델)."""
+        ...
+
+    async def synthesize_roadmap(self, context: RoadmapContext) -> GeneratedRoadmap:
+        """의중 + NCS 능력단위 + 리서치를 종합해 구조화된 로드맵을 생성한다 (강한 모델)."""
+        ...
+
+    async def research_job(
+        self, job_name: str, ability_units: list[AbilityUnitRef]
+    ) -> JobResearchResult:
+        """웹 검색으로 직종별 학회·대외활동·전문가 인사이트를 조사한다 (월간 배치 전용)."""
         ...

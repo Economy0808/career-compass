@@ -1,7 +1,13 @@
-import pytest
+import os
 
-from app.core import rate_limit
-from app.db import reset_engine
+# 테스트는 절대 유료 API를 부르지 않는다: app_env=test면 팩토리가 Mock을 강제한다.
+# (get_settings 최초 호출 전에 설정해야 하므로 import 최상단에서.)
+os.environ.setdefault("APP_ENV", "test")
+
+import pytest  # noqa: E402
+
+from app.core import rate_limit  # noqa: E402
+from app.db import reset_engine  # noqa: E402
 
 
 @pytest.fixture(autouse=True)

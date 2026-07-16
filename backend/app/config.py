@@ -25,10 +25,23 @@ class Settings(BaseSettings):
     withered_grace_days: int = 30
     bean_delete_cost: int = 10
     bean_reward_multiplier: int = 2
+    # LLM (roadmap generation). Real key comes from env (.env), never committed.
+    # Empty key -> factory falls back to the deterministic Mock client ($0).
+    anthropic_api_key: str = ""
+    llm_extract_model: str = "claude-haiku-4-5"
+    llm_synthesis_model: str = "claude-sonnet-5"
+    llm_research_model: str = "claude-sonnet-5"
+    job_research_ttl_days: int = 30
 
     @property
     def cookie_secure(self) -> bool:
-        return self.app_env != "development"
+        # 로컬 개발·테스트(http)에서는 Secure 쿠키를 끈다 — 운영에서만 켬.
+        return self.app_env not in ("development", "test")
+
+    @property
+    def use_real_llm(self) -> bool:
+        # Never call the paid API from the test suite, even if a key is present.
+        return bool(self.anthropic_api_key) and self.app_env != "test"
 
 @lru_cache
 def get_settings() -> Settings:

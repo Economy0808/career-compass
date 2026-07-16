@@ -11,6 +11,7 @@ from sqlalchemy.orm import selectinload
 from app.config import Settings, get_settings
 from app.core.beans import award_completion_if_due, get_balance
 from app.core.deps import get_current_user_optional, require_yonsei_verified
+from app.core.rate_limit import rate_limit
 from app.core.uploads import detect_image_ext, resize_to_jpeg
 from app.db import get_db
 from app.llm import get_llm_client
@@ -47,6 +48,7 @@ from app.schemas.roadmap import (
     roadmap_to_card,
     roadmap_to_detail,
 )
+from app.services import roadmap_gen
 
 router = APIRouter(prefix="/api/roadmap", tags=["roadmap"])
 
@@ -76,6 +78,7 @@ async def chat(
     request: ChatRequest,
     llm: LLMClient = Depends(get_llm_client),
     _: User = Depends(require_yonsei_verified),
+    __: None = Depends(rate_limit("roadmap-chat", limit=30)),
 ) -> ChatResponse:
     """Stateless 질답 진행. 프론트가 messages 전체 히스토리를 들고 재전송한다."""
     llm_messages = [ChatMessage(role=m.role, content=m.content) for m in request.messages]
@@ -94,19 +97,24 @@ async def generate_roadmap(
     llm: LLMClient = Depends(get_llm_client),
     db: AsyncSession = Depends(get_db),
     user: User = Depends(require_yonsei_verified),
+    _: None = Depends(rate_limit("roadmap-generate", limit=10)),
 ) -> RoadmapDetailOut:
-    """완료된 질답을 바탕으로 로드맵+마일스톤을 생성하고 저장한다.
+    """완료된 질답을 바탕으로 정밀 로드맵을 생성·저장한다.
 
     작성자는 세션 유저 — 클라이언트가 보낸 user_id를 신뢰하지 않는다.
+    생성은 roadmap_gen 서비스가 오케스트레이션한다 (의중추출→NCS매칭→리서치캐시→종합).
     """
     llm_messages = [ChatMessage(role=m.role, content=m.content) for m in request.messages]
-    generated = await llm.generate_roadmap(request.goal_raw_text, llm_messages)
+    generated, ncs_job_code = await roadmap_gen.generate_roadmap(
+        db, llm, request.goal_raw_text, llm_messages
+    )
 
     roadmap = Roadmap(
         user_id=user.id,
         title=generated.title,
         goal_raw_text=request.goal_raw_text,
         chat_transcript=[m.model_dump() for m in request.messages] or None,
+        ncs_job_code=ncs_job_code,
     )
     roadmap.user = user
     roadmap.milestones = [
