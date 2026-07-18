@@ -28,7 +28,10 @@ class Settings(BaseSettings):
     # LLM (roadmap generation). Real key comes from env (.env), never committed.
     # Empty key -> factory falls back to the deterministic Mock client ($0).
     anthropic_api_key: str = ""
-    llm_extract_model: str = "claude-haiku-4-5"
+    # Sonnet 5 across the pipeline (user choice). LLM_EXTRACT_MODEL can be set to
+    # claude-haiku-4-5 in .env to run the two lightweight steps (intake chat +
+    # keyword extraction) cheaper; synthesis stays on Sonnet for quality.
+    llm_extract_model: str = "claude-sonnet-5"
     llm_synthesis_model: str = "claude-sonnet-5"
     llm_research_model: str = "claude-sonnet-5"
     job_research_ttl_days: int = 30
@@ -41,7 +44,12 @@ class Settings(BaseSettings):
     @property
     def use_real_llm(self) -> bool:
         # Never call the paid API from the test suite, even if a key is present.
-        return bool(self.anthropic_api_key) and self.app_env != "test"
+        # A placeholder key (the "sk-ant-..." shipped in .env / .env.example) must
+        # NOT activate the real client, or the first generation 401s. Require a
+        # plausibly real key: correct prefix, no "..." marker, reasonable length.
+        key = self.anthropic_api_key.strip()
+        looks_real = key.startswith("sk-ant-") and "..." not in key and len(key) >= 40
+        return looks_real and self.app_env != "test"
 
 @lru_cache
 def get_settings() -> Settings:

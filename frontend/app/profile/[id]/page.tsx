@@ -21,6 +21,26 @@ import type { RoadmapCardOut, UserProfileOut } from "@/lib/types";
 
 const BEAN_DELETE_COST = 10;
 
+interface GoalGroup {
+  title: string | null;
+  items: RoadmapCardOut[];
+  showHeader: boolean;
+}
+
+/** 활성 콩나무를 대목표별로 묶는다. 전부 미분류(레거시)면 헤더 없는 플랫 그리드 유지. */
+function groupByMajorGoal(cards: RoadmapCardOut[]): GoalGroup[] {
+  const groups: GoalGroup[] = [];
+  for (const card of cards) {
+    const found = groups.find((g) => g.title === card.major_goal_title);
+    if (found) found.items.push(card);
+    else groups.push({ title: card.major_goal_title, items: [card], showHeader: false });
+  }
+  const hasNamed = groups.some((g) => g.title !== null);
+  if (!hasNamed) return groups;
+  groups.sort((a, b) => Number(a.title === null) - Number(b.title === null));
+  return groups.map((g) => ({ ...g, showHeader: true }));
+}
+
 export default function ProfilePage({ params }: { params: { id: string } }) {
   const userId = Number(params.id);
   const router = useRouter();
@@ -308,52 +328,62 @@ export default function ProfilePage({ params }: { params: { id: string } }) {
             {isOwn ? "아직 심은 씨앗이 없어요. 첫 콩나무를 심어보세요!" : "아직 심은 콩나무가 없어요."}
           </div>
         ) : (
-          <div className="grid grid-cols-[repeat(auto-fill,minmax(252px,1fr))] gap-[18px]">
-            {cards
-              .filter((c) => !c.is_withered)
-              .map((card) => {
-                const done = Math.round((card.progress_pct / 100) * card.milestone_count);
-                return (
-                  <div
-                    key={card.id}
-                    onClick={() => router.push(`/roadmap/${card.id}`)}
-                    className="cursor-pointer rounded-[18px] border border-[rgba(143,220,138,.13)] bg-[linear-gradient(180deg,rgba(14,33,20,.55),rgba(8,20,12,.85))] px-[18px] py-4 transition-[border-color,transform] duration-200 hover:-translate-y-[3px] hover:border-[rgba(143,220,138,.4)]"
-                  >
-                    <div className="flex h-[150px] justify-center">
-                      <MiniBeanstalk progressPct={card.progress_pct} />
-                    </div>
-                    <div className="mt-1.5 text-[15px] font-bold leading-[1.4] text-moss-100">
-                      {card.title}
-                    </div>
-                    <div className="mt-[9px] flex items-center gap-[7px]">
-                      <span className="text-[11.5px] text-moss-700">
-                        마일스톤 {done}/{card.milestone_count}
-                      </span>
-                      <span className="ml-auto text-xs font-semibold text-bean-200">
-                        {card.progress_pct}% 자람
-                      </span>
-                    </div>
-                    {isOwn && (
-                      <div className="mt-3 border-t border-[rgba(143,220,138,.1)] pt-3">
-                        <label
-                          onClick={(e) => e.stopPropagation()}
-                          className="flex cursor-pointer items-center gap-2 text-[11.5px] text-moss-500"
-                        >
-                          <input
-                            type="checkbox"
-                            checked={card.is_featured}
-                            disabled={featurePendingId === card.id}
-                            onChange={() => void toggleFeatured(card)}
-                            className="accent-bean-500"
-                          />
-                          메인에 띄우기 (로드맵 숲 노출)
-                        </label>
+          groupByMajorGoal(cards.filter((c) => !c.is_withered)).map((group) => (
+            <div key={group.title ?? "__ungrouped__"} className="mb-6">
+              {group.showHeader && (
+                <div className="mb-3 flex items-center gap-2">
+                  <h3 className="font-serif text-[16px] font-bold text-[#e2c06e]">
+                    {group.title ? `🎯 ${group.title}` : "그 외 콩나무"}
+                  </h3>
+                  <span className="text-[11.5px] text-moss-700">{group.items.length}그루</span>
+                </div>
+              )}
+              <div className="grid grid-cols-[repeat(auto-fill,minmax(252px,1fr))] gap-[18px]">
+                {group.items.map((card) => {
+                  const done = Math.round((card.progress_pct / 100) * card.milestone_count);
+                  return (
+                    <div
+                      key={card.id}
+                      onClick={() => router.push(`/roadmap/${card.id}`)}
+                      className="cursor-pointer rounded-[18px] border border-[rgba(143,220,138,.13)] bg-[linear-gradient(180deg,rgba(14,33,20,.55),rgba(8,20,12,.85))] px-[18px] py-4 transition-[border-color,transform] duration-200 hover:-translate-y-[3px] hover:border-[rgba(143,220,138,.4)]"
+                    >
+                      <div className="flex h-[150px] justify-center">
+                        <MiniBeanstalk progressPct={card.progress_pct} />
                       </div>
-                    )}
-                  </div>
-                );
-              })}
-          </div>
+                      <div className="mt-1.5 text-[15px] font-bold leading-[1.4] text-moss-100">
+                        {card.title}
+                      </div>
+                      <div className="mt-[9px] flex items-center gap-[7px]">
+                        <span className="text-[11.5px] text-moss-700">
+                          마일스톤 {done}/{card.milestone_count}
+                        </span>
+                        <span className="ml-auto text-xs font-semibold text-bean-200">
+                          {card.progress_pct}% 자람
+                        </span>
+                      </div>
+                      {isOwn && (
+                        <div className="mt-3 border-t border-[rgba(143,220,138,.1)] pt-3">
+                          <label
+                            onClick={(e) => e.stopPropagation()}
+                            className="flex cursor-pointer items-center gap-2 text-[11.5px] text-moss-500"
+                          >
+                            <input
+                              type="checkbox"
+                              checked={card.is_featured}
+                              disabled={featurePendingId === card.id}
+                              onChange={() => void toggleFeatured(card)}
+                              className="accent-bean-500"
+                            />
+                            메인에 띄우기 (로드맵 숲 노출)
+                          </label>
+                        </div>
+                      )}
+                    </div>
+                  );
+                })}
+              </div>
+            </div>
+          ))
         )}
 
         {/* 시들어버린 콩나무들 - 마감 +30일 지나도 미완주 */}

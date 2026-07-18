@@ -12,6 +12,7 @@ import type {
   MilestonePostOut,
   RoadmapCardOut,
   RoadmapDetailOut,
+  RoadmapPreviewOut,
   TodoCategoryOut,
   TodoColor,
   TodoDayOut,
@@ -161,13 +162,24 @@ export function postChat(
   );
 }
 
-export function postGenerate(
+export function postPreview(
+  goalRawText: string,
+  messages: ChatMessageIn[]
+): Promise<RoadmapPreviewOut> {
+  return request<RoadmapPreviewOut>(
+    "/api/roadmap/preview",
+    jsonInit("POST", { goal_raw_text: goalRawText, messages })
+  );
+}
+
+export function postPlant(
+  preview: RoadmapPreviewOut,
   goalRawText: string,
   messages: ChatMessageIn[]
 ): Promise<RoadmapDetailOut> {
   return request<RoadmapDetailOut>(
-    "/api/roadmap/generate",
-    jsonInit("POST", { goal_raw_text: goalRawText, messages })
+    "/api/roadmap/plant",
+    jsonInit("POST", { ...preview, goal_raw_text: goalRawText, messages })
   );
 }
 

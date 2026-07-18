@@ -1,4 +1,5 @@
 """테스트용 인증 헬퍼: 유저/세션을 DB에 직접 만들어 API 플로우를 우회한다."""
+
 import uuid
 from datetime import datetime
 
@@ -10,6 +11,7 @@ from app.core.security import hash_password, hash_token, new_session_token, sess
 from app.models.account import AuthSession, EmailVerification, StudentCardVerification
 from app.models.roadmap import (
     BeanTransaction,
+    CareerGoal,
     Follow,
     PostComment,
     PostLike,
@@ -81,9 +83,7 @@ async def delete_user_cascade(session: AsyncSession, user_id: int) -> None:
             await session.delete(row)
     follows = (
         await session.scalars(
-            select(Follow).where(
-                (Follow.follower_id == user_id) | (Follow.followee_id == user_id)
-            )
+            select(Follow).where((Follow.follower_id == user_id) | (Follow.followee_id == user_id))
         )
     ).all()
     for f in follows:
@@ -91,6 +91,10 @@ async def delete_user_cascade(session: AsyncSession, user_id: int) -> None:
     roadmaps = (await session.scalars(select(Roadmap).where(Roadmap.user_id == user_id))).all()
     for r in roadmaps:
         await session.delete(r)
+    # 대목표는 로드맵이 FK로 참조하므로 로드맵 삭제 후에 지운다.
+    goals = (await session.scalars(select(CareerGoal).where(CareerGoal.user_id == user_id))).all()
+    for g in goals:
+        await session.delete(g)
     user = await session.get(User, user_id)
     if user is not None:
         await session.delete(user)

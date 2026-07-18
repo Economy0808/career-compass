@@ -175,7 +175,7 @@ export function MilestonePostModal({
               {String(milestone.order_index + 1).padStart(2, "0")} · {milestone.title}
             </div>
             <h2 className="mt-1 font-serif text-[20px] font-bold text-moss-100">
-              {editing ? (post ? "기록 수정" : "기록 남기기") : "마일스톤 기록"}
+              {editing ? (post ? "기록 수정" : "기록 남기기") : "마일스톤"}
             </h2>
           </div>
           <button
@@ -187,6 +187,22 @@ export function MilestonePostModal({
             ✕
           </button>
         </div>
+
+        {/* 마일스톤 가이드 — 기록 유무와 무관하게 항상 표시 (무엇을/왜/어떻게 + 완료 기준) */}
+        {!editing && (
+          <div className="mb-5 rounded-xl border border-[rgba(143,220,138,.14)] bg-[rgba(143,220,138,.05)] p-4">
+            <div className="mb-2 flex items-center gap-2 text-[11px] text-moss-600">
+              <span className="font-semibold text-moss-500">목표 기한</span>
+              <span>~ {milestone.due_date.replace(/-/g, ".")}</span>
+              <span className="ml-auto rounded-full bg-[rgba(143,220,138,.12)] px-2 py-0.5 text-moss-400">
+                {milestone.status}
+              </span>
+            </div>
+            <p className="whitespace-pre-line text-[13px] leading-[1.8] text-moss-300">
+              {milestone.detail || milestone.description}
+            </p>
+          </div>
+        )}
 
         {editing ? (
           <div className="flex flex-col gap-3">

@@ -12,7 +12,7 @@ from app.llm.mock_client import (
 
 
 @pytest.mark.asyncio
-async def test_chat_asks_minimum_three_questions_then_done() -> None:
+async def test_chat_asks_all_fixed_questions_then_done() -> None:
     client = MockClaudeClient()
     goal = "데이터 분석가가 되고 싶어"
     messages: list[ChatMessage] = []
@@ -62,8 +62,8 @@ async def test_synthesize_grounds_on_ncs_ability_units() -> None:
         ability_units=[AbilityUnitRef(code="A1", name="통계적 가설검정")],
     )
     result = await client.synthesize_roadmap(ctx)
-    # 첫 마일스톤 설명에 능력단위가 녹아든다
-    assert any("통계적 가설검정" in m.description for m in result.milestones)
+    # 능력단위가 상세 가이드(detail)에 근거로 녹아든다
+    assert any(m.detail and "통계적 가설검정" in m.detail for m in result.milestones)
 
 
 def test_milestone_count_is_deterministic_and_varies() -> None:

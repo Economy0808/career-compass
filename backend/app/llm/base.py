@@ -11,6 +11,7 @@
 research_job은 요청 경로가 아니라 월간 배치(scripts/refresh_job_research.py)에서만
 호출된다 — 웹 검색을 쓰므로 유저 생성 지연/비용에 영향을 주지 않는다.
 """
+
 from dataclasses import dataclass, field
 from datetime import date
 from typing import Literal, Protocol
@@ -42,14 +43,40 @@ class CareerIntent:
 @dataclass
 class GeneratedMilestone:
     title: str
-    description: str
+    description: str  # 한 줄 프리뷰 (스크롤 뷰용, ~60자)
+    detail: str  # 상세 가이드: 무엇을/왜/어떻게 + 완료 기준 (클릭 시 표시)
     due_date: date
+
+
+@dataclass
+class CareerGoalRef:
+    """유저의 기존 대목표 (분류 입력용)."""
+
+    id: int
+    title: str
+    context: str
+
+
+@dataclass
+class MajorGoalDecision:
+    """이 로드맵이 속할 대목표 판단 결과.
+
+    existing_goal_id가 None이면 title로 새 대목표를 만든다.
+    context는 이후 대화에서 재사용할 유저 프로필 요약(갱신본).
+    """
+
+    existing_goal_id: int | None
+    title: str
+    context: str
 
 
 @dataclass
 class GeneratedRoadmap:
     title: str
     milestones: list[GeneratedMilestone]
+    # 심기 직전 코치 브리핑: 필요 역량 + 왜 이 소목표가 현실적 첫 단계인지
+    briefing: str = ""
+    major_goal: MajorGoalDecision | None = None
 
 
 @dataclass
@@ -79,16 +106,25 @@ class RoadmapContext:
     ncs_job_name: str | None = None
     ability_units: list[AbilityUnitRef] = field(default_factory=list)
     research: JobResearchResult | None = None
+    # 유저의 기존 대목표 목록 — 모델이 기존 것 재사용/신규 생성을 판단한다.
+    existing_goals: list[CareerGoalRef] = field(default_factory=list)
 
 
 class LLMClient(Protocol):
-    async def chat(self, goal_raw_text: str, messages: list[ChatMessage]) -> ChatTurn:
-        """지금까지의 질답(messages)을 보고 다음 질문을 내거나 종료를 판단한다."""
+    async def chat(
+        self,
+        goal_raw_text: str,
+        messages: list[ChatMessage],
+        known_profile: str | None = None,
+    ) -> ChatTurn:
+        """지금까지의 질답(messages)을 보고 다음 질문을 내거나 종료를 판단한다.
+
+        known_profile: 기존 대목표들에 저장된 유저 프로필 요약 —
+        이미 아는 정보는 다시 묻지 않도록 프롬프트에 주입한다.
+        """
         ...
 
-    async def extract_intent(
-        self, goal_raw_text: str, messages: list[ChatMessage]
-    ) -> CareerIntent:
+    async def extract_intent(self, goal_raw_text: str, messages: list[ChatMessage]) -> CareerIntent:
         """유저 입력에서 진로 방향·현재 수준을 구조화해 뽑는다 (싼 모델)."""
         ...
 

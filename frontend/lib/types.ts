@@ -80,11 +80,34 @@ export interface ChatResponse {
   messages: ChatMessageIn[];
 }
 
+export interface MilestonePreview {
+  title: string;
+  description: string;
+  detail: string;
+  due_date: string;
+}
+
+export interface CareerGoalDecision {
+  existing_id: number | null;
+  title: string;
+  context: string;
+  is_new: boolean;
+}
+
+export interface RoadmapPreviewOut {
+  title: string;
+  briefing: string;
+  ncs_job_code: string | null;
+  career_goal: CareerGoalDecision;
+  milestones: MilestonePreview[];
+}
+
 export interface MilestoneOut {
   id: number;
   order_index: number;
   title: string;
   description: string;
+  detail: string | null;
   due_date: string;
   is_completed_manual: boolean;
   completed_at: string | null;
@@ -102,6 +125,7 @@ export interface RoadmapDetailOut {
   milestones: MilestoneOut[];
   is_following: boolean | null;
   is_withered: boolean;
+  major_goal_title: string | null;
 }
 
 export interface RoadmapCardOut {
@@ -114,6 +138,7 @@ export interface RoadmapCardOut {
   is_following: boolean | null;
   is_featured: boolean;
   is_withered: boolean;
+  major_goal_title: string | null;
 }
 
 export interface MilestonePatchResponse {

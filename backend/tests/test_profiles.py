@@ -4,6 +4,7 @@ from httpx import ASGITransport, AsyncClient
 from app.db import get_session_factory
 from app.main import app
 from tests.auth_utils import create_session_token, create_user, delete_user_cascade
+from tests.roadmap_utils import plant_roadmap
 
 
 async def _get_session():
@@ -15,9 +16,7 @@ def _client() -> AsyncClient:
 
 
 async def _plant(client: AsyncClient, goal: str) -> dict:
-    resp = await client.post("/api/roadmap/generate", json={"goal_raw_text": goal, "messages": []})
-    assert resp.status_code == 201
-    return resp.json()
+    return await plant_roadmap(client, goal)
 
 
 @pytest.fixture

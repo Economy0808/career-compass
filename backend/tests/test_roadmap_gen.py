@@ -2,6 +2,7 @@
 
 NCS 데이터와 job_research 캐시를 직접 시드해 그라운딩·축소 동작을 검증한다.
 """
+
 import pytest
 from sqlalchemy import delete
 
@@ -31,7 +32,9 @@ async def ncs_seed():
         )
         await session.flush()
         session.add(
-            NcsSclas(code="999999", degree=1, mclas_code="9999", name="테스트소분류", is_current=True)
+            NcsSclas(
+                code="999999", degree=1, mclas_code="9999", name="테스트소분류", is_current=True
+            )
         )
         await session.flush()
         session.add(
@@ -85,18 +88,28 @@ async def test_pipeline_grounds_on_ncs_and_research(ncs_seed) -> None:
     llm = MockClaudeClient()
     async with get_session_factory()() as db:
         # Mock 추출은 공백으로 토큰화하므로 직무명과 매칭될 키워드가 나오게 문구 구성
-        roadmap, job_code = await roadmap_gen.generate_roadmap(db, llm, "테스트데이터분석 하고 싶어", [])
+        roadmap, job_code = await roadmap_gen.generate_preview(
+            db, llm, 0, "테스트데이터분석 하고 싶어", []
+        )
     assert job_code == JOB_CODE
-    # NCS 능력단위가 마일스톤 설명에 그라운딩됨
-    assert any("통계적 가설검정" in m.description for m in roadmap.milestones)
+    # NCS 능력단위가 마일스톤 상세 가이드(detail)에 그라운딩됨
+    assert any(m.detail and "통계적 가설검정" in m.detail for m in roadmap.milestones)
+    # 브리핑·대목표 판단이 항상 채워진다
+    assert roadmap.briefing
+    assert roadmap.major_goal is not None
+    assert roadmap.major_goal.existing_goal_id is None
 
 
 @pytest.mark.asyncio
 async def test_pipeline_degrades_without_ncs_match() -> None:
     llm = MockClaudeClient()
     async with get_session_factory()() as db:
-        roadmap, job_code = await roadmap_gen.generate_roadmap(
-            db, llm, "존재하지않는이상한목표를이루고싶어", [ChatMessage(role="user", content="답")]
+        roadmap, job_code = await roadmap_gen.generate_preview(
+            db,
+            llm,
+            0,
+            "존재하지않는이상한목표를이루고싶어",
+            [ChatMessage(role="user", content="답")],
         )
     assert job_code is None
     assert len(roadmap.milestones) >= 5

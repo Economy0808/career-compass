@@ -4,6 +4,7 @@ from httpx import ASGITransport, AsyncClient
 from app.db import get_session_factory
 from app.main import app
 from tests.auth_utils import create_session_token, create_user, delete_user_cascade
+from tests.roadmap_utils import plant_roadmap
 
 
 async def _get_session():
@@ -83,11 +84,7 @@ async def test_following_feed_uses_session_viewer(two_users) -> None:
     # bob이 로드맵을 하나 만든다
     async with _client() as client:
         client.cookies.set("cc_session", bob_token)
-        resp = await client.post(
-            "/api/roadmap/generate", json={"goal_raw_text": "밥의 목표", "messages": []}
-        )
-        assert resp.status_code == 201
-        bob_roadmap_id = resp.json()["id"]
+        bob_roadmap_id = (await plant_roadmap(client, "밥의 목표"))["id"]
 
     async with _client() as client:
         client.cookies.set("cc_session", alice_token)

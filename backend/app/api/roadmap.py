@@ -18,6 +18,7 @@ from app.llm import get_llm_client
 from app.llm.base import ChatMessage, LLMClient
 from app.models.roadmap import (
     BeanTransaction,
+    CareerGoal,
     Follow,
     Milestone,
     MilestonePost,
@@ -29,19 +30,23 @@ from app.models.roadmap import (
     compute_withered,
 )
 from app.schemas.roadmap import (
+    CareerGoalDecisionOut,
     ChatMessageIn,
     ChatRequest,
     ChatResponse,
     CommentCreateRequest,
     CommentOut,
     FeedScope,
-    GenerateRequest,
     MilestonePatchRequest,
     MilestonePatchResponse,
     MilestonePostOut,
+    MilestonePreviewOut,
+    PlantRequest,
+    PreviewRequest,
     RoadmapCardOut,
     RoadmapDetailOut,
     RoadmapPatchRequest,
+    RoadmapPreviewOut,
     comment_to_out,
     milestone_to_out,
     post_to_out,
@@ -77,12 +82,21 @@ async def _get_post_with_context(
 async def chat(
     request: ChatRequest,
     llm: LLMClient = Depends(get_llm_client),
-    _: User = Depends(require_yonsei_verified),
-    __: None = Depends(rate_limit("roadmap-chat", limit=30)),
+    db: AsyncSession = Depends(get_db),
+    user: User = Depends(require_yonsei_verified),
+    _: None = Depends(rate_limit("roadmap-chat", limit=30)),
 ) -> ChatResponse:
-    """Stateless 질답 진행. 프론트가 messages 전체 히스토리를 들고 재전송한다."""
+    """Stateless 질답 진행. 프론트가 messages 전체 히스토리를 들고 재전송한다.
+
+    기존 대목표가 있으면 그 컨텍스트를 주입해 이미 아는 정보는 다시 묻지 않는다.
+    """
+    goals = await roadmap_gen.load_career_goals(db, user.id)
     llm_messages = [ChatMessage(role=m.role, content=m.content) for m in request.messages]
-    turn = await llm.chat(request.goal_raw_text, llm_messages)
+    turn = await llm.chat(
+        request.goal_raw_text,
+        llm_messages,
+        known_profile=roadmap_gen.build_known_profile(goals),
+    )
 
     updated_messages = list(request.messages)
     if turn.question is not None:
@@ -91,42 +105,109 @@ async def chat(
     return ChatResponse(done=turn.done, question=turn.question, messages=updated_messages)
 
 
-@router.post("/generate", response_model=RoadmapDetailOut, status_code=201)
-async def generate_roadmap(
-    request: GenerateRequest,
+@router.post("/preview", response_model=RoadmapPreviewOut)
+async def preview_roadmap(
+    request: PreviewRequest,
     llm: LLMClient = Depends(get_llm_client),
     db: AsyncSession = Depends(get_db),
     user: User = Depends(require_yonsei_verified),
-    _: None = Depends(rate_limit("roadmap-generate", limit=10)),
-) -> RoadmapDetailOut:
-    """완료된 질답을 바탕으로 정밀 로드맵을 생성·저장한다.
+    _: None = Depends(rate_limit("roadmap-preview", limit=10)),
+) -> RoadmapPreviewOut:
+    """완료된 질답으로 로드맵을 생성해 저장 없이 돌려준다 (심기 전 미리보기).
 
-    작성자는 세션 유저 — 클라이언트가 보낸 user_id를 신뢰하지 않는다.
-    생성은 roadmap_gen 서비스가 오케스트레이션한다 (의중추출→NCS매칭→리서치캐시→종합).
+    브리핑·대목표 판단 포함. 유저가 확정하면 이 페이로드를 /plant로 되돌려 보낸다.
     """
     llm_messages = [ChatMessage(role=m.role, content=m.content) for m in request.messages]
-    generated, ncs_job_code = await roadmap_gen.generate_roadmap(
-        db, llm, request.goal_raw_text, llm_messages
+    generated, ncs_job_code = await roadmap_gen.generate_preview(
+        db, llm, user.id, request.goal_raw_text, llm_messages
     )
+    decision = generated.major_goal
+    assert decision is not None  # generate_preview가 항상 채운다
+    return RoadmapPreviewOut(
+        title=generated.title,
+        briefing=generated.briefing,
+        ncs_job_code=ncs_job_code,
+        career_goal=CareerGoalDecisionOut(
+            existing_id=decision.existing_goal_id,
+            title=decision.title,
+            context=decision.context,
+            is_new=decision.existing_goal_id is None,
+        ),
+        milestones=[
+            MilestonePreviewOut(
+                title=m.title,
+                description=m.description,
+                detail=m.detail,
+                due_date=m.due_date,
+            )
+            for m in generated.milestones
+        ],
+    )
+
+
+@router.post("/plant", response_model=RoadmapDetailOut, status_code=201)
+async def plant_roadmap(
+    request: PlantRequest,
+    db: AsyncSession = Depends(get_db),
+    user: User = Depends(require_yonsei_verified),
+    _: None = Depends(rate_limit("roadmap-plant", limit=20)),
+) -> RoadmapDetailOut:
+    """프리뷰 페이로드를 검증 후 그대로 저장한다 (LLM 재호출 없음).
+
+    작성자는 세션 유저 — 클라이언트가 보낸 user_id를 신뢰하지 않는다.
+    대목표는 get-or-create: existing_id는 소유권 검증, 신규는 (user_id,title)로 중복 방지.
+    """
+    # 대목표 결정 (existing_id 소유권 검증 → 재사용, 아니면 title로 get-or-create)
+    goal_row: CareerGoal | None = None
+    if request.career_goal.existing_id is not None:
+        goal_row = await db.get(CareerGoal, request.career_goal.existing_id)
+        if goal_row is None or goal_row.user_id != user.id:
+            raise HTTPException(status_code=422, detail="career goal not found")
+        goal_row.context = request.career_goal.context
+    else:
+        goal_row = await db.scalar(
+            select(CareerGoal).where(
+                CareerGoal.user_id == user.id,
+                CareerGoal.title == request.career_goal.title,
+            )
+        )
+        if goal_row is not None:
+            goal_row.context = request.career_goal.context
+        else:
+            goal_row = CareerGoal(
+                user_id=user.id,
+                title=request.career_goal.title,
+                context=request.career_goal.context,
+            )
+            db.add(goal_row)
+            await db.flush()  # career_goal_id FK에 쓸 id 확보
+
+    # 브리핑은 대화의 마지막 assistant 메시지로 transcript에 남긴다.
+    transcript = [m.model_dump() for m in request.messages]
+    if request.briefing:
+        transcript.append({"role": "assistant", "content": request.briefing})
 
     roadmap = Roadmap(
         user_id=user.id,
-        title=generated.title,
+        career_goal_id=goal_row.id,
+        title=request.title,
         goal_raw_text=request.goal_raw_text,
-        chat_transcript=[m.model_dump() for m in request.messages] or None,
-        ncs_job_code=ncs_job_code,
+        chat_transcript=transcript or None,
+        ncs_job_code=request.ncs_job_code,
     )
     roadmap.user = user
+    roadmap.career_goal = goal_row
     roadmap.milestones = [
         Milestone(
             order_index=i,
             title=m.title,
             description=m.description,
+            detail=m.detail,
             due_date=m.due_date,
             # 새 마일스톤은 기록이 없음을 명시해 커밋 후 lazy load를 막는다.
             post=None,
         )
-        for i, m in enumerate(generated.milestones)
+        for i, m in enumerate(request.milestones)
     ]
     db.add(roadmap)
     await db.commit()
@@ -153,9 +234,7 @@ async def get_feed(
     if viewer is not None:
         following_ids = set(
             (
-                await db.scalars(
-                    select(Follow.followee_id).where(Follow.follower_id == viewer.id)
-                )
+                await db.scalars(select(Follow.followee_id).where(Follow.follower_id == viewer.id))
             ).all()
         )
 
@@ -229,8 +308,12 @@ async def get_roadmap(
         .where(Roadmap.id == roadmap_id)
         .options(
             selectinload(Roadmap.user),
-            selectinload(Roadmap.milestones).selectinload(Milestone.post).selectinload(MilestonePost.likes),
-            selectinload(Roadmap.milestones).selectinload(Milestone.post).selectinload(MilestonePost.comments),
+            selectinload(Roadmap.milestones)
+            .selectinload(Milestone.post)
+            .selectinload(MilestonePost.likes),
+            selectinload(Roadmap.milestones)
+            .selectinload(Milestone.post)
+            .selectinload(MilestonePost.comments),
         )
     )
     roadmap = await db.scalar(stmt)
@@ -246,7 +329,9 @@ async def get_roadmap(
         )
         is_following = follow is not None
 
-    return roadmap_to_detail(roadmap, is_following=is_following, viewer_id=viewer.id if viewer else None)
+    return roadmap_to_detail(
+        roadmap, is_following=is_following, viewer_id=viewer.id if viewer else None
+    )
 
 
 @router.patch("/{roadmap_id}", response_model=RoadmapCardOut)
@@ -256,7 +341,7 @@ async def patch_roadmap(
     db: AsyncSession = Depends(get_db),
     user: User = Depends(require_yonsei_verified),
 ) -> RoadmapCardOut:
-    """"메인에 띄우기" 토글. 소유자만."""
+    """ "메인에 띄우기" 토글. 소유자만."""
     roadmap = await db.scalar(
         select(Roadmap)
         .where(Roadmap.id == roadmap_id)
@@ -284,8 +369,12 @@ async def delete_roadmap(
         .where(Roadmap.id == roadmap_id)
         .options(
             # ORM cascade가 flush 시 lazy load를 타지 않도록 트리 전체를 eager load
-            selectinload(Roadmap.milestones).selectinload(Milestone.post).selectinload(MilestonePost.likes),
-            selectinload(Roadmap.milestones).selectinload(Milestone.post).selectinload(MilestonePost.comments),
+            selectinload(Roadmap.milestones)
+            .selectinload(Milestone.post)
+            .selectinload(MilestonePost.likes),
+            selectinload(Roadmap.milestones)
+            .selectinload(Milestone.post)
+            .selectinload(MilestonePost.comments),
         )
     )
     if roadmap is None:
@@ -324,7 +413,9 @@ async def delete_roadmap(
 
 def _require_owner(milestone: Milestone, user: User) -> None:
     if milestone.roadmap.user_id != user.id:
-        raise HTTPException(status_code=403, detail="내 로드맵의 마일스톤에만 기록을 남길 수 있어요.")
+        raise HTTPException(
+            status_code=403, detail="내 로드맵의 마일스톤에만 기록을 남길 수 있어요."
+        )
 
 
 def _delete_post_image(post: MilestonePost) -> None:
@@ -401,9 +492,7 @@ async def get_milestone_post_image(
     milestone_id: int, db: AsyncSession = Depends(get_db)
 ) -> FileResponse:
     """기록 이미지 서빙 (공개 콘텐츠)."""
-    post = await db.scalar(
-        select(MilestonePost).where(MilestonePost.milestone_id == milestone_id)
-    )
+    post = await db.scalar(select(MilestonePost).where(MilestonePost.milestone_id == milestone_id))
     if post is None or not post.image_path or not Path(post.image_path).exists():
         raise HTTPException(status_code=404, detail="image not found")
     return FileResponse(post.image_path, media_type="image/jpeg")

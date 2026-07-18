@@ -253,7 +253,8 @@ export default function RoadmapDetailPage({ params }: { params: { id: string } }
             const side = milestoneSide(i);
             const chip = CHIP_STYLE[m.status];
             const done = m.status === "완료";
-            const openable = m.post !== null || isOwn;
+            // 기록이 없어도 클릭 시 마일스톤 가이드(무엇을/어떻게)를 볼 수 있으므로 항상 열림
+            const openable = true;
             return (
               <div
                 key={m.id}
@@ -309,7 +310,12 @@ export default function RoadmapDetailPage({ params }: { params: { id: string } }
                   <div className="mb-1 text-[15.5px] font-bold leading-[1.35] text-moss-100">
                     {m.title}
                   </div>
-                  <div className="text-[12.5px] leading-[1.55] text-moss-400">{m.description}</div>
+                  <div className="line-clamp-2 text-[12.5px] leading-[1.55] text-moss-400">
+                    {m.description}
+                  </div>
+                  <div className="mt-1.5 text-[11px] font-semibold text-bean-300/80">
+                    자세히 보기 →
+                  </div>
                   {m.status === "기한초과" && (
                     <div className="mt-[7px] text-[11.5px] text-wither-300">
                       괜찮아요 — 지금 완료하면 가지가 다시 자라요.

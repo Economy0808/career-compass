@@ -1,4 +1,5 @@
 """로드맵 SNS 관련 ORM 모델: User, Roadmap, Milestone."""
+
 from datetime import date, datetime, timedelta
 from typing import Literal
 
@@ -41,6 +42,27 @@ class User(Base):
         return f"User(id={self.id}, display_name={self.display_name!r})"
 
 
+class CareerGoal(Base):
+    """유저의 대목표 (예: "퀀트 되기"). 콩나무(로드맵)는 소목표로서 이 아래에 분류된다.
+
+    context는 LLM이 갱신하는 유저 프로필 요약(학년·수준·주당 시간·선호·제약) —
+    이후 소목표 로드맵 생성 시 인테이크 대화에 주입해 같은 질문을 반복하지 않는다.
+    """
+
+    __tablename__ = "career_goals"
+    __table_args__ = (UniqueConstraint("user_id", "title", name="uq_career_goal_user_title"),)
+
+    id: Mapped[int] = mapped_column(primary_key=True, autoincrement=True)
+    user_id: Mapped[int] = mapped_column(ForeignKey("users.id"), nullable=False, index=True)
+    title: Mapped[str] = mapped_column(nullable=False)
+    context: Mapped[str] = mapped_column(nullable=False)
+    created_at: Mapped[datetime] = mapped_column(server_default=func.now())
+    updated_at: Mapped[datetime] = mapped_column(server_default=func.now(), onupdate=func.now())
+
+    def __repr__(self) -> str:
+        return f"CareerGoal(id={self.id}, user_id={self.user_id}, title={self.title!r})"
+
+
 class Roadmap(Base):
     """사용자의 목표 로드맵 (피드에 노출되는 게시물 단위)."""
 
@@ -48,6 +70,8 @@ class Roadmap(Base):
 
     id: Mapped[int] = mapped_column(primary_key=True, autoincrement=True)
     user_id: Mapped[int] = mapped_column(ForeignKey("users.id"), nullable=False)
+    # 이 콩나무가 속한 대목표. 구조 도입 이전 로드맵은 NULL.
+    career_goal_id: Mapped[int | None] = mapped_column(ForeignKey("career_goals.id"), nullable=True)
     title: Mapped[str] = mapped_column(nullable=False)
     goal_raw_text: Mapped[str] = mapped_column(nullable=False)
     chat_transcript: Mapped[list[dict] | None] = mapped_column(JSONB, nullable=True)
@@ -60,6 +84,9 @@ class Roadmap(Base):
     created_at: Mapped[datetime] = mapped_column(server_default=func.now())
 
     user: Mapped[User] = relationship()
+    # lazy="joined": 카드/상세 직렬화가 어디서든 안전하게 title을 읽도록
+    # (async lazy load 금지 환경에서 기존 selectinload 호출부 무수정)
+    career_goal: Mapped[CareerGoal | None] = relationship(lazy="joined")
     milestones: Mapped[list["Milestone"]] = relationship(
         back_populates="roadmap",
         order_by="Milestone.order_index",
@@ -79,7 +106,10 @@ class Milestone(Base):
     roadmap_id: Mapped[int] = mapped_column(ForeignKey("roadmaps.id"), nullable=False)
     order_index: Mapped[int] = mapped_column(nullable=False)
     title: Mapped[str] = mapped_column(nullable=False)
+    # description = 한 줄 프리뷰(콩나무 스크롤 뷰용). detail = 상세 가이드
+    # (무엇을/왜/어떻게 + 완료 기준). 기존 행 호환을 위해 detail은 nullable.
     description: Mapped[str] = mapped_column(nullable=False)
+    detail: Mapped[str | None] = mapped_column(nullable=True)
     due_date: Mapped[date] = mapped_column(nullable=False)
     is_completed_manual: Mapped[bool] = mapped_column(nullable=False, default=False)
     completed_at: Mapped[datetime | None] = mapped_column(nullable=True)
@@ -129,7 +159,9 @@ class BeanTransaction(Base):
     user: Mapped[User] = relationship()
 
     def __repr__(self) -> str:
-        return f"BeanTransaction(user_id={self.user_id}, amount={self.amount}, reason={self.reason!r})"
+        return (
+            f"BeanTransaction(user_id={self.user_id}, amount={self.amount}, reason={self.reason!r})"
+        )
 
 
 class MilestonePost(Base):

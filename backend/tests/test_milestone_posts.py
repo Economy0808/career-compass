@@ -8,6 +8,7 @@ from PIL import Image
 from app.db import get_session_factory
 from app.main import app
 from tests.auth_utils import create_session_token, create_user, delete_user_cascade
+from tests.roadmap_utils import plant_roadmap
 
 
 def _png_bytes(width: int = 1600, height: int = 900) -> bytes:
@@ -27,11 +28,7 @@ def _client() -> AsyncClient:
 
 
 async def _plant_roadmap(client: AsyncClient) -> dict:
-    resp = await client.post(
-        "/api/roadmap/generate", json={"goal_raw_text": "기록 테스트 목표", "messages": []}
-    )
-    assert resp.status_code == 201
-    return resp.json()
+    return await plant_roadmap(client, "기록 테스트 목표")
 
 
 @pytest.fixture

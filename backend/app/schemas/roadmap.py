@@ -4,10 +4,11 @@ status/progress_pct는 DB에 저장된 컬럼이 아니라 계산값이므로, O
 그대로 from_attributes로 변환하지 않고 아래 roadmap_to_*/milestone_to_out
 헬퍼로 명시적으로 직렬화한다.
 """
-from datetime import date, datetime
+
+from datetime import date, datetime, timedelta
 from typing import Literal
 
-from pydantic import BaseModel, Field
+from pydantic import BaseModel, Field, field_validator
 
 from app.config import get_settings
 from app.models.roadmap import (
@@ -47,10 +48,53 @@ class ChatResponse(BaseModel):
     messages: list[ChatMessageIn]
 
 
-class GenerateRequest(BaseModel):
+class MilestonePreviewOut(BaseModel):
+    """프리뷰 마일스톤. plant 요청이 그대로 되돌려주므로 저장 한도 캡을 여기서 강제한다."""
+
+    title: str = Field(min_length=1, max_length=120)
+    description: str = Field(min_length=1, max_length=300)
+    detail: str = Field(min_length=1, max_length=4000)
+    due_date: date
+
+
+class CareerGoalDecisionOut(BaseModel):
+    existing_id: int | None = None
+    title: str = Field(min_length=1, max_length=100)
+    context: str = Field(min_length=1, max_length=2000)
+    is_new: bool = True
+
+
+class PreviewRequest(BaseModel):
     # 작성자는 body가 아니라 세션에서 결정된다 (IDOR 방지).
-    goal_raw_text: str
+    goal_raw_text: str = Field(min_length=1, max_length=2000)
     messages: list[ChatMessageIn] = Field(default_factory=list)
+
+
+class RoadmapPreviewOut(BaseModel):
+    """저장 전 로드맵 프리뷰 — plant 요청의 본체가 그대로 된다."""
+
+    title: str = Field(min_length=1, max_length=120)
+    briefing: str = Field(max_length=2000)
+    ncs_job_code: str | None = None
+    career_goal: CareerGoalDecisionOut
+    milestones: list[MilestonePreviewOut] = Field(min_length=3, max_length=15)
+
+
+class PlantRequest(RoadmapPreviewOut):
+    """프리뷰 페이로드 + 원본 대화. 검증 캡은 RoadmapPreviewOut에서 상속."""
+
+    goal_raw_text: str = Field(min_length=1, max_length=2000)
+    messages: list[ChatMessageIn] = Field(default_factory=list)
+
+    @field_validator("milestones")
+    @classmethod
+    def _due_dates_in_range(cls, v: list[MilestonePreviewOut]) -> list[MilestonePreviewOut]:
+        low = date.today() - timedelta(days=30)
+        high = date.today() + timedelta(days=365 * 3)
+        for m in v:
+            if not (low <= m.due_date <= high):
+                raise ValueError(f"due_date out of range: {m.due_date}")
+        return v
 
 
 class MilestonePostOut(BaseModel):
@@ -69,6 +113,7 @@ class MilestoneOut(BaseModel):
     order_index: int
     title: str
     description: str
+    detail: str | None = None
     due_date: date
     is_completed_manual: bool
     completed_at: datetime | None
@@ -138,6 +183,7 @@ class RoadmapDetailOut(BaseModel):
     milestones: list[MilestoneOut]
     is_following: bool | None = None
     is_withered: bool = False
+    major_goal_title: str | None = None
 
 
 class RoadmapCardOut(BaseModel):
@@ -150,6 +196,7 @@ class RoadmapCardOut(BaseModel):
     is_following: bool | None = None
     is_featured: bool = True
     is_withered: bool = False
+    major_goal_title: str | None = None
 
 
 class MilestonePatchRequest(BaseModel):
@@ -183,8 +230,7 @@ def post_to_out(
         ),
         updated_at=post.updated_at,
         like_count=len(post.likes),
-        liked_by_me=viewer_id is not None
-        and any(like.user_id == viewer_id for like in post.likes),
+        liked_by_me=viewer_id is not None and any(like.user_id == viewer_id for like in post.likes),
         comment_count=len(post.comments),
     )
 
@@ -206,6 +252,7 @@ def milestone_to_out(milestone: Milestone, viewer_id: int | None = None) -> Mile
         order_index=milestone.order_index,
         title=milestone.title,
         description=milestone.description,
+        detail=milestone.detail,
         due_date=milestone.due_date,
         is_completed_manual=milestone.is_completed_manual,
         completed_at=milestone.completed_at,
@@ -226,9 +273,8 @@ def roadmap_to_detail(
         progress_pct=compute_progress_pct(roadmap.milestones),
         milestones=[milestone_to_out(m, viewer_id) for m in roadmap.milestones],
         is_following=is_following,
-        is_withered=compute_withered(
-            roadmap.milestones, get_settings().withered_grace_days
-        ),
+        is_withered=compute_withered(roadmap.milestones, get_settings().withered_grace_days),
+        major_goal_title=roadmap.career_goal.title if roadmap.career_goal else None,
     )
 
 
@@ -242,7 +288,6 @@ def roadmap_to_card(roadmap: Roadmap, is_following: bool | None = None) -> Roadm
         created_at=roadmap.created_at,
         is_following=is_following,
         is_featured=roadmap.is_featured,
-        is_withered=compute_withered(
-            roadmap.milestones, get_settings().withered_grace_days
-        ),
+        is_withered=compute_withered(roadmap.milestones, get_settings().withered_grace_days),
+        major_goal_title=roadmap.career_goal.title if roadmap.career_goal else None,
     )

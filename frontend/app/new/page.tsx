@@ -1,10 +1,10 @@
 "use client";
 
 import { useRouter } from "next/navigation";
-import { useEffect, useRef, useState } from "react";
-import { postChat, postGenerate } from "@/lib/api";
+import { useCallback, useEffect, useRef, useState } from "react";
+import { postChat, postPlant, postPreview } from "@/lib/api";
 import { useAuth } from "@/lib/auth-context";
-import type { ChatMessageIn, ChatRole } from "@/lib/types";
+import type { ChatMessageIn, ChatRole, RoadmapPreviewOut } from "@/lib/types";
 
 const TYPING_DELAY_MS = 550;
 
@@ -28,7 +28,7 @@ function Bubble({ role, content }: { role: ChatRole; content: string }) {
   );
 }
 
-function RootingIndicator() {
+function RootingIndicator({ label }: { label: string }) {
   return (
     <div className="mb-3.5 mt-1 flex items-center gap-1.5 text-[12.5px] text-moss-600">
       {[0, 1, 2].map((i) => (
@@ -38,7 +38,63 @@ function RootingIndicator() {
           style={{ animation: `blink 1.2s ${i * 0.2}s infinite` }}
         />
       ))}
-      뿌리를 내리는 중…
+      {label}
+    </div>
+  );
+}
+
+function formatDue(iso: string): string {
+  const d = new Date(`${iso}T00:00:00`);
+  return `${d.getMonth() + 1}월 ${d.getDate()}일`;
+}
+
+function RoadmapPreviewPanel({ preview }: { preview: RoadmapPreviewOut }) {
+  return (
+    <div className="mb-3.5 rounded-2xl border border-[rgba(143,220,138,.2)] bg-[rgba(10,26,15,.9)] p-5">
+      <div className="mb-1 flex flex-wrap items-center gap-2 text-[12px]">
+        <span className="rounded-full border border-[rgba(226,192,110,.4)] bg-[rgba(226,192,110,.12)] px-2.5 py-0.5 font-semibold text-[#e2c06e]">
+          🎯 대목표 · {preview.career_goal.title}
+        </span>
+        <span className="text-moss-600">
+          {preview.career_goal.is_new
+            ? "새 대목표로 만들어요"
+            : "기존 대목표 아래에 심어요"}
+        </span>
+      </div>
+      <h2 className="mb-3 font-serif text-[19px] font-bold leading-snug text-moss-100">
+        {preview.title}
+      </h2>
+      <ol className="flex flex-col gap-2.5">
+        {preview.milestones.map((m, i) => (
+          <li
+            key={i}
+            className="rounded-xl border border-[rgba(143,220,138,.12)] bg-[rgba(255,255,255,.03)] px-3.5 py-3"
+          >
+            <div className="flex items-baseline justify-between gap-3">
+              <span className="text-[13.5px] font-semibold text-[#dcead8]">
+                {i + 1}. {m.title}
+              </span>
+              <span className="shrink-0 text-[11.5px] text-moss-600">
+                ~{formatDue(m.due_date)}
+              </span>
+            </div>
+            <p className="mt-1 text-[12.5px] leading-relaxed text-moss-400">
+              {m.description}
+            </p>
+            <details className="mt-1.5">
+              <summary className="cursor-pointer select-none text-[11.5px] text-bean-300 hover:text-bean-100">
+                자세한 가이드 보기
+              </summary>
+              <p className="mt-1.5 whitespace-pre-line text-[12.5px] leading-relaxed text-moss-300">
+                {m.detail}
+              </p>
+            </details>
+          </li>
+        ))}
+      </ol>
+      <p className="mt-3 text-[12px] text-moss-600">
+        마음에 들면 아래 버튼으로 씨앗을 심어주세요. 심은 뒤에도 각 마일스톤의 가이드는 언제든 볼 수 있어요.
+      </p>
     </div>
   );
 }
@@ -52,6 +108,9 @@ export default function NewRoadmapPage() {
   const [input, setInput] = useState("");
   const [typing, setTyping] = useState(false);
   const [done, setDone] = useState(false);
+  const [preview, setPreview] = useState<RoadmapPreviewOut | null>(null);
+  const [previewing, setPreviewing] = useState(false);
+  const [previewFailed, setPreviewFailed] = useState(false);
   const [planting, setPlanting] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -66,7 +125,27 @@ export default function NewRoadmapPage() {
 
   useEffect(() => {
     bottomRef.current?.scrollIntoView({ behavior: "smooth" });
-  }, [messages, typing, done, planting]);
+  }, [messages, typing, done, previewing, preview, planting]);
+
+  const runPreview = useCallback(async () => {
+    setPreviewing(true);
+    setPreviewFailed(false);
+    setError(null);
+    try {
+      const res = await postPreview(goalRawText, messages);
+      setPreview(res);
+    } catch {
+      setPreviewFailed(true);
+      setError("로드맵 초안을 그리지 못했어요.");
+    } finally {
+      setPreviewing(false);
+    }
+  }, [goalRawText, messages]);
+
+  // 질답이 끝나면 자동으로 로드맵 초안(미리보기)을 그린다.
+  useEffect(() => {
+    if (done && !preview && !previewing && !previewFailed) void runPreview();
+  }, [done, preview, previewing, previewFailed, runPreview]);
 
   async function send() {
     const text = input.trim();
@@ -98,11 +177,11 @@ export default function NewRoadmapPage() {
   }
 
   async function plant() {
-    if (!me?.yonsei_verified || planting) return;
+    if (!me?.yonsei_verified || planting || !preview) return;
     setPlanting(true);
     setError(null);
     try {
-      const roadmap = await postGenerate(goalRawText, messages);
+      const roadmap = await postPlant(preview, goalRawText, messages);
       router.push(`/roadmap/${roadmap.id}`);
     } catch {
       setError("씨앗을 심지 못했어요. 다시 시도해주세요.");
@@ -133,25 +212,34 @@ export default function NewRoadmapPage() {
         {messages.map((m, i) => (
           <Bubble key={i} role={m.role} content={m.content} />
         ))}
-        {(typing || planting) && <RootingIndicator />}
-        {done && !planting && (
-          <Bubble
-            role="assistant"
-            content="질문에 모두 답해주셨어요. 마음에 들면 아래에서 씨앗을 심어주세요."
-          />
+        {typing && <RootingIndicator label="뿌리를 내리는 중…" />}
+        {previewing && (
+          <RootingIndicator label="지금까지 들은 이야기로 로드맵 초안을 그리는 중… (최대 1분 정도 걸려요)" />
         )}
+        {planting && <RootingIndicator label="씨앗을 심는 중…" />}
+        {preview && <Bubble role="assistant" content={preview.briefing} />}
+        {preview && <RoadmapPreviewPanel preview={preview} />}
         {error && <p className="mb-3 text-[12.5px] text-wither-300">{error}</p>}
         <div ref={bottomRef} />
 
         <div className="sticky bottom-0 mt-auto bg-[linear-gradient(transparent,#06120a_45%)] pb-7 pt-4">
-          {done && (
+          {preview && !previewing && (
             <button
               type="button"
               onClick={plant}
               disabled={planting}
               className="mb-2.5 w-full rounded-xl border border-bean-400 bg-bean-500 p-3.5 text-sm font-bold text-[#f0f7ec] shadow-[0_6px_24px_rgba(63,143,71,.35)] transition-colors hover:bg-[#4aa353] disabled:opacity-60"
             >
-              {planting ? "심는 중…" : "이 로드맵 심기"}
+              {planting ? "심는 중…" : "이 로드맵으로 씨앗 심기"}
+            </button>
+          )}
+          {previewFailed && !previewing && (
+            <button
+              type="button"
+              onClick={() => void runPreview()}
+              className="mb-2.5 w-full rounded-xl border border-[rgba(143,220,138,.28)] bg-[rgba(143,220,138,.13)] p-3.5 text-sm font-semibold text-bean-100 transition-colors hover:bg-[rgba(143,220,138,.25)]"
+            >
+              로드맵 다시 그리기
             </button>
           )}
           <form
