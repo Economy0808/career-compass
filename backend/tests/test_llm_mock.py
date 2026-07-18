@@ -40,16 +40,24 @@ async def test_extract_intent_is_deterministic() -> None:
 
 
 @pytest.mark.asyncio
-async def test_synthesize_returns_variable_milestones() -> None:
+async def test_synthesize_returns_roadmap_set() -> None:
     client = MockClaudeClient()
     intent = await client.extract_intent("데이터 분석가가 되고 싶어", [])
     result = await client.synthesize_roadmap(RoadmapContext(intent=intent))
 
-    assert result.title == "데이터 분석가 로드맵"
-    assert MIN_MILESTONES <= len(result.milestones) <= MAX_MILESTONES
-    due_dates = [m.due_date for m in result.milestones]
-    assert due_dates == sorted(due_dates)
-    assert len(set(due_dates)) == len(due_dates)  # 마감일 중복 없음
+    # 세트: 기초 + 실전 2개, 총 마일스톤 수는 목표에 따라 가변
+    assert [item.title for item in result.items] == [
+        "데이터 분석가 기초 다지기",
+        "데이터 분석가 실전 도전",
+    ]
+    total = sum(len(item.milestones) for item in result.items)
+    assert MIN_MILESTONES <= total <= MAX_MILESTONES
+    assert result.briefing
+    assert result.major_goal is not None
+    for item in result.items:
+        due_dates = [m.due_date for m in item.milestones]
+        assert due_dates == sorted(due_dates)
+        assert len(set(due_dates)) == len(due_dates)  # 로드맵 내 마감일 중복 없음
 
 
 @pytest.mark.asyncio
@@ -63,7 +71,9 @@ async def test_synthesize_grounds_on_ncs_ability_units() -> None:
     )
     result = await client.synthesize_roadmap(ctx)
     # 능력단위가 상세 가이드(detail)에 근거로 녹아든다
-    assert any(m.detail and "통계적 가설검정" in m.detail for m in result.milestones)
+    assert any(
+        m.detail and "통계적 가설검정" in m.detail for item in result.items for m in item.milestones
+    )
 
 
 def test_milestone_count_is_deterministic_and_varies() -> None:

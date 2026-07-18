@@ -71,12 +71,25 @@ class MajorGoalDecision:
 
 
 @dataclass
-class GeneratedRoadmap:
+class GeneratedRoadmapItem:
+    """세트를 구성하는 개별 소분류 로드맵 (한 주제에 집중, 직접 따라할 수 있는 수준)."""
+
     title: str
     milestones: list[GeneratedMilestone]
-    # 심기 직전 코치 브리핑: 필요 역량 + 왜 이 소목표가 현실적 첫 단계인지
-    briefing: str = ""
-    major_goal: MajorGoalDecision | None = None
+
+
+@dataclass
+class GeneratedRoadmapSet:
+    """한 번의 씨앗 심기 결과: 브리핑 + 대목표 판단 + 소분류 로드맵 1개 이상.
+
+    목표가 여러 역량 축(수학/통계/프로젝트/네트워킹 등)에 걸치면 모델이 축별로
+    로드맵을 분리한다. #N 넘버링은 모델이 아니라 plant 시점에 서버가 붙인다.
+    """
+
+    # 심기 직전 코치 브리핑: 필요 역량 + 왜 이 소목표들이 현실적 첫 단계인지
+    briefing: str
+    major_goal: MajorGoalDecision | None
+    items: list[GeneratedRoadmapItem]
 
 
 @dataclass
@@ -128,8 +141,8 @@ class LLMClient(Protocol):
         """유저 입력에서 진로 방향·현재 수준을 구조화해 뽑는다 (싼 모델)."""
         ...
 
-    async def synthesize_roadmap(self, context: RoadmapContext) -> GeneratedRoadmap:
-        """의중 + NCS 능력단위 + 리서치를 종합해 구조화된 로드맵을 생성한다 (강한 모델)."""
+    async def synthesize_roadmap(self, context: RoadmapContext) -> GeneratedRoadmapSet:
+        """의중 + NCS 능력단위 + 리서치를 종합해 소분류 로드맵 세트를 생성한다 (강한 모델)."""
         ...
 
     async def research_job(

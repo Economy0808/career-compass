@@ -28,7 +28,7 @@ def _client() -> AsyncClient:
 
 
 async def _plant_roadmap(client: AsyncClient) -> dict:
-    return await plant_roadmap(client, "기록 테스트 목표")
+    return (await plant_roadmap(client, "기록 테스트 목표"))[0]
 
 
 @pytest.fixture

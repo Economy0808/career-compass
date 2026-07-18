@@ -56,8 +56,15 @@ class CareerGoal(Base):
     user_id: Mapped[int] = mapped_column(ForeignKey("users.id"), nullable=False, index=True)
     title: Mapped[str] = mapped_column(nullable=False)
     context: Mapped[str] = mapped_column(nullable=False)
+    # 로드맵 숲에 이 대목표의 관망 콩나무를 노출할지 (노출 단위 = 대목표)
+    is_featured: Mapped[bool] = mapped_column(nullable=False, server_default="true")
     created_at: Mapped[datetime] = mapped_column(server_default=func.now())
     updated_at: Mapped[datetime] = mapped_column(server_default=func.now(), onupdate=func.now())
+
+    user: Mapped[User] = relationship()
+    roadmaps: Mapped[list["Roadmap"]] = relationship(
+        back_populates="career_goal", order_by="Roadmap.created_at"
+    )
 
     def __repr__(self) -> str:
         return f"CareerGoal(id={self.id}, user_id={self.user_id}, title={self.title!r})"
@@ -86,7 +93,7 @@ class Roadmap(Base):
     user: Mapped[User] = relationship()
     # lazy="joined": 카드/상세 직렬화가 어디서든 안전하게 title을 읽도록
     # (async lazy load 금지 환경에서 기존 selectinload 호출부 무수정)
-    career_goal: Mapped[CareerGoal | None] = relationship(lazy="joined")
+    career_goal: Mapped[CareerGoal | None] = relationship(back_populates="roadmaps", lazy="joined")
     milestones: Mapped[list["Milestone"]] = relationship(
         back_populates="roadmap",
         order_by="Milestone.order_index",

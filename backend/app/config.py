@@ -34,6 +34,9 @@ class Settings(BaseSettings):
     llm_extract_model: str = "claude-sonnet-5"
     llm_synthesis_model: str = "claude-sonnet-5"
     llm_research_model: str = "claude-sonnet-5"
+    # Allow web search during synthesis (request path). Off by default for cost;
+    # set LLM_SYNTHESIS_WEB_SEARCH=true in .env to experiment (e.g. with Opus).
+    llm_synthesis_web_search: bool = False
     job_research_ttl_days: int = 30
 
     @property
@@ -50,6 +53,7 @@ class Settings(BaseSettings):
         key = self.anthropic_api_key.strip()
         looks_real = key.startswith("sk-ant-") and "..." not in key and len(key) >= 40
         return looks_real and self.app_env != "test"
+
 
 @lru_cache
 def get_settings() -> Settings:

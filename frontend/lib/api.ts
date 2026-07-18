@@ -6,7 +6,9 @@ import type {
   ChatMessageIn,
   ChatResponse,
   CommentOut,
+  FeedCardOut,
   FeedScope,
+  GoalDetailOut,
   MeOut,
   MilestonePatchResponse,
   MilestonePostOut,
@@ -139,13 +141,27 @@ export function getFeed(options: {
   scope?: FeedScope;
   limit?: number;
   offset?: number;
-}): Promise<RoadmapCardOut[]> {
+}): Promise<FeedCardOut[]> {
   const params = new URLSearchParams();
   if (options.scope) params.set("scope", options.scope);
   if (options.limit !== undefined) params.set("limit", String(options.limit));
   if (options.offset !== undefined) params.set("offset", String(options.offset));
   const qs = params.toString();
-  return request<RoadmapCardOut[]>(`/api/roadmap/feed${qs ? `?${qs}` : ""}`);
+  return request<FeedCardOut[]>(`/api/roadmap/feed${qs ? `?${qs}` : ""}`);
+}
+
+export function getGoal(id: number): Promise<GoalDetailOut> {
+  return request<GoalDetailOut>(`/api/goals/${id}`);
+}
+
+export function patchGoalFeatured(
+  goalId: number,
+  isFeatured: boolean
+): Promise<FeedCardOut> {
+  return request<FeedCardOut>(
+    `/api/goals/${goalId}`,
+    jsonInit("PATCH", { is_featured: isFeatured })
+  );
 }
 
 export function getRoadmap(id: number): Promise<RoadmapDetailOut> {
@@ -176,8 +192,8 @@ export function postPlant(
   preview: RoadmapPreviewOut,
   goalRawText: string,
   messages: ChatMessageIn[]
-): Promise<RoadmapDetailOut> {
-  return request<RoadmapDetailOut>(
+): Promise<RoadmapDetailOut[]> {
+  return request<RoadmapDetailOut[]>(
     "/api/roadmap/plant",
     jsonInit("POST", { ...preview, goal_raw_text: goalRawText, messages })
   );

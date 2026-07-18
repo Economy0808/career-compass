@@ -6,7 +6,7 @@
 
 NCS/캐시가 없으면 우아하게 축소해 항상 결과를 낸다 (초기 데이터 부재/테스트 대응).
 저장은 하지 않는다 — preview 엔드포인트가 그대로 반환하고, plant가 페이로드를 저장한다.
-반환: (GeneratedRoadmap, ncs_job_code|None) — 근거 표시용.
+반환: (GeneratedRoadmapSet, ncs_job_code|None) — 근거 표시용.
 """
 
 from sqlalchemy import select
@@ -15,7 +15,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.llm.base import (
     CareerGoalRef,
     ChatMessage,
-    GeneratedRoadmap,
+    GeneratedRoadmapSet,
     JobResearchResult,
     LLMClient,
     MajorGoalDecision,
@@ -56,7 +56,7 @@ async def generate_preview(
     user_id: int,
     goal_raw_text: str,
     messages: list[ChatMessage],
-) -> tuple[GeneratedRoadmap, str | None]:
+) -> tuple[GeneratedRoadmapSet, str | None]:
     # ⓪ 기존 대목표 로드 (모델이 재사용/신규를 판단할 근거)
     existing = await load_career_goals(db, user_id)
     existing_refs = [CareerGoalRef(id=g.id, title=g.title, context=g.context) for g in existing]
@@ -85,20 +85,20 @@ async def generate_preview(
         research=research,
         existing_goals=existing_refs,
     )
-    roadmap = await llm.synthesize_roadmap(context)
+    roadmap_set = await llm.synthesize_roadmap(context)
 
     # 환각/누락 방어: 소유 목록에 없는 id는 신규로 교정, major_goal 자체가 없으면 합성
     valid_ids = {g.id for g in existing}
-    if roadmap.major_goal is None:
-        roadmap.major_goal = MajorGoalDecision(
+    if roadmap_set.major_goal is None:
+        roadmap_set.major_goal = MajorGoalDecision(
             existing_goal_id=None,
             title=intent.summary[:100],
             context=intent.current_level,
         )
     elif (
-        roadmap.major_goal.existing_goal_id is not None
-        and roadmap.major_goal.existing_goal_id not in valid_ids
+        roadmap_set.major_goal.existing_goal_id is not None
+        and roadmap_set.major_goal.existing_goal_id not in valid_ids
     ):
-        roadmap.major_goal.existing_goal_id = None
+        roadmap_set.major_goal.existing_goal_id = None
 
-    return roadmap, ncs_job_code
+    return roadmap_set, ncs_job_code

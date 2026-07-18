@@ -88,23 +88,27 @@ async def test_pipeline_grounds_on_ncs_and_research(ncs_seed) -> None:
     llm = MockClaudeClient()
     async with get_session_factory()() as db:
         # Mock 추출은 공백으로 토큰화하므로 직무명과 매칭될 키워드가 나오게 문구 구성
-        roadmap, job_code = await roadmap_gen.generate_preview(
+        roadmap_set, job_code = await roadmap_gen.generate_preview(
             db, llm, 0, "테스트데이터분석 하고 싶어", []
         )
     assert job_code == JOB_CODE
     # NCS 능력단위가 마일스톤 상세 가이드(detail)에 그라운딩됨
-    assert any(m.detail and "통계적 가설검정" in m.detail for m in roadmap.milestones)
+    assert any(
+        m.detail and "통계적 가설검정" in m.detail
+        for item in roadmap_set.items
+        for m in item.milestones
+    )
     # 브리핑·대목표 판단이 항상 채워진다
-    assert roadmap.briefing
-    assert roadmap.major_goal is not None
-    assert roadmap.major_goal.existing_goal_id is None
+    assert roadmap_set.briefing
+    assert roadmap_set.major_goal is not None
+    assert roadmap_set.major_goal.existing_goal_id is None
 
 
 @pytest.mark.asyncio
 async def test_pipeline_degrades_without_ncs_match() -> None:
     llm = MockClaudeClient()
     async with get_session_factory()() as db:
-        roadmap, job_code = await roadmap_gen.generate_preview(
+        roadmap_set, job_code = await roadmap_gen.generate_preview(
             db,
             llm,
             0,
@@ -112,5 +116,5 @@ async def test_pipeline_degrades_without_ncs_match() -> None:
             [ChatMessage(role="user", content="답")],
         )
     assert job_code is None
-    assert len(roadmap.milestones) >= 5
-    assert roadmap.title.endswith("로드맵")
+    assert sum(len(item.milestones) for item in roadmap_set.items) >= 5
+    assert all(item.title for item in roadmap_set.items)

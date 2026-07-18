@@ -49,9 +49,10 @@ function formatDue(iso: string): string {
 }
 
 function RoadmapPreviewPanel({ preview }: { preview: RoadmapPreviewOut }) {
+  const many = preview.roadmaps.length > 1;
   return (
     <div className="mb-3.5 rounded-2xl border border-[rgba(143,220,138,.2)] bg-[rgba(10,26,15,.9)] p-5">
-      <div className="mb-1 flex flex-wrap items-center gap-2 text-[12px]">
+      <div className="mb-3 flex flex-wrap items-center gap-2 text-[12px]">
         <span className="rounded-full border border-[rgba(226,192,110,.4)] bg-[rgba(226,192,110,.12)] px-2.5 py-0.5 font-semibold text-[#e2c06e]">
           🎯 대목표 · {preview.career_goal.title}
         </span>
@@ -60,39 +61,51 @@ function RoadmapPreviewPanel({ preview }: { preview: RoadmapPreviewOut }) {
             ? "새 대목표로 만들어요"
             : "기존 대목표 아래에 심어요"}
         </span>
+        {many && (
+          <span className="text-moss-500">
+            🌱 {preview.roadmaps.length}그루의 콩나무를 함께 심어요
+          </span>
+        )}
       </div>
-      <h2 className="mb-3 font-serif text-[19px] font-bold leading-snug text-moss-100">
-        {preview.title}
-      </h2>
-      <ol className="flex flex-col gap-2.5">
-        {preview.milestones.map((m, i) => (
-          <li
-            key={i}
-            className="rounded-xl border border-[rgba(143,220,138,.12)] bg-[rgba(255,255,255,.03)] px-3.5 py-3"
-          >
-            <div className="flex items-baseline justify-between gap-3">
-              <span className="text-[13.5px] font-semibold text-[#dcead8]">
-                {i + 1}. {m.title}
-              </span>
-              <span className="shrink-0 text-[11.5px] text-moss-600">
-                ~{formatDue(m.due_date)}
-              </span>
-            </div>
-            <p className="mt-1 text-[12.5px] leading-relaxed text-moss-400">
-              {m.description}
-            </p>
-            <details className="mt-1.5">
-              <summary className="cursor-pointer select-none text-[11.5px] text-bean-300 hover:text-bean-100">
-                자세한 가이드 보기
-              </summary>
-              <p className="mt-1.5 whitespace-pre-line text-[12.5px] leading-relaxed text-moss-300">
-                {m.detail}
-              </p>
-            </details>
-          </li>
+      <div className="flex flex-col gap-5">
+        {preview.roadmaps.map((roadmap, ri) => (
+          <div key={ri}>
+            <h2 className="mb-2 font-serif text-[18px] font-bold leading-snug text-moss-100">
+              {many ? `${ri + 1}. ` : ""}
+              {roadmap.title}
+            </h2>
+            <ol className="flex flex-col gap-2.5">
+              {roadmap.milestones.map((m, i) => (
+                <li
+                  key={i}
+                  className="rounded-xl border border-[rgba(143,220,138,.12)] bg-[rgba(255,255,255,.03)] px-3.5 py-3"
+                >
+                  <div className="flex items-baseline justify-between gap-3">
+                    <span className="text-[13.5px] font-semibold text-[#dcead8]">
+                      {i + 1}. {m.title}
+                    </span>
+                    <span className="shrink-0 text-[11.5px] text-moss-600">
+                      ~{formatDue(m.due_date)}
+                    </span>
+                  </div>
+                  <p className="mt-1 text-[12.5px] leading-relaxed text-moss-400">
+                    {m.description}
+                  </p>
+                  <details className="mt-1.5">
+                    <summary className="cursor-pointer select-none text-[11.5px] text-bean-300 hover:text-bean-100">
+                      자세한 가이드 보기
+                    </summary>
+                    <p className="mt-1.5 whitespace-pre-line text-[12.5px] leading-relaxed text-moss-300">
+                      {m.detail}
+                    </p>
+                  </details>
+                </li>
+              ))}
+            </ol>
+          </div>
         ))}
-      </ol>
-      <p className="mt-3 text-[12px] text-moss-600">
+      </div>
+      <p className="mt-4 text-[12px] text-moss-600">
         마음에 들면 아래 버튼으로 씨앗을 심어주세요. 심은 뒤에도 각 마일스톤의 가이드는 언제든 볼 수 있어요.
       </p>
     </div>
@@ -181,8 +194,10 @@ export default function NewRoadmapPage() {
     setPlanting(true);
     setError(null);
     try {
-      const roadmap = await postPlant(preview, goalRawText, messages);
-      router.push(`/roadmap/${roadmap.id}`);
+      const planted = await postPlant(preview, goalRawText, messages);
+      // 한 그루면 바로 그 콩나무로, 여러 그루면 대목표 그룹이 보이는 내 프로필로
+      if (planted.length === 1) router.push(`/roadmap/${planted[0].id}`);
+      else router.push(`/profile/${me.id}`);
     } catch {
       setError("씨앗을 심지 못했어요. 다시 시도해주세요.");
       setPlanting(false);
@@ -214,7 +229,7 @@ export default function NewRoadmapPage() {
         ))}
         {typing && <RootingIndicator label="뿌리를 내리는 중…" />}
         {previewing && (
-          <RootingIndicator label="지금까지 들은 이야기로 로드맵 초안을 그리는 중… (최대 1분 정도 걸려요)" />
+          <RootingIndicator label="지금까지 들은 이야기로 로드맵 초안을 그리는 중… (몇 분 정도 걸릴 수 있어요, 창을 닫지 마세요)" />
         )}
         {planting && <RootingIndicator label="씨앗을 심는 중…" />}
         {preview && <Bubble role="assistant" content={preview.briefing} />}
@@ -230,7 +245,11 @@ export default function NewRoadmapPage() {
               disabled={planting}
               className="mb-2.5 w-full rounded-xl border border-bean-400 bg-bean-500 p-3.5 text-sm font-bold text-[#f0f7ec] shadow-[0_6px_24px_rgba(63,143,71,.35)] transition-colors hover:bg-[#4aa353] disabled:opacity-60"
             >
-              {planting ? "심는 중…" : "이 로드맵으로 씨앗 심기"}
+              {planting
+                ? "심는 중…"
+                : preview.roadmaps.length > 1
+                  ? `${preview.roadmaps.length}그루 함께 심기`
+                  : "이 로드맵으로 씨앗 심기"}
             </button>
           )}
           {previewFailed && !previewing && (

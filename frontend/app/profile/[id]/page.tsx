@@ -12,6 +12,7 @@ import {
   followUser,
   getUserProfile,
   getUserRoadmaps,
+  patchGoalFeatured,
   patchMyBio,
   patchRoadmapFeatured,
   unfollowUser,
@@ -52,6 +53,7 @@ export default function ProfilePage({ params }: { params: { id: string } }) {
   const [error, setError] = useState<string | null>(null);
   const [followPending, setFollowPending] = useState(false);
   const [featurePendingId, setFeaturePendingId] = useState<number | null>(null);
+  const [goalFeaturePendingId, setGoalFeaturePendingId] = useState<number | null>(null);
   const [editingBio, setEditingBio] = useState(false);
   const [bioInput, setBioInput] = useState("");
   const [bioPending, setBioPending] = useState(false);
@@ -138,6 +140,23 @@ export default function ProfilePage({ params }: { params: { id: string } }) {
       );
     } finally {
       setFeaturePendingId(null);
+    }
+  }
+
+  async function toggleGoalFeatured(goalId: number, current: boolean) {
+    if (goalFeaturePendingId !== null) return;
+    setGoalFeaturePendingId(goalId);
+    const next = !current;
+    const apply = (value: boolean) => (prev: RoadmapCardOut[]) =>
+      prev.map((c) => (c.major_goal_id === goalId ? { ...c, major_goal_featured: value } : c));
+    // 낙관적 업데이트 - 실패 시 원복
+    setCards(apply(next));
+    try {
+      await patchGoalFeatured(goalId, next);
+    } catch {
+      setCards(apply(current));
+    } finally {
+      setGoalFeaturePendingId(null);
     }
   }
 
@@ -336,6 +355,25 @@ export default function ProfilePage({ params }: { params: { id: string } }) {
                     {group.title ? `🎯 ${group.title}` : "그 외 콩나무"}
                   </h3>
                   <span className="text-[11.5px] text-moss-700">{group.items.length}그루</span>
+                  {isOwn && group.title !== null && group.items[0].major_goal_id !== null && (
+                    <label
+                      className="ml-auto flex cursor-pointer items-center gap-2 text-[11.5px] text-moss-500"
+                    >
+                      <input
+                        type="checkbox"
+                        checked={group.items[0].major_goal_featured ?? true}
+                        disabled={goalFeaturePendingId === group.items[0].major_goal_id}
+                        onChange={() =>
+                          void toggleGoalFeatured(
+                            group.items[0].major_goal_id as number,
+                            group.items[0].major_goal_featured ?? true
+                          )
+                        }
+                        className="accent-bean-500"
+                      />
+                      메인에 띄우기 (로드맵 숲 노출)
+                    </label>
+                  )}
                 </div>
               )}
               <div className="grid grid-cols-[repeat(auto-fill,minmax(252px,1fr))] gap-[18px]">
@@ -361,7 +399,8 @@ export default function ProfilePage({ params }: { params: { id: string } }) {
                           {card.progress_pct}% 자람
                         </span>
                       </div>
-                      {isOwn && (
+                      {/* 숲 노출은 대목표 단위 — 개별 체크박스는 레거시(미분류) 카드에만 */}
+                      {isOwn && card.major_goal_id === null && (
                         <div className="mt-3 border-t border-[rgba(143,220,138,.1)] pt-3">
                           <label
                             onClick={(e) => e.stopPropagation()}

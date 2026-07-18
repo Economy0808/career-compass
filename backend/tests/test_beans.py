@@ -24,7 +24,7 @@ def _client() -> AsyncClient:
 
 
 async def _plant(client: AsyncClient, goal: str) -> dict:
-    return await plant_roadmap(client, goal)
+    return (await plant_roadmap(client, goal))[0]
 
 
 async def _make_withered(roadmap_id: int) -> None:
@@ -42,9 +42,7 @@ async def _complete_all(client: AsyncClient, roadmap: dict) -> dict:
     """모든 마일스톤을 완료 처리하고 마지막 patch 응답을 돌려준다."""
     last = {}
     for m in roadmap["milestones"]:
-        resp = await client.patch(
-            f"/api/roadmap/milestones/{m['id']}", json={"is_completed": True}
-        )
+        resp = await client.patch(f"/api/roadmap/milestones/{m['id']}", json={"is_completed": True})
         assert resp.status_code == 200
         last = resp.json()
     return last

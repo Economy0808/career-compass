@@ -12,6 +12,7 @@ from pydantic import BaseModel, Field, field_validator
 
 from app.config import get_settings
 from app.models.roadmap import (
+    CareerGoal,
     Milestone,
     MilestonePost,
     MilestoneStatus,
@@ -70,14 +71,23 @@ class PreviewRequest(BaseModel):
     messages: list[ChatMessageIn] = Field(default_factory=list)
 
 
-class RoadmapPreviewOut(BaseModel):
-    """저장 전 로드맵 프리뷰 — plant 요청의 본체가 그대로 된다."""
+class RoadmapItemPreviewOut(BaseModel):
+    """세트를 구성하는 개별 소분류 로드맵 프리뷰."""
 
     title: str = Field(min_length=1, max_length=120)
-    briefing: str = Field(max_length=2000)
+    milestones: list[MilestonePreviewOut] = Field(min_length=2, max_length=15)
+
+
+class RoadmapPreviewOut(BaseModel):
+    """저장 전 로드맵 세트 프리뷰 — plant 요청의 본체가 그대로 된다.
+
+    roadmaps 상한 20은 모델 제약이 아니라 남용 방지용 (모델은 필요한 만큼 생성).
+    """
+
+    briefing: str = Field(max_length=3000)
     ncs_job_code: str | None = None
     career_goal: CareerGoalDecisionOut
-    milestones: list[MilestonePreviewOut] = Field(min_length=3, max_length=15)
+    roadmaps: list[RoadmapItemPreviewOut] = Field(min_length=1, max_length=20)
 
 
 class PlantRequest(RoadmapPreviewOut):
@@ -86,14 +96,15 @@ class PlantRequest(RoadmapPreviewOut):
     goal_raw_text: str = Field(min_length=1, max_length=2000)
     messages: list[ChatMessageIn] = Field(default_factory=list)
 
-    @field_validator("milestones")
+    @field_validator("roadmaps")
     @classmethod
-    def _due_dates_in_range(cls, v: list[MilestonePreviewOut]) -> list[MilestonePreviewOut]:
+    def _due_dates_in_range(cls, v: list[RoadmapItemPreviewOut]) -> list[RoadmapItemPreviewOut]:
         low = date.today() - timedelta(days=30)
         high = date.today() + timedelta(days=365 * 3)
-        for m in v:
-            if not (low <= m.due_date <= high):
-                raise ValueError(f"due_date out of range: {m.due_date}")
+        for r in v:
+            for m in r.milestones:
+                if not (low <= m.due_date <= high):
+                    raise ValueError(f"due_date out of range: {m.due_date}")
         return v
 
 
@@ -197,6 +208,46 @@ class RoadmapCardOut(BaseModel):
     is_featured: bool = True
     is_withered: bool = False
     major_goal_title: str | None = None
+    # 프로필 그룹 헤더의 대목표 단위 노출 토글용
+    major_goal_id: int | None = None
+    major_goal_featured: bool | None = None
+
+
+class FeedCardOut(RoadmapCardOut):
+    """로드맵 숲 카드: 대목표 관망 카드(kind=goal) 또는 레거시 로드맵 카드(kind=roadmap).
+
+    kind=goal이면 id=career_goal id, milestone_count=소분류 로드맵 수,
+    progress_pct=소분류 진행률 평균, completed_count=100% 완주한 소분류 수.
+    """
+
+    kind: Literal["goal", "roadmap"] = "roadmap"
+    completed_count: int | None = None
+
+
+class GoalSubRoadmapOut(BaseModel):
+    """대목표 관망 콩나무의 마일스톤 = 소분류 로드맵."""
+
+    id: int
+    title: str
+    progress_pct: float
+    status: MilestoneStatus
+    is_withered: bool
+
+
+class GoalDetailOut(BaseModel):
+    id: int
+    user: UserOut
+    title: str
+    created_at: datetime
+    progress_pct: float
+    completed_count: int
+    roadmaps: list[GoalSubRoadmapOut]
+    is_following: bool | None = None
+    is_featured: bool = True
+
+
+class GoalPatchRequest(BaseModel):
+    is_featured: bool
 
 
 class MilestonePatchRequest(BaseModel):
@@ -290,4 +341,74 @@ def roadmap_to_card(roadmap: Roadmap, is_following: bool | None = None) -> Roadm
         is_featured=roadmap.is_featured,
         is_withered=compute_withered(roadmap.milestones, get_settings().withered_grace_days),
         major_goal_title=roadmap.career_goal.title if roadmap.career_goal else None,
+        major_goal_id=roadmap.career_goal.id if roadmap.career_goal else None,
+        major_goal_featured=roadmap.career_goal.is_featured if roadmap.career_goal else None,
+    )
+
+
+def _goal_aggregates(goal: CareerGoal) -> tuple[float, int, bool]:
+    """(진행률 평균, 완주 로드맵 수, 전멸 여부). goal.roadmaps가 eager load된 상태 전제."""
+    grace = get_settings().withered_grace_days
+    if not goal.roadmaps:
+        return 0.0, 0, False
+    progresses = [compute_progress_pct(r.milestones) for r in goal.roadmaps]
+    avg = round(sum(progresses) / len(progresses), 1)
+    completed = sum(1 for p in progresses if p >= 100.0)
+    all_withered = all(compute_withered(r.milestones, grace) for r in goal.roadmaps)
+    return avg, completed, all_withered
+
+
+def _sub_roadmap_status(progress: float, withered: bool) -> MilestoneStatus:
+    if progress >= 100.0:
+        return "완료"
+    if withered:
+        return "기한초과"
+    return "진행중"
+
+
+def goal_to_card(goal: CareerGoal, is_following: bool | None = None) -> FeedCardOut:
+    """대목표 관망 카드. goal.user/roadmaps(+milestones)가 eager load된 상태 전제."""
+    avg, completed, all_withered = _goal_aggregates(goal)
+    return FeedCardOut(
+        kind="goal",
+        id=goal.id,
+        user=user_to_out(goal.user),
+        title=goal.title,
+        progress_pct=avg,
+        milestone_count=len(goal.roadmaps),
+        completed_count=completed,
+        created_at=goal.created_at,
+        is_following=is_following,
+        is_featured=goal.is_featured,
+        is_withered=all_withered,
+    )
+
+
+def goal_to_detail(goal: CareerGoal, is_following: bool | None = None) -> GoalDetailOut:
+    """대목표 상세(관망 콩나무). goal.user/roadmaps(+milestones)가 eager load된 상태 전제."""
+    grace = get_settings().withered_grace_days
+    avg, completed, _ = _goal_aggregates(goal)
+    subs = []
+    for r in goal.roadmaps:
+        progress = compute_progress_pct(r.milestones)
+        withered = compute_withered(r.milestones, grace)
+        subs.append(
+            GoalSubRoadmapOut(
+                id=r.id,
+                title=r.title,
+                progress_pct=progress,
+                status=_sub_roadmap_status(progress, withered),
+                is_withered=withered,
+            )
+        )
+    return GoalDetailOut(
+        id=goal.id,
+        user=user_to_out(goal.user),
+        title=goal.title,
+        created_at=goal.created_at,
+        progress_pct=avg,
+        completed_count=completed,
+        roadmaps=subs,
+        is_following=is_following,
+        is_featured=goal.is_featured,
     )

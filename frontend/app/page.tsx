@@ -5,7 +5,7 @@ import { useEffect, useState } from "react";
 import { MiniBeanstalk } from "@/components/MiniBeanstalk";
 import { followUser, getFeed, unfollowUser } from "@/lib/api";
 import { useAuth } from "@/lib/auth-context";
-import type { FeedScope, RoadmapCardOut } from "@/lib/types";
+import type { FeedCardOut, FeedScope } from "@/lib/types";
 
 const TABS: { value: FeedScope; label: string }[] = [
   { value: "all", label: "전체" },
@@ -16,7 +16,7 @@ export default function FeedPage() {
   const router = useRouter();
   const { me, loading: authLoading } = useAuth();
   const [scope, setScope] = useState<FeedScope>("all");
-  const [cards, setCards] = useState<RoadmapCardOut[]>([]);
+  const [cards, setCards] = useState<FeedCardOut[]>([]);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [followPendingId, setFollowPendingId] = useState<number | null>(null);
@@ -41,7 +41,7 @@ export default function FeedPage() {
     };
   }, [scope, me?.id, authLoading]);
 
-  async function toggleFollow(card: RoadmapCardOut) {
+  async function toggleFollow(card: FeedCardOut) {
     if (!me?.yonsei_verified || followPendingId !== null) return;
     setFollowPendingId(card.id);
     const next = !card.is_following;
@@ -117,8 +117,10 @@ export default function FeedPage() {
               const done = Math.round((card.progress_pct / 100) * card.milestone_count);
               return (
                 <div
-                  key={card.id}
-                  onClick={() => router.push(`/roadmap/${card.id}`)}
+                  key={`${card.kind}-${card.id}`}
+                  onClick={() =>
+                    router.push(card.kind === "goal" ? `/goal/${card.id}` : `/roadmap/${card.id}`)
+                  }
                   className="cursor-pointer rounded-[18px] border border-[rgba(143,220,138,.13)] bg-[linear-gradient(180deg,rgba(14,33,20,.55),rgba(8,20,12,.85))] px-[18px] py-4 transition-[border-color,transform] duration-200 hover:-translate-y-[3px] hover:border-[rgba(143,220,138,.4)]"
                 >
                   <div className="flex h-[150px] justify-center">
@@ -126,6 +128,7 @@ export default function FeedPage() {
                   </div>
                   <div className="mt-1.5 flex items-start gap-1.5 text-[15px] font-bold leading-[1.4] text-moss-100">
                     {card.is_withered && <span title="시들어버린 콩나무">🥀</span>}
+                    {card.kind === "goal" && <span title="대목표">🎯</span>}
                     {card.title}
                   </div>
                   <div className="mt-[9px] flex items-center gap-[7px]">
@@ -148,7 +151,9 @@ export default function FeedPage() {
                   </div>
                   <div className="mt-3 flex items-center border-t border-[rgba(143,220,138,.1)] pt-3">
                     <span className="text-[11.5px] text-moss-700">
-                      마일스톤 {done}/{card.milestone_count}
+                      {card.kind === "goal"
+                        ? `로드맵 ${card.completed_count ?? 0}/${card.milestone_count}`
+                        : `마일스톤 ${done}/${card.milestone_count}`}
                     </span>
                     {me?.yonsei_verified && (
                       <button

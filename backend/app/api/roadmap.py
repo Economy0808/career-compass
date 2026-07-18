@@ -4,7 +4,7 @@ from pathlib import Path
 
 from fastapi import APIRouter, Depends, Form, HTTPException, Query, UploadFile
 from fastapi.responses import FileResponse
-from sqlalchemy import select
+from sqlalchemy import func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 from sqlalchemy.orm import selectinload
 
@@ -36,6 +36,7 @@ from app.schemas.roadmap import (
     ChatResponse,
     CommentCreateRequest,
     CommentOut,
+    FeedCardOut,
     FeedScope,
     MilestonePatchRequest,
     MilestonePatchResponse,
@@ -45,9 +46,11 @@ from app.schemas.roadmap import (
     PreviewRequest,
     RoadmapCardOut,
     RoadmapDetailOut,
+    RoadmapItemPreviewOut,
     RoadmapPatchRequest,
     RoadmapPreviewOut,
     comment_to_out,
+    goal_to_card,
     milestone_to_out,
     post_to_out,
     roadmap_to_card,
@@ -124,7 +127,6 @@ async def preview_roadmap(
     decision = generated.major_goal
     assert decision is not None  # generate_preview가 항상 채운다
     return RoadmapPreviewOut(
-        title=generated.title,
         briefing=generated.briefing,
         ncs_job_code=ncs_job_code,
         career_goal=CareerGoalDecisionOut(
@@ -133,29 +135,36 @@ async def preview_roadmap(
             context=decision.context,
             is_new=decision.existing_goal_id is None,
         ),
-        milestones=[
-            MilestonePreviewOut(
-                title=m.title,
-                description=m.description,
-                detail=m.detail,
-                due_date=m.due_date,
+        roadmaps=[
+            RoadmapItemPreviewOut(
+                title=item.title,
+                milestones=[
+                    MilestonePreviewOut(
+                        title=m.title,
+                        description=m.description,
+                        detail=m.detail,
+                        due_date=m.due_date,
+                    )
+                    for m in item.milestones
+                ],
             )
-            for m in generated.milestones
+            for item in generated.items
         ],
     )
 
 
-@router.post("/plant", response_model=RoadmapDetailOut, status_code=201)
+@router.post("/plant", response_model=list[RoadmapDetailOut], status_code=201)
 async def plant_roadmap(
     request: PlantRequest,
     db: AsyncSession = Depends(get_db),
     user: User = Depends(require_yonsei_verified),
     _: None = Depends(rate_limit("roadmap-plant", limit=20)),
-) -> RoadmapDetailOut:
-    """프리뷰 페이로드를 검증 후 그대로 저장한다 (LLM 재호출 없음).
+) -> list[RoadmapDetailOut]:
+    """프리뷰 세트를 검증 후 그대로 저장한다 (LLM 재호출 없음).
 
     작성자는 세션 유저 — 클라이언트가 보낸 user_id를 신뢰하지 않는다.
     대목표는 get-or-create: existing_id는 소유권 검증, 신규는 (user_id,title)로 중복 방지.
+    제목 넘버링: 같은 대목표 안에서 만들어진 순서대로 " #N"을 서버가 붙인다.
     """
     # 대목표 결정 (existing_id 소유권 검증 → 재사용, 아니면 title로 get-or-create)
     goal_row: CareerGoal | None = None
@@ -187,44 +196,58 @@ async def plant_roadmap(
     if request.briefing:
         transcript.append({"role": "assistant", "content": request.briefing})
 
-    roadmap = Roadmap(
-        user_id=user.id,
-        career_goal_id=goal_row.id,
-        title=request.title,
-        goal_raw_text=request.goal_raw_text,
-        chat_transcript=transcript or None,
-        ncs_job_code=request.ncs_job_code,
-    )
-    roadmap.user = user
-    roadmap.career_goal = goal_row
-    roadmap.milestones = [
-        Milestone(
-            order_index=i,
-            title=m.title,
-            description=m.description,
-            detail=m.detail,
-            due_date=m.due_date,
-            # 새 마일스톤은 기록이 없음을 명시해 커밋 후 lazy load를 막는다.
-            post=None,
+    # 넘버링: 같은 대목표의 기존 로드맵 수에 이어서 #N 부여 (세트 내 순서 = 생성 순서)
+    existing_count = (
+        await db.scalar(
+            select(func.count()).select_from(Roadmap).where(Roadmap.career_goal_id == goal_row.id)
         )
-        for i, m in enumerate(request.milestones)
-    ]
-    db.add(roadmap)
+        or 0
+    )
+
+    planted: list[Roadmap] = []
+    for n, item in enumerate(request.roadmaps, start=existing_count + 1):
+        roadmap = Roadmap(
+            user_id=user.id,
+            career_goal_id=goal_row.id,
+            title=f"{item.title} #{n}",
+            goal_raw_text=request.goal_raw_text,
+            chat_transcript=transcript or None,
+            ncs_job_code=request.ncs_job_code,
+        )
+        roadmap.user = user
+        roadmap.career_goal = goal_row
+        roadmap.milestones = [
+            Milestone(
+                order_index=i,
+                title=m.title,
+                description=m.description,
+                detail=m.detail,
+                due_date=m.due_date,
+                # 새 마일스톤은 기록이 없음을 명시해 커밋 후 lazy load를 막는다.
+                post=None,
+            )
+            for i, m in enumerate(item.milestones)
+        ]
+        db.add(roadmap)
+        planted.append(roadmap)
     await db.commit()
 
-    return roadmap_to_detail(roadmap)
+    return [roadmap_to_detail(r) for r in planted]
 
 
-@router.get("/feed", response_model=list[RoadmapCardOut])
+@router.get("/feed", response_model=list[FeedCardOut])
 async def get_feed(
     limit: int = Query(20, ge=1, le=100),
     offset: int = Query(0, ge=0),
     scope: FeedScope = Query("all"),
     db: AsyncSession = Depends(get_db),
     viewer: User | None = Depends(get_current_user_optional),
-) -> list[RoadmapCardOut]:
-    """최신순 로드맵 카드 피드. 비로그인 열람 허용.
+) -> list[FeedCardOut]:
+    """최신순 피드. 비로그인 열람 허용.
 
+    숲에는 대목표당 1개의 관망 카드(kind=goal)를 띄우고, 대목표 도입 이전의
+    레거시 로드맵(career_goal_id IS NULL)은 기존처럼 로드맵 카드로 띄운다.
+    노출 여부는 대목표의 is_featured(관망) / 로드맵의 is_featured(레거시).
     viewer는 세션에서 도출한다. scope=following은 로그인 필수.
     """
     if scope == "following" and viewer is None:
@@ -237,27 +260,52 @@ async def get_feed(
                 await db.scalars(select(Follow.followee_id).where(Follow.follower_id == viewer.id))
             ).all()
         )
+    if scope == "following" and not following_ids:
+        return []
 
-    stmt = (
+    fetch_span = limit + offset  # 병합 후 슬라이스하므로 각 소스에서 여유 있게 가져온다
+
+    goal_stmt = (
+        select(CareerGoal)
+        .where(CareerGoal.is_featured.is_(True))
+        .options(
+            selectinload(CareerGoal.user),
+            selectinload(CareerGoal.roadmaps).selectinload(Roadmap.milestones),
+        )
+        .order_by(CareerGoal.created_at.desc())
+        .limit(fetch_span)
+    )
+    legacy_stmt = (
         select(Roadmap)
-        .where(Roadmap.is_featured.is_(True))  # 숲에는 "메인에 띄우기" 한 것만
+        .where(Roadmap.is_featured.is_(True), Roadmap.career_goal_id.is_(None))
         .options(selectinload(Roadmap.user), selectinload(Roadmap.milestones))
         .order_by(Roadmap.created_at.desc())
-        .limit(limit)
-        .offset(offset)
+        .limit(fetch_span)
     )
     if scope == "following":
-        if not following_ids:
-            return []
-        stmt = stmt.where(Roadmap.user_id.in_(following_ids))
+        goal_stmt = goal_stmt.where(CareerGoal.user_id.in_(following_ids))
+        legacy_stmt = legacy_stmt.where(Roadmap.user_id.in_(following_ids))
 
-    roadmaps = (await db.scalars(stmt)).all()
-    return [
-        roadmap_to_card(
-            r, is_following=(r.user_id in following_ids) if viewer is not None else None
-        )
-        for r in roadmaps
+    goals = (await db.scalars(goal_stmt)).unique().all()
+    legacy = (await db.scalars(legacy_stmt)).all()
+
+    def _following(owner_id: int) -> bool | None:
+        return (owner_id in following_ids) if viewer is not None else None
+
+    cards: list[FeedCardOut] = [
+        goal_to_card(g, is_following=_following(g.user_id))
+        for g in goals
+        if g.roadmaps  # 로드맵이 하나도 없는 대목표는 제외
     ]
+    cards += [
+        FeedCardOut(
+            kind="roadmap",
+            **roadmap_to_card(r, is_following=_following(r.user_id)).model_dump(),
+        )
+        for r in legacy
+    ]
+    cards.sort(key=lambda c: c.created_at, reverse=True)
+    return cards[offset : offset + limit]
 
 
 @router.patch("/milestones/{milestone_id}", response_model=MilestonePatchResponse)

@@ -94,12 +94,16 @@ export interface CareerGoalDecision {
   is_new: boolean;
 }
 
-export interface RoadmapPreviewOut {
+export interface RoadmapItemPreview {
   title: string;
+  milestones: MilestonePreview[];
+}
+
+export interface RoadmapPreviewOut {
   briefing: string;
   ncs_job_code: string | null;
   career_goal: CareerGoalDecision;
-  milestones: MilestonePreview[];
+  roadmaps: RoadmapItemPreview[];
 }
 
 export interface MilestoneOut {
@@ -139,6 +143,33 @@ export interface RoadmapCardOut {
   is_featured: boolean;
   is_withered: boolean;
   major_goal_title: string | null;
+  major_goal_id: number | null;
+  major_goal_featured: boolean | null;
+}
+
+export interface FeedCardOut extends RoadmapCardOut {
+  kind: "goal" | "roadmap";
+  completed_count: number | null;
+}
+
+export interface GoalSubRoadmapOut {
+  id: number;
+  title: string;
+  progress_pct: number;
+  status: MilestoneStatus;
+  is_withered: boolean;
+}
+
+export interface GoalDetailOut {
+  id: number;
+  user: UserOut;
+  title: string;
+  created_at: string;
+  progress_pct: number;
+  completed_count: number;
+  roadmaps: GoalSubRoadmapOut[];
+  is_following: boolean | null;
+  is_featured: boolean;
 }
 
 export interface MilestonePatchResponse {

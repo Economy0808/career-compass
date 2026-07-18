@@ -69,27 +69,37 @@ async def test_full_roadmap_flow(verified_user) -> None:
         messages, question_count = await _run_chat(client, goal)
         assert question_count == len(FIXED_QUESTIONS)
 
-        # 심기 전 미리보기: 저장 없이 브리핑 + 대목표 판단 + 마일스톤 전체가 온다
+        # 심기 전 미리보기: 저장 없이 브리핑 + 대목표 판단 + 로드맵 세트 전체가 온다
         preview = await preview_roadmap(client, goal, messages)
-        assert preview["title"] == "데이터 분석가 로드맵"
         assert preview["briefing"]
         assert preview["career_goal"]["is_new"] is True
         assert preview["career_goal"]["title"]
-        milestone_count = len(preview["milestones"])
-        assert MIN_MILESTONES <= milestone_count <= MAX_MILESTONES  # 목표에 따라 가변
+        # mock은 기초/실전 2개 로드맵 세트를 낸다
+        assert len(preview["roadmaps"]) == 2
+        total = sum(len(r["milestones"]) for r in preview["roadmaps"])
+        assert MIN_MILESTONES <= total <= MAX_MILESTONES  # 목표에 따라 가변
         # 프리뷰/상세 분리: 각 마일스톤에 detail 가이드가 채워진다
-        assert all(m["detail"] for m in preview["milestones"])
+        assert all(m["detail"] for r in preview["roadmaps"] for m in r["milestones"])
 
-        # 심기: 프리뷰 페이로드를 그대로 저장 (작성자는 세션에서 결정 - body에 user_id 없음)
-        roadmap = await plant_from_preview(client, preview, goal, messages)
-        assert roadmap["title"] == preview["title"]
-        assert roadmap["progress_pct"] == 0.0
-        assert roadmap["major_goal_title"] == preview["career_goal"]["title"]
-        roadmap_id = roadmap["id"]
+        # 심기: 프리뷰 세트를 그대로 저장 (작성자는 세션에서 결정 - body에 user_id 없음)
+        planted = await plant_from_preview(client, preview, goal, messages)
+        assert len(planted) == 2
+        # 넘버링: 대목표 안에서 만들어진 순서대로 #1, #2
+        assert planted[0]["title"] == f"{preview['roadmaps'][0]['title']} #1"
+        assert planted[1]["title"] == f"{preview['roadmaps'][1]['title']} #2"
+        assert all(r["progress_pct"] == 0.0 for r in planted)
+        assert all(r["major_goal_title"] == preview["career_goal"]["title"] for r in planted)
+        roadmap_id = planted[0]["id"]
+        milestone_count = len(preview["roadmaps"][0]["milestones"])
 
-        resp = await client.get("/api/roadmap/feed")
+        # 숲에는 소분류 로드맵이 아니라 대목표 관망 카드가 뜬다
+        resp = await client.get("/api/roadmap/feed", params={"limit": 100})
         assert resp.status_code == 200
-        assert any(card["id"] == roadmap_id for card in resp.json())
+        goal_cards = [c for c in resp.json() if c["kind"] == "goal"]
+        assert any(
+            c["title"] == preview["career_goal"]["title"] and c["milestone_count"] == 2
+            for c in goal_cards
+        )
 
         resp = await client.get(f"/api/roadmap/{roadmap_id}")
         assert resp.status_code == 200
@@ -115,7 +125,9 @@ async def test_second_roadmap_reuses_major_goal(verified_user) -> None:
         client.cookies.set("cc_session", token)
 
         first = await plant_roadmap(client, "퀀트가 되고 싶어")
-        assert first["major_goal_title"] == "퀀트 되기"
+        assert all(r["major_goal_title"] == "퀀트 되기" for r in first)
+        assert first[0]["title"].endswith("#1")
+        assert first[1]["title"].endswith("#2")
 
         # 기존 대목표 컨텍스트가 주입되면 mock은 followup 질문만 낸다
         goal2 = "퀀트 공부를 위해 금융공학 스터디 하고 싶어"
@@ -127,7 +139,10 @@ async def test_second_roadmap_reuses_major_goal(verified_user) -> None:
         assert preview["career_goal"]["title"] == "퀀트 되기"
 
         second = await plant_from_preview(client, preview, goal2, messages)
-        assert second["major_goal_title"] == first["major_goal_title"]
+        assert all(r["major_goal_title"] == "퀀트 되기" for r in second)
+        # 넘버링이 기존 로드맵 수에 이어서 붙는다
+        assert second[0]["title"].endswith("#3")
+        assert second[1]["title"].endswith("#4")
 
 
 @pytest.mark.asyncio
@@ -138,10 +153,10 @@ async def test_plant_validation(verified_user, other_verified_user) -> None:
         client.cookies.set("cc_session", token)
         preview = await preview_roadmap(client, "검증 테스트 목표")
 
-        # 마일스톤 개수 상한 초과 → 422
+        # 로드맵 개수 상한(남용 방지 캡 20) 초과 → 422
         too_many = {
             **preview,
-            "milestones": preview["milestones"][:1] * 16,
+            "roadmaps": preview["roadmaps"][:1] * 21,
             "goal_raw_text": "검증 테스트 목표",
             "messages": [],
         }
@@ -157,6 +172,48 @@ async def test_plant_validation(verified_user, other_verified_user) -> None:
         }
         resp = await client.post("/api/roadmap/plant", json=stolen)
         assert resp.status_code == 422
+
+
+@pytest.mark.asyncio
+async def test_goal_overview_detail(verified_user) -> None:
+    """대목표 관망 콩나무: 마일스톤 = 소분류 로드맵, 완주 시 완료 처리."""
+    _, token = verified_user
+    async with _client() as client:
+        client.cookies.set("cc_session", token)
+        planted = await plant_roadmap(client, "관망 테스트 목표")
+
+        resp = await client.get("/api/roadmap/feed", params={"limit": 100})
+        goal_card = next(
+            c for c in resp.json() if c["kind"] == "goal" and c["title"] == "관망 테스트 목표 되기"
+        )
+        goal_id = goal_card["id"]
+
+        resp = await client.get(f"/api/goals/{goal_id}")
+        assert resp.status_code == 200
+        detail = resp.json()
+        assert detail["title"] == "관망 테스트 목표 되기"
+        assert len(detail["roadmaps"]) == 2
+        assert all(r["status"] == "진행중" for r in detail["roadmaps"])
+        assert detail["completed_count"] == 0
+        assert {r["id"] for r in detail["roadmaps"]} == {p["id"] for p in planted}
+
+        # 소분류 하나를 완주하면 관망 콩나무의 그 가지가 "완료"가 된다
+        first = planted[0]
+        for m in first["milestones"]:
+            resp = await client.patch(
+                f"/api/roadmap/milestones/{m['id']}", json={"is_completed": True}
+            )
+            assert resp.status_code == 200
+
+        resp = await client.get(f"/api/goals/{goal_id}")
+        detail = resp.json()
+        by_id = {r["id"]: r for r in detail["roadmaps"]}
+        assert by_id[first["id"]]["status"] == "완료"
+        assert detail["completed_count"] == 1
+        assert detail["progress_pct"] == 50.0  # (100 + 0) / 2
+
+        resp = await client.get("/api/goals/9999999")
+        assert resp.status_code == 404
 
 
 @pytest.mark.asyncio
@@ -205,7 +262,7 @@ async def test_cannot_patch_others_milestone(verified_user, other_verified_user)
     _, attacker_token = other_verified_user
     async with _client() as client:
         client.cookies.set("cc_session", owner_token)
-        roadmap = await plant_roadmap(client, "내 목표")
+        roadmap = (await plant_roadmap(client, "내 목표"))[0]
         milestone_id = roadmap["milestones"][0]["id"]
 
     async with _client() as client:

@@ -17,7 +17,7 @@ LLM_EXTRACT_MODEL을 Haiku 4.5로 내려 가벼운 두 단계만 저렴하게 �
 import json
 from datetime import date, datetime
 
-from anthropic import AsyncAnthropic
+from anthropic import AsyncAnthropic, BadRequestError
 
 from app.config import get_settings
 from app.llm.base import (
@@ -26,7 +26,8 @@ from app.llm.base import (
     ChatMessage,
     ChatTurn,
     GeneratedMilestone,
-    GeneratedRoadmap,
+    GeneratedRoadmapItem,
+    GeneratedRoadmapSet,
     JobResearchResult,
     MajorGoalDecision,
     RoadmapContext,
@@ -54,11 +55,21 @@ _CHAT_SCHEMA = {
     },
     "required": ["done", "question"],
 }
-_ROADMAP_SCHEMA = {
+_MILESTONE_SCHEMA = {
     "type": "object",
     "additionalProperties": False,
     "properties": {
         "title": {"type": "string"},
+        "description": {"type": "string"},
+        "detail": {"type": "string"},
+        "due_date": {"type": "string", "format": "date"},
+    },
+    "required": ["title", "description", "detail", "due_date"],
+}
+_ROADMAP_SCHEMA = {
+    "type": "object",
+    "additionalProperties": False,
+    "properties": {
         "briefing": {"type": "string"},
         "major_goal": {
             "type": "object",
@@ -70,22 +81,21 @@ _ROADMAP_SCHEMA = {
             },
             "required": ["existing_goal_id", "title", "context"],
         },
-        "milestones": {
+        "roadmaps": {
             "type": "array",
+            "minItems": 1,
             "items": {
                 "type": "object",
                 "additionalProperties": False,
                 "properties": {
                     "title": {"type": "string"},
-                    "description": {"type": "string"},
-                    "detail": {"type": "string"},
-                    "due_date": {"type": "string", "format": "date"},
+                    "milestones": {"type": "array", "minItems": 1, "items": _MILESTONE_SCHEMA},
                 },
-                "required": ["title", "description", "detail", "due_date"],
+                "required": ["title", "milestones"],
             },
         },
     },
-    "required": ["title", "briefing", "major_goal", "milestones"],
+    "required": ["briefing", "major_goal", "roadmaps"],
 }
 
 
@@ -101,6 +111,15 @@ def _first_text(message) -> str:
     return ""
 
 
+def _last_text(message) -> str:
+    """툴 사용(웹서치) 응답은 앞쪽에 진행 설명 텍스트 블록이 낄 수 있다 —
+    구조화 출력 JSON은 항상 마지막 텍스트 블록에 온다."""
+    for block in reversed(message.content):
+        if getattr(block, "type", None) == "text":
+            return block.text
+    return ""
+
+
 def _refused(message) -> bool:
     return getattr(message, "stop_reason", None) == "refusal"
 
@@ -111,6 +130,7 @@ class AnthropicClaudeClient:
         self._client = AsyncAnthropic(api_key=settings.anthropic_api_key)
         self._extract_model = settings.llm_extract_model
         self._synthesis_model = settings.llm_synthesis_model
+        self._synthesis_web_search = settings.llm_synthesis_web_search
         self._research_model = settings.llm_research_model
 
     def _to_api_messages(self, messages: list[ChatMessage]) -> list[dict]:
@@ -190,43 +210,54 @@ class AnthropicClaudeClient:
             current_level=data.get("current_level", "미상"),
         )
 
-    async def synthesize_roadmap(self, context: RoadmapContext) -> GeneratedRoadmap:
+    async def synthesize_roadmap(self, context: RoadmapContext) -> GeneratedRoadmapSet:
         system = (
             "너는 전공 미정 대학생을 위한 진로 로드맵 설계자다. 주어진 의중·현재수준과"
-            " NCS 능력단위(국가직무능력표준), 직종 리서치를 근거로 마일스톤을 설계하라.\n\n"
-            "가장 중요한 원칙 — 현실적인 최종 목표부터 잡아라:\n"
-            "- '데이터 사이언티스트가 된다' 같은 막연한 직업 도달을 최종점으로 삼지 마라."
-            " 대신 현재 수준에서 1~2학기(약 6개월) 안에 실제로 도달 가능한 '구체적 도약점'을"
-            " 최종 목표로 잡아라. 예: '교내/수도권 데이터사이언스 학회 지원에 통과할 수준의"
-            " 기초 역량 + 공개할 수 있는 미니 분석 프로젝트 1개'.\n\n"
-            "대목표/소목표 구조:\n"
-            "- 유저의 장기 지향(예: '퀀트 되기')이 대목표, 이 로드맵이 도달하려는 도약점"
-            " (예: '교내 퀀트 학회 합류')이 소목표다. 로드맵 title은 대목표가 아니라 소목표"
-            " 중심의 짧은 한국어 구절로 지어라.\n"
-            "- major_goal: 이 로드맵이 속하는 대목표. '기존 대목표 목록'에 맞는 것이 있으면"
+            " NCS 능력단위(국가직무능력표준), 직종 리서치를 근거로 소분류 로드맵 세트를"
+            " 설계하라.\n\n"
+            "가장 중요한 원칙 — 현실적인 목표부터 잡아라:\n"
+            "- '데이터 사이언티스트가 된다' 같은 막연한 직업 도달을 목표로 삼지 마라."
+            " 대신 현재 수준에서 1~2학기(약 6개월) 안에 실제로 도달 가능한 '구체적 도약점'"
+            " (예: 학회 지원 통과 역량, 미니 프로젝트 완성, 커피챗 3회)을 목표로 잡아라.\n\n"
+            "대목표/소목표 구조 — 로드맵을 필요한 만큼 여러 개로 분리하라:\n"
+            "- 유저의 장기 지향(예: '퀀트 되기')이 대목표, 각 로드맵은 그 아래의 독립적인"
+            " 소목표다. 목표가 여러 역량 축(예: 수학 기초 / 통계 / 프로그래밍 / 프로젝트 /"
+            " 네트워킹)에 걸치면 하나에 몰아넣지 말고 축별로 로드맵을 분리하라. 개수 제한은"
+            " 없다 — 정말 필요한 만큼만, 각 로드맵은 한 주제에 집중해야 한다.\n"
+            "- 각 로드맵은 '그대로 따라할 수 있는' 수준이어야 한다: 학습 로드맵이면 주차·챕터·"
+            " 구체적 강의/책 단위로, '커피챗 3회' 같은 활동 로드맵이면 회차별 목표와 물어볼"
+            " 질문 목록까지 detail에 구조화하라. '개념 익히기' 한 덩어리로 뭉개지 마라.\n"
+            "- 로드맵 title은 소목표 명사구(예: '금융수학 기초 완성', '현직자 커피챗 3회')."
+            " 대목표 문구('퀀트 되기')와 동일하거나 비슷하게 짓지 마라. 번호는 붙이지 마라"
+            " (서버가 #1, #2를 붙인다).\n"
+            "- major_goal: 이 세트가 속하는 대목표. '기존 대목표 목록'에 맞는 것이 있으면"
             " 그 id를 existing_goal_id로 지정하고 title은 그대로 써라. 없으면"
             " existing_goal_id=null, title은 짧은 명사구(예: '퀀트 되기'). context에는 이후"
             " 대화에서 재사용할 유저 프로필 요약(학년/수준/주당 시간/선호/제약)을 4~6문장으로"
             " 갱신해 써라 — 다음 로드맵 생성 때 같은 질문을 반복하지 않기 위한 것이다.\n"
-            "- briefing: 로드맵을 보여주기 직전 코치가 건네는 3~5문장 한국어 브리핑."
+            "- briefing: 로드맵들을 보여주기 직전 코치가 건네는 3~6문장 한국어 브리핑."
             " (1)이 진로에 필요한 핵심 역량을 NCS 능력단위·리서치 근거로 2~3개 짚고,"
-            " (2)왜 지금은 대목표 직행이 아니라 이 소목표(학회 합류, 프로젝트 완성 등)가"
-            " 현실적인 첫 단계인지 설명하라. 존댓말로, 격려하되 과장 없이.\n\n"
-            "마일스톤 설계:\n"
-            "- 최종 목표를 8~12개의 작고 검증 가능한 마일스톤으로 세밀하게 분해하라. 각"
-            " 단계는 이전 단계 위에 역량을 순차적으로 쌓아야 한다. 너무 크거나 막연한 단계"
-            " (예: '실력 쌓기') 금지 — 무엇을 하면 끝나는지가 분명해야 한다.\n"
+            " (2)왜 지금은 대목표 직행이 아니라 이 소목표들이 현실적인 첫 단계인지, (3)로드맵을"
+            " 여러 개로 나눴다면 왜 그렇게 나눴는지 설명하라. 존댓말로, 격려하되 과장 없이.\n\n"
+            "마일스톤 설계 (각 로드맵마다):\n"
+            "- 로드맵당 4~10개의 작고 검증 가능한 마일스톤으로 분해하라. 각 단계는 이전 단계"
+            " 위에 역량을 순차적으로 쌓아야 한다. 너무 크거나 막연한 단계(예: '실력 쌓기')"
+            " 금지 — 무엇을 하면 끝나는지가 분명해야 한다.\n"
             "- 각 마일스톤은 두 필드로 쓴다:\n"
             "  · description: 콩나무 화면에 한 줄로 뜨는 핵심 프리뷰. 60자 이내, 명사형으로"
             " 간결하게. 장황한 설명 금지.\n"
             "  · detail: 클릭 시 보이는 상세 가이드. 4~8문장으로 (1)이 마일스톤이 무엇이고"
             " 왜 필요한지, (2)어떻게 달성하는지 — 구체적인 강의/책/도구/활동/산출물을 실명이나"
-            " 유형으로 제시, (3)'무엇을 하면 이 단계를 완료한 것으로 보는지' 완료 기준을 명확히"
-            " 써라. 관련 NCS 능력단위가 있으면 detail에 근거로 언급하라.\n"
+            " 유형으로 제시(챕터·주차·질문 목록 등 실행 단위까지), (3)'무엇을 하면 이 단계를"
+            " 완료한 것으로 보는지' 완료 기준을 명확히 써라. 관련 NCS 능력단위가 있으면"
+            " detail에 근거로 언급하라.\n"
             "- 리서치의 학회·대외활동은 detail에서 구체적으로 추천하되, 전문가는 특정인을"
             " 지목하지 말고 '이런 키워드로 현직자를 찾아 커피챗을 요청하라' 형태로 안내하라.\n"
+            "- 웹 검색을 쓸 수 있으면 최신 강의·책·학회·공모전을 검색해 실명으로 추천하고,"
+            " 확인 안 되는 것은 유형으로만 제시하라.\n"
             "- 현재 수준에 맞춰 난이도를 조정하고, due_date는 오늘로부터 2주~6개월 사이로"
-            " 순서대로(겹치지 않게) 배치하라.\n"
+            " 로드맵 내에서 순서대로(겹치지 않게) 배치하라. 서로 다른 로드맵은 병행 가능하므로"
+            " 기간이 겹쳐도 된다.\n"
             "- 한국어로, 대학생이 부끄럽지 않게. 근거 없는 과장 금지."
         )
         i = context.intent
@@ -261,43 +292,71 @@ class AnthropicClaudeClient:
             )
         user_content = "\n\n".join(parts)
 
-        # 종합은 강한 모델 + adaptive thinking + effort high. 스트리밍으로 타임아웃 회피.
-        async with self._client.messages.stream(
-            model=self._synthesis_model,
-            max_tokens=24000,
-            thinking={"type": "adaptive"},
-            output_config={
-                "effort": "high",
-                "format": {"type": "json_schema", "schema": _ROADMAP_SCHEMA},
-            },
-            system=_cached_system(system),
-            messages=[{"role": "user", "content": user_content}],
-        ) as stream:
-            message = await stream.get_final_message()
+        async def _run(with_tools: bool):
+            kwargs: dict = {}
+            if with_tools:
+                kwargs["tools"] = [
+                    {"type": "web_search_20260209", "name": "web_search", "max_uses": 5}
+                ]
+            # 종합은 강한 모델 + adaptive thinking + effort high. 스트리밍으로 타임아웃 회피.
+            async with self._client.messages.stream(
+                model=self._synthesis_model,
+                max_tokens=24000,
+                thinking={"type": "adaptive"},
+                output_config={
+                    "effort": "high",
+                    "format": {"type": "json_schema", "schema": _ROADMAP_SCHEMA},
+                },
+                system=_cached_system(system),
+                messages=[{"role": "user", "content": user_content}],
+                **kwargs,
+            ) as stream:
+                return await stream.get_final_message()
+
+        # 웹서치는 실험 설정(LLM_SYNTHESIS_WEB_SEARCH)일 때만. 구조화 출력과의
+        # 조합이 거부되면(400) 툴 없이 1회 폴백 — 품질 저하일 뿐 실패는 아니다.
+        if self._synthesis_web_search:
+            try:
+                message = await _run(with_tools=True)
+            except BadRequestError:
+                message = await _run(with_tools=False)
+        else:
+            message = await _run(with_tools=False)
 
         if _refused(message):
             raise RuntimeError("roadmap synthesis refused")
-        data = json.loads(_first_text(message))
-        milestones = [
-            GeneratedMilestone(
-                title=m["title"],
-                description=m["description"],
-                detail=m["detail"],
-                due_date=datetime.strptime(m["due_date"], "%Y-%m-%d").date(),
+        raw = _last_text(message)
+        try:
+            data = json.loads(raw)
+        except json.JSONDecodeError:
+            data = _lenient_json(raw)
+            if not data:
+                raise RuntimeError("roadmap synthesis returned non-JSON output") from None
+        items = [
+            GeneratedRoadmapItem(
+                title=r["title"],
+                milestones=[
+                    GeneratedMilestone(
+                        title=m["title"],
+                        description=m["description"],
+                        detail=m["detail"],
+                        due_date=datetime.strptime(m["due_date"], "%Y-%m-%d").date(),
+                    )
+                    for m in r["milestones"]
+                ],
             )
-            for m in data["milestones"]
+            for r in data["roadmaps"]
         ]
         mg = data["major_goal"]
         raw_id = mg.get("existing_goal_id")
-        return GeneratedRoadmap(
-            title=data["title"],
-            milestones=milestones,
+        return GeneratedRoadmapSet(
             briefing=data["briefing"],
             major_goal=MajorGoalDecision(
                 existing_goal_id=int(raw_id) if raw_id is not None else None,
                 title=mg["title"],
                 context=mg["context"],
             ),
+            items=items,
         )
 
     async def research_job(

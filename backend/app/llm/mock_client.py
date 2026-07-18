@@ -17,7 +17,8 @@ from app.llm.base import (
     ChatMessage,
     ChatTurn,
     GeneratedMilestone,
-    GeneratedRoadmap,
+    GeneratedRoadmapItem,
+    GeneratedRoadmapSet,
     JobResearchResult,
     MajorGoalDecision,
     RoadmapContext,
@@ -140,10 +141,6 @@ def _strip_goal(goal_raw_text: str) -> str:
     return text
 
 
-def _derive_title(goal_raw_text: str) -> str:
-    return f"{_strip_goal(goal_raw_text)} 로드맵"
-
-
 def _milestone_count(goal_raw_text: str) -> int:
     """목표 텍스트에서 결정적으로 5~8개를 고른다 (내장 hash는 실행마다 달라져 crc32 사용)."""
     spread = MAX_MILESTONES - MIN_MILESTONES + 1
@@ -180,34 +177,35 @@ class MockClaudeClient:
             current_level=user_answers[:120] or "미상",
         )
 
-    async def synthesize_roadmap(self, context: RoadmapContext) -> GeneratedRoadmap:
+    async def synthesize_roadmap(self, context: RoadmapContext) -> GeneratedRoadmapSet:
         goal = context.intent.summary
         count = _milestone_count(goal)
         extras = _EXTRA_STEPS[: count - MIN_MILESTONES]
-        steps = [*_CORE_OPENING, *extras, *_CORE_CLOSING]
 
         # NCS 능력단위가 있으면 앞쪽 단계의 상세(detail)에 녹인다 (그라운딩 흉내).
         unit_names = [u.name for u in context.ability_units[:3]]
 
         today = date.today()
         span_start, span_end = 14, 180
-        milestones: list[GeneratedMilestone] = []
-        for i, (title, desc_template, detail_template) in enumerate(steps):
-            desc = desc_template.format(goal=goal)
-            detail = detail_template.format(goal=goal)
-            if i < len(unit_names):
-                detail += f" (관련 NCS 능력단위: {unit_names[i]})"
-            milestones.append(
-                GeneratedMilestone(
-                    title=title,
-                    description=desc,
-                    detail=detail,
-                    due_date=today
-                    + timedelta(
-                        days=span_start + round((span_end - span_start) * i / (len(steps) - 1))
-                    ),
+
+        def build_milestones(steps: list[_Step]) -> list[GeneratedMilestone]:
+            milestones: list[GeneratedMilestone] = []
+            denom = max(len(steps) - 1, 1)
+            for i, (title, desc_template, detail_template) in enumerate(steps):
+                desc = desc_template.format(goal=goal)
+                detail = detail_template.format(goal=goal)
+                if i < len(unit_names):
+                    detail += f" (관련 NCS 능력단위: {unit_names[i]})"
+                milestones.append(
+                    GeneratedMilestone(
+                        title=title,
+                        description=desc,
+                        detail=detail,
+                        due_date=today
+                        + timedelta(days=span_start + round((span_end - span_start) * i / denom)),
+                    )
                 )
-            )
+            return milestones
 
         # 대목표 판단 (결정론): 기존 대목표의 핵심 명사가 목표 텍스트에 들어 있으면 재사용.
         stripped = _strip_goal(goal)
@@ -231,13 +229,23 @@ class MockClaudeClient:
         briefing = (
             f"{stripped}를 이루려면 {', '.join(unit_names[:2]) or '기초 역량과 실전 경험'}이"
             f" 필요해요. 지금 단계에서는 6개월 안에 도달 가능한 '{_CORE_CLOSING[1][0]}' 같은"
-            " 소목표부터 도전하는 게 현실적이에요. 아래 로드맵이 마음에 들면 심어주세요."
+            " 소목표부터 도전하는 게 현실적이라, 기초와 실전 두 갈래로 나눴어요."
+            " 아래 로드맵이 마음에 들면 심어주세요."
         )
-        return GeneratedRoadmap(
-            title=_derive_title(goal),
-            milestones=milestones,
+        # 결정론적 2개 세트: 기초(opening+extras) + 실전(closing). #N은 서버가 붙인다.
+        return GeneratedRoadmapSet(
             briefing=briefing,
             major_goal=major_goal,
+            items=[
+                GeneratedRoadmapItem(
+                    title=f"{stripped} 기초 다지기",
+                    milestones=build_milestones([*_CORE_OPENING, *extras]),
+                ),
+                GeneratedRoadmapItem(
+                    title=f"{stripped} 실전 도전",
+                    milestones=build_milestones(_CORE_CLOSING),
+                ),
+            ],
         )
 
     async def research_job(
