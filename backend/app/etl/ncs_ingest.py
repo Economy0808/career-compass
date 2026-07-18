@@ -30,6 +30,22 @@ _EXPECTED_FIELDS: dict[str, list[str]] = {
 }
 
 
+def _full_code(raw: str, parent_full: str, width: int) -> str:
+    """API의 상대 코드를 전역 유일 코드로 만든다.
+
+    NCS API는 각 계층 코드를 부모 기준 상대값("01", "02")으로 주므로, 그대로 저장하면
+    서로 다른 부모의 자식들이 (code, degree) 키에서 충돌해 마지막 것만 남는다.
+    부모 전체 코드와 연결해 스키마가 전제한 폭(중분류4/소분류6/세분류8/능력단위10+)을
+    채운다. 이미 전체 폭이면 그대로 쓴다 (형식 변경 방어).
+    """
+    return raw if len(raw) >= width else parent_full + raw
+
+
+def _rel_code(full: str) -> str:
+    """전체 코드에서 API 파라미터용 상대 코드(마지막 2자리)를 꺼낸다."""
+    return full[-2:]
+
+
 async def _probe_raw(operation: str, extra_params: dict) -> dict:
     """API에 numOfRows=1로 1건만 호출해 raw JSON 응답을 반환한다 (필드 검증용)."""
     settings = get_settings()
@@ -115,7 +131,7 @@ async def ingest_ncs_mclas(session: AsyncSession) -> dict[str, int]:
     for lclas_code in lclas_codes:
         items = await fetch_ncs_mclas(lclas_code)
         for item in items:
-            code = item["NCS_MCLAS_CD"]
+            code = _full_code(item["NCS_MCLAS_CD"], item["NCS_LCLAS_CD"], 4)
             degree = int(item["NCS_DEGR"])
             name = item["NCS_MCLAS_CDNM"]
             is_current = item["USG_YN"] == "Y"
@@ -149,21 +165,25 @@ async def ingest_ncs_sclas(session: AsyncSession) -> dict[str, int]:
         return {"fetched": 0, "upserted": 0}
 
     first_lclas, first_mclas = mclas_rows[0]
-    raw = await _probe_raw("NCS003", {"NCS_LCLAS_CD": first_lclas, "NCS_MCLAS_CD": first_mclas})
+    # probe도 API 파라미터는 상대 코드로 (DB에는 전체 코드가 저장돼 있음)
+    raw = await _probe_raw(
+        "NCS003", {"NCS_LCLAS_CD": first_lclas, "NCS_MCLAS_CD": _rel_code(first_mclas)}
+    )
     _assert_fields(raw, _EXPECTED_FIELDS["NCS003"], "NCS003")
 
     total_fetched = total_upserted = 0
     for lclas_code, mclas_code in mclas_rows:
-        items = await fetch_ncs_sclas(lclas_code, mclas_code)
+        # DB에는 전체 코드(4자리)가 저장돼 있으므로 API 파라미터는 상대 코드로 변환
+        items = await fetch_ncs_sclas(lclas_code, _rel_code(mclas_code))
         for item in items:
-            code = item["NCS_SCLAS_CD"]
+            code = _full_code(item["NCS_SCLAS_CD"], mclas_code, 6)
             degree = int(item["NCS_DEGR"])
             name = item["NCS_SCLAS_CDNM"]
             is_current = item["USG_YN"] == "Y"
             stmt = pg_insert(NcsSclas).values(
                 code=code,
                 degree=degree,
-                mclas_code=item["NCS_MCLAS_CD"],
+                mclas_code=mclas_code,
                 name=name,
                 is_current=is_current,
             )
@@ -184,7 +204,9 @@ async def ingest_ncs_job(session: AsyncSession) -> dict[str, int]:
     """NCS 세분류(직무) 데이터를 API에서 가져와 DB에 UPSERT한다."""
     result = await session.execute(
         select(NcsMclas.lclas_code, NcsSclas.mclas_code, NcsSclas.code)
-        .join(NcsMclas, (NcsSclas.mclas_code == NcsMclas.code) & (NcsSclas.degree == NcsMclas.degree))
+        .join(
+            NcsMclas, (NcsSclas.mclas_code == NcsMclas.code) & (NcsSclas.degree == NcsMclas.degree)
+        )
         .where(NcsSclas.is_current.is_(True))
         .distinct()
     )
@@ -195,15 +217,19 @@ async def ingest_ncs_job(session: AsyncSession) -> dict[str, int]:
     first_lclas, first_mclas, first_sclas = sclas_rows[0]
     raw = await _probe_raw(
         "NCS004",
-        {"NCS_LCLAS_CD": first_lclas, "NCS_MCLAS_CD": first_mclas, "NCS_SCLAS_CD": first_sclas},
+        {
+            "NCS_LCLAS_CD": first_lclas,
+            "NCS_MCLAS_CD": _rel_code(first_mclas),
+            "NCS_SCLAS_CD": _rel_code(first_sclas),
+        },
     )
     _assert_fields(raw, _EXPECTED_FIELDS["NCS004"], "NCS004")
 
     total_fetched = total_upserted = 0
     for lclas_code, mclas_code, sclas_code in sclas_rows:
-        items = await fetch_ncs_job(lclas_code, mclas_code, sclas_code)
+        items = await fetch_ncs_job(lclas_code, _rel_code(mclas_code), _rel_code(sclas_code))
         for item in items:
-            code = item["NCS_SUBD_CD"]
+            code = _full_code(item["NCS_SUBD_CD"], sclas_code, 8)
             degree = int(item["NCS_DEGR"])
             name = item["NCS_SUBD_CDNM"]
             is_current = item["USG_YN"] == "Y"
@@ -245,18 +271,20 @@ async def ingest_ncs_ability_unit(session: AsyncSession) -> dict[str, int]:
         "NCS005",
         {
             "NCS_LCLAS_CD": first_lclas,
-            "NCS_MCLAS_CD": first_mclas,
-            "NCS_SCLAS_CD": first_sclas,
-            "NCS_SUBD_CD": first_job,
+            "NCS_MCLAS_CD": _rel_code(first_mclas),
+            "NCS_SCLAS_CD": _rel_code(first_sclas),
+            "NCS_SUBD_CD": _rel_code(first_job),
         },
     )
     _assert_fields(raw, _EXPECTED_FIELDS["NCS005"], "NCS005")
 
     total_fetched = total_upserted = 0
     for lclas_code, mclas_code, sclas_code, job_code in job_rows:
-        items = await fetch_ncs_ability_unit(lclas_code, mclas_code, sclas_code, job_code)
+        items = await fetch_ncs_ability_unit(
+            lclas_code, _rel_code(mclas_code), _rel_code(sclas_code), _rel_code(job_code)
+        )
         for item in items:
-            code = item["NCS_COMPE_UNIT_CD"]
+            code = _full_code(item["NCS_COMPE_UNIT_CD"], job_code, 10)
             degree = int(item["NCS_DEGR"])
             name = item["COMPE_UNIT_NAME"]
             is_current = item["USG_YN"] == "Y"

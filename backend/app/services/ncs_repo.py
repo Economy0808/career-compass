@@ -35,12 +35,24 @@ async def shortlist_jobs(
 async def ability_units_for(
     db: AsyncSession, job_code: str, limit: int = 20
 ) -> list[AbilityUnitRef]:
-    """직무 코드에 속한 능력단위를 가져온다."""
+    """직무 코드에 속한 능력단위를 가져온다.
+
+    같은 능력단위가 개정판(degree)마다 행으로 존재하므로 현재판 우선 + 이름 중복
+    제거로 LLM 그라운딩 슬롯이 낭비되지 않게 한다.
+    """
     stmt = (
         select(NcsAbilityUnit)
         .where(NcsAbilityUnit.job_code == job_code)
-        .order_by(NcsAbilityUnit.code)
-        .limit(limit)
+        .order_by(NcsAbilityUnit.is_current.desc(), NcsAbilityUnit.degree.desc())
     )
     rows = (await db.scalars(stmt)).all()
-    return [AbilityUnitRef(code=u.code, name=u.name) for u in rows]
+    seen: set[str] = set()
+    units: list[AbilityUnitRef] = []
+    for u in rows:
+        if u.name in seen:
+            continue
+        seen.add(u.name)
+        units.append(AbilityUnitRef(code=u.code, name=u.name))
+        if len(units) >= limit:
+            break
+    return units
