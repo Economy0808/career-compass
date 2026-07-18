@@ -36,7 +36,8 @@ export function MilestonePostModal({
   onChanged,
 }: MilestonePostModalProps) {
   const [post, setPost] = useState<MilestonePostOut | null>(milestone.post);
-  const [editing, setEditing] = useState(isOwn && milestone.post === null);
+  // 항상 가이드(자세히 보기)가 먼저 보이도록 열람 모드로 시작 — 기록 작성은 버튼으로 진입
+  const [editing, setEditing] = useState(false);
   const [caption, setCaption] = useState(milestone.post?.caption ?? "");
   const [body, setBody] = useState(milestone.post?.body ?? "");
   const [removeImage, setRemoveImage] = useState(false);
@@ -254,20 +255,18 @@ export function MilestonePostModal({
               >
                 {pending ? "저장 중…" : "저장하기"}
               </button>
-              {post && (
-                <button
-                  type="button"
-                  onClick={() => {
-                    setEditing(false);
-                    setCaption(post.caption);
-                    setBody(post.body ?? "");
-                    setRemoveImage(false);
-                  }}
-                  className="rounded-xl border border-[rgba(143,220,138,.25)] px-4 text-[13px] font-semibold text-moss-400 transition-colors hover:bg-[rgba(143,220,138,.1)]"
-                >
-                  취소
-                </button>
-              )}
+              <button
+                type="button"
+                onClick={() => {
+                  setEditing(false);
+                  setCaption(post?.caption ?? "");
+                  setBody(post?.body ?? "");
+                  setRemoveImage(false);
+                }}
+                className="rounded-xl border border-[rgba(143,220,138,.25)] px-4 text-[13px] font-semibold text-moss-400 transition-colors hover:bg-[rgba(143,220,138,.1)]"
+              >
+                취소
+              </button>
             </div>
           </div>
         ) : post ? (
@@ -367,6 +366,14 @@ export function MilestonePostModal({
               {error && <p className="text-[12px] text-wither-300">{error}</p>}
             </div>
           </div>
+        ) : isOwn ? (
+          <button
+            type="button"
+            onClick={() => setEditing(true)}
+            className="w-full rounded-xl border border-[rgba(143,220,138,.28)] bg-[rgba(143,220,138,.13)] p-3.5 text-sm font-bold text-bean-100 transition-colors hover:bg-[rgba(143,220,138,.25)]"
+          >
+            ✎ 기록 남기기
+          </button>
         ) : (
           <p className="py-6 text-center text-[13px] text-moss-600">아직 기록이 없어요.</p>
         )}
