@@ -1,25 +1,24 @@
 "use client";
 
-import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useEffect, useRef, useState } from "react";
 import {
   BeanstalkCanvas,
-  milestoneSide,
-  milestoneY,
   worldBackground,
   worldHeight,
 } from "@/components/BeanstalkCanvas";
-import { followUser, getGoal, unfollowUser } from "@/lib/api";
-import { formatDateKo } from "@/lib/format";
+import {
+  BranchPanel,
+  CHIP_STYLE,
+  CenteredNotice,
+  OwnerChip,
+  PlanterInfo,
+  computeLandingScrollTop,
+} from "@/components/beanstalk-page";
+import { getGoal } from "@/lib/api";
 import { useAuth } from "@/lib/auth-context";
-import type { GoalDetailOut, MilestoneOut, MilestoneStatus } from "@/lib/types";
-
-const CHIP_STYLE: Record<MilestoneStatus, { bg: string; fg: string }> = {
-  완료: { bg: "rgba(93,179,91,.2)", fg: "#8fdc8a" },
-  진행중: { bg: "rgba(143,206,122,.13)", fg: "#c6ddba" },
-  기한초과: { bg: "rgba(196,154,90,.18)", fg: "#d8b078" },
-};
+import { useFollowToggle } from "@/lib/use-follow";
+import type { GoalDetailOut, MilestoneOut } from "@/lib/types";
 
 /** 관망 콩나무: 소분류 로드맵을 캔버스가 읽는 MilestoneOut 모양으로 합성한다. */
 function toCanvasMilestones(goal: GoalDetailOut): MilestoneOut[] {
@@ -45,7 +44,14 @@ export default function GoalDetailPage({ params }: { params: { id: string } }) {
   const [goal, setGoal] = useState<GoalDetailOut | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
-  const [followPending, setFollowPending] = useState(false);
+
+  const isOwn = me?.id === goal?.user.id;
+  const { followPending, toggleFollow } = useFollowToggle({
+    userId: goal?.user.id,
+    isFollowing: goal?.is_following,
+    enabled: !isOwn && !!me?.yonsei_verified,
+    onApplied: (next) => setGoal((prev) => (prev ? { ...prev, is_following: next } : prev)),
+  });
 
   const scrollRef = useRef<HTMLDivElement>(null);
   const didInitialScroll = useRef(false);
@@ -76,44 +82,18 @@ export default function GoalDetailPage({ params }: { params: { id: string } }) {
     const el = scrollRef.current;
     if (!el) return;
     const idx = goal.roadmaps.findIndex((r) => r.status !== "완료");
-    el.scrollTop =
-      idx < 0 ? 0 : Math.max(0, milestoneY(goal.roadmaps.length, idx) - el.clientHeight * 0.52);
+    el.scrollTop = computeLandingScrollTop(goal.roadmaps.length, idx, el.clientHeight);
     didInitialScroll.current = true;
   }, [goal]);
 
-  async function toggleFollow() {
-    if (!goal || !me?.yonsei_verified) return;
-    setFollowPending(true);
-    const next = !goal.is_following;
-    try {
-      if (next) {
-        await followUser(goal.user.id);
-      } else {
-        await unfollowUser(goal.user.id);
-      }
-      setGoal((prev) => (prev ? { ...prev, is_following: next } : prev));
-    } finally {
-      setFollowPending(false);
-    }
-  }
-
   if (loading) {
-    return (
-      <div className="flex h-screen items-center justify-center">
-        <p className="animate-pulse text-sm text-moss-600">콩나무 숲을 살피는 중…</p>
-      </div>
-    );
+    return <CenteredNotice tone="loading">콩나무 숲을 살피는 중…</CenteredNotice>;
   }
 
   if (error || !goal) {
-    return (
-      <div className="flex h-screen items-center justify-center">
-        <p className="text-sm text-wither-300">{error ?? "대목표를 찾을 수 없어요."}</p>
-      </div>
-    );
+    return <CenteredNotice tone="error">{error ?? "대목표를 찾을 수 없어요."}</CenteredNotice>;
   }
 
-  const isOwn = me?.id === goal.user.id;
   const ms = toCanvasMilestones(goal);
   const n = ms.length;
   const H = worldHeight(n);
@@ -154,21 +134,9 @@ export default function GoalDetailPage({ params }: { params: { id: string } }) {
 
           {/* 가지 옆 패널 = 소분류 로드맵 */}
           {goal.roadmaps.map((r, i) => {
-            const y = milestoneY(n, i);
-            const side = milestoneSide(i);
             const chip = CHIP_STYLE[r.status];
             return (
-              <div
-                key={r.id}
-                className="group absolute z-[6] w-[292px]"
-                style={{
-                  top: r.status === "기한초과" ? y - 36 : y - 116,
-                  left:
-                    side === 1
-                      ? "min(calc(50% + 208px), calc(100% - 312px))"
-                      : "max(16px, calc(50% - 500px))",
-                }}
-              >
+              <BranchPanel key={r.id} index={i} count={n} status={r.status}>
                 <div
                   onClick={() => router.push(`/roadmap/${r.id}`)}
                   className="cursor-pointer rounded-[14px] border border-[rgba(143,220,138,.16)] bg-[rgba(7,22,12,.78)] px-4 py-3.5 shadow-[0_8px_26px_rgba(0,0,0,.38)] backdrop-blur-[6px] transition-colors hover:border-[rgba(143,220,138,.35)]"
@@ -195,51 +163,23 @@ export default function GoalDetailPage({ params }: { params: { id: string } }) {
                     이 콩나무 보러 가기 →
                   </div>
                 </div>
-              </div>
+              </BranchPanel>
             );
           })}
 
-          {/* 땅 — 심은 사람 */}
-          <div className="absolute bottom-[118px] left-1/2 z-[6] flex -translate-x-1/2 flex-col items-center gap-2 text-center">
-            <Link
-              href={`/profile/${goal.user.id}`}
-              className="flex h-[70px] w-[70px] items-center justify-center rounded-full border-2 border-[#3f6f49] bg-[rgba(16,36,21,.92)] text-[34px] no-underline shadow-[0_0_34px_rgba(93,179,91,.28)] transition-shadow hover:shadow-[0_0_44px_rgba(93,179,91,.45)]"
-            >
-              {goal.user.avatar_emoji}
-            </Link>
-            <div className="text-sm font-bold text-moss-100">{goal.user.display_name}</div>
-            <div className="text-[11.5px] text-moss-600">
-              {formatDateKo(goal.created_at)} 대목표 세움
-            </div>
-          </div>
+          <PlanterInfo user={goal.user} createdAt={goal.created_at} actionLabel="대목표 세움" />
         </div>
       </div>
 
-      {/* 소유자 칩 — 우상단 고정 */}
-      <div className="fixed right-[26px] top-[22px] z-[55] flex items-center gap-2.5 rounded-full border border-[rgba(143,220,138,.15)] bg-[rgba(6,18,10,.74)] py-2 pl-[15px] pr-2.5 backdrop-blur-[10px]">
-        <Link href={`/profile/${goal.user.id}`} className="flex items-center gap-2.5 no-underline">
-          <span className="text-base">{goal.user.avatar_emoji}</span>
-          <span className="text-[13px] font-semibold !text-moss-100 hover:!text-moss-300">
-            {isOwn ? "내 대목표" : `${goal.user.display_name}의 대목표`}
-          </span>
-        </Link>
-        <span className="whitespace-nowrap text-[11.5px] text-moss-600">{goalSub}</span>
-        {!isOwn && me?.yonsei_verified && (
-          <button
-            type="button"
-            onClick={toggleFollow}
-            disabled={followPending}
-            className="whitespace-nowrap rounded-full border px-[15px] py-1.5 text-xs font-semibold transition-[filter] hover:brightness-125 disabled:opacity-50"
-            style={{
-              background: goal.is_following ? "rgba(143,220,138,.16)" : "rgba(255,255,255,.04)",
-              borderColor: goal.is_following ? "rgba(143,220,138,.45)" : "rgba(143,220,138,.25)",
-              color: goal.is_following ? "#b9eab2" : "#cfe6cb",
-            }}
-          >
-            {goal.is_following ? "팔로잉" : "팔로우"}
-          </button>
-        )}
-      </div>
+      <OwnerChip
+        user={goal.user}
+        label={isOwn ? "내 대목표" : `${goal.user.display_name}의 대목표`}
+        sub={goalSub}
+        canFollow={!isOwn && !!me?.yonsei_verified}
+        isFollowing={goal.is_following}
+        followPending={followPending}
+        onToggleFollow={toggleFollow}
+      />
     </div>
   );
 }

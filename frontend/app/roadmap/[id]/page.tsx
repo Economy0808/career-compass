@@ -1,31 +1,30 @@
 "use client";
 
-import Link from "next/link";
 import { useEffect, useRef, useState } from "react";
 import {
   BeanstalkCanvas,
-  milestoneSide,
-  milestoneY,
   worldBackground,
   worldHeight,
   type SproutState,
 } from "@/components/BeanstalkCanvas";
+import {
+  BranchPanel,
+  CHIP_STYLE,
+  CenteredNotice,
+  OwnerChip,
+  PlanterInfo,
+  computeLandingScrollTop,
+} from "@/components/beanstalk-page";
 import { MilestonePostModal } from "@/components/MilestonePostModal";
-import { apiUrl, followUser, getRoadmap, patchMilestone, unfollowUser } from "@/lib/api";
-import { formatDateKo } from "@/lib/format";
+import { apiUrl, getRoadmap, patchMilestone } from "@/lib/api";
 import { useAuth } from "@/lib/auth-context";
+import { useFollowToggle } from "@/lib/use-follow";
 import type {
   MilestoneOut,
   MilestonePostOut,
   MilestoneStatus,
   RoadmapDetailOut,
 } from "@/lib/types";
-
-const CHIP_STYLE: Record<MilestoneStatus, { bg: string; fg: string }> = {
-  완료: { bg: "rgba(93,179,91,.2)", fg: "#8fdc8a" },
-  진행중: { bg: "rgba(143,206,122,.13)", fg: "#c6ddba" },
-  기한초과: { bg: "rgba(196,154,90,.18)", fg: "#d8b078" },
-};
 
 interface Flags {
   fireflies: boolean;
@@ -49,13 +48,21 @@ export default function RoadmapDetailPage({ params }: { params: { id: string } }
   const [roadmap, setRoadmap] = useState<RoadmapDetailOut | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
-  const [followPending, setFollowPending] = useState(false);
   const [sprout, setSprout] = useState<SproutState | null>(null);
   const [burst, setBurst] = useState(0);
   const [flags, setFlags] = useState<Flags>({ fireflies: true, sway: true, celebratePreview: false });
   const [flagsOpen, setFlagsOpen] = useState(false);
   const [postMilestoneId, setPostMilestoneId] = useState<number | null>(null);
   const [beansNotice, setBeansNotice] = useState<number | null>(null);
+
+  const isOwn = me?.id === roadmap?.user.id;
+  const { followPending, toggleFollow } = useFollowToggle({
+    userId: roadmap?.user.id,
+    isFollowing: roadmap?.is_following,
+    enabled: !isOwn && !!me?.yonsei_verified,
+    onApplied: (next) =>
+      setRoadmap((prev) => (prev ? { ...prev, is_following: next } : prev)),
+  });
 
   const scrollRef = useRef<HTMLDivElement>(null);
   const didInitialScroll = useRef(false);
@@ -89,7 +96,7 @@ export default function RoadmapDetailPage({ params }: { params: { id: string } }
     if (!el) return;
     const ms = sortedMilestones(roadmap);
     const idx = ms.findIndex((m) => m.status !== "완료");
-    el.scrollTop = idx < 0 ? 0 : Math.max(0, milestoneY(ms.length, idx) - el.clientHeight * 0.52);
+    el.scrollTop = computeLandingScrollTop(ms.length, idx, el.clientHeight);
     didInitialScroll.current = true;
   }, [roadmap]);
 
@@ -151,39 +158,14 @@ export default function RoadmapDetailPage({ params }: { params: { id: string } }
     });
   }
 
-  async function toggleFollow() {
-    if (!roadmap || !me?.yonsei_verified) return;
-    setFollowPending(true);
-    const next = !roadmap.is_following;
-    try {
-      if (next) {
-        await followUser(roadmap.user.id);
-      } else {
-        await unfollowUser(roadmap.user.id);
-      }
-      setRoadmap((prev) => (prev ? { ...prev, is_following: next } : prev));
-    } finally {
-      setFollowPending(false);
-    }
-  }
-
   if (loading) {
-    return (
-      <div className="flex h-screen items-center justify-center">
-        <p className="animate-pulse text-sm text-moss-600">콩나무를 살피는 중…</p>
-      </div>
-    );
+    return <CenteredNotice tone="loading">콩나무를 살피는 중…</CenteredNotice>;
   }
 
   if (error || !roadmap) {
-    return (
-      <div className="flex h-screen items-center justify-center">
-        <p className="text-sm text-wither-300">{error ?? "로드맵을 찾을 수 없어요."}</p>
-      </div>
-    );
+    return <CenteredNotice tone="error">{error ?? "로드맵을 찾을 수 없어요."}</CenteredNotice>;
   }
 
-  const isOwn = me?.id === roadmap.user.id;
   const ms = sortedMilestones(roadmap);
   const n = ms.length;
   const H = worldHeight(n);
@@ -249,24 +231,12 @@ export default function RoadmapDetailPage({ params }: { params: { id: string } }
 
           {/* Milestone panels — glass cards beside each branch */}
           {ms.map((m, i) => {
-            const y = milestoneY(n, i);
-            const side = milestoneSide(i);
             const chip = CHIP_STYLE[m.status];
             const done = m.status === "완료";
             // 기록이 없어도 클릭 시 마일스톤 가이드(무엇을/어떻게)를 볼 수 있으므로 항상 열림
             const openable = true;
             return (
-              <div
-                key={m.id}
-                className="group absolute z-[6] w-[292px]"
-                style={{
-                  top: m.status === "기한초과" ? y - 36 : y - 116,
-                  left:
-                    side === 1
-                      ? "min(calc(50% + 208px), calc(100% - 312px))"
-                      : "max(16px, calc(50% - 500px))",
-                }}
-              >
+              <BranchPanel key={m.id} index={i} count={n} status={m.status}>
                 {/* hover: 폴라로이드 팝오버 (사진 + 문구) */}
                 {m.post && (
                   <div className="pointer-events-none absolute -top-2 left-1/2 z-20 hidden w-[230px] -translate-x-1/2 -translate-y-full rotate-[-2deg] group-hover:block">
@@ -353,54 +323,23 @@ export default function RoadmapDetailPage({ params }: { params: { id: string } }
                     )}
                   </div>
                 </div>
-              </div>
+              </BranchPanel>
             );
           })}
 
-          {/* Ground — where the seed was planted */}
-          <div className="absolute bottom-[118px] left-1/2 z-[6] flex -translate-x-1/2 flex-col items-center gap-2 text-center">
-            <Link
-              href={`/profile/${roadmap.user.id}`}
-              className="flex h-[70px] w-[70px] items-center justify-center rounded-full border-2 border-[#3f6f49] bg-[rgba(16,36,21,.92)] text-[34px] no-underline shadow-[0_0_34px_rgba(93,179,91,.28)] transition-shadow hover:shadow-[0_0_44px_rgba(93,179,91,.45)]"
-            >
-              {roadmap.user.avatar_emoji}
-            </Link>
-            <div className="text-sm font-bold text-moss-100">{roadmap.user.display_name}</div>
-            <div className="text-[11.5px] text-moss-600">
-              {formatDateKo(roadmap.created_at)} 씨앗 심음
-            </div>
-          </div>
+          <PlanterInfo user={roadmap.user} createdAt={roadmap.created_at} actionLabel="씨앗 심음" />
         </div>
       </div>
 
-      {/* Owner chip — fixed to the viewport, top right */}
-      <div className="fixed right-[26px] top-[22px] z-[55] flex items-center gap-2.5 rounded-full border border-[rgba(143,220,138,.15)] bg-[rgba(6,18,10,.74)] py-2 pl-[15px] pr-2.5 backdrop-blur-[10px]">
-        <Link
-          href={`/profile/${roadmap.user.id}`}
-          className="flex items-center gap-2.5 no-underline"
-        >
-          <span className="text-base">{roadmap.user.avatar_emoji}</span>
-          <span className="text-[13px] font-semibold !text-moss-100 hover:!text-moss-300">
-            {isOwn ? "내 콩나무" : `${roadmap.user.display_name}의 콩나무`}
-          </span>
-        </Link>
-        <span className="whitespace-nowrap text-[11.5px] text-moss-600">{goalSub}</span>
-        {!isOwn && me?.yonsei_verified && (
-          <button
-            type="button"
-            onClick={toggleFollow}
-            disabled={followPending}
-            className="whitespace-nowrap rounded-full border px-[15px] py-1.5 text-xs font-semibold transition-[filter] hover:brightness-125 disabled:opacity-50"
-            style={{
-              background: roadmap.is_following ? "rgba(143,220,138,.16)" : "rgba(255,255,255,.04)",
-              borderColor: roadmap.is_following ? "rgba(143,220,138,.45)" : "rgba(143,220,138,.25)",
-              color: roadmap.is_following ? "#b9eab2" : "#cfe6cb",
-            }}
-          >
-            {roadmap.is_following ? "팔로잉" : "팔로우"}
-          </button>
-        )}
-      </div>
+      <OwnerChip
+        user={roadmap.user}
+        label={isOwn ? "내 콩나무" : `${roadmap.user.display_name}의 콩나무`}
+        sub={goalSub}
+        canFollow={!isOwn && !!me?.yonsei_verified}
+        isFollowing={roadmap.is_following}
+        followPending={followPending}
+        onToggleFollow={toggleFollow}
+      />
 
       {/* Ambience toggles */}
       <div className="fixed bottom-[22px] right-[26px] z-[55] flex flex-col items-end gap-2">
