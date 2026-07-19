@@ -1,3 +1,5 @@
+from datetime import date, timedelta
+
 import pytest
 from httpx import ASGITransport, AsyncClient
 
@@ -225,6 +227,39 @@ async def test_feed_and_detail_are_public() -> None:
         assert resp.status_code == 404
 
 
+_MINIMAL_PLANT_BODY = {
+    "goal_raw_text": "목표",
+    "messages": [],
+    "briefing": "브리핑",
+    "ncs_job_code": None,
+    "career_goal": {
+        "existing_id": None,
+        "title": "목표 되기",
+        "context": "컨텍스트",
+        "is_new": True,
+    },
+    "roadmaps": [
+        {
+            "title": "로드맵",
+            "milestones": [
+                {
+                    "title": "a",
+                    "description": "b",
+                    "detail": "c",
+                    "due_date": (date.today() + timedelta(days=30)).isoformat(),
+                },
+                {
+                    "title": "d",
+                    "description": "e",
+                    "detail": "f",
+                    "due_date": (date.today() + timedelta(days=60)).isoformat(),
+                },
+            ],
+        }
+    ],
+}
+
+
 @pytest.mark.asyncio
 async def test_write_endpoints_require_auth() -> None:
     async with _client() as client:
@@ -232,7 +267,11 @@ async def test_write_endpoints_require_auth() -> None:
             "/api/roadmap/preview", json={"goal_raw_text": "목표", "messages": []}
         )
         assert resp.status_code == 401
+        resp = await client.post("/api/roadmap/plant", json=_MINIMAL_PLANT_BODY)
+        assert resp.status_code == 401
         resp = await client.patch("/api/roadmap/milestones/1", json={"is_completed": True})
+        assert resp.status_code == 401
+        resp = await client.patch("/api/goals/1", json={"is_featured": False})
         assert resp.status_code == 401
         resp = await client.post(
             "/api/roadmap/chat", json={"goal_raw_text": "목표", "messages": []}

@@ -2,7 +2,7 @@
 
 import { useRouter } from "next/navigation";
 import { useCallback, useEffect, useRef, useState } from "react";
-import { postChat, postPlant, postPreview } from "@/lib/api";
+import { ApiError, postChat, postPlant, postPreview } from "@/lib/api";
 import { useAuth } from "@/lib/auth-context";
 import type { ChatMessageIn, ChatRole, RoadmapPreviewOut } from "@/lib/types";
 
@@ -147,9 +147,9 @@ export default function NewRoadmapPage() {
     try {
       const res = await postPreview(goalRawText, messages);
       setPreview(res);
-    } catch {
+    } catch (err) {
       setPreviewFailed(true);
-      setError("로드맵 초안을 그리지 못했어요.");
+      setError(err instanceof ApiError ? err.detail : "로드맵 초안을 그리지 못했어요.");
     } finally {
       setPreviewing(false);
     }
@@ -181,8 +181,9 @@ export default function NewRoadmapPage() {
       await new Promise((r) => setTimeout(r, TYPING_DELAY_MS));
       setMessages(res.messages);
       setDone(res.done);
-    } catch {
-      setError("답변을 전달하지 못했어요. 다시 시도해주세요.");
+    } catch (err) {
+      // 서버가 원인을 알려주면(예: AI 연결 장애 503) 그대로 보여준다
+      setError(err instanceof ApiError ? err.detail : "답변을 전달하지 못했어요. 다시 시도해주세요.");
       if (isGoal) setGoalRawText("");
     } finally {
       setTyping(false);
@@ -198,8 +199,8 @@ export default function NewRoadmapPage() {
       // 한 그루면 바로 그 콩나무로, 여러 그루면 대목표 그룹이 보이는 내 프로필로
       if (planted.length === 1) router.push(`/roadmap/${planted[0].id}`);
       else router.push(`/profile/${me.id}`);
-    } catch {
-      setError("씨앗을 심지 못했어요. 다시 시도해주세요.");
+    } catch (err) {
+      setError(err instanceof ApiError ? err.detail : "씨앗을 심지 못했어요. 다시 시도해주세요.");
       setPlanting(false);
     }
   }

@@ -18,6 +18,7 @@ import json
 from datetime import date, datetime
 
 from anthropic import AsyncAnthropic, BadRequestError
+from anthropic.types import Message
 
 from app.config import get_settings
 from app.llm.base import (
@@ -89,7 +90,8 @@ _ROADMAP_SCHEMA = {
                 "additionalProperties": False,
                 "properties": {
                     "title": {"type": "string"},
-                    "milestones": {"type": "array", "minItems": 1, "items": _MILESTONE_SCHEMA},
+                    # minItems 2: 응답 스키마(RoadmapItemPreviewOut) 하한과 일치시킨다
+                    "milestones": {"type": "array", "minItems": 2, "items": _MILESTONE_SCHEMA},
                 },
                 "required": ["title", "milestones"],
             },
@@ -104,14 +106,14 @@ def _cached_system(text: str) -> list[dict]:
     return [{"type": "text", "text": text, "cache_control": {"type": "ephemeral"}}]
 
 
-def _first_text(message) -> str:
+def _first_text(message: Message) -> str:
     for block in message.content:
         if getattr(block, "type", None) == "text":
             return block.text
     return ""
 
 
-def _last_text(message) -> str:
+def _last_text(message: Message) -> str:
     """툴 사용(웹서치) 응답은 앞쪽에 진행 설명 텍스트 블록이 낄 수 있다 —
     구조화 출력 JSON은 항상 마지막 텍스트 블록에 온다."""
     for block in reversed(message.content):
@@ -120,7 +122,7 @@ def _last_text(message) -> str:
     return ""
 
 
-def _refused(message) -> bool:
+def _refused(message: Message) -> bool:
     return getattr(message, "stop_reason", None) == "refusal"
 
 
@@ -292,7 +294,7 @@ class AnthropicClaudeClient:
             )
         user_content = "\n\n".join(parts)
 
-        async def _run(with_tools: bool):
+        async def _run(with_tools: bool) -> Message:
             kwargs: dict = {}
             if with_tools:
                 kwargs["tools"] = [

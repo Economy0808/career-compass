@@ -346,15 +346,22 @@ def roadmap_to_card(roadmap: Roadmap, is_following: bool | None = None) -> Roadm
     )
 
 
-def _goal_aggregates(goal: CareerGoal) -> tuple[float, int, bool]:
-    """(진행률 평균, 완주 로드맵 수, 전멸 여부). goal.roadmaps가 eager load된 상태 전제."""
+def _sub_stats(goal: CareerGoal) -> list[tuple[float, bool]]:
+    """소분류별 (진행률, 시듦)을 한 번만 계산한다. goal.roadmaps eager load 전제."""
     grace = get_settings().withered_grace_days
-    if not goal.roadmaps:
+    return [
+        (compute_progress_pct(r.milestones), compute_withered(r.milestones, grace))
+        for r in goal.roadmaps
+    ]
+
+
+def _aggregate(stats: list[tuple[float, bool]]) -> tuple[float, int, bool]:
+    """(진행률 평균, 완주 로드맵 수, 전멸 여부)."""
+    if not stats:
         return 0.0, 0, False
-    progresses = [compute_progress_pct(r.milestones) for r in goal.roadmaps]
-    avg = round(sum(progresses) / len(progresses), 1)
-    completed = sum(1 for p in progresses if p >= 100.0)
-    all_withered = all(compute_withered(r.milestones, grace) for r in goal.roadmaps)
+    avg = round(sum(p for p, _ in stats) / len(stats), 1)
+    completed = sum(1 for p, _ in stats if p >= 100.0)
+    all_withered = all(w for _, w in stats)
     return avg, completed, all_withered
 
 
@@ -368,7 +375,7 @@ def _sub_roadmap_status(progress: float, withered: bool) -> MilestoneStatus:
 
 def goal_to_card(goal: CareerGoal, is_following: bool | None = None) -> FeedCardOut:
     """대목표 관망 카드. goal.user/roadmaps(+milestones)가 eager load된 상태 전제."""
-    avg, completed, all_withered = _goal_aggregates(goal)
+    avg, completed, all_withered = _aggregate(_sub_stats(goal))
     return FeedCardOut(
         kind="goal",
         id=goal.id,
@@ -386,21 +393,18 @@ def goal_to_card(goal: CareerGoal, is_following: bool | None = None) -> FeedCard
 
 def goal_to_detail(goal: CareerGoal, is_following: bool | None = None) -> GoalDetailOut:
     """대목표 상세(관망 콩나무). goal.user/roadmaps(+milestones)가 eager load된 상태 전제."""
-    grace = get_settings().withered_grace_days
-    avg, completed, _ = _goal_aggregates(goal)
-    subs = []
-    for r in goal.roadmaps:
-        progress = compute_progress_pct(r.milestones)
-        withered = compute_withered(r.milestones, grace)
-        subs.append(
-            GoalSubRoadmapOut(
-                id=r.id,
-                title=r.title,
-                progress_pct=progress,
-                status=_sub_roadmap_status(progress, withered),
-                is_withered=withered,
-            )
+    stats = _sub_stats(goal)
+    avg, completed, _ = _aggregate(stats)
+    subs = [
+        GoalSubRoadmapOut(
+            id=r.id,
+            title=r.title,
+            progress_pct=progress,
+            status=_sub_roadmap_status(progress, withered),
+            is_withered=withered,
         )
+        for r, (progress, withered) in zip(goal.roadmaps, stats, strict=True)
+    ]
     return GoalDetailOut(
         id=goal.id,
         user=user_to_out(goal.user),

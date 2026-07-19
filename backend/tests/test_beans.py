@@ -177,6 +177,33 @@ async def test_delete_forbidden_for_non_owner(bean_user) -> None:
 
 
 @pytest.mark.asyncio
+async def test_deleting_last_subroadmap_removes_goal(bean_user) -> None:
+    """마지막 소분류를 정리하면 고아 대목표도 함께 삭제된다."""
+    user, token = bean_user
+    async with _client() as client:
+        client.cookies.set("cc_session", token)
+        planted = await plant_roadmap(client, "고아 대목표 정리 테스트")
+        resp = await client.get(f"/api/users/{user.id}/roadmaps")
+        goal_id = resp.json()[0]["major_goal_id"]
+        assert goal_id is not None
+
+        for r in planted:
+            await _make_withered(r["id"])
+        resp = await client.post("/api/beans/purchase", json={"package_id": "bean_55"})
+        assert resp.status_code == 200
+
+        # 소분류가 남아 있는 동안엔 대목표 유지
+        resp = await client.delete(f"/api/roadmap/{planted[0]['id']}")
+        assert resp.status_code == 204
+        assert (await client.get(f"/api/goals/{goal_id}")).status_code == 200
+
+        # 마지막 소분류 삭제 → 대목표도 정리
+        resp = await client.delete(f"/api/roadmap/{planted[1]['id']}")
+        assert resp.status_code == 204
+        assert (await client.get(f"/api/goals/{goal_id}")).status_code == 404
+
+
+@pytest.mark.asyncio
 async def test_ranking_counts_only_harvested_this_week(bean_user) -> None:
     user, token = bean_user
     session = await _get_session()

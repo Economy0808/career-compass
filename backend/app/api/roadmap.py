@@ -1,3 +1,5 @@
+import logging
+import re
 import uuid
 from datetime import datetime
 from pathlib import Path
@@ -58,7 +60,14 @@ from app.schemas.roadmap import (
 )
 from app.services import roadmap_gen
 
+logger = logging.getLogger(__name__)
+
 router = APIRouter(prefix="/api/roadmap", tags=["roadmap"])
+
+_LLM_UNAVAILABLE = HTTPException(
+    status_code=503,
+    detail="AI 응답을 받지 못했어요. 잠시 후 다시 시도해주세요.",
+)
 
 # milestone.post와 likes/comments까지 eager load (async lazy load 금지)
 _POST_LOADERS = (
@@ -95,11 +104,16 @@ async def chat(
     """
     goals = await roadmap_gen.load_career_goals(db, user.id)
     llm_messages = [ChatMessage(role=m.role, content=m.content) for m in request.messages]
-    turn = await llm.chat(
-        request.goal_raw_text,
-        llm_messages,
-        known_profile=roadmap_gen.build_known_profile(goals),
-    )
+    try:
+        turn = await llm.chat(
+            request.goal_raw_text,
+            llm_messages,
+            known_profile=roadmap_gen.build_known_profile(goals),
+        )
+    except Exception:
+        # 키 무효/크레딧 소진/네트워크 등 LLM 장애를 명확한 503으로 노출 (bare 500 방지)
+        logger.exception("LLM chat failed")
+        raise _LLM_UNAVAILABLE from None
 
     updated_messages = list(request.messages)
     if turn.question is not None:
@@ -121,9 +135,13 @@ async def preview_roadmap(
     브리핑·대목표 판단 포함. 유저가 확정하면 이 페이로드를 /plant로 되돌려 보낸다.
     """
     llm_messages = [ChatMessage(role=m.role, content=m.content) for m in request.messages]
-    generated, ncs_job_code = await roadmap_gen.generate_preview(
-        db, llm, user.id, request.goal_raw_text, llm_messages
-    )
+    try:
+        generated, ncs_job_code = await roadmap_gen.generate_preview(
+            db, llm, user.id, request.goal_raw_text, llm_messages
+        )
+    except Exception:
+        logger.exception("LLM preview generation failed")
+        raise _LLM_UNAVAILABLE from None
     decision = generated.major_goal
     assert decision is not None  # generate_preview가 항상 채운다
     return RoadmapPreviewOut(
@@ -196,16 +214,20 @@ async def plant_roadmap(
     if request.briefing:
         transcript.append({"role": "assistant", "content": request.briefing})
 
-    # 넘버링: 같은 대목표의 기존 로드맵 수에 이어서 #N 부여 (세트 내 순서 = 생성 순서)
-    existing_count = (
-        await db.scalar(
-            select(func.count()).select_from(Roadmap).where(Roadmap.career_goal_id == goal_row.id)
+    # 넘버링: 같은 대목표의 기존 #N 최댓값에 이어서 부여 (count 기반이면 삭제 후 중복됨)
+    existing_titles = (
+        await db.scalars(select(Roadmap.title).where(Roadmap.career_goal_id == goal_row.id))
+    ).all()
+    next_n = (
+        max(
+            (int(m.group(1)) for t in existing_titles if (m := re.search(r"#(\d+)$", t))),
+            default=0,
         )
-        or 0
+        + 1
     )
 
     planted: list[Roadmap] = []
-    for n, item in enumerate(request.roadmaps, start=existing_count + 1):
+    for n, item in enumerate(request.roadmaps, start=next_n):
         roadmap = Roadmap(
             user_id=user.id,
             career_goal_id=goal_row.id,
@@ -399,6 +421,12 @@ async def patch_roadmap(
         raise HTTPException(status_code=404, detail="roadmap not found")
     if roadmap.user_id != user.id:
         raise HTTPException(status_code=403, detail="내 콩나무만 수정할 수 있어요.")
+    if roadmap.career_goal_id is not None:
+        # 대목표 소속 콩나무의 숲 노출은 대목표 단위 — 개별 토글은 피드에 무효라 막는다
+        raise HTTPException(
+            status_code=409,
+            detail="이 콩나무의 숲 노출은 대목표 단위로 관리돼요. 프로필의 대목표 체크박스를 사용해주세요.",
+        )
     roadmap.is_featured = request.is_featured
     await db.commit()
     return roadmap_to_card(roadmap)
@@ -452,7 +480,19 @@ async def delete_roadmap(
     for m in roadmap.milestones:
         if m.post:
             _delete_post_image(m.post)
+    goal_id = roadmap.career_goal_id
     await db.delete(roadmap)
+    # 마지막 소분류였다면 대목표도 정리 — 고아 대목표가 남아 빈 관망 페이지와
+    # stale known_profile 주입을 만들지 않게 한다.
+    if goal_id is not None:
+        await db.flush()
+        remaining = await db.scalar(
+            select(func.count()).select_from(Roadmap).where(Roadmap.career_goal_id == goal_id)
+        )
+        if not remaining:
+            orphan = await db.get(CareerGoal, goal_id)
+            if orphan is not None:
+                await db.delete(orphan)
     await db.commit()
 
 

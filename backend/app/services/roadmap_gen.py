@@ -9,6 +9,8 @@ NCS/캐시가 없으면 우아하게 축소해 항상 결과를 낸다 (초기 �
 반환: (GeneratedRoadmapSet, ncs_job_code|None) — 근거 표시용.
 """
 
+from datetime import date, timedelta
+
 from sqlalchemy import select
 from sqlalchemy.ext.asyncio import AsyncSession
 
@@ -50,6 +52,34 @@ async def _load_research(db: AsyncSession, job_code: str) -> JobResearchResult |
     )
 
 
+def _clamp_set(rset: GeneratedRoadmapSet) -> None:
+    """LLM 출력을 preview/plant 응답 스키마의 캡 안으로 강제한다.
+
+    LLM 스키마는 상한이 느슨하므로(개수 무제한, 텍스트 길이 자유) 여기서 자르지
+    않으면 합법적인 모델 출력이 FastAPI 응답 검증에서 500을 낸다. 순서: 개수 캡
+    → 마일스톤 2개 미만 로드맵 제거 → 텍스트 길이 캡 → due_date 범위 클램프
+    (plant의 [오늘-30일, 오늘+3년) 검증과 반드시 일치해야 심기가 막히지 않는다).
+    """
+    today = date.today()
+    max_due = today + timedelta(days=365 * 3 - 1)
+
+    rset.briefing = rset.briefing[:3000]
+    rset.items = [i for i in rset.items[:20] if len(i.milestones) >= 2]
+    if not rset.items:
+        raise RuntimeError("synthesis produced no usable roadmap (all items < 2 milestones)")
+    for item in rset.items:
+        item.title = item.title[:120]
+        item.milestones = item.milestones[:15]
+        for m in item.milestones:
+            m.title = m.title[:120]
+            m.description = m.description[:300]
+            m.detail = m.detail[:4000]
+            if m.due_date < today:
+                m.due_date = today
+            elif m.due_date > max_due:
+                m.due_date = max_due
+
+
 async def generate_preview(
     db: AsyncSession,
     llm: LLMClient,
@@ -86,6 +116,8 @@ async def generate_preview(
         existing_goals=existing_refs,
     )
     roadmap_set = await llm.synthesize_roadmap(context)
+
+    _clamp_set(roadmap_set)
 
     # 환각/누락 방어: 소유 목록에 없는 id는 신규로 교정, major_goal 자체가 없으면 합성
     valid_ids = {g.id for g in existing}
