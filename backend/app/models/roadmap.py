@@ -277,7 +277,34 @@ def compute_progress_pct(milestones: list[Milestone], today: date | None = None)
     if not milestones:
         return 0.0
     completed = sum(1 for m in milestones if m.compute_status(today) == "완료")
-    return round(completed / len(milestones) * 100, 1)
+    return progress_from_counts(completed, len(milestones))
+
+
+def progress_from_counts(done: int, total: int) -> float:
+    """마일스톤을 로드하지 않고 카운트만으로 진행률을 계산한다 (피드 SQL 집계용).
+
+    완료 판정은 is_completed_manual 하나뿐이라(compute_status 참고) 카운트가
+    compute_progress_pct와 정확히 같은 값을 낸다.
+    """
+    if total == 0:
+        return 0.0
+    return round(done / total * 100, 1)
+
+
+def withered_from_counts(
+    total: int,
+    done: int,
+    max_due: date | None,
+    grace_days: int,
+    today: date | None = None,
+) -> bool:
+    """compute_withered의 카운트 버전 (피드 SQL 집계용)."""
+    if total == 0 or max_due is None:
+        return False
+    today = today or date.today()
+    if today <= max_due + timedelta(days=grace_days):
+        return False
+    return progress_from_counts(done, total) < 100.0
 
 
 def compute_withered(

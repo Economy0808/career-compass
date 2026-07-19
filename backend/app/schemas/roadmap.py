@@ -21,6 +21,8 @@ from app.models.roadmap import (
     User,
     compute_progress_pct,
     compute_withered,
+    progress_from_counts,
+    withered_from_counts,
 )
 
 ChatRole = Literal["user", "assistant"]
@@ -388,6 +390,53 @@ def goal_to_card(goal: CareerGoal, is_following: bool | None = None) -> FeedCard
         is_following=is_following,
         is_featured=goal.is_featured,
         is_withered=all_withered,
+    )
+
+
+def feed_card_from_goal_agg(
+    goal: CareerGoal,
+    user: User,
+    stats: list[tuple[float, bool]],
+    is_following: bool | None = None,
+) -> FeedCardOut:
+    """SQL 집계로 만든 소분류 통계로 대목표 카드를 만든다 (마일스톤 로드 없음)."""
+    avg, completed, all_withered = _aggregate(stats)
+    return FeedCardOut(
+        kind="goal",
+        id=goal.id,
+        user=user_to_out(user),
+        title=goal.title,
+        progress_pct=avg,
+        milestone_count=len(stats),
+        completed_count=completed,
+        created_at=goal.created_at,
+        is_following=is_following,
+        is_featured=goal.is_featured,
+        is_withered=all_withered,
+    )
+
+
+def feed_card_from_roadmap_agg(
+    roadmap: Roadmap,
+    user: User,
+    total: int,
+    done: int,
+    max_due: date | None,
+    is_following: bool | None = None,
+) -> FeedCardOut:
+    """SQL 집계로 만든 레거시 로드맵 카드 (career_goal_id IS NULL이라 대목표 필드는 없음)."""
+    grace = get_settings().withered_grace_days
+    return FeedCardOut(
+        kind="roadmap",
+        id=roadmap.id,
+        user=user_to_out(user),
+        title=roadmap.title,
+        progress_pct=progress_from_counts(done, total),
+        milestone_count=total,
+        created_at=roadmap.created_at,
+        is_following=is_following,
+        is_featured=roadmap.is_featured,
+        is_withered=withered_from_counts(total, done, max_due, grace),
     )
 
 

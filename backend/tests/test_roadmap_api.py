@@ -11,6 +11,7 @@ from app.llm.mock_client import (
     MIN_MILESTONES,
 )
 from app.main import app
+from app.models.roadmap import Milestone, Roadmap
 from tests.auth_utils import create_session_token, create_user, delete_user_cascade
 from tests.roadmap_utils import plant_from_preview, plant_roadmap, preview_roadmap
 
@@ -216,6 +217,73 @@ async def test_goal_overview_detail(verified_user) -> None:
 
         resp = await client.get("/api/goals/9999999")
         assert resp.status_code == 404
+
+
+@pytest.mark.asyncio
+async def test_feed_card_aggregates(verified_user) -> None:
+    """피드 카드 수치는 SQL 집계로 만들어진다 — 대목표/레거시 두 경로 모두 검증."""
+    user, token = verified_user
+    async with _client() as client:
+        client.cookies.set("cc_session", token)
+        planted = await plant_roadmap(client, "집계 검증 목표")
+
+        # 소분류 2개 중 하나만 완주 → 평균 50%, 완주 1개, 전멸 아님
+        for m in planted[0]["milestones"]:
+            resp = await client.patch(
+                f"/api/roadmap/milestones/{m['id']}", json={"is_completed": True}
+            )
+            assert resp.status_code == 200
+
+        resp = await client.get("/api/roadmap/feed", params={"limit": 100})
+        goal_card = next(
+            c for c in resp.json() if c["kind"] == "goal" and c["title"] == "집계 검증 목표 되기"
+        )
+        assert goal_card["progress_pct"] == 50.0
+        assert goal_card["completed_count"] == 1
+        assert goal_card["milestone_count"] == 2
+        assert goal_card["is_withered"] is False
+
+    # 레거시 경로(career_goal_id IS NULL)는 API로 못 만들므로 직접 심는다:
+    # 마일스톤 2개 중 1개 완료 + 마감 40일 경과 → 진행률 50%, 시듦 True
+    session = await _get_session()
+    legacy = Roadmap(
+        user_id=user.id,
+        title="레거시 집계 콩나무",
+        goal_raw_text="레거시",
+        is_featured=True,
+        career_goal_id=None,
+    )
+    session.add(legacy)
+    await session.flush()
+    session.add_all(
+        [
+            Milestone(
+                roadmap_id=legacy.id,
+                order_index=0,
+                title="완료한 것",
+                description="d",
+                due_date=date.today() - timedelta(days=40),
+                is_completed_manual=True,
+            ),
+            Milestone(
+                roadmap_id=legacy.id,
+                order_index=1,
+                title="놓친 것",
+                description="d",
+                due_date=date.today() - timedelta(days=40),
+                is_completed_manual=False,
+            ),
+        ]
+    )
+    await session.commit()
+
+    async with _client() as client:
+        resp = await client.get("/api/roadmap/feed", params={"limit": 100})
+        card = next(c for c in resp.json() if c["id"] == legacy.id and c["kind"] == "roadmap")
+        assert card["progress_pct"] == 50.0
+        assert card["milestone_count"] == 2
+        assert card["is_withered"] is True
+        assert card["major_goal_title"] is None
 
 
 @pytest.mark.asyncio

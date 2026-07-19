@@ -30,6 +30,8 @@ from app.models.roadmap import (
     User,
     compute_progress_pct,
     compute_withered,
+    progress_from_counts,
+    withered_from_counts,
 )
 from app.schemas.roadmap import (
     CareerGoalDecisionOut,
@@ -52,7 +54,8 @@ from app.schemas.roadmap import (
     RoadmapPatchRequest,
     RoadmapPreviewOut,
     comment_to_out,
-    goal_to_card,
+    feed_card_from_goal_agg,
+    feed_card_from_roadmap_agg,
     milestone_to_out,
     post_to_out,
     roadmap_to_card,
@@ -286,45 +289,77 @@ async def get_feed(
         return []
 
     fetch_span = limit + offset  # 병합 후 슬라이스하므로 각 소스에서 여유 있게 가져온다
+    grace = get_settings().withered_grace_days
 
-    goal_stmt = (
-        select(CareerGoal)
-        .where(CareerGoal.is_featured.is_(True))
-        .options(
-            selectinload(CareerGoal.user),
-            selectinload(CareerGoal.roadmaps).selectinload(Roadmap.milestones),
+    # 카드 수치(진행률·시듦)에 필요한 건 마일스톤 자체가 아니라 개수와 마지막 마감일뿐이라
+    # SQL에서 집계한다. 나눗셈·반올림은 Python에 남겨 기존 계산과 값이 정확히 일치시킨다.
+    ms_agg = (
+        select(
+            Milestone.roadmap_id.label("roadmap_id"),
+            func.count(Milestone.id).label("total"),
+            func.count(Milestone.id).filter(Milestone.is_completed_manual.is_(True)).label("done"),
+            func.max(Milestone.due_date).label("max_due"),
         )
+        .group_by(Milestone.roadmap_id)
+        .subquery()
+    )
+
+    goal_ids_stmt = (
+        select(CareerGoal.id)
+        .where(CareerGoal.is_featured.is_(True))
         .order_by(CareerGoal.created_at.desc())
         .limit(fetch_span)
     )
     legacy_stmt = (
-        select(Roadmap)
+        select(Roadmap, User, ms_agg.c.total, ms_agg.c.done, ms_agg.c.max_due)
+        .join(User, User.id == Roadmap.user_id)
+        .outerjoin(ms_agg, ms_agg.c.roadmap_id == Roadmap.id)
         .where(Roadmap.is_featured.is_(True), Roadmap.career_goal_id.is_(None))
-        .options(selectinload(Roadmap.user), selectinload(Roadmap.milestones))
         .order_by(Roadmap.created_at.desc())
         .limit(fetch_span)
     )
     if scope == "following":
-        goal_stmt = goal_stmt.where(CareerGoal.user_id.in_(following_ids))
+        goal_ids_stmt = goal_ids_stmt.where(CareerGoal.user_id.in_(following_ids))
         legacy_stmt = legacy_stmt.where(Roadmap.user_id.in_(following_ids))
 
-    goals = (await db.scalars(goal_stmt)).unique().all()
-    legacy = (await db.scalars(legacy_stmt)).all()
+    # 소분류 로드맵 1개당 1행. Roadmap과의 inner join이 "로드맵 없는 대목표 제외"를 겸한다.
+    goal_stmt = (
+        select(CareerGoal, User, ms_agg.c.total, ms_agg.c.done, ms_agg.c.max_due)
+        .join(Roadmap, Roadmap.career_goal_id == CareerGoal.id)
+        .join(User, User.id == CareerGoal.user_id)
+        .outerjoin(ms_agg, ms_agg.c.roadmap_id == Roadmap.id)
+        .where(CareerGoal.id.in_(goal_ids_stmt))
+        .order_by(CareerGoal.created_at.desc())
+    )
 
     def _following(owner_id: int) -> bool | None:
         return (owner_id in following_ids) if viewer is not None else None
 
+    goal_rows: dict[int, tuple[CareerGoal, User, list[tuple[float, bool]]]] = {}
+    for goal, owner, total, done, max_due in (await db.execute(goal_stmt)).all():
+        total, done = total or 0, done or 0
+        _, _, stats = goal_rows.setdefault(goal.id, (goal, owner, []))
+        stats.append(
+            (
+                progress_from_counts(done, total),
+                withered_from_counts(total, done, max_due, grace),
+            )
+        )
+
     cards: list[FeedCardOut] = [
-        goal_to_card(g, is_following=_following(g.user_id))
-        for g in goals
-        if g.roadmaps  # 로드맵이 하나도 없는 대목표는 제외
+        feed_card_from_goal_agg(goal, owner, stats, is_following=_following(goal.user_id))
+        for goal, owner, stats in goal_rows.values()
     ]
     cards += [
-        FeedCardOut(
-            kind="roadmap",
-            **roadmap_to_card(r, is_following=_following(r.user_id)).model_dump(),
+        feed_card_from_roadmap_agg(
+            roadmap,
+            owner,
+            total or 0,
+            done or 0,
+            max_due,
+            is_following=_following(roadmap.user_id),
         )
-        for r in legacy
+        for roadmap, owner, total, done, max_due in (await db.execute(legacy_stmt)).all()
     ]
     cards.sort(key=lambda c: c.created_at, reverse=True)
     return cards[offset : offset + limit]
