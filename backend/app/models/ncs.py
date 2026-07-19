@@ -1,8 +1,13 @@
 """NCS (국가직무능력표준) 관련 ORM 모델."""
+
+from pgvector.sqlalchemy import Vector
 from sqlalchemy import ForeignKeyConstraint, Integer, String
 from sqlalchemy.orm import Mapped, mapped_column
 
 from app.db import Base
+
+# text-embedding-3-small 차원. Settings.embedding_dimensions와 함께 움직인다.
+EMBEDDING_DIM = 1536
 
 
 class NcsLclas(Base):
@@ -79,6 +84,9 @@ class NcsJob(Base):
     sclas_code: Mapped[str] = mapped_column(String(6), nullable=False)
     name: Mapped[str] = mapped_column(String(100), nullable=False)
     is_current: Mapped[bool] = mapped_column(nullable=False, default=False)
+    # 계층명을 붙인 직무 텍스트의 임베딩. 백필 전에는 NULL이고, 그동안 매칭은
+    # pg_trgm 경로로 동작한다 (app/services/ncs_repo.py).
+    embedding: Mapped[list[float] | None] = mapped_column(Vector(EMBEDDING_DIM), nullable=True)
 
     def __repr__(self) -> str:
         return f"NcsJob(code={self.code!r}, degree={self.degree}, name={self.name!r})"
