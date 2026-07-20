@@ -15,6 +15,7 @@ LLM_EXTRACT_MODEL을 Haiku 4.5로 내려 가벼운 두 단계만 저렴하게 �
 """
 
 import json
+import logging
 from datetime import date, datetime
 
 from anthropic import AsyncAnthropic, BadRequestError
@@ -101,8 +102,10 @@ _ROADMAP_SCHEMA = {
                 "additionalProperties": False,
                 "properties": {
                     "title": {"type": "string"},
-                    # minItems 2: 응답 스키마(RoadmapItemPreviewOut) 하한과 일치시킨다
-                    "milestones": {"type": "array", "minItems": 2, "items": _MILESTONE_SCHEMA},
+                    # structured outputs는 minItems로 0/1만 받는다 — 2 이상을 넣으면 요청
+                    # 자체가 400으로 거부된다. 마일스톤 하한(2개)은 프롬프트로 요구하고
+                    # roadmap_gen._clamp_set이 미달 로드맵을 떨어뜨려 강제한다.
+                    "milestones": {"type": "array", "items": _MILESTONE_SCHEMA},
                 },
                 "required": ["title", "milestones"],
             },
@@ -110,6 +113,9 @@ _ROADMAP_SCHEMA = {
     },
     "required": ["briefing", "major_goal", "roadmaps"],
 }
+
+
+logger = logging.getLogger(__name__)
 
 
 def _cached_system(text: str) -> list[dict]:
@@ -249,14 +255,23 @@ class AnthropicClaudeClient:
         )
         resp = await self._client.messages.create(
             model=self._extract_model,
-            max_tokens=512,
+            # 이 모델은 thinking 블록을 먼저 내보내고 그게 max_tokens를 함께 쓴다.
+            # 예산이 빠듯하면 JSON이 중간에 잘려 파싱이 깨지므로 넉넉히 잡는다
+            # (긴 대화 뒤에는 의중이 길어져 thinking도 같이 길어진다).
+            max_tokens=2048,
             system=_cached_system(system),
             messages=[{"role": "user", "content": user}],
             output_config={"format": {"type": "json_schema", "schema": _JOB_SELECT_SCHEMA}},
         )
-        if _refused(resp):
+        if _refused(resp) or getattr(resp, "stop_reason", None) == "max_tokens":
+            # 잘린 응답은 파싱할 가치가 없다 — 판정 없이 폴백시킨다.
+            logger.warning("NCS job selection truncated or refused; skipping")
             return None
-        code = json.loads(_first_text(resp)).get("job_code")
+        try:
+            code = json.loads(_first_text(resp)).get("job_code")
+        except (json.JSONDecodeError, AttributeError):
+            logger.warning("NCS job selection returned unparsable output; skipping")
+            return None
         if not code:
             return None
         # 환각 방어: 후보에 없는 코드는 버린다 (호출자도 DB로 한 번 더 검증한다).
