@@ -1,9 +1,10 @@
 """회원 탈퇴 시 유저의 모든 데이터를 하드 삭제한다 (PIPA 삭제권).
 
 async에서 ORM cascade는 lazy load로 깨질 수 있어 벌크 DELETE로 FK 순서를 직접
-지킨다: 하위(좋아요/댓글→기록→마일스톤) → 유저 참조 행 → 로드맵 → 유저.
+지킨다: 하위(좋아요/댓글→기록→마일스톤) → 유저 참조 행 → 로드맵 → 대목표 → 유저.
 업로드 파일(마일스톤 기록 이미지·학생증 이미지)은 삭제 전에 파기한다.
 """
+
 from pathlib import Path
 
 from sqlalchemy import delete, or_, select
@@ -12,6 +13,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 from app.models.account import AuthSession, EmailVerification, StudentCardVerification
 from app.models.roadmap import (
     BeanTransaction,
+    CareerGoal,
     Follow,
     Milestone,
     MilestonePost,
@@ -58,9 +60,13 @@ async def delete_account(db: AsyncSession, user: User) -> None:
         _unlink(path)
 
     # 2) 내 글의 좋아요/댓글 + 내가 타인 글에 남긴 좋아요/댓글
-    await db.execute(delete(PostLike).where(or_(PostLike.post_id.in_(my_posts), PostLike.user_id == uid)))
     await db.execute(
-        delete(PostComment).where(or_(PostComment.post_id.in_(my_posts), PostComment.user_id == uid))
+        delete(PostLike).where(or_(PostLike.post_id.in_(my_posts), PostLike.user_id == uid))
+    )
+    await db.execute(
+        delete(PostComment).where(
+            or_(PostComment.post_id.in_(my_posts), PostComment.user_id == uid)
+        )
     )
     # 3) 내 기록 → 마일스톤
     await db.execute(delete(MilestonePost).where(MilestonePost.milestone_id.in_(my_milestones)))
@@ -77,7 +83,9 @@ async def delete_account(db: AsyncSession, user: User) -> None:
         delete(Follow).where(or_(Follow.follower_id == uid, Follow.followee_id == uid))
     )
 
-    # 5) 로드맵 → 유저
+    # 5) 로드맵 → 대목표 → 유저
+    # career_goals는 roadmaps.career_goal_id의 참조 대상이므로 로드맵보다 뒤에 지운다.
     await db.execute(delete(Roadmap).where(Roadmap.user_id == uid))
+    await db.execute(delete(CareerGoal).where(CareerGoal.user_id == uid))
     await db.execute(delete(User).where(User.id == uid))
     await db.commit()

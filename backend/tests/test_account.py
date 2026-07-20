@@ -1,4 +1,5 @@
 """회원 탈퇴 + 비밀번호 재설정 테스트 (Mock 이메일, 네트워크 없음)."""
+
 import re
 from datetime import date
 
@@ -11,6 +12,7 @@ from app.email.mock_sender import MockEmailSender
 from app.main import app
 from app.models.roadmap import (
     BeanTransaction,
+    CareerGoal,
     Follow,
     Milestone,
     MilestonePost,
@@ -127,8 +129,14 @@ async def deletable_user(tmp_path):
     img = tmp_path / "post.jpg"
     img.write_bytes(b"\xff\xd8\xffimg")
 
-    # owner의 로드맵/마일스톤/기록(+이미지)
-    roadmap = Roadmap(user_id=owner.id, title="내 로드맵", goal_raw_text="목표")
+    # owner의 대목표 → 로드맵/마일스톤/기록(+이미지)
+    # 대목표를 붙여야 실제 plant 경로와 같은 모양이 된다 (career_goals.user_id FK).
+    goal = CareerGoal(user_id=owner.id, title="내 대목표", context="탈퇴 테스트용 대목표")
+    session.add(goal)
+    await session.flush()
+    roadmap = Roadmap(
+        user_id=owner.id, title="내 로드맵", goal_raw_text="목표", career_goal_id=goal.id
+    )
     session.add(roadmap)
     await session.flush()
     milestone = Milestone(
@@ -176,7 +184,13 @@ async def deletable_user(tmp_path):
     )
     await session.commit()
 
-    yield {"owner": owner, "other": other, "owner_token": owner_token, "img": img, "o_post_id": o_post.id}
+    yield {
+        "owner": owner,
+        "other": other,
+        "owner_token": owner_token,
+        "img": img,
+        "o_post_id": o_post.id,
+    }
 
     # other 정리 (owner는 테스트에서 삭제됨; 안 됐으면 정리)
     s = await _get_session()
@@ -199,18 +213,17 @@ async def test_delete_account_hard_deletes_everything(deletable_user) -> None:
     assert await s.get(User, owner.id) is None
     assert (await s.scalars(select(Roadmap).where(Roadmap.user_id == owner.id))).first() is None
     assert (
-        await s.scalars(select(BeanTransaction).where(BeanTransaction.user_id == owner.id))
+        await s.scalars(select(CareerGoal).where(CareerGoal.user_id == owner.id))
     ).first() is None
     assert (
-        await s.scalars(select(TodoItem).where(TodoItem.user_id == owner.id))
+        await s.scalars(select(BeanTransaction).where(BeanTransaction.user_id == owner.id))
     ).first() is None
+    assert (await s.scalars(select(TodoItem).where(TodoItem.user_id == owner.id))).first() is None
     assert (
         await s.scalars(select(TodoCategory).where(TodoCategory.user_id == owner.id))
     ).first() is None
     # 내가 남 글에 남긴 좋아요/댓글도 삭제 (FK)
-    assert (
-        await s.scalars(select(PostLike).where(PostLike.user_id == owner.id))
-    ).first() is None
+    assert (await s.scalars(select(PostLike).where(PostLike.user_id == owner.id))).first() is None
     assert (
         await s.scalars(select(PostComment).where(PostComment.user_id == owner.id))
     ).first() is None
