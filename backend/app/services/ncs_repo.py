@@ -30,6 +30,16 @@ from app.models.ncs import NcsAbilityUnit, NcsJob, NcsLclas, NcsSclas
 logger = logging.getLogger(__name__)
 
 
+# 1~2학년 무전공 학부생이 가장 많이 고를 분야 — 프론트가 이것만 먼저 펼쳐 보여주고
+# 나머지는 "기타"로 접는다. 직무 수 순이 아니라 학생 관련성 기준의 큐레이션이다
+# (기계·건설이 직무 수는 제일 많지만 이 서비스 사용자와는 거리가 멀다).
+FEATURED_LCLAS_CODES = ("20", "02", "03", "08", "04")
+
+# 한 번에 고를 수 있는 분야 수. 후보 수가 곧 판정 프롬프트 크기라 상한이 필요하다
+# (최대 3개라도 최악 400여 직무 ≈ 5.4k 토큰).
+MAX_LCLAS_SELECTION = 3
+
+
 @dataclass
 class LclasOption:
     """유저에게 보여줄 대분류 선택지."""
@@ -37,6 +47,7 @@ class LclasOption:
     code: str
     name: str
     job_count: int
+    featured: bool
 
 
 # 학생이 쓰는 말 -> NCS 직무명 표기. NCS는 약어를 거의 안 쓰기 때문에 확장 방향은
@@ -116,15 +127,21 @@ async def list_lclas(db: AsyncSession) -> list[LclasOption]:
             .order_by(func.count(NcsJob.code).desc(), NcsLclas.name)
         )
     ).all()
-    return [LclasOption(code=c, name=n, job_count=cnt) for c, n, cnt in rows]
+    return [
+        LclasOption(code=c, name=n, job_count=cnt, featured=c in FEATURED_LCLAS_CODES)
+        for c, n, cnt in rows
+    ]
 
 
-async def jobs_in_lclas(db: AsyncSession, lclas_code: str) -> list[NcsJobOption]:
-    """대분류에 속한 현행 직무 전체 (LLM 판정 후보).
+async def jobs_in_lclas(db: AsyncSession, lclas_codes: list[str]) -> list[NcsJobOption]:
+    """고른 대분류들에 속한 현행 직무 전체 (LLM 판정 후보).
 
     소분류명을 함께 넘긴다 — 직무명만으로는 모호한 경우("품질관리")를 모델이
     문맥으로 구분할 수 있어야 한다.
     """
+    codes = list(dict.fromkeys(c for c in lclas_codes if c))[:MAX_LCLAS_SELECTION]
+    if not codes:
+        return []
     rows = (
         await db.execute(
             select(NcsJob.code, NcsJob.name, NcsSclas.name)
@@ -132,7 +149,7 @@ async def jobs_in_lclas(db: AsyncSession, lclas_code: str) -> list[NcsJobOption]
                 NcsSclas,
                 (NcsSclas.code == NcsJob.sclas_code) & (NcsSclas.degree == NcsJob.degree),
             )
-            .where(NcsJob.is_current.is_(True), NcsJob.lclas_code == lclas_code)
+            .where(NcsJob.is_current.is_(True), NcsJob.lclas_code.in_(codes))
             .order_by(NcsJob.name)
         )
     ).all()

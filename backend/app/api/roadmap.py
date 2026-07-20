@@ -145,7 +145,7 @@ async def preview_roadmap(
             user.id,
             request.goal_raw_text,
             llm_messages,
-            ncs_lclas_code=request.ncs_lclas_code,
+            ncs_lclas_codes=request.ncs_lclas_codes,
         )
     except Exception:
         logger.exception("LLM preview generation failed")

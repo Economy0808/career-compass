@@ -24,6 +24,7 @@ from app.models.roadmap import (
     progress_from_counts,
     withered_from_counts,
 )
+from app.services import ncs_repo
 
 ChatRole = Literal["user", "assistant"]
 FeedScope = Literal["all", "following"]
@@ -71,9 +72,12 @@ class PreviewRequest(BaseModel):
     # 작성자는 body가 아니라 세션에서 결정된다 (IDOR 방지).
     goal_raw_text: str = Field(min_length=1, max_length=2000)
     messages: list[ChatMessageIn] = Field(default_factory=list)
-    # 유저가 고른 NCS 대분류. 있으면 그 안에서 LLM이 직무를 판정하고, 없으면
+    # 유저가 고른 NCS 대분류들. 있으면 그 안에서 LLM이 직무를 판정하고, 없으면
     # 문자열 매칭으로 축소한다 (선택은 선택사항 — 몰라도 로드맵은 나온다).
-    ncs_lclas_code: str | None = Field(default=None, max_length=2)
+    # 상한은 판정 프롬프트 크기를 묶기 위한 것.
+    ncs_lclas_codes: list[str] = Field(
+        default_factory=list, max_length=ncs_repo.MAX_LCLAS_SELECTION
+    )
 
 
 class NcsCategoryOut(BaseModel):
@@ -82,6 +86,7 @@ class NcsCategoryOut(BaseModel):
     code: str
     name: str
     job_count: int
+    featured: bool  # 먼저 펼쳐 보여줄 추천 분야인지
 
 
 class RoadmapItemPreviewOut(BaseModel):

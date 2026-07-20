@@ -99,6 +99,17 @@ export interface RoadmapItemPreview {
   milestones: MilestonePreview[];
 }
 
+/** NCS 대분류 선택지. featured면 씨앗 심기에서 먼저 펼쳐 보여준다. */
+export interface NcsCategory {
+  code: string;
+  name: string;
+  job_count: number;
+  featured: boolean;
+}
+
+/** 한 번에 고를 수 있는 분야 수 — 서버(ncs_repo.MAX_LCLAS_SELECTION)와 맞춰야 한다. */
+export const MAX_FIELD_SELECTION = 3;
+
 export interface RoadmapPreviewOut {
   briefing: string;
   ncs_job_code: string | null;

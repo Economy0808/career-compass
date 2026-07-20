@@ -2,6 +2,7 @@
 
 import { useRouter } from "next/navigation";
 import { useCallback, useEffect, useRef, useState } from "react";
+import FieldChips from "@/components/FieldChips";
 import { ApiError, postChat, postPlant, postPreview } from "@/lib/api";
 import { useAuth } from "@/lib/auth-context";
 import type { ChatMessageIn, ChatRole, RoadmapPreviewOut } from "@/lib/types";
@@ -117,6 +118,7 @@ export default function NewRoadmapPage() {
   const { me, loading: authLoading } = useAuth();
 
   const [goalRawText, setGoalRawText] = useState("");
+  const [fieldCodes, setFieldCodes] = useState<string[]>([]);
   const [messages, setMessages] = useState<ChatMessageIn[]>([]);
   const [input, setInput] = useState("");
   const [typing, setTyping] = useState(false);
@@ -145,7 +147,7 @@ export default function NewRoadmapPage() {
     setPreviewFailed(false);
     setError(null);
     try {
-      const res = await postPreview(goalRawText, messages);
+      const res = await postPreview(goalRawText, messages, fieldCodes);
       setPreview(res);
     } catch (err) {
       setPreviewFailed(true);
@@ -153,7 +155,7 @@ export default function NewRoadmapPage() {
     } finally {
       setPreviewing(false);
     }
-  }, [goalRawText, messages]);
+  }, [goalRawText, messages, fieldCodes]);
 
   // 질답이 끝나면 자동으로 로드맵 초안(미리보기)을 그린다.
   useEffect(() => {
@@ -224,6 +226,14 @@ export default function NewRoadmapPage() {
         </p>
 
         <Bubble role="assistant" content={GREETING} />
+        {/* 분야는 초안을 그리기 전까지 언제든 바꿀 수 있다 — 초안이 나오면 감춘다. */}
+        {!preview && !previewing && (
+          <FieldChips
+            selected={fieldCodes}
+            onChange={setFieldCodes}
+            disabled={planting}
+          />
+        )}
         {started && <Bubble role="user" content={goalRawText} />}
         {messages.map((m, i) => (
           <Bubble key={i} role={m.role} content={m.content} />

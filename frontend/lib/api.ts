@@ -12,6 +12,7 @@ import type {
   MeOut,
   MilestonePatchResponse,
   MilestonePostOut,
+  NcsCategory,
   RoadmapCardOut,
   RoadmapDetailOut,
   RoadmapPreviewOut,
@@ -178,13 +179,22 @@ export function postChat(
   );
 }
 
+export function getNcsCategories(): Promise<NcsCategory[]> {
+  return request<NcsCategory[]>("/api/ncs/categories");
+}
+
 export function postPreview(
   goalRawText: string,
-  messages: ChatMessageIn[]
+  messages: ChatMessageIn[],
+  ncsLclasCodes: string[] = []
 ): Promise<RoadmapPreviewOut> {
   return request<RoadmapPreviewOut>(
     "/api/roadmap/preview",
-    jsonInit("POST", { goal_raw_text: goalRawText, messages })
+    jsonInit("POST", {
+      goal_raw_text: goalRawText,
+      messages,
+      ncs_lclas_codes: ncsLclasCodes,
+    })
   );
 }
 

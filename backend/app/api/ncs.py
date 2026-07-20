@@ -21,4 +21,7 @@ async def list_categories(db: AsyncSession = Depends(get_db)) -> list[NcsCategor
     후보가 1,094개에서 평균 46개로 줄어 정확도와 비용이 함께 좋아진다.
     """
     options = await ncs_repo.list_lclas(db)
-    return [NcsCategoryOut(code=o.code, name=o.name, job_count=o.job_count) for o in options]
+    return [
+        NcsCategoryOut(code=o.code, name=o.name, job_count=o.job_count, featured=o.featured)
+        for o in options
+    ]

@@ -89,16 +89,16 @@ async def _match_ncs_job(
     db: AsyncSession,
     llm: LLMClient,
     intent: CareerIntent,
-    lclas_code: str | None,
+    lclas_codes: list[str] | None,
 ) -> NcsJob | None:
     """의중에 맞는 NCS 직무를 찾는다. 못 찾으면 None (그라운딩 없이 진행).
 
     유저가 분야(대분류)를 골랐으면 그 안의 직무 전체를 LLM에 넘겨 판정시킨다 —
-    후보가 평균 46개로 줄어 토큰이 싸고, 분류 안에서는 누락이 없다. 분야를 안
+    후보가 크게 줄어 토큰이 싸고, 고른 분야 안에서는 누락이 없다. 분야를 안
     골랐거나 LLM이 못 고르면 문자열 매칭으로 축소한다.
     """
-    if lclas_code:
-        candidates = await ncs_repo.jobs_in_lclas(db, lclas_code)
+    if lclas_codes:
+        candidates = await ncs_repo.jobs_in_lclas(db, lclas_codes)
         if candidates:
             try:
                 code = await llm.select_ncs_job(intent, candidates)
@@ -122,7 +122,7 @@ async def generate_preview(
     user_id: int,
     goal_raw_text: str,
     messages: list[ChatMessage],
-    ncs_lclas_code: str | None = None,
+    ncs_lclas_codes: list[str] | None = None,
 ) -> tuple[GeneratedRoadmapSet, str | None]:
     # ⓪ 기존 대목표 로드 (모델이 재사용/신규를 판단할 근거)
     existing = await load_career_goals(db, user_id)
@@ -135,7 +135,7 @@ async def generate_preview(
     ncs_job_name: str | None = None
     ncs_job_code: str | None = None
     ability_units = []
-    best = await _match_ncs_job(db, llm, intent, ncs_lclas_code)
+    best = await _match_ncs_job(db, llm, intent, ncs_lclas_codes)
     if best is not None:
         ncs_job_name, ncs_job_code = best.name, best.code
         ability_units = await ncs_repo.ability_units_for(db, best.code)

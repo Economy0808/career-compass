@@ -1,7 +1,8 @@
-"""NCS 직무 매칭 3단 폴백 테스트 (pg_trgm → 임베딩 → ILIKE).
+"""NCS 직무 매칭 테스트.
 
-실제 Postgres(pgvector 이미지)를 쓰므로 cosine 정렬·trgm 유사도가 진짜로 실행된다.
-임베딩 API는 절대 호출하지 않는다 — 벡터는 직접 심고 embed_texts는 monkeypatch한다.
+주 경로는 유저가 고른 대분류 안에서 LLM이 판정하는 것이고, 분야를 안 골랐거나
+판정이 실패하면 pg_trgm → ILIKE로 축소한다. LLM은 MockClaudeClient(결정론적
+부분일치)로 대체하므로 네트워크 호출은 없다.
 
 **주의: 이 테스트는 실적재된 NCS(현행 직무 1,094개)와 같은 테이블을 공유한다.**
 그래서 시드 행이 항상 1등이라고 단정하면 안 된다. 실데이터에 같은 이름의 직무가
@@ -176,13 +177,28 @@ async def test_lists_categories_with_job_counts(ncs_match_seed) -> None:
     assert options == sorted(options, key=lambda o: -o.job_count)[: len(options)]
     seeded = next(o for o in options if o.code == _LCLAS)
     assert seeded.name == "정보통신" and seeded.job_count == 3
+    # 추천 분야 플래그가 큐레이션 목록과 일치해야 한다 (프론트가 이걸로 접고 편다)
+    featured = {o.code for o in options if o.featured}
+    assert featured == set(ncs_repo.FEATURED_LCLAS_CODES) & {o.code for o in options}
+
+
+@pytest.mark.asyncio
+async def test_jobs_in_lclas_merges_multiple_categories(ncs_match_seed) -> None:
+    """복수 선택은 후보를 합치고, 중복·빈 코드는 정리하며 상한을 넘지 않는다."""
+    async with get_session_factory()() as db:
+        merged = await ncs_repo.jobs_in_lclas(db, [_LCLAS, "20", _LCLAS, ""])
+        only_seed = await ncs_repo.jobs_in_lclas(db, [_LCLAS])
+        assert await ncs_repo.jobs_in_lclas(db, []) == []
+    codes = [c.code for c in merged]
+    assert len(codes) == len(set(codes))  # 중복 대분류가 후보를 부풀리지 않는다
+    assert len(merged) > len(only_seed)  # 실제 정보통신(20) 직무가 합쳐졌다
 
 
 @pytest.mark.asyncio
 async def test_jobs_in_lclas_carries_sclas_context(ncs_match_seed) -> None:
     """판정 후보에는 소분류명이 함께 실린다 (동명 직무 구분용)."""
     async with get_session_factory()() as db:
-        candidates = await ncs_repo.jobs_in_lclas(db, _LCLAS)
+        candidates = await ncs_repo.jobs_in_lclas(db, [_LCLAS])
     assert {c.code for c in candidates} == {_JOB_DATA, _JOB_SW, _JOB_FAR}
     assert all(c.sclas_name == "정보기술개발" for c in candidates)
 
@@ -200,7 +216,7 @@ async def test_match_uses_llm_choice_within_category(ncs_match_seed) -> None:
     """분야를 고르면 LLM이 그 안에서 고른 직무가 채택된다."""
     intent = CareerIntent(summary="", direction_keywords=["소프트웨어개발"], current_level="")
     async with get_session_factory()() as db:
-        job = await roadmap_gen._match_ncs_job(db, MockClaudeClient(), intent, _LCLAS)
+        job = await roadmap_gen._match_ncs_job(db, MockClaudeClient(), intent, [_LCLAS])
     assert job is not None and job.code == _JOB_SW
 
 
@@ -214,7 +230,7 @@ async def test_match_falls_back_when_llm_finds_nothing(ncs_match_seed) -> None:
             return None
 
     async with get_session_factory()() as db:
-        job = await roadmap_gen._match_ncs_job(db, NoMatch(), intent, _LCLAS)
+        job = await roadmap_gen._match_ncs_job(db, NoMatch(), intent, [_LCLAS])
     assert job is not None and job.name == "빅데이터분석"  # trgm 폴백이 잡음
 
 
@@ -228,7 +244,7 @@ async def test_match_rejects_hallucinated_job_code(ncs_match_seed) -> None:
             return "9999FAKE"
 
     async with get_session_factory()() as db:
-        job = await roadmap_gen._match_ncs_job(db, Hallucinating(), intent, _LCLAS)
+        job = await roadmap_gen._match_ncs_job(db, Hallucinating(), intent, [_LCLAS])
     assert job is not None and job.name == "빅데이터분석"
 
 
@@ -242,5 +258,5 @@ async def test_match_survives_llm_failure(ncs_match_seed) -> None:
             raise RuntimeError("LLM down")
 
     async with get_session_factory()() as db:
-        job = await roadmap_gen._match_ncs_job(db, Boom(), intent, _LCLAS)
+        job = await roadmap_gen._match_ncs_job(db, Boom(), intent, [_LCLAS])
     assert job is not None and job.name == "빅데이터분석"
