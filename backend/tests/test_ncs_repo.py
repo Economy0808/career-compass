@@ -14,8 +14,10 @@ import pytest
 from sqlalchemy import delete, func, select
 
 from app.db import get_session_factory
+from app.llm.base import CareerIntent
+from app.llm.mock_client import MockClaudeClient
 from app.models.ncs import EMBEDDING_DIM, NcsJob, NcsLclas, NcsMclas, NcsSclas
-from app.services import ncs_repo
+from app.services import ncs_repo, roadmap_gen
 
 _LCLAS = "98"
 _MCLAS = "9898"
@@ -129,73 +131,6 @@ async def test_empty_keywords_short_circuit() -> None:
         assert await ncs_repo.shortlist_jobs(db, ["", "   "]) == []
 
 
-# trgm이 반드시 빈손인 질의. 임베딩 단계까지 내려보내려면 이런 입력이어야 한다
-# (trgm이 먼저 잡아버리면 임베딩은 실행조차 되지 않는다).
-_TRGM_MISS = "쿽쿽쿽뷁뷁뷁"
-
-
-def _fake_embed(vector: list[float]):
-    async def _embed(texts: list[str], **kwargs: object) -> list[list[float]]:
-        return [vector]
-
-    return _embed
-
-
-@pytest.mark.asyncio
-async def test_trgm_wins_before_embedding_is_tried(ncs_match_seed, monkeypatch) -> None:
-    """trgm이 답을 내면 임베딩은 호출조차 되지 않는다 (정밀도 우선 순서 보장)."""
-    monkeypatch.setattr(ncs_repo, "_embeddings_enabled", lambda: True)
-
-    async def must_not_run(texts: list[str], **kwargs: object) -> list[list[float]]:
-        raise AssertionError("trgm이 매칭했는데 임베딩이 호출됐다")
-
-    monkeypatch.setattr(ncs_repo, "embed_texts", must_not_run)
-    async with get_session_factory()() as db:
-        rows = await ncs_repo.shortlist_jobs(db, ["데이터 분석"])
-    assert rows and rows[0].name == "빅데이터분석"
-
-
-@pytest.mark.asyncio
-async def test_embedding_fills_gap_when_trgm_misses(ncs_match_seed, monkeypatch) -> None:
-    """trgm이 빈손이면 임계값 안에 드는 임베딩 매칭이 그 자리를 메운다."""
-    monkeypatch.setattr(ncs_repo, "_embeddings_enabled", lambda: True)
-    # 축 1(소프트웨어개발)과 정확히 일치 -> 거리 0. 축 0(빅데이터분석)은 직교라 거리 1로
-    # 임계값 밖이고, _JOB_FAR는 embedding이 NULL이라 애초에 후보가 아니다.
-    monkeypatch.setattr(ncs_repo, "embed_texts", _fake_embed(_unit_vector(1)))
-    async with get_session_factory()() as db:
-        rows = await ncs_repo.shortlist_jobs(db, [_TRGM_MISS])
-    assert [r.code for r in rows] == [_JOB_SW]
-
-
-@pytest.mark.asyncio
-async def test_embedding_rejects_distant_matches(ncs_match_seed, monkeypatch) -> None:
-    """거리 임계값 밖이면 '가장 가까운 행'이 있어도 빈손을 반환한다.
-
-    임계값이 없으면 임베딩은 항상 limit개를 채워 NCS에 없는 직무("창업")에도
-    엉뚱한 행("창호시공")을 붙인다. 그라운딩이므로 빈손이 정답이다.
-    """
-    monkeypatch.setattr(ncs_repo, "_embeddings_enabled", lambda: True)
-    # 심어둔 어떤 벡터와도 직교한 축 -> 모든 후보가 거리 1.0
-    monkeypatch.setattr(ncs_repo, "embed_texts", _fake_embed(_unit_vector(7)))
-    async with get_session_factory()() as db:
-        rows = await ncs_repo.shortlist_jobs(db, [_TRGM_MISS])
-    assert rows == []
-
-
-@pytest.mark.asyncio
-async def test_embedding_failure_degrades_gracefully(ncs_match_seed, monkeypatch) -> None:
-    """임베딩 API가 죽어도 예외가 새지 않고 마지막 단계(ILIKE)로 넘어간다."""
-    monkeypatch.setattr(ncs_repo, "_embeddings_enabled", lambda: True)
-
-    async def boom(texts: list[str], **kwargs: object) -> list[list[float]]:
-        raise RuntimeError("embedding service down")
-
-    monkeypatch.setattr(ncs_repo, "embed_texts", boom)
-    async with get_session_factory()() as db:
-        rows = await ncs_repo.shortlist_jobs(db, [_TRGM_MISS])
-    assert rows == []
-
-
 @pytest.mark.asyncio
 async def test_synonym_targets_exist_in_ncs() -> None:
     """동의어 대상은 전부 실제 NCS 직무명에 존재해야 한다.
@@ -221,9 +156,91 @@ async def test_synonym_targets_exist_in_ncs() -> None:
 
 
 @pytest.mark.asyncio
-async def test_defaults_to_trgm_without_key(ncs_match_seed) -> None:
-    """키가 없는 기본 상태(app_env=test)에선 임베딩을 시도조차 하지 않는다."""
-    assert ncs_repo._embeddings_enabled() is False
+async def test_falls_back_to_string_matching_without_category(ncs_match_seed) -> None:
+    """분야를 안 고르면 문자열 매칭으로 축소한다 (LLM 판정 없이도 결과가 나온다)."""
     async with get_session_factory()() as db:
         rows = await ncs_repo.shortlist_jobs(db, ["빅데이터분석"])
     assert rows and rows[0].name == "빅데이터분석"
+
+
+# ---------------- 분류 기반 LLM 판정 (주 경로) ----------------
+
+
+@pytest.mark.asyncio
+async def test_lists_categories_with_job_counts(ncs_match_seed) -> None:
+    """대분류 목록에는 직무가 있는 분류만, 직무 수와 함께 나온다."""
+    async with get_session_factory()() as db:
+        options = await ncs_repo.list_lclas(db)
+    assert options
+    assert all(o.job_count > 0 for o in options)
+    assert options == sorted(options, key=lambda o: -o.job_count)[: len(options)]
+    seeded = next(o for o in options if o.code == _LCLAS)
+    assert seeded.name == "정보통신" and seeded.job_count == 3
+
+
+@pytest.mark.asyncio
+async def test_jobs_in_lclas_carries_sclas_context(ncs_match_seed) -> None:
+    """판정 후보에는 소분류명이 함께 실린다 (동명 직무 구분용)."""
+    async with get_session_factory()() as db:
+        candidates = await ncs_repo.jobs_in_lclas(db, _LCLAS)
+    assert {c.code for c in candidates} == {_JOB_DATA, _JOB_SW, _JOB_FAR}
+    assert all(c.sclas_name == "정보기술개발" for c in candidates)
+
+
+@pytest.mark.asyncio
+async def test_get_job_validates_code(ncs_match_seed) -> None:
+    """LLM이 낸 코드는 DB로 검증한다 — 없는 코드는 None."""
+    async with get_session_factory()() as db:
+        assert (await ncs_repo.get_job(db, _JOB_DATA)).name == "빅데이터분석"
+        assert await ncs_repo.get_job(db, "NOPE0000") is None
+
+
+@pytest.mark.asyncio
+async def test_match_uses_llm_choice_within_category(ncs_match_seed) -> None:
+    """분야를 고르면 LLM이 그 안에서 고른 직무가 채택된다."""
+    intent = CareerIntent(summary="", direction_keywords=["소프트웨어개발"], current_level="")
+    async with get_session_factory()() as db:
+        job = await roadmap_gen._match_ncs_job(db, MockClaudeClient(), intent, _LCLAS)
+    assert job is not None and job.code == _JOB_SW
+
+
+@pytest.mark.asyncio
+async def test_match_falls_back_when_llm_finds_nothing(ncs_match_seed) -> None:
+    """LLM이 '맞는 게 없다'고 하면 문자열 매칭으로 내려간다 (빈손 판정을 존중)."""
+    intent = CareerIntent(summary="", direction_keywords=["데이터 분석"], current_level="")
+
+    class NoMatch(MockClaudeClient):
+        async def select_ncs_job(self, intent, candidates):
+            return None
+
+    async with get_session_factory()() as db:
+        job = await roadmap_gen._match_ncs_job(db, NoMatch(), intent, _LCLAS)
+    assert job is not None and job.name == "빅데이터분석"  # trgm 폴백이 잡음
+
+
+@pytest.mark.asyncio
+async def test_match_rejects_hallucinated_job_code(ncs_match_seed) -> None:
+    """후보에 없는 코드를 지어내면 버리고 폴백한다."""
+    intent = CareerIntent(summary="", direction_keywords=["데이터 분석"], current_level="")
+
+    class Hallucinating(MockClaudeClient):
+        async def select_ncs_job(self, intent, candidates):
+            return "9999FAKE"
+
+    async with get_session_factory()() as db:
+        job = await roadmap_gen._match_ncs_job(db, Hallucinating(), intent, _LCLAS)
+    assert job is not None and job.name == "빅데이터분석"
+
+
+@pytest.mark.asyncio
+async def test_match_survives_llm_failure(ncs_match_seed) -> None:
+    """판정 호출이 터져도 로드맵 생성을 막지 않는다."""
+    intent = CareerIntent(summary="", direction_keywords=["데이터 분석"], current_level="")
+
+    class Boom(MockClaudeClient):
+        async def select_ncs_job(self, intent, candidates):
+            raise RuntimeError("LLM down")
+
+    async with get_session_factory()() as db:
+        job = await roadmap_gen._match_ncs_job(db, Boom(), intent, _LCLAS)
+    assert job is not None and job.name == "빅데이터분석"

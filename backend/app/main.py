@@ -9,6 +9,7 @@ from app.api.auth import router as auth_router
 from app.api.beans import router as beans_router
 from app.api.goals import router as goals_router
 from app.api.health import router as health_router
+from app.api.ncs import router as ncs_router
 from app.api.roadmap import router as roadmap_router
 from app.api.todos import router as todos_router
 from app.api.users import router as users_router
@@ -59,6 +60,7 @@ def create_app() -> FastAPI:
     app.include_router(beans_router)
     app.include_router(goals_router)
     app.include_router(users_router)
+    app.include_router(ncs_router)
     app.include_router(roadmap_router)
     app.include_router(todos_router)
     return app

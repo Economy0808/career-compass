@@ -31,6 +31,7 @@ from app.llm.base import (
     GeneratedRoadmapSet,
     JobResearchResult,
     MajorGoalDecision,
+    NcsJobOption,
     RoadmapContext,
 )
 
@@ -46,6 +47,16 @@ _INTENT_SCHEMA = {
         "current_level": {"type": "string"},
     },
     "required": ["summary", "direction_keywords", "current_level"],
+}
+_JOB_SELECT_SCHEMA = {
+    "type": "object",
+    "additionalProperties": False,
+    "properties": {
+        # 맞는 후보가 없으면 null. 억지 매칭보다 빈손이 낫다.
+        "job_code": {"type": ["string", "null"]},
+        "reason": {"type": "string"},
+    },
+    "required": ["job_code", "reason"],
 }
 _CHAT_SCHEMA = {
     "type": "object",
@@ -211,6 +222,45 @@ class AnthropicClaudeClient:
             direction_keywords=[str(k) for k in data.get("direction_keywords", [])],
             current_level=data.get("current_level", "미상"),
         )
+
+    async def select_ncs_job(
+        self, intent: CareerIntent, candidates: list[NcsJobOption]
+    ) -> str | None:
+        if not candidates:
+            return None
+        system = (
+            "너는 NCS(국가직무능력표준) 분류 전문가다. 유저의 진로 의중을 보고 아래 후보"
+            " 직무 중 **실제로 대응하는 것 하나**의 코드를 골라라.\n\n"
+            "가장 중요한 규칙 — 맞는 게 없으면 job_code를 null로 둬라:\n"
+            "- 후보는 유저가 고른 분야 전체라서 대부분은 무관하다. 그럴듯한 것을 억지로"
+            " 고르지 마라.\n"
+            "- '관련 있음'과 '이 직무임'은 다르다. 예를 들어 간호사는 NCS에 없는데"
+            " '병원행정'이 관련은 있다 — 이런 경우가 정확히 null이어야 하는 경우다.\n"
+            "- 고른 직무는 로드맵 생성의 근거 자료로 쓰인다. 틀린 근거는 없는 근거보다"
+            " 나쁘다.\n"
+            "- job_code는 반드시 후보 목록에 있는 코드를 그대로 써라."
+        )
+        catalog = "\n".join(f"{c.code} {c.name} ({c.sclas_name})" for c in candidates)
+        user = (
+            f"유저 의중: {intent.summary}\n"
+            f"현재 수준: {intent.current_level}\n"
+            f"방향 키워드: {', '.join(intent.direction_keywords)}\n\n"
+            f"후보 직무:\n{catalog}"
+        )
+        resp = await self._client.messages.create(
+            model=self._extract_model,
+            max_tokens=512,
+            system=_cached_system(system),
+            messages=[{"role": "user", "content": user}],
+            output_config={"format": {"type": "json_schema", "schema": _JOB_SELECT_SCHEMA}},
+        )
+        if _refused(resp):
+            return None
+        code = json.loads(_first_text(resp)).get("job_code")
+        if not code:
+            return None
+        # 환각 방어: 후보에 없는 코드는 버린다 (호출자도 DB로 한 번 더 검증한다).
+        return code if any(c.code == code for c in candidates) else None
 
     async def synthesize_roadmap(self, context: RoadmapContext) -> GeneratedRoadmapSet:
         system = (

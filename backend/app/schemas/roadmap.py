@@ -71,6 +71,17 @@ class PreviewRequest(BaseModel):
     # 작성자는 body가 아니라 세션에서 결정된다 (IDOR 방지).
     goal_raw_text: str = Field(min_length=1, max_length=2000)
     messages: list[ChatMessageIn] = Field(default_factory=list)
+    # 유저가 고른 NCS 대분류. 있으면 그 안에서 LLM이 직무를 판정하고, 없으면
+    # 문자열 매칭으로 축소한다 (선택은 선택사항 — 몰라도 로드맵은 나온다).
+    ncs_lclas_code: str | None = Field(default=None, max_length=2)
+
+
+class NcsCategoryOut(BaseModel):
+    """씨앗 심기 진입에서 보여줄 NCS 대분류 선택지."""
+
+    code: str
+    name: str
+    job_count: int
 
 
 class RoadmapItemPreviewOut(BaseModel):

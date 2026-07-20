@@ -101,6 +101,15 @@ class AbilityUnitRef:
 
 
 @dataclass
+class NcsJobOption:
+    """LLM 직무 판정에 넘기는 후보 (유저가 고른 대분류 안의 직무)."""
+
+    code: str
+    name: str
+    sclas_name: str  # 소분류명 — 같은 이름끼리 구분할 문맥
+
+
+@dataclass
 class JobResearchResult:
     """직종별 웹 리서치 결과 — 요약 + 출처 링크만 (원문 복제 금지)."""
 
@@ -139,6 +148,18 @@ class LLMClient(Protocol):
 
     async def extract_intent(self, goal_raw_text: str, messages: list[ChatMessage]) -> CareerIntent:
         """유저 입력에서 진로 방향·현재 수준을 구조화해 뽑는다 (싼 모델)."""
+        ...
+
+    async def select_ncs_job(
+        self, intent: CareerIntent, candidates: list[NcsJobOption]
+    ) -> str | None:
+        """후보 직무 중 의중에 실제로 맞는 것의 코드를 고른다. 없으면 None (싼 모델).
+
+        **맞는 게 없으면 None을 내는 것이 이 메서드의 존재 이유다.** 후보는 유저가
+        고른 대분류 전체라서 무관한 직무가 대부분이고, NCS에 아예 없는 진로
+        (간호사·교사 등 별도 자격 체계)도 흔하다. 억지로 고른 직무는 그라운딩을
+        오염시켜 로드맵 품질을 떨어뜨리므로, 확신이 없으면 비워두는 편이 낫다.
+        """
         ...
 
     async def synthesize_roadmap(self, context: RoadmapContext) -> GeneratedRoadmapSet:

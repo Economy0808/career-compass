@@ -140,7 +140,12 @@ async def preview_roadmap(
     llm_messages = [ChatMessage(role=m.role, content=m.content) for m in request.messages]
     try:
         generated, ncs_job_code = await roadmap_gen.generate_preview(
-            db, llm, user.id, request.goal_raw_text, llm_messages
+            db,
+            llm,
+            user.id,
+            request.goal_raw_text,
+            llm_messages,
+            ncs_lclas_code=request.ncs_lclas_code,
         )
     except Exception:
         logger.exception("LLM preview generation failed")

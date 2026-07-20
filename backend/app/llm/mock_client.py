@@ -21,6 +21,7 @@ from app.llm.base import (
     GeneratedRoadmapSet,
     JobResearchResult,
     MajorGoalDecision,
+    NcsJobOption,
     RoadmapContext,
 )
 
@@ -176,6 +177,21 @@ class MockClaudeClient:
             direction_keywords=keywords or [stripped or goal],
             current_level=user_answers[:120] or "미상",
         )
+
+    async def select_ncs_job(
+        self, intent: CareerIntent, candidates: list[NcsJobOption]
+    ) -> str | None:
+        """키워드가 직무명에 그대로 들어있는 후보만 고른다 (결정론적).
+
+        실제 모델의 의미 판정 대신 부분일치를 쓰되, **못 찾으면 None을 낸다**는
+        핵심 계약은 동일하게 지킨다 — 그래야 폴백 경로가 테스트에서 실행된다.
+        """
+        for keyword in intent.direction_keywords:
+            squished = keyword.replace(" ", "")
+            for candidate in candidates:
+                if squished and squished in candidate.name.replace(" ", ""):
+                    return candidate.code
+        return None
 
     async def synthesize_roadmap(self, context: RoadmapContext) -> GeneratedRoadmapSet:
         goal = context.intent.summary

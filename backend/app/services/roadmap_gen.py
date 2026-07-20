@@ -9,6 +9,7 @@ NCS/캐시가 없으면 우아하게 축소해 항상 결과를 낸다 (초기 �
 반환: (GeneratedRoadmapSet, ncs_job_code|None) — 근거 표시용.
 """
 
+import logging
 from datetime import date, timedelta
 
 from sqlalchemy import select
@@ -16,6 +17,7 @@ from sqlalchemy.ext.asyncio import AsyncSession
 
 from app.llm.base import (
     CareerGoalRef,
+    CareerIntent,
     ChatMessage,
     GeneratedRoadmapSet,
     JobResearchResult,
@@ -23,8 +25,11 @@ from app.llm.base import (
     MajorGoalDecision,
     RoadmapContext,
 )
+from app.models.ncs import NcsJob
 from app.models.roadmap import CareerGoal, JobResearch
 from app.services import ncs_repo
+
+logger = logging.getLogger(__name__)
 
 
 def build_known_profile(goals: list[CareerGoal]) -> str | None:
@@ -80,12 +85,44 @@ def _clamp_set(rset: GeneratedRoadmapSet) -> None:
                 m.due_date = max_due
 
 
+async def _match_ncs_job(
+    db: AsyncSession,
+    llm: LLMClient,
+    intent: CareerIntent,
+    lclas_code: str | None,
+) -> NcsJob | None:
+    """의중에 맞는 NCS 직무를 찾는다. 못 찾으면 None (그라운딩 없이 진행).
+
+    유저가 분야(대분류)를 골랐으면 그 안의 직무 전체를 LLM에 넘겨 판정시킨다 —
+    후보가 평균 46개로 줄어 토큰이 싸고, 분류 안에서는 누락이 없다. 분야를 안
+    골랐거나 LLM이 못 고르면 문자열 매칭으로 축소한다.
+    """
+    if lclas_code:
+        candidates = await ncs_repo.jobs_in_lclas(db, lclas_code)
+        if candidates:
+            try:
+                code = await llm.select_ncs_job(intent, candidates)
+            except Exception:
+                # 판정 실패가 로드맵 생성을 막지는 않는다 — 폴백으로 내려간다.
+                logger.warning("NCS job selection failed; falling back", exc_info=True)
+                code = None
+            if code:
+                # 환각 방어: 실제로 존재하는 현행 직무인지 DB로 확인한다.
+                job = await ncs_repo.get_job(db, code)
+                if job is not None:
+                    return job
+
+    jobs = await ncs_repo.shortlist_jobs(db, intent.direction_keywords)
+    return jobs[0] if jobs else None
+
+
 async def generate_preview(
     db: AsyncSession,
     llm: LLMClient,
     user_id: int,
     goal_raw_text: str,
     messages: list[ChatMessage],
+    ncs_lclas_code: str | None = None,
 ) -> tuple[GeneratedRoadmapSet, str | None]:
     # ⓪ 기존 대목표 로드 (모델이 재사용/신규를 판단할 근거)
     existing = await load_career_goals(db, user_id)
@@ -98,9 +135,8 @@ async def generate_preview(
     ncs_job_name: str | None = None
     ncs_job_code: str | None = None
     ability_units = []
-    jobs = await ncs_repo.shortlist_jobs(db, intent.direction_keywords)
-    if jobs:
-        best = jobs[0]
+    best = await _match_ncs_job(db, llm, intent, ncs_lclas_code)
+    if best is not None:
         ncs_job_name, ncs_job_code = best.name, best.code
         ability_units = await ncs_repo.ability_units_for(db, best.code)
 
