@@ -1,9 +1,10 @@
-from datetime import date, datetime, timedelta
+from datetime import UTC, date, datetime, timedelta
 
 import pytest
 from httpx import ASGITransport, AsyncClient
 from sqlalchemy import select, update
 
+from app.api.beans import KST, week_start
 from app.db import get_session_factory
 from app.main import app
 from app.models.roadmap import (
@@ -249,6 +250,35 @@ async def test_ranking_counts_only_harvested_this_week(bean_user) -> None:
             assert user.id not in ids
     finally:
         await delete_user_cascade(session, buyer.id)
+
+
+def test_week_start_is_kst_monday_expressed_in_utc() -> None:
+    """주 경계는 KST 월요일 00:00이고, 반환값은 DB와 같은 naive UTC여야 한다."""
+    # 2026-07-22(수) 12:00 KST -> 그 주 월요일은 07-20 00:00 KST = 07-19 15:00 UTC
+    wednesday_kst = datetime(2026, 7, 22, 12, 0, tzinfo=KST)
+    assert week_start(wednesday_kst) == datetime(2026, 7, 19, 15, 0)
+    assert week_start(wednesday_kst).tzinfo is None
+
+
+def test_week_start_covers_monday_dawn_kst() -> None:
+    """월요일 00:00~09:00 KST(=UTC 일요일)에도 그 주 수확분이 경계 안에 들어와야 한다.
+
+    이 시간대에 랭킹이 통째로 비던 회귀를 막는다.
+    """
+    monday_dawn_kst = datetime(2026, 7, 20, 2, 0, tzinfo=KST)
+    boundary = week_start(monday_dawn_kst)
+    # 같은 순간 DB에 기록된 수확(UTC naive)은 경계 이상이어야 한다.
+    harvested_now_utc = monday_dawn_kst.astimezone(UTC).replace(tzinfo=None)
+    assert harvested_now_utc >= boundary
+    # 직전 주 일요일 23:00 KST 수확분은 제외돼야 한다.
+    last_week_utc = datetime(2026, 7, 19, 23, 0, tzinfo=KST).astimezone(UTC).replace(tzinfo=None)
+    assert last_week_utc < boundary
+
+
+def test_week_start_treats_naive_input_as_utc() -> None:
+    """naive 입력은 DB 규약대로 UTC로 해석한다(서버 로컬 시간대에 의존하지 않음)."""
+    assert week_start(datetime(2026, 7, 19, 15, 0)) == datetime(2026, 7, 19, 15, 0)
+    assert week_start(datetime(2026, 7, 19, 14, 59)) == datetime(2026, 7, 12, 15, 0)
 
 
 @pytest.mark.asyncio

@@ -1,5 +1,6 @@
 """콩 화폐 API: 주간 랭킹(수확 콩만), 현금 구매(Mock PG)."""
-from datetime import date, datetime, time, timedelta
+
+from datetime import UTC, datetime, time, timedelta, timezone
 
 from fastapi import APIRouter, Depends, HTTPException
 from sqlalchemy import desc, func, select
@@ -29,10 +30,24 @@ PACKAGES: dict[str, tuple[int, int]] = {
 }
 
 
-def week_start(today: date | None = None) -> datetime:
-    """이번 주 시작(월요일 00:00)."""
-    today = today or date.today()
-    return datetime.combine(today - timedelta(days=today.weekday()), time.min)
+KST = timezone(timedelta(hours=9))
+
+
+def week_start(now: datetime | None = None) -> datetime:
+    """이번 주 시작(KST 월요일 00:00)을 DB 저장 형식과 같은 naive UTC로 반환.
+
+    `BeanTransaction.created_at`은 Postgres `now()`가 채우므로 UTC naive로 저장된다.
+    반면 주 경계는 사용자가 사는 KST 기준이어야 하므로, KST로 경계를 구한 뒤 UTC로
+    되돌려 비교 대상과 시간대를 맞춘다. naive 입력은 DB 규약대로 UTC로 해석한다.
+    """
+    now = now or datetime.now(UTC)
+    if now.tzinfo is None:
+        now = now.replace(tzinfo=UTC)
+    now_kst = now.astimezone(KST)
+    monday_kst = datetime.combine(
+        now_kst.date() - timedelta(days=now_kst.weekday()), time.min, tzinfo=KST
+    )
+    return monday_kst.astimezone(UTC).replace(tzinfo=None)
 
 
 @router.get("/ranking", response_model=list[BeanRankingEntry])
