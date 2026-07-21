@@ -14,11 +14,14 @@ LLM_EXTRACT_MODEL을 Haiku 4.5로 내려 가벼운 두 단계만 저렴하게 �
 저장 금지). 커피챗은 특정인 지목이 아니라 "직접 검색해 접촉" 안내로 유도한다.
 """
 
+import asyncio
 import json
 import logging
+import socket
 from datetime import date, datetime
 
-from anthropic import AsyncAnthropic, BadRequestError
+import httpx
+from anthropic import APIConnectionError, AsyncAnthropic, BadRequestError
 from anthropic.types import Message
 
 from app.config import get_settings
@@ -146,7 +149,20 @@ def _refused(message: Message) -> bool:
 class AnthropicClaudeClient:
     def __init__(self) -> None:
         settings = get_settings()
-        self._client = AsyncAnthropic(api_key=settings.anthropic_api_key)
+        # 웹서치가 낀 종합은 서버 처리 구간이 길어 SSE 스트림이 조용해지는 순간이
+        # 생긴다. 그 사이 방화벽/NAT가 유휴 TCP를 리셋하면 httpx.ReadError가 나므로
+        # SO_KEEPALIVE로 연결을 살려두고, 넉넉한 read 타임아웃을 준다. 그래도 끊기는
+        # 간헐 케이스는 synthesize_roadmap의 재시도가 받는다.
+        http_client = httpx.AsyncClient(
+            timeout=httpx.Timeout(600.0, connect=10.0),
+            transport=httpx.AsyncHTTPTransport(
+                retries=0,
+                socket_options=[(socket.SOL_SOCKET, socket.SO_KEEPALIVE, 1)],
+            ),
+        )
+        self._client = AsyncAnthropic(
+            api_key=settings.anthropic_api_key, http_client=http_client
+        )
         self._extract_model = settings.llm_extract_model
         self._synthesis_model = settings.llm_synthesis_model
         self._synthesis_web_search = settings.llm_synthesis_web_search
@@ -380,15 +396,39 @@ class AnthropicClaudeClient:
             ) as stream:
                 return await stream.get_final_message()
 
+        async def _run_resilient(with_tools: bool) -> Message:
+            """스트림이 중간에 끊기는(httpx.ReadError = 연결 리셋, 타임아웃 아님)
+            간헐적 전송 오류를 짧은 백오프로 재시도한다. SDK 자동 재시도는 스트리밍
+            시작 후의 중단을 커버하지 않으므로 여기서 직접 감싼다."""
+            last_exc: Exception | None = None
+            for attempt in range(3):
+                try:
+                    return await _run(with_tools)
+                except (APIConnectionError, httpx.HTTPError) as exc:
+                    last_exc = exc
+                    logger.warning(
+                        "synthesize stream dropped (attempt %d/3, tools=%s): %s",
+                        attempt + 1,
+                        with_tools,
+                        exc,
+                    )
+                    await asyncio.sleep(1.5 * (attempt + 1))
+            assert last_exc is not None
+            raise last_exc
+
         # 웹서치는 실험 설정(LLM_SYNTHESIS_WEB_SEARCH)일 때만. 구조화 출력과의
-        # 조합이 거부되면(400) 툴 없이 1회 폴백 — 품질 저하일 뿐 실패는 아니다.
+        # 조합이 거부되면(400) 툴 없이 폴백 — 품질 저하일 뿐 실패는 아니다.
+        # 웹서치가 연결을 계속 끊는 경우(재시도 소진)도 툴 없이 강등해 로드맵은 낸다.
         if self._synthesis_web_search:
             try:
-                message = await _run(with_tools=True)
+                message = await _run_resilient(with_tools=True)
             except BadRequestError:
-                message = await _run(with_tools=False)
+                message = await _run_resilient(with_tools=False)
+            except (APIConnectionError, httpx.HTTPError):
+                logger.warning("web search kept dropping the stream; degrading to no-tools")
+                message = await _run_resilient(with_tools=False)
         else:
-            message = await _run(with_tools=False)
+            message = await _run_resilient(with_tools=False)
 
         if _refused(message):
             raise RuntimeError("roadmap synthesis refused")

@@ -13,6 +13,8 @@ import type {
   MilestonePatchResponse,
   MilestonePostOut,
   NcsCategory,
+  PreviewJob,
+  PreviewJobStatus,
   RoadmapCardOut,
   RoadmapDetailOut,
   RoadmapPreviewOut,
@@ -187,8 +189,8 @@ export function postPreview(
   goalRawText: string,
   messages: ChatMessageIn[],
   ncsLclasCodes: string[] = []
-): Promise<RoadmapPreviewOut> {
-  return request<RoadmapPreviewOut>(
+): Promise<PreviewJob> {
+  return request<PreviewJob>(
     "/api/roadmap/preview",
     jsonInit("POST", {
       goal_raw_text: goalRawText,
@@ -196,6 +198,45 @@ export function postPreview(
       ncs_lclas_codes: ncsLclasCodes,
     })
   );
+}
+
+export function getPreviewStatus(jobId: string): Promise<PreviewJobStatus> {
+  return request<PreviewJobStatus>(`/api/roadmap/preview/${jobId}`);
+}
+
+/**
+ * 프리뷰 생성을 백그라운드로 시작하고 완료까지 폴링해 결과를 돌려준다.
+ * 웹서치가 낀 종합은 2분 이상 걸리므로 동기 요청 대신 잡+폴링으로 처리한다.
+ * onStatus로 진행 상태를, signal로 중단(페이지 이탈 등)을 받는다.
+ */
+export async function generatePreview(
+  goalRawText: string,
+  messages: ChatMessageIn[],
+  ncsLclasCodes: string[] = [],
+  opts: {
+    signal?: AbortSignal;
+    onStatus?: (status: PreviewJobStatus["status"]) => void;
+  } = {}
+): Promise<RoadmapPreviewOut> {
+  const job = await postPreview(goalRawText, messages, ncsLclasCodes);
+  opts.onStatus?.(job.status);
+  // 2.5초 간격으로 최대 ~10분 폴링. 실측상 웹서치 종합이 6분까지 걸려 여유를 둔다
+  // (백엔드 잡은 시간제한 없이 완주하고 결과를 30분 보관).
+  for (let i = 0; i < 240; i++) {
+    if (opts.signal?.aborted) throw new DOMException("aborted", "AbortError");
+    await new Promise((resolve) => setTimeout(resolve, 2500));
+    if (opts.signal?.aborted) throw new DOMException("aborted", "AbortError");
+    const status = await getPreviewStatus(job.job_id);
+    opts.onStatus?.(status.status);
+    if (status.status === "done" && status.result) return status.result;
+    if (status.status === "error") {
+      throw new ApiError(
+        503,
+        status.detail ?? "AI 응답을 받지 못했어요. 잠시 후 다시 시도해주세요."
+      );
+    }
+  }
+  throw new ApiError(504, "생성이 너무 오래 걸려요. 잠시 후 다시 시도해주세요.");
 }
 
 export function postPlant(

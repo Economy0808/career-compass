@@ -1,3 +1,4 @@
+import asyncio
 from datetime import date, timedelta
 
 import pytest
@@ -361,6 +362,61 @@ async def test_write_endpoints_require_yonsei_verification() -> None:
             assert resp.status_code == 403
     finally:
         await delete_user_cascade(session, user.id)
+
+
+@pytest.mark.asyncio
+async def test_preview_job_lifecycle(verified_user) -> None:
+    _, token = verified_user
+    async with _client() as client:
+        client.cookies.set("cc_session", token)
+        resp = await client.post(
+            "/api/roadmap/preview", json={"goal_raw_text": "데이터 분석가", "messages": []}
+        )
+        assert resp.status_code == 202, resp.text
+        body = resp.json()
+        assert body["status"] in ("pending", "running")
+        job_id = body["job_id"]
+
+        preview = None
+        for _ in range(200):
+            status = await client.get(f"/api/roadmap/preview/{job_id}")
+            assert status.status_code == 200, status.text
+            data = status.json()
+            if data["status"] == "done":
+                preview = data["result"]
+                break
+            assert data["status"] in ("pending", "running")
+            await asyncio.sleep(0.02)
+        assert preview is not None, "job never completed"
+        assert preview["briefing"]
+        assert len(preview["roadmaps"]) >= 1
+        assert preview["career_goal"]["title"]
+
+
+@pytest.mark.asyncio
+async def test_preview_job_scoped_to_owner(verified_user, other_verified_user) -> None:
+    _, owner_token = verified_user
+    _, other_token = other_verified_user
+    async with _client() as client:
+        client.cookies.set("cc_session", owner_token)
+        resp = await client.post(
+            "/api/roadmap/preview", json={"goal_raw_text": "목표", "messages": []}
+        )
+        assert resp.status_code == 202
+        job_id = resp.json()["job_id"]
+        # 타인은 남의 프리뷰 잡을 조회할 수 없다.
+        client.cookies.set("cc_session", other_token)
+        status = await client.get(f"/api/roadmap/preview/{job_id}")
+        assert status.status_code == 404
+
+
+@pytest.mark.asyncio
+async def test_preview_status_unknown_job(verified_user) -> None:
+    _, token = verified_user
+    async with _client() as client:
+        client.cookies.set("cc_session", token)
+        status = await client.get("/api/roadmap/preview/deadbeef")
+        assert status.status_code == 404
 
 
 @pytest.mark.asyncio

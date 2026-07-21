@@ -117,6 +117,19 @@ export interface RoadmapPreviewOut {
   roadmaps: RoadmapItemPreview[];
 }
 
+export type PreviewJobStatusValue = "pending" | "running" | "done" | "error";
+
+export interface PreviewJob {
+  job_id: string;
+  status: PreviewJobStatusValue;
+}
+
+export interface PreviewJobStatus {
+  status: PreviewJobStatusValue;
+  result: RoadmapPreviewOut | null;
+  detail: string | null;
+}
+
 export interface MilestoneOut {
   id: number;
   order_index: number;

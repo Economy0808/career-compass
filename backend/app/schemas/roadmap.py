@@ -108,6 +108,21 @@ class RoadmapPreviewOut(BaseModel):
     roadmaps: list[RoadmapItemPreviewOut] = Field(min_length=1, max_length=20)
 
 
+class PreviewJobOut(BaseModel):
+    """POST /preview 접수 응답 — 실제 생성은 백그라운드에서 돌고 job_id로 폴링한다."""
+
+    job_id: str
+    status: str  # pending | running | done | error
+
+
+class PreviewJobStatusOut(BaseModel):
+    """GET /preview/{job_id} 폴링 응답. done이면 result에 프리뷰가 담긴다."""
+
+    status: str  # pending | running | done | error
+    result: RoadmapPreviewOut | None = None
+    detail: str | None = None
+
+
 class PlantRequest(RoadmapPreviewOut):
     """프리뷰 페이로드 + 원본 대화. 검증 캡은 RoadmapPreviewOut에서 상속."""
 

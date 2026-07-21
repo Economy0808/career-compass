@@ -3,7 +3,7 @@
 import { useRouter } from "next/navigation";
 import { useCallback, useEffect, useRef, useState } from "react";
 import FieldChips from "@/components/FieldChips";
-import { ApiError, postChat, postPlant, postPreview } from "@/lib/api";
+import { ApiError, generatePreview, postChat, postPlant } from "@/lib/api";
 import { useAuth } from "@/lib/auth-context";
 import type { ChatMessageIn, ChatRole, RoadmapPreviewOut } from "@/lib/types";
 
@@ -125,11 +125,16 @@ export default function NewRoadmapPage() {
   const [done, setDone] = useState(false);
   const [preview, setPreview] = useState<RoadmapPreviewOut | null>(null);
   const [previewing, setPreviewing] = useState(false);
+  const [previewPhase, setPreviewPhase] = useState<"pending" | "running" | null>(null);
   const [previewFailed, setPreviewFailed] = useState(false);
   const [planting, setPlanting] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
   const bottomRef = useRef<HTMLDivElement>(null);
+  const previewAbort = useRef<AbortController | null>(null);
+
+  // 페이지를 벗어나면 진행 중인 프리뷰 폴링을 멈춘다.
+  useEffect(() => () => previewAbort.current?.abort(), []);
 
   // 씨앗 심기는 연세대 인증 필수: 미로그인 → 로그인, 미인증 → 인증 페이지로.
   useEffect(() => {
@@ -146,14 +151,25 @@ export default function NewRoadmapPage() {
     setPreviewing(true);
     setPreviewFailed(false);
     setError(null);
+    setPreviewPhase("pending");
+    const controller = new AbortController();
+    previewAbort.current = controller;
     try {
-      const res = await postPreview(goalRawText, messages, fieldCodes);
+      const res = await generatePreview(goalRawText, messages, fieldCodes, {
+        signal: controller.signal,
+        onStatus: (s) => {
+          if (s === "pending" || s === "running") setPreviewPhase(s);
+        },
+      });
       setPreview(res);
     } catch (err) {
+      if (err instanceof DOMException && err.name === "AbortError") return; // 페이지 이탈
       setPreviewFailed(true);
       setError(err instanceof ApiError ? err.detail : "로드맵 초안을 그리지 못했어요.");
     } finally {
+      if (previewAbort.current === controller) previewAbort.current = null;
       setPreviewing(false);
+      setPreviewPhase(null);
     }
   }, [goalRawText, messages, fieldCodes]);
 
@@ -240,7 +256,13 @@ export default function NewRoadmapPage() {
         ))}
         {typing && <RootingIndicator label="뿌리를 내리는 중…" />}
         {previewing && (
-          <RootingIndicator label="지금까지 들은 이야기로 로드맵 초안을 그리는 중… (몇 분 정도 걸릴 수 있어요, 창을 닫지 마세요)" />
+          <RootingIndicator
+            label={
+              previewPhase === "running"
+                ? "웹을 검색하며 로드맵 초안을 그리는 중… (몇 분 걸릴 수 있어요)"
+                : "지금까지 들은 이야기로 로드맵 초안을 준비하는 중… (몇 분 걸릴 수 있어요)"
+            }
+          />
         )}
         {planting && <RootingIndicator label="씨앗을 심는 중…" />}
         {preview && <Bubble role="assistant" content={preview.briefing} />}

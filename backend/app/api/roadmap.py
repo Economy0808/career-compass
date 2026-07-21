@@ -15,7 +15,7 @@ from app.core.beans import award_completion_if_due, get_balance
 from app.core.deps import get_current_user_optional, require_yonsei_verified
 from app.core.rate_limit import rate_limit
 from app.core.uploads import detect_image_ext, resize_to_jpeg
-from app.db import get_db
+from app.db import get_db, get_session_factory
 from app.llm import get_llm_client
 from app.llm.base import ChatMessage, LLMClient
 from app.models.roadmap import (
@@ -47,6 +47,8 @@ from app.schemas.roadmap import (
     MilestonePostOut,
     MilestonePreviewOut,
     PlantRequest,
+    PreviewJobOut,
+    PreviewJobStatusOut,
     PreviewRequest,
     RoadmapCardOut,
     RoadmapDetailOut,
@@ -61,7 +63,7 @@ from app.schemas.roadmap import (
     roadmap_to_card,
     roadmap_to_detail,
 )
-from app.services import roadmap_gen
+from app.services import preview_jobs, roadmap_gen
 
 logger = logging.getLogger(__name__)
 
@@ -125,31 +127,9 @@ async def chat(
     return ChatResponse(done=turn.done, question=turn.question, messages=updated_messages)
 
 
-@router.post("/preview", response_model=RoadmapPreviewOut)
-async def preview_roadmap(
-    request: PreviewRequest,
-    llm: LLMClient = Depends(get_llm_client),
-    db: AsyncSession = Depends(get_db),
-    user: User = Depends(require_yonsei_verified),
-    _: None = Depends(rate_limit("roadmap-preview", limit=10)),
+def _generated_to_preview(
+    generated: roadmap_gen.GeneratedRoadmapSet, ncs_job_code: str | None
 ) -> RoadmapPreviewOut:
-    """완료된 질답으로 로드맵을 생성해 저장 없이 돌려준다 (심기 전 미리보기).
-
-    브리핑·대목표 판단 포함. 유저가 확정하면 이 페이로드를 /plant로 되돌려 보낸다.
-    """
-    llm_messages = [ChatMessage(role=m.role, content=m.content) for m in request.messages]
-    try:
-        generated, ncs_job_code = await roadmap_gen.generate_preview(
-            db,
-            llm,
-            user.id,
-            request.goal_raw_text,
-            llm_messages,
-            ncs_lclas_codes=request.ncs_lclas_codes,
-        )
-    except Exception:
-        logger.exception("LLM preview generation failed")
-        raise _LLM_UNAVAILABLE from None
     decision = generated.major_goal
     assert decision is not None  # generate_preview가 항상 채운다
     return RoadmapPreviewOut(
@@ -177,6 +157,56 @@ async def preview_roadmap(
             for item in generated.items
         ],
     )
+
+
+@router.post("/preview", response_model=PreviewJobOut, status_code=202)
+async def preview_roadmap(
+    request: PreviewRequest,
+    user: User = Depends(require_yonsei_verified),
+    _: None = Depends(rate_limit("roadmap-preview", limit=10)),
+) -> PreviewJobOut:
+    """완료된 질답으로 로드맵 생성을 백그라운드로 시작하고 job_id를 즉시 돌려준다.
+
+    웹서치가 낀 종합은 2분 이상 걸려 동기 요청이 브라우저/프록시 타임아웃·연결
+    끊김에 취약하다 — 실제 생성은 백그라운드에서 돌고 프론트는 GET /preview/{job_id}
+    로 폴링한다. 완료되면 저장 없이 프리뷰를 돌려주고, 유저가 확정하면 그 페이로드를
+    /plant로 되돌려 보낸다.
+    """
+    # 요청 스코프 밖(백그라운드)에서 실행하므로 요청 세션이 아니라 자체 세션을 연다.
+    llm = get_llm_client()
+    session_factory = get_session_factory()
+    llm_messages = [ChatMessage(role=m.role, content=m.content) for m in request.messages]
+    goal_raw_text = request.goal_raw_text
+    lclas_codes = request.ncs_lclas_codes
+    user_id = user.id
+
+    async def _work() -> RoadmapPreviewOut:
+        async with session_factory() as session:
+            generated, ncs_job_code = await roadmap_gen.generate_preview(
+                session,
+                llm,
+                user_id,
+                goal_raw_text,
+                llm_messages,
+                ncs_lclas_codes=lclas_codes,
+            )
+        return _generated_to_preview(generated, ncs_job_code)
+
+    job = preview_jobs.create_job(user_id)
+    preview_jobs.launch(job, _work)
+    return PreviewJobOut(job_id=job.id, status=job.status)
+
+
+@router.get("/preview/{job_id}", response_model=PreviewJobStatusOut)
+async def preview_status(
+    job_id: str,
+    user: User = Depends(require_yonsei_verified),
+) -> PreviewJobStatusOut:
+    """프리뷰 생성 잡 상태 폴링. 작성자 본인만 조회 가능."""
+    job = preview_jobs.get_job(job_id, user.id)
+    if job is None:
+        raise HTTPException(status_code=404, detail="프리뷰 작업을 찾을 수 없어요.")
+    return PreviewJobStatusOut(status=job.status, result=job.result, detail=job.detail)
 
 
 @router.post("/plant", response_model=list[RoadmapDetailOut], status_code=201)
