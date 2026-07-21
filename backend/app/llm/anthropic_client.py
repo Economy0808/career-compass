@@ -182,20 +182,25 @@ class AnthropicClaudeClient:
             return ChatTurn(done=True, question=None)
 
         system = (
-            "너는 전공 미정 대학생의 진로 코치다. 정밀하고 현실적인 로드맵을 짜려면 아래"
-            " 정보가 충분히 파악돼야 한다:\n"
-            "1) 현재 수준·경험 (학년, 이미 해본 것, 관련 지식)\n"
+            "너는 전공 미정 대학생의 진로 코치다. 그 사람에게 딱 맞는 로드맵을 짜려면 아래를"
+            " 구체적으로 파악해야 한다:\n"
+            "1) 현재 수준·경험 (학년, 이미 해본 것, 관련 지식/수업, 가진 자격증·어학 성적)\n"
             "2) 주당 투자 가능 시간과 목표 시점\n"
-            "3) 관심 세부 분야·역할 (막연하면 단서라도)\n"
-            "4) 선호하는 활동 유형(혼자 학습 vs 협업/대외활동)과 제약\n"
+            "3) 관심 세부 분야·역할, 그리고 그 안에서 특히 끌리는 지점\n"
+            "4) 선호하는 활동 유형(혼자 학습 vs 협업/대외활동)과 제약(돈·체력·병행 일정 등)\n"
+            "5) 목표로 삼는 회사·직무·시험이나 이미 그려둔 진로 이미지가 있는지\n"
             "규칙:\n"
-            "- 위 항목 중 아직 모르는 게 있으면 done=false, 가장 중요한 것 하나만 한국어"
-            " 질문으로 물어라. 질문은 짧고 하나만. 이미 답한 걸 다시 묻지 마라.\n"
-            "- 네 항목이 로드맵을 짜기에 충분해졌다고 판단되면 그때 done=true로 종료하라."
-            " 성급하게 일찍 끝내지 말고, 정보가 얕으면 계속 물어라.\n"
-            "- 유저가 '모르겠다'고 하면 그 항목은 파악된 것으로 간주하고 넘어가라.\n"
-            "- '이미 파악된 유저 정보' 블록이 주어지면 그 항목들은 답을 아는 것으로 간주하고"
-            " 절대 다시 묻지 마라. 이번 목표에 특화된 질문(세부 분야, 목표 시점 등)만 물어라."
+            "- 한 번에 질문은 하나만, 짧고 구체적으로, 한국어로. 이미 답한 걸 다시 묻지 마라.\n"
+            "- 답이 두루뭉술하면 표면만 확인하지 말고 그 안에서 한 번 더 파고들어 구체적"
+            " 사례·수준·맥락을 끌어내라 (예: '데이터에 관심'이라 하면 어떤 데이터를 어디까지"
+            " 다뤄봤는지, 통계/코딩은 어느 정도인지).\n"
+            "- 최소 6번은 주고받으며 위 항목들을 두루 파악하기 전엔 done=false. 성급히 끝내지"
+            " 마라 — 정보가 얕은 채 끝내는 것보다 한두 개 더 묻는 게 낫다.\n"
+            "- 유저가 '모르겠다/상관없다'고 하면 그 항목은 파악된 것으로 간주하고 다음으로"
+            " 넘어가라 (억지로 캐묻지 말 것).\n"
+            "- 로드맵을 짜기에 정말 충분히 구체적으로 파악됐다고 판단되면 done=true로 종료하라.\n"
+            "- '이미 파악된 유저 정보' 블록이 주어지면 그 항목들은 아는 것으로 간주하고 절대"
+            " 다시 묻지 마라. 이번 목표에 특화된 질문(세부 분야, 목표 시점 등)만 물어라."
         )
         # 유저별 프로필은 캐시되는 system 블록이 아니라 user turn에 넣는다 (캐시 히트 보전).
         profile_block = (
@@ -208,17 +213,26 @@ class AnthropicClaudeClient:
             + f"목표: {goal_raw_text}\n\n지금까지의 대화:\n"
             + "\n".join(f"{m.role}: {m.content}" for m in messages)
         )
+        # 가벼운 다음-질문 판단이라 thinking 불필요 — 켜두면(기본 adaptive) thinking이
+        # max_tokens를 같이 먹어 긴 대화 뒤 구조화 JSON이 잘린다. 끄면 예산 전부가 출력에
+        # 가고 더 빠르다.
         resp = await self._client.messages.create(
             model=self._extract_model,
-            max_tokens=512,
+            max_tokens=1024,
+            thinking={"type": "disabled"},
             system=_cached_system(system),
             messages=[{"role": "user", "content": transcript}],
             output_config={"format": {"type": "json_schema", "schema": _CHAT_SCHEMA}},
         )
         if _refused(resp):
             return ChatTurn(done=True, question=None)
-        data = json.loads(_first_text(resp))
-        return ChatTurn(done=bool(data["done"]), question=data.get("question") or None)
+        try:
+            data = json.loads(_first_text(resp))
+            return ChatTurn(done=bool(data["done"]), question=data.get("question") or None)
+        except (json.JSONDecodeError, KeyError, TypeError):
+            # 응답이 잘리거나 비면 503 대신 질답을 종료해 프리뷰로 넘긴다.
+            logger.warning("chat returned unparsable JSON; ending intake")
+            return ChatTurn(done=True, question=None)
 
     async def extract_intent(self, goal_raw_text: str, messages: list[ChatMessage]) -> CareerIntent:
         system = (
@@ -229,21 +243,30 @@ class AnthropicClaudeClient:
         transcript = f"유저 글/목표: {goal_raw_text}\n\n질답:\n" + "\n".join(
             f"{m.role}: {m.content}" for m in messages
         )
+        # chat과 동일 이유로 thinking 비활성(가벼운 추출, JSON 잘림 방지).
         resp = await self._client.messages.create(
             model=self._extract_model,
             max_tokens=1024,
+            thinking={"type": "disabled"},
             system=_cached_system(system),
             messages=[{"role": "user", "content": transcript}],
             output_config={"format": {"type": "json_schema", "schema": _INTENT_SCHEMA}},
         )
         if _refused(resp):
             raise RuntimeError("intent extraction refused")
-        data = json.loads(_first_text(resp))
-        return CareerIntent(
-            summary=data["summary"],
-            direction_keywords=[str(k) for k in data.get("direction_keywords", [])],
-            current_level=data.get("current_level", "미상"),
-        )
+        try:
+            data = json.loads(_first_text(resp))
+            return CareerIntent(
+                summary=data["summary"],
+                direction_keywords=[str(k) for k in data.get("direction_keywords", [])],
+                current_level=data.get("current_level", "미상"),
+            )
+        except (json.JSONDecodeError, KeyError, TypeError):
+            # 잘리거나 비면 목표 텍스트로 최소 폴백 — 프리뷰가 하드 실패하지 않게.
+            logger.warning("intent extraction returned unparsable JSON; using goal fallback")
+            return CareerIntent(
+                summary=goal_raw_text, direction_keywords=[goal_raw_text], current_level="미상"
+            )
 
     async def select_ncs_job(
         self, intent: CareerIntent, candidates: list[NcsJobOption]
@@ -330,14 +353,20 @@ class AnthropicClaudeClient:
             "  · description: 콩나무 화면에 한 줄로 뜨는 핵심 프리뷰. 60자 이내, 명사형으로"
             " 간결하게. 장황한 설명 금지.\n"
             "  · detail: 클릭 시 보이는 상세 가이드. 4~8문장으로 (1)이 마일스톤이 무엇이고"
-            " 왜 필요한지, (2)어떻게 달성하는지 — 구체적인 강의/책/도구/활동/산출물을 실명이나"
-            " 유형으로 제시(챕터·주차·질문 목록 등 실행 단위까지), (3)'무엇을 하면 이 단계를"
+            " 왜 필요한지, (2)어떻게 달성하는지 — 구체적인 강의/책/도구/자격증·시험/활동/"
+            "산출물을 실명이나 유형으로 제시(챕터·주차·질문 목록 등 실행 단위까지), (3)'무엇을"
+            " 하면 이 단계를"
             " 완료한 것으로 보는지' 완료 기준을 명확히 써라. 관련 NCS 능력단위가 있으면"
             " detail에 근거로 언급하라.\n"
             "- 리서치의 학회·대외활동은 detail에서 구체적으로 추천하되, 전문가는 특정인을"
             " 지목하지 말고 '이런 키워드로 현직자를 찾아 커피챗을 요청하라' 형태로 안내하라.\n"
-            "- 웹 검색을 쓸 수 있으면 최신 강의·책·학회·공모전을 검색해 실명으로 추천하고,"
-            " 확인 안 되는 것은 유형으로만 제시하라.\n"
+            "- 개인 맞춤 딥리서치(웹 검색): 이 유저의 분야·현재 수준·목표 시점에 맞춰 실제로"
+            " 존재하는 구체적 자원을 검색해 실명으로 로드맵에 녹여라 — 특히 ①관련 자격증·"
+            "공인/어학 시험(정확한 명칭, 난이도, 다음 응시 시기나 준비 기간, 이 유저 수준에서"
+            " 지금 현실적인지), ②최신 강의·교재, ③학회·동아리, ④공모전·대회, ⑤인턴/대외활동"
+            " 공고 유형, ⑥장학금·부트캠프·정부지원 프로그램. 유저 수준에 안 맞는 것(너무 높은"
+            " 자격증 등)은 넣지 말고 단계적으로 밟을 수 있게 배치하라. 검색으로 확인되지 않는"
+            " 것은 실명 대신 유형으로만 제시하고 절대 지어내지 마라.\n"
             "- 현재 수준에 맞춰 난이도를 조정하고, due_date는 오늘로부터 2주~6개월 사이로"
             " 로드맵 내에서 순서대로(겹치지 않게) 배치하라. 서로 다른 로드맵은 병행 가능하므로"
             " 기간이 겹쳐도 된다.\n"
