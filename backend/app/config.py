@@ -38,11 +38,6 @@ class Settings(BaseSettings):
     # set LLM_SYNTHESIS_WEB_SEARCH=true in .env to experiment (e.g. with Opus).
     llm_synthesis_web_search: bool = False
     job_research_ttl_days: int = 30
-    # NCS 직무 임베딩 매칭 (OpenAI). 키가 없으면 pg_trgm 매칭으로 동작하므로
-    # 서비스는 키 없이도 온전히 돌아간다.
-    openai_api_key: str = ""
-    embedding_model: str = "text-embedding-3-small"
-    embedding_dimensions: int = 1536
 
     @property
     def cookie_secure(self) -> bool:
@@ -57,14 +52,6 @@ class Settings(BaseSettings):
         # plausibly real key: correct prefix, no "..." marker, reasonable length.
         key = self.anthropic_api_key.strip()
         looks_real = key.startswith("sk-ant-") and "..." not in key and len(key) >= 40
-        return looks_real and self.app_env != "test"
-
-    @property
-    def use_real_embeddings(self) -> bool:
-        # use_real_llm과 같은 규칙: 플레이스홀더 키("sk-...")는 활성화하지 않고,
-        # 테스트 스위트는 절대 유료 API를 부르지 않는다.
-        key = self.openai_api_key.strip()
-        looks_real = key.startswith("sk-") and "..." not in key and len(key) >= 40
         return looks_real and self.app_env != "test"
 
 

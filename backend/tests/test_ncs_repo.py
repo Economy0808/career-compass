@@ -17,7 +17,7 @@ from sqlalchemy import delete, func, select
 from app.db import get_session_factory
 from app.llm.base import CareerIntent
 from app.llm.mock_client import MockClaudeClient
-from app.models.ncs import EMBEDDING_DIM, NcsJob, NcsLclas, NcsMclas, NcsSclas
+from app.models.ncs import NcsJob, NcsLclas, NcsMclas, NcsSclas
 from app.services import ncs_repo, roadmap_gen
 
 _LCLAS = "98"
@@ -26,13 +26,6 @@ _SCLAS = "989898"
 _JOB_DATA = "9898JOB1"  # 빅데이터분석 - 띄어쓰기 변형 대상
 _JOB_SW = "9898JOB2"  # 소프트웨어개발 - 약어 확장 대상
 _JOB_FAR = "9898JOB3"  # 무관한 직무 - 폴백/거리 검증용
-
-
-def _unit_vector(axis: int) -> list[float]:
-    """지정한 축만 1인 단위 벡터 (코사인 거리 검증용)."""
-    vector = [0.0] * EMBEDDING_DIM
-    vector[axis] = 1.0
-    return vector
 
 
 @pytest.fixture
@@ -59,7 +52,6 @@ async def ncs_match_seed():
                     sclas_code=_SCLAS,
                     name="빅데이터분석",
                     is_current=True,
-                    embedding=_unit_vector(0),
                 ),
                 NcsJob(
                     code=_JOB_SW,
@@ -69,7 +61,6 @@ async def ncs_match_seed():
                     sclas_code=_SCLAS,
                     name="소프트웨어개발",
                     is_current=True,
-                    embedding=_unit_vector(1),
                 ),
                 NcsJob(
                     code=_JOB_FAR,
@@ -79,7 +70,6 @@ async def ncs_match_seed():
                     sclas_code=_SCLAS,
                     name="한복의장",
                     is_current=True,
-                    embedding=None,
                 ),
             ]
         )
