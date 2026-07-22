@@ -135,6 +135,7 @@ def _generated_to_preview(
     return RoadmapPreviewOut(
         briefing=generated.briefing,
         ncs_job_code=ncs_job_code,
+        source_urls=generated.source_urls,
         career_goal=CareerGoalDecisionOut(
             existing_id=decision.existing_goal_id,
             title=decision.title,

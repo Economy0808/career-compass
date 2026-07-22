@@ -115,6 +115,8 @@ export interface RoadmapPreviewOut {
   ncs_job_code: string | null;
   career_goal: CareerGoalDecision;
   roadmaps: RoadmapItemPreview[];
+  /** 합성이 웹 검색으로 참고한 출처(도메인별 대표 URL). 브리핑 아래 출처 뱃지용. */
+  source_urls: string[];
 }
 
 export type PreviewJobStatusValue = "pending" | "running" | "done" | "error";

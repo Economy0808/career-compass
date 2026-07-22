@@ -90,6 +90,9 @@ class GeneratedRoadmapSet:
     briefing: str
     major_goal: MajorGoalDecision | None
     items: list[GeneratedRoadmapItem]
+    # 합성이 웹 검색을 썼다면 참고한 출처 URL(도메인별 대표 1개). 프리뷰 출처 뱃지용 —
+    # 저장하지 않고 프리뷰 응답으로만 흘려보낸다 (컴플라이언스: URL만, 원문·PII 저장 없음).
+    source_urls: list[str] = field(default_factory=list)
 
 
 @dataclass

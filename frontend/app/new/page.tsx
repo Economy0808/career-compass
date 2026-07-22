@@ -3,6 +3,7 @@
 import { useRouter } from "next/navigation";
 import { useCallback, useEffect, useRef, useState } from "react";
 import FieldChips from "@/components/FieldChips";
+import SourceBadges from "@/components/SourceBadges";
 import { ApiError, generatePreview, postChat, postPlant } from "@/lib/api";
 import { useAuth } from "@/lib/auth-context";
 import type { ChatMessageIn, ChatRole, RoadmapPreviewOut } from "@/lib/types";
@@ -268,6 +269,7 @@ export default function NewRoadmapPage() {
         )}
         {planting && <RootingIndicator label="씨앗을 심는 중…" />}
         {preview && <Bubble role="assistant" content={preview.briefing} />}
+        {preview && <SourceBadges urls={preview.source_urls} />}
         {preview && <RoadmapPreviewPanel preview={preview} />}
         {error && <p className="mb-3 text-[12.5px] text-wither-300">{error}</p>}
         <div ref={bottomRef} />

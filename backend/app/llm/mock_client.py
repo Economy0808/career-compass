@@ -251,6 +251,12 @@ class MockClaudeClient:
         # 결정론적 2개 세트: 기초(opening+extras) + 실전(closing). #N은 서버가 붙인다.
         return GeneratedRoadmapSet(
             briefing=briefing,
+            # dev/프리뷰에서 출처 뱃지 UI가 보이도록 데모 도메인 (실 합성은 웹서치 결과로 채움).
+            source_urls=[
+                "https://www.jobplanet.co.kr/",
+                "https://dacon.io/",
+                "https://www.dataq.or.kr/",
+            ],
             major_goal=major_goal,
             items=[
                 GeneratedRoadmapItem(

@@ -19,6 +19,7 @@ import json
 import logging
 import socket
 from datetime import date, datetime
+from urllib.parse import urlparse
 
 import httpx
 from anthropic import APIConnectionError, AsyncAnthropic, BadRequestError
@@ -144,6 +145,30 @@ def _last_text(message: Message) -> str:
 
 def _refused(message: Message) -> bool:
     return getattr(message, "stop_reason", None) == "refusal"
+
+
+def _web_search_domains(message: Message, limit: int = 12) -> list[str]:
+    """web_search 결과 블록에서 출처 URL을 도메인별 대표 1개로 수집한다.
+
+    프리뷰의 출처 뱃지용 — 같은 도메인은 처음 본 URL만 남긴다. 저장하지 않고
+    프리뷰 응답으로만 흘려보낸다 (컴플라이언스: URL만, 원문 복제·PII 저장 없음)."""
+    seen: set[str] = set()
+    urls: list[str] = []
+    for block in message.content:
+        if getattr(block, "type", None) != "web_search_tool_result":
+            continue
+        for item in getattr(block, "content", None) or []:
+            url = getattr(item, "url", None)
+            if not url:
+                continue
+            domain = urlparse(url).netloc.lower()
+            if not domain or domain in seen:
+                continue
+            seen.add(domain)
+            urls.append(url)
+            if len(urls) >= limit:
+                return urls
+    return urls
 
 
 class AnthropicClaudeClient:
@@ -505,6 +530,7 @@ class AnthropicClaudeClient:
                 context=mg["context"],
             ),
             items=items,
+            source_urls=_web_search_domains(message),
         )
 
     async def research_job(

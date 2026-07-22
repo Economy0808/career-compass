@@ -106,6 +106,8 @@ class RoadmapPreviewOut(BaseModel):
     ncs_job_code: str | None = None
     career_goal: CareerGoalDecisionOut
     roadmaps: list[RoadmapItemPreviewOut] = Field(min_length=1, max_length=20)
+    # 합성이 웹 검색으로 참고한 출처(도메인별 대표 URL). 프리뷰 출처 뱃지용, 저장 안 함.
+    source_urls: list[str] = Field(default_factory=list, max_length=30)
 
 
 class PreviewJobOut(BaseModel):
