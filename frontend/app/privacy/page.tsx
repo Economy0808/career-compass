@@ -1,7 +1,8 @@
 export default function PrivacyPage() {
   return (
     <div className="min-h-screen bg-[linear-gradient(180deg,#0a1f11,#06120a_55%)]">
-      <div className="mx-auto w-[640px] max-w-[86vw] py-[88px]">
+      {/* SideNav(fixed)를 비켜서 정렬 — /new와 동일 클램프. */}
+      <div className="ml-[max(206px,calc((100vw-640px)/2))] mr-auto w-[640px] max-w-[calc(100vw-226px)] py-[88px]">
         <h1 className="font-serif text-[30px] font-bold text-moss-100">개인정보 처리방침</h1>
         <p className="mt-2 text-[12px] text-moss-700">초안 — 정식 오픈 전 법률 검토 예정</p>
 

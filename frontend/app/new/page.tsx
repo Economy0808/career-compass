@@ -235,7 +235,9 @@ export default function NewRoadmapPage() {
 
   return (
     <div className="min-h-screen bg-[linear-gradient(180deg,#0a1f11,#06120a_55%)]">
-      <div className="mx-auto flex min-h-screen w-[640px] max-w-[86vw] flex-col pt-[88px]">
+      {/* SideNav(fixed, 좌 22~190px)를 비켜서 정렬: 넓은 화면은 중앙, 좁은 화면은
+          내비 오른쪽으로 밀되 폭을 함께 줄여 가로 오버플로를 막는다. */}
+      <div className="ml-[max(206px,calc((100vw-640px)/2))] mr-auto flex min-h-screen w-[640px] max-w-[calc(100vw-226px)] flex-col pt-[88px]">
         <h1 className="font-serif text-[30px] font-bold text-moss-100">새 씨앗 심기</h1>
         <p className="mb-7 mt-[7px] text-[13px] text-moss-600">
           목표를 말해주면 AI가 콩나무가 자랄 길을 그려드려요
