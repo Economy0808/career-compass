@@ -4,7 +4,10 @@
 
 :root {
   --background: #06120a;
-  --foreground: #eaf5e6;
+  --foreground: #eaf3ee;
+  /* consumed by AppShell so canvas pages can reserve tab-bar space */
+  --tabbar-h: 58px;
+  --safe-bottom: env(safe-area-inset-bottom, 0px);
 }
 
 html,
@@ -16,21 +19,32 @@ body {
 body {
   color: var(--foreground);
   font-family: var(--font-plex), sans-serif;
+  font-size: 0.9375rem; /* body token: 15px, was an implicit 12.5px */
+  line-height: 1.65;
   word-break: keep-all;
+  -webkit-font-smoothing: antialiased;
 }
 
+/* Links inherit the goal accent: blue means "where you are heading". */
 a {
-  color: #8fd694;
+  color: #7cc4f0;
 }
 a:hover {
-  color: #c3ecbc;
+  color: #a5d8f7;
+}
+
+/* One visible focus treatment everywhere, keyboard only. */
+:focus-visible {
+  outline: 2px solid #7cc4f0;
+  outline-offset: 2px;
+  border-radius: 4px;
 }
 
 ::-webkit-scrollbar {
   width: 10px;
 }
 ::-webkit-scrollbar-thumb {
-  background: rgba(143, 220, 138, 0.18);
+  background: rgba(140, 180, 220, 0.22);
   border-radius: 6px;
 }
 ::-webkit-scrollbar-track {
