@@ -26,8 +26,18 @@ const config: Config = {
         // growth = where the user is now; goal = where they are heading
         growth: { DEFAULT: "#5DB35B", bright: "#8FDC8A", dim: "#2C5B36" },
         goal: { DEFAULT: "#2F6FBF", bright: "#7CC4F0", dim: "#173A5E" },
-        bloom: { DEFAULT: "#E2B94F" },
-        wither: { DEFAULT: "#D8B078", dim: "#5A4527" },
+        bloom: {
+          DEFAULT: "#E2B94F",
+          // Legacy shades stay until Task 5 removes their last usage.
+          100: "#f5f7ea", 200: "#efe8bd", 300: "#f0e8b4", 500: "#e2b94f",
+        },
+        wither: {
+          DEFAULT: "#D8B078",
+          dim: "#5A4527",
+          // Legacy shades stay until Task 5 removes their last usage.
+          300: "#d8b078", 500: "#8a6a3a", 600: "#7a5c33", 700: "#6e5430",
+          800: "#5a4527",
+        },
         // --- Line: replaces 91 hand-written rgba borders ---
         line: {
           DEFAULT: "rgba(140,180,220,.17)",
