@@ -59,3 +59,6 @@ backend/var/
 
 # Docker volumes (host-mounted)
 postgres_data/
+
+# brainstorming visual companion mockups
+.superpowers/
