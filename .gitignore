@@ -62,3 +62,6 @@ postgres_data/
 
 # brainstorming visual companion mockups
 .superpowers/
+
+# editor-local agent config
+frontend/.claude/
