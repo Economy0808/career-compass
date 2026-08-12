@@ -193,6 +193,7 @@ export default function SignupPage() {
               value={code}
               onChange={(e) => setCode(e.target.value.replace(/\D/g, "").slice(0, 6))}
               inputMode="numeric"
+              className="[&_input]:text-center [&_input]:text-title [&_input]:tracking-[.4em]"
             />
             {error && <p className="text-caption text-wither">{error}</p>}
             <Button type="submit" variant="primary" size="md" fullWidth disabled={pending || code.length !== 6}>

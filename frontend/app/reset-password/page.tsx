@@ -84,6 +84,7 @@ export default function ResetPasswordPage() {
               value={code}
               onChange={(e) => setCode(e.target.value.replace(/\D/g, "").slice(0, 6))}
               inputMode="numeric"
+              className="[&_input]:text-center [&_input]:text-title [&_input]:tracking-[.4em]"
             />
             <Field
               id="reset-new-password"
