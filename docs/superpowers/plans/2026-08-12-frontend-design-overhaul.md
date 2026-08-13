@@ -1356,7 +1356,7 @@ Co-Authored-By: Claude Opus 5 <noreply@anthropic.com>"
 - Consumes: `Card`, `Tabs`, `Button`, `Avatar`, `ProgressBar`, `EmptyState`, `TargetIcon`, `WitherIcon`
 - Produces: 없음
 
-- [ ] **Step 1: 탭을 `Tabs`로 교체**
+- [x] **Step 1: 탭을 `Tabs`로 교체**
 
 ```tsx
 const TABS = [
@@ -1367,7 +1367,7 @@ const TABS = [
 <Tabs items={TABS} value={scope} onChange={setScope} />
 ```
 
-- [ ] **Step 2: 카드 그리드를 반응형으로**
+- [x] **Step 2: 카드 그리드를 반응형으로**
 
 기존 `grid-cols-[repeat(auto-fill,minmax(252px,1fr))]`은 390px에서 카드가 화면을 넘친다. 교체:
 
@@ -1377,7 +1377,7 @@ const TABS = [
 
 본문 폰트가 15px로 커졌으므로 카드 높이도 늘어난다. 로딩 스켈레톤 높이 `h-[280px]`를 `h-72`로 맞춘다.
 
-- [ ] **Step 3: 카드 본문을 프리미티브로**
+- [x] **Step 3: 카드 본문을 프리미티브로**
 
 - 카드 컨테이너 → `<Card interactive onClick={...}>`
 - 이모지 🥀 → `<WitherIcon className="text-wither" />`
@@ -1389,11 +1389,11 @@ const TABS = [
 
 **주의**: 카드 안의 팔로우 버튼과 작성자 버튼은 카드 클릭과 겹치므로 기존 `e.stopPropagation()`을 반드시 유지한다.
 
-- [ ] **Step 4: `MiniBeanstalk` 색 토큰화**
+- [x] **Step 4: `MiniBeanstalk` 색 토큰화**
 
 SVG 내부라 Tailwind 클래스 대신 상수로 둔다: 줄기 `#3F8F47`, 잎 `#8FDC8A`, 시든 상태 `#8A6A3A`.
 
-- [ ] **Step 5: 검증**
+- [x] **Step 5: 검증**
 
 ```bash
 npx tsc --noEmit && npm run lint && npm run build
@@ -1404,7 +1404,7 @@ Expected: grep 결과 없음.
 
 스크린샷 390 / 768 / 1280. 390px에서 카드가 1열이고 가로 스크롤이 없는지, 팔로우 버튼 클릭이 카드 이동을 트리거하지 않는지 확인.
 
-- [ ] **Step 6: 커밋**
+- [x] **Step 6: 커밋**
 
 ```bash
 git add frontend/app/page.tsx frontend/components/MiniBeanstalk.tsx

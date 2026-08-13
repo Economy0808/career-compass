@@ -1,17 +1,33 @@
 import type { ReactNode } from "react";
 
+// SVG fills take no Tailwind classes, so the palette mirrors the design tokens here.
+const SOIL = "#132A18";
+const TRELLIS = "#1C3A24";
+const STEM = "#3F8F47"; // growth
+const LEAF = "#8FDC8A"; // growth-bright
+const WITHERED = "#8A6A3A"; // wither ramp
+const POD = "#EFE8BD"; // bloom-200
+const POD_CORE = "#E2B94F"; // bloom
+
+export interface MiniBeanstalkProps {
+  progressPct: number;
+  isWithered?: boolean;
+}
+
 /** Tiny potted beanstalk for feed cards — stem height and leaf count follow progress. */
-export function MiniBeanstalk({ progressPct }: { progressPct: number }) {
+export function MiniBeanstalk({ progressPct, isWithered = false }: MiniBeanstalkProps) {
   const p = Math.max(0.07, progressPct / 100);
   const h = 112 * p;
+  const stemColor = isWithered ? WITHERED : STEM;
+  const leafColor = isWithered ? WITHERED : LEAF;
   const kids: ReactNode[] = [];
 
-  kids.push(<ellipse key="soil" cx={75} cy={133} rx={52} ry={13} fill="#132a18" />);
+  kids.push(<ellipse key="soil" cx={75} cy={133} rx={52} ry={13} fill={SOIL} />);
   kids.push(
     <path
       key="dark"
       d={`M75,${133 - h} Q81,${133 - h - (124 - h) / 2} 75,${133 - 124}`}
-      stroke="#1c3a24"
+      stroke={TRELLIS}
       strokeWidth={4}
       fill="none"
       strokeLinecap="round"
@@ -21,7 +37,7 @@ export function MiniBeanstalk({ progressPct }: { progressPct: number }) {
     <path
       key="stem"
       d={`M75,133 Q64,${133 - h * 0.5} 75,${133 - h}`}
-      stroke="#3f8f47"
+      stroke={stemColor}
       strokeWidth={7}
       fill="none"
       strokeLinecap="round"
@@ -40,7 +56,7 @@ export function MiniBeanstalk({ progressPct }: { progressPct: number }) {
         cy={ly}
         rx={11}
         ry={5}
-        fill="#5db35b"
+        fill={leafColor}
         transform={`rotate(${side * -22} ${lx} ${ly})`}
       />
     );
@@ -55,12 +71,12 @@ export function MiniBeanstalk({ progressPct }: { progressPct: number }) {
           cy={133 - h - 9}
           rx={3.5}
           ry={8}
-          fill="#efe8bd"
+          fill={POD}
           transform={`rotate(${j * 72} 75 ${133 - h})`}
         />
       );
     }
-    kids.push(<circle key="pc" cx={75} cy={133 - h} r={3.5} fill="#e2b94f" />);
+    kids.push(<circle key="pc" cx={75} cy={133 - h} r={3.5} fill={POD_CORE} />);
   }
 
   return (
