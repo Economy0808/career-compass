@@ -152,7 +152,7 @@ export default function GoalDetailPage({ params }: { params: { id: string } }) {
               <Card
                 interactive
                 onClick={() => router.push(`/roadmap/${r.id}`)}
-                className="shadow-[0_8px_26px_rgba(0,0,0,.38)]"
+                className="shadow-panel"
               >
                 <div className="mb-1.5 flex items-center gap-2">
                   <span className="font-serif text-body-sm text-content-muted">

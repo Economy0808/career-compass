@@ -66,6 +66,15 @@ const config: Config = {
         micro: ["0.65625rem", { lineHeight: "1.45" }],     // 10.5px
       },
       borderRadius: { sm: "8px", md: "12px", lg: "16px", xl: "20px" },
+      // Shadow tokens. A box-shadow colour cannot come from a colour token,
+      // so the few shadows the design uses live here instead of raw rgba()
+      // scattered across call sites.
+      boxShadow: {
+        glow: "0 0 34px rgb(63 143 71 / .28)",
+        "glow-strong": "0 0 44px rgb(63 143 71 / .45)",
+        panel: "0 8px 26px rgb(0 0 0 / .38)",
+        overlay: "0 14px 40px rgb(0 0 0 / .55)",
+      },
       backgroundImage: {
         altitude:
           "linear-gradient(180deg,#0B1E3D 0%,#0E2438 30%,#0D2119 68%,#06120A 100%)",

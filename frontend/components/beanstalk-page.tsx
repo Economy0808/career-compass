@@ -104,7 +104,7 @@ export function PlanterInfo({
     <div className="absolute bottom-[118px] left-1/2 z-[6] flex -translate-x-1/2 flex-col items-center gap-2 text-center">
       <Link
         href={`/profile/${user.id}`}
-        className="flex h-[70px] w-[70px] items-center justify-center rounded-full border-2 border-growth/45 bg-surface-overlay text-display no-underline shadow-[0_0_34px_rgba(63,143,71,.28)] transition-shadow hover:shadow-[0_0_44px_rgba(63,143,71,.45)]"
+        className="flex h-[70px] w-[70px] items-center justify-center rounded-full border-2 border-growth/45 bg-surface-overlay text-display no-underline shadow-glow transition-shadow hover:shadow-glow-strong"
       >
         {user.avatar_emoji}
       </Link>

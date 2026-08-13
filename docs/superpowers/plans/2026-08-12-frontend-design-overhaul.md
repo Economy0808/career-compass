@@ -1633,26 +1633,26 @@ DangerZone:    { onDeleted: () => void }
 
 > 정확한 타입 이름은 `frontend/lib/types.ts`에 이미 있는 것을 그대로 쓴다. 새 타입을 만들지 않는다.
 
-- [ ] **Step 1: 두 모달을 `Modal` 셸 위로 이식**
+- [x] **Step 1: 두 모달을 `Modal` 셸 위로 이식**
 
 `MilestonePostModal`과 `BeanShopModal`이 각자 갖고 있던 백드롭·Esc 처리·스크롤락을 지우고 `<Modal open onClose title size>`로 감싼다. 안쪽 콘텐츠(사진 업로드, 좋아요, 댓글, 콩 패키지 선택)는 유지한다.
 
 **주의**: `MilestonePostModal`은 상단 가이드 섹션(`detail`이 없으면 `description` 폴백)을 기록 유무와 무관하게 **항상 표시**해야 한다. 이 동작을 깨뜨리지 말 것.
 
-- [ ] **Step 2: 프로필 페이지 분할**
+- [x] **Step 2: 프로필 페이지 분할**
 
 628줄은 한 파일이 감당하기에 크다. `_components/` 아래 3개로 나누고 `page.tsx`는 데이터 페칭과 조립만 남긴다. (Next.js App Router에서 `_`로 시작하는 폴더는 라우트가 되지 않는다.)
 
-- [ ] **Step 3: 그리드 반응형**
+- [x] **Step 3: 그리드 반응형**
 
 콩나무 그리드를 `grid-cols-1 sm:grid-cols-2 lg:grid-cols-3`으로. 시든 콩나무 섹션(갈색 톤)은 `border-wither/30 text-wither`로 토큰화.
 
-- [ ] **Step 4: 이모지 아이콘 교체**
+- [x] **Step 4: 이모지 아이콘 교체**
 
 🎯 → `<TargetIcon className="text-goal-bright" />`, 🥀 → `<WitherIcon className="text-wither" />`.
 **`user.avatar_emoji`는 사용자 콘텐츠이므로 그대로 둔다.**
 
-- [ ] **Step 5: 검증**
+- [x] **Step 5: 검증**
 
 ```bash
 npx tsc --noEmit && npm run lint && npm run build

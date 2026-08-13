@@ -247,7 +247,7 @@ export default function RoadmapDetailPage({ params }: { params: { id: string } }
                 {/* hover: 폴라로이드 팝오버 (사진 + 문구) */}
                 {m.post && (
                   <div className="pointer-events-none absolute -top-2 left-1/2 z-20 hidden w-[230px] -translate-x-1/2 -translate-y-full rotate-[-2deg] group-hover:block">
-                    <div className="rounded-md border border-bloom/50 bg-[#f5f2e4] p-2 shadow-[0_14px_40px_rgba(0,0,0,.55)]">
+                    <div className="rounded-md border border-bloom/50 bg-[#f5f2e4] p-2 shadow-overlay">
                       {m.post.has_image && m.post.image_url && (
                         // eslint-disable-next-line @next/next/no-img-element
                         <img
@@ -267,7 +267,7 @@ export default function RoadmapDetailPage({ params }: { params: { id: string } }
                 <Card
                   interactive
                   onClick={() => setPostMilestoneId(m.id)}
-                  className="shadow-[0_8px_26px_rgba(0,0,0,.38)]"
+                  className="shadow-panel"
                 >
                   <div className="mb-1.5 flex items-center gap-2">
                     <span className="font-serif text-body-sm text-content-muted">

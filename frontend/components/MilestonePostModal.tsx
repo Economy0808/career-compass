@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useRef, useState } from "react";
+import { Button, Chip, EmptyState, Field, Modal } from "@/components/ui";
 import {
   ApiError,
   apiUrl,
@@ -14,9 +15,6 @@ import {
 } from "@/lib/api";
 import { formatDateKo } from "@/lib/format";
 import type { CommentOut, MilestoneOut, MilestonePostOut } from "@/lib/types";
-
-const INPUT_CLS =
-  "w-full rounded-xl border border-[rgba(143,220,138,.22)] bg-[rgba(255,255,255,.05)] px-4 py-3 text-[13.5px] text-moss-100 outline-none placeholder:text-moss-700 focus:border-[rgba(143,220,138,.45)]";
 
 interface MilestonePostModalProps {
   milestone: MilestoneOut;
@@ -60,14 +58,6 @@ export function MilestonePostModal({
       cancelled = true;
     };
   }, [milestone.id, milestone.post]);
-
-  useEffect(() => {
-    function onKey(e: KeyboardEvent) {
-      if (e.key === "Escape") onClose();
-    }
-    window.addEventListener("keydown", onKey);
-    return () => window.removeEventListener("keydown", onKey);
-  }, [onClose]);
 
   async function save() {
     if (!caption.trim() || pending) return;
@@ -162,222 +152,189 @@ export function MilestonePostModal({
   }
 
   return (
-    <div
-      className="fixed inset-0 z-[80] flex items-center justify-center bg-[rgba(3,10,5,.72)] px-4 backdrop-blur-[4px]"
-      onClick={onClose}
+    <Modal
+      open
+      onClose={onClose}
+      title={editing ? (post ? "기록 수정" : "기록 남기기") : "마일스톤"}
+      size="md"
     >
-      <div
-        onClick={(e) => e.stopPropagation()}
-        className="max-h-[86vh] w-full max-w-[480px] overflow-y-auto rounded-2xl border border-[rgba(143,220,138,.2)] bg-[rgba(7,22,12,.96)] p-6 shadow-[0_20px_60px_rgba(0,0,0,.6)]"
-      >
-        <div className="mb-4 flex items-start justify-between gap-3">
-          <div>
-            <div className="font-serif text-[13px] text-moss-600">
-              {String(milestone.order_index + 1).padStart(2, "0")} · {milestone.title}
-            </div>
-            <h2 className="mt-1 font-serif text-[20px] font-bold text-moss-100">
-              {editing ? (post ? "기록 수정" : "기록 남기기") : "마일스톤"}
-            </h2>
+      <div className="mb-4 font-serif text-body-sm text-content-muted">
+        {String(milestone.order_index + 1).padStart(2, "0")} · {milestone.title}
+      </div>
+
+      {/* 마일스톤 가이드 — 기록 유무와 무관하게 항상 표시 (무엇을/왜/어떻게 + 완료 기준) */}
+      {!editing && (
+        <div className="mb-5 rounded-lg border border-line bg-white/6 p-4">
+          <div className="mb-2 flex items-center gap-2 text-micro text-content-muted">
+            <span className="font-semibold text-content-secondary">목표 기한</span>
+            <span>~ {milestone.due_date.replace(/-/g, ".")}</span>
+            <span className="ml-auto rounded-full bg-white/8 px-2 py-0.5 text-content-secondary">
+              {milestone.status}
+            </span>
           </div>
-          <button
-            type="button"
-            onClick={onClose}
-            className="rounded-full px-2.5 py-1 text-[15px] text-moss-600 transition-colors hover:bg-[rgba(143,220,138,.12)] hover:text-moss-300"
-            aria-label="닫기"
-          >
-            ✕
-          </button>
+          <p className="whitespace-pre-line text-body-sm leading-[1.8] text-content-secondary">
+            {milestone.detail || milestone.description}
+          </p>
         </div>
+      )}
 
-        {/* 마일스톤 가이드 — 기록 유무와 무관하게 항상 표시 (무엇을/왜/어떻게 + 완료 기준) */}
-        {!editing && (
-          <div className="mb-5 rounded-xl border border-[rgba(143,220,138,.14)] bg-[rgba(143,220,138,.05)] p-4">
-            <div className="mb-2 flex items-center gap-2 text-[11px] text-moss-600">
-              <span className="font-semibold text-moss-500">목표 기한</span>
-              <span>~ {milestone.due_date.replace(/-/g, ".")}</span>
-              <span className="ml-auto rounded-full bg-[rgba(143,220,138,.12)] px-2 py-0.5 text-moss-400">
-                {milestone.status}
-              </span>
-            </div>
-            <p className="whitespace-pre-line text-[13px] leading-[1.8] text-moss-300">
-              {milestone.detail || milestone.description}
+      {editing ? (
+        <div className="flex flex-col gap-3">
+          {post?.has_image && !removeImage && post.image_url && (
+            // eslint-disable-next-line @next/next/no-img-element
+            <img
+              src={apiUrl(post.image_url)}
+              alt="기록 사진"
+              className="max-h-[240px] w-full rounded-lg object-cover"
+            />
+          )}
+          <Field
+            id="post-caption"
+            label="문구"
+            value={caption}
+            onChange={(e) => setCaption(e.target.value.slice(0, 80))}
+            placeholder="짤막한 문구 (80자 이내)"
+          />
+          <Field
+            id="post-body"
+            label="줄글 기록 (선택)"
+            multiline
+            rows={6}
+            value={body}
+            onChange={(e) => setBody(e.target.value)}
+            placeholder="어떤 과정이었는지, 배운 것, 남기고 싶은 이야기"
+          />
+          <input
+            ref={fileRef}
+            type="file"
+            accept="image/jpeg,image/png"
+            aria-label="사진 첨부"
+            className="text-caption text-content-secondary file:mr-3 file:cursor-pointer file:rounded-full file:border file:border-line-strong file:bg-goal/12 file:px-4 file:py-2 file:text-caption file:font-semibold file:text-goal-bright"
+          />
+          {post?.has_image && (
+            <label className="flex cursor-pointer items-center gap-2 text-caption text-content-secondary">
+              <input
+                type="checkbox"
+                checked={removeImage}
+                onChange={(e) => setRemoveImage(e.target.checked)}
+                className="accent-growth"
+              />
+              기존 사진 지우기
+            </label>
+          )}
+          {error && <p className="text-caption text-wither">{error}</p>}
+          <div className="flex gap-2">
+            <Button onClick={save} disabled={pending || !caption.trim()} className="flex-1">
+              {pending ? "저장 중…" : "저장하기"}
+            </Button>
+            <Button
+              variant="ghost"
+              onClick={() => {
+                setEditing(false);
+                setCaption(post?.caption ?? "");
+                setBody(post?.body ?? "");
+                setRemoveImage(false);
+              }}
+            >
+              취소
+            </Button>
+          </div>
+        </div>
+      ) : post ? (
+        <div className="flex flex-col gap-4">
+          {post.has_image && post.image_url && (
+            // eslint-disable-next-line @next/next/no-img-element
+            <img
+              src={apiUrl(post.image_url)}
+              alt={post.caption}
+              className="w-full rounded-lg object-cover"
+            />
+          )}
+          <div>
+            <p className="break-words font-serif text-heading font-bold leading-relaxed text-content-primary">
+              “{post.caption}”
             </p>
-          </div>
-        )}
-
-        {editing ? (
-          <div className="flex flex-col gap-3">
-            {post?.has_image && !removeImage && post.image_url && (
-              // eslint-disable-next-line @next/next/no-img-element
-              <img
-                src={apiUrl(post.image_url)}
-                alt="기록 사진"
-                className="max-h-[240px] w-full rounded-xl object-cover"
-              />
-            )}
-            <input
-              value={caption}
-              onChange={(e) => setCaption(e.target.value.slice(0, 80))}
-              placeholder="짤막한 문구 (80자 이내)"
-              className={INPUT_CLS}
-            />
-            <textarea
-              value={body}
-              onChange={(e) => setBody(e.target.value)}
-              placeholder="줄글 기록 (선택) — 어떤 과정이었는지, 배운 것, 남기고 싶은 이야기"
-              rows={6}
-              className={`${INPUT_CLS} resize-none leading-relaxed`}
-            />
-            <input
-              ref={fileRef}
-              type="file"
-              accept="image/jpeg,image/png"
-              className="text-[12.5px] text-moss-400 file:mr-3 file:cursor-pointer file:rounded-full file:border file:border-[rgba(143,220,138,.28)] file:bg-[rgba(143,220,138,.13)] file:px-4 file:py-2 file:text-[12px] file:font-semibold file:text-bean-100"
-            />
-            {post?.has_image && (
-              <label className="flex cursor-pointer items-center gap-2 text-[12px] text-moss-500">
-                <input
-                  type="checkbox"
-                  checked={removeImage}
-                  onChange={(e) => setRemoveImage(e.target.checked)}
-                  className="accent-bean-500"
-                />
-                기존 사진 지우기
-              </label>
-            )}
-            {error && <p className="text-[12.5px] text-wither-300">{error}</p>}
-            <div className="flex gap-2">
-              <button
-                type="button"
-                onClick={save}
-                disabled={pending || !caption.trim()}
-                className="flex-1 rounded-xl border border-bean-400 bg-bean-500 p-3 text-sm font-bold text-[#f0f7ec] transition-colors hover:bg-[#4aa353] disabled:opacity-50"
-              >
-                {pending ? "저장 중…" : "저장하기"}
-              </button>
-              <button
-                type="button"
-                onClick={() => {
-                  setEditing(false);
-                  setCaption(post?.caption ?? "");
-                  setBody(post?.body ?? "");
-                  setRemoveImage(false);
-                }}
-                className="rounded-xl border border-[rgba(143,220,138,.25)] px-4 text-[13px] font-semibold text-moss-400 transition-colors hover:bg-[rgba(143,220,138,.1)]"
-              >
-                취소
-              </button>
-            </div>
-          </div>
-        ) : post ? (
-          <div className="flex flex-col gap-4">
-            {post.has_image && post.image_url && (
-              // eslint-disable-next-line @next/next/no-img-element
-              <img
-                src={apiUrl(post.image_url)}
-                alt={post.caption}
-                className="w-full rounded-xl object-cover"
-              />
-            )}
-            <div>
-              <p className="font-serif text-[17px] font-bold leading-relaxed text-moss-50">
-                “{post.caption}”
+            {post.body && (
+              <p className="mt-3 whitespace-pre-line break-words text-body-sm leading-[1.8] text-content-secondary">
+                {post.body}
               </p>
-              {post.body && (
-                <p className="mt-3 whitespace-pre-line text-[13.5px] leading-[1.8] text-moss-400">
-                  {post.body}
-                </p>
-              )}
-              <p className="mt-3 text-[11px] text-moss-700">{formatDateKo(post.updated_at)}</p>
-            </div>
+            )}
+            <p className="mt-3 text-micro text-content-muted">{formatDateKo(post.updated_at)}</p>
+          </div>
 
-            <div className="flex items-center gap-3 border-t border-[rgba(143,220,138,.12)] pt-3">
-              <button
-                type="button"
-                onClick={toggleLike}
-                disabled={!canInteract || likePending}
-                className={`flex items-center gap-1.5 rounded-full border px-3.5 py-1.5 text-[12.5px] font-semibold transition-colors disabled:cursor-default ${
-                  post.liked_by_me
-                    ? "border-[rgba(240,232,180,.45)] bg-[rgba(240,232,180,.13)] text-bloom-300"
-                    : "border-[rgba(143,220,138,.22)] text-moss-500 hover:bg-[rgba(143,220,138,.1)]"
-                }`}
-              >
-                {post.liked_by_me ? "🌼" : "🤍"} {post.like_count}
-              </button>
-              <span className="text-[12px] text-moss-600">💬 {post.comment_count}</span>
-              {isOwn && (
-                <span className="ml-auto flex gap-2">
+          <div className="flex items-center gap-3 border-t border-line pt-3">
+            {/* 🌼/🤍는 서비스의 반응 표식이라 아이콘으로 대체하지 않는다. */}
+            <Chip
+              tone="bloom"
+              size="sm"
+              interactive
+              selected={post.liked_by_me}
+              disabled={!canInteract || likePending}
+              onClick={() => void toggleLike()}
+            >
+              {post.liked_by_me ? "🌼" : "🤍"} {post.like_count}
+            </Chip>
+            <span className="text-caption text-content-muted">💬 {post.comment_count}</span>
+            {isOwn && (
+              <span className="ml-auto flex gap-2">
+                <Button size="sm" variant="ghost" onClick={() => setEditing(true)}>
+                  수정
+                </Button>
+                <Button size="sm" variant="danger" onClick={removePost}>
+                  삭제
+                </Button>
+              </span>
+            )}
+          </div>
+
+          <div className="flex flex-col gap-2.5">
+            {comments.map((c) => (
+              <div key={c.id} className="flex items-start gap-2.5">
+                <span className="mt-0.5 text-body">{c.user.avatar_emoji}</span>
+                <div className="min-w-0 flex-1">
+                  <span className="text-caption font-semibold text-content-secondary">
+                    {c.user.display_name}
+                  </span>
+                  <p className="break-words text-caption leading-relaxed text-content-secondary">
+                    {c.content}
+                  </p>
+                </div>
+                {c.can_delete && (
                   <button
                     type="button"
-                    onClick={() => setEditing(true)}
-                    className="text-[12px] font-semibold text-moss-500 hover:text-moss-300"
-                  >
-                    수정
-                  </button>
-                  <button
-                    type="button"
-                    onClick={removePost}
-                    className="text-[12px] font-semibold text-wither-300 hover:brightness-125"
+                    onClick={() => removeComment(c.id)}
+                    className="shrink-0 text-micro text-content-muted transition-colors hover:text-wither"
                   >
                     삭제
                   </button>
-                </span>
-              )}
-            </div>
-
-            <div className="flex flex-col gap-2.5">
-              {comments.map((c) => (
-                <div key={c.id} className="flex items-start gap-2.5">
-                  <span className="mt-0.5 text-[15px]">{c.user.avatar_emoji}</span>
-                  <div className="min-w-0 flex-1">
-                    <span className="text-[12px] font-semibold text-moss-300">
-                      {c.user.display_name}
-                    </span>
-                    <p className="text-[12.5px] leading-relaxed text-moss-400">{c.content}</p>
-                  </div>
-                  {c.can_delete && (
-                    <button
-                      type="button"
-                      onClick={() => removeComment(c.id)}
-                      className="shrink-0 text-[11px] text-moss-700 hover:text-wither-300"
-                    >
-                      삭제
-                    </button>
-                  )}
-                </div>
-              ))}
-              {canInteract && (
-                <form onSubmit={submitComment} className="mt-1 flex gap-2">
-                  <input
-                    value={commentInput}
-                    onChange={(e) => setCommentInput(e.target.value.slice(0, 500))}
-                    placeholder="응원 한마디 남기기"
-                    className={`${INPUT_CLS} !py-2 text-[12.5px]`}
-                  />
-                  <button
-                    type="submit"
-                    disabled={pending || !commentInput.trim()}
-                    className="shrink-0 rounded-xl border border-[rgba(143,220,138,.28)] bg-[rgba(143,220,138,.13)] px-3.5 text-[12px] font-semibold text-bean-100 transition-colors hover:bg-[rgba(143,220,138,.25)] disabled:opacity-50"
-                  >
-                    등록
-                  </button>
-                </form>
-              )}
-              {error && <p className="text-[12px] text-wither-300">{error}</p>}
-            </div>
+                )}
+              </div>
+            ))}
+            {canInteract && (
+              <form onSubmit={submitComment} className="mt-1 flex items-end gap-2">
+                <Field
+                  id="post-comment"
+                  label="응원 한마디"
+                  className="flex-1"
+                  value={commentInput}
+                  onChange={(e) => setCommentInput(e.target.value.slice(0, 500))}
+                  placeholder="응원 한마디 남기기"
+                />
+                <Button type="submit" disabled={pending || !commentInput.trim()}>
+                  등록
+                </Button>
+              </form>
+            )}
+            {error && <p className="text-caption text-wither">{error}</p>}
           </div>
-        ) : isOwn ? (
-          <button
-            type="button"
-            onClick={() => setEditing(true)}
-            className="w-full rounded-xl border border-[rgba(143,220,138,.28)] bg-[rgba(143,220,138,.13)] p-3.5 text-sm font-bold text-bean-100 transition-colors hover:bg-[rgba(143,220,138,.25)]"
-          >
-            ✎ 기록 남기기
-          </button>
-        ) : (
-          <p className="py-6 text-center text-[13px] text-moss-600">아직 기록이 없어요.</p>
-        )}
-      </div>
-    </div>
+        </div>
+      ) : isOwn ? (
+        <Button fullWidth onClick={() => setEditing(true)}>
+          기록 남기기
+        </Button>
+      ) : (
+        <EmptyState title="아직 기록이 없어요." />
+      )}
+    </Modal>
   );
 }
