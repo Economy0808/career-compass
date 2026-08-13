@@ -33,17 +33,17 @@ export function DayCompleteCelebration({ onDone }: DayCompleteCelebrationProps) 
 
   return (
     <div
-      className="fixed inset-0 z-[90] flex items-center justify-center bg-[rgba(3,10,5,.55)] backdrop-blur-[2px]"
+      className="fixed inset-0 z-[90] flex items-center justify-center bg-black/55 backdrop-blur-[2px]"
       onClick={onDone}
     >
       <div className="relative flex flex-col items-center">
         {/* 퍼지는 링 */}
         <span
-          className="absolute h-[140px] w-[140px] rounded-full border-2 border-[rgba(240,232,180,.6)]"
+          className="absolute h-[140px] w-[140px] rounded-full border-2 border-bloom/60"
           style={{ animation: "cheerRing .9s ease-out forwards" }}
         />
         <span
-          className="absolute h-[140px] w-[140px] rounded-full border-2 border-[rgba(143,220,138,.5)]"
+          className="absolute h-[140px] w-[140px] rounded-full border-2 border-growth-bright/50"
           style={{ animation: "cheerRing 1.1s .15s ease-out forwards" }}
         />
 
@@ -70,7 +70,7 @@ export function DayCompleteCelebration({ onDone }: DayCompleteCelebrationProps) 
 
         {/* 중앙 메달 */}
         <div
-          className="flex h-[112px] w-[112px] items-center justify-center rounded-full border-2 border-[rgba(240,232,180,.6)] bg-[rgba(16,36,21,.95)] shadow-[0_0_44px_rgba(240,232,180,.4)]"
+          className="flex h-[112px] w-[112px] items-center justify-center rounded-full border-2 border-bloom/60 bg-surface-overlay shadow-glow-bloom"
           style={{ animation: "celebratePop .6s cubic-bezier(.34,1.56,.64,1) both" }}
         >
           <svg width="60" height="60" viewBox="0 0 24 24">
@@ -89,8 +89,8 @@ export function DayCompleteCelebration({ onDone }: DayCompleteCelebrationProps) 
           className="mt-5 text-center"
           style={{ animation: "celebrateText .5s .2s ease-out both" }}
         >
-          <div className="font-serif text-[26px] font-bold text-bloom-200">오늘 콩 6개 완성! 🎉</div>
-          <div className="mt-1.5 text-[13.5px] text-moss-400">
+          <div className="font-serif text-title font-bold text-bloom">오늘 콩 6개 완성!</div>
+          <div className="mt-1.5 text-body-sm text-content-secondary">
             오늘 할 일을 알차게 채웠어요. 콩나무가 쑥쑥 자라겠네요!
           </div>
         </div>

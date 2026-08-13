@@ -72,6 +72,7 @@ const config: Config = {
       boxShadow: {
         glow: "0 0 34px rgb(63 143 71 / .28)",
         "glow-strong": "0 0 44px rgb(63 143 71 / .45)",
+        "glow-bloom": "0 0 44px rgb(226 185 79 / .4)",
         panel: "0 8px 26px rgb(0 0 0 / .38)",
         overlay: "0 14px 40px rgb(0 0 0 / .55)",
       },

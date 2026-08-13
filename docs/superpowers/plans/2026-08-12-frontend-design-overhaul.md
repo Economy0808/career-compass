@@ -1687,28 +1687,28 @@ Co-Authored-By: Claude Opus 5 <noreply@anthropic.com>"
 - Consumes: `Card`, `Button`, `Chip`, `Field`, `EmptyState`, `Avatar`
 - Produces: 없음
 
-- [ ] **Step 1: 일정 화면 반응형**
+- [x] **Step 1: 일정 화면 반응형**
 
 상단 월 캘린더 + 하단 카테고리별 할 일 구조를 유지하되, 캘린더 셀을 `grid-cols-7`과 `aspect-square`로 잡아 폭에 비례하게 한다. 390px에서 날짜 숫자가 잘리지 않도록 `text-caption`을 쓴다.
 
-- [ ] **Step 2: `BeanCheckbox` 유지 + 토큰화**
+- [x] **Step 2: `BeanCheckbox` 유지 + 토큰화**
 
 **"띠링" 사운드(Web Audio API 합성)와 진동(`navigator.vibrate`), 콩 pop 애니메이션은 제품 정체성이므로 절대 제거하지 않는다.** 색만 바꾼다: 체크 시 `bg-growth`, 미체크 시 `border-line`.
 
-- [ ] **Step 3: 캘린더 콩 농도 유지**
+- [x] **Step 3: 캘린더 콩 농도 유지**
 
 완료 개수가 많을수록 진해지는 `opacity 0.4~1.0` 로직을 유지하고, 콩 색만 `#5DB35B`(growth)로 통일한다.
 
-- [ ] **Step 4: 랭킹 화면**
+- [x] **Step 4: 랭킹 화면**
 
 순위 행을 `Card`로, 1~3위 강조를 `text-bloom`으로. 본인 행 하이라이트는 `bg-goal/12 border-line-strong`.
 **"수확한 콩만 집계(구매 콩 제외)"라는 안내 문구를 반드시 유지**한다 — 랭킹 공정성 설명이다.
 
-- [ ] **Step 5: `DayCompleteCelebration` 토큰화**
+- [x] **Step 5: `DayCompleteCelebration` 토큰화**
 
 축하 연출의 `@keyframes`(globals.css)는 그대로 두고, 색만 `bloom`/`growth-bright`로 맞춘다.
 
-- [ ] **Step 6: 검증**
+- [x] **Step 6: 검증**
 
 ```bash
 npx tsc --noEmit && npm run lint && npm run build

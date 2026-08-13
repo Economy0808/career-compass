@@ -1,10 +1,11 @@
 "use client";
 
 import { useRouter } from "next/navigation";
-import { useCallback, useEffect, useMemo, useState } from "react";
+import { useCallback, useEffect, useId, useMemo, useState } from "react";
 import { BeanCheckbox } from "@/components/BeanCheckbox";
 import { DayCompleteCelebration } from "@/components/DayCompleteCelebration";
 import { ScheduleCalendar } from "@/components/ScheduleCalendar";
+import { Button, Card, CloseIcon, EmptyState, Field, PlusIcon } from "@/components/ui";
 import {
   createTodoCategory,
   createTodoItem,
@@ -16,10 +17,12 @@ import {
   patchTodoItem,
 } from "@/lib/api";
 import { useAuth } from "@/lib/auth-context";
+import { cn } from "@/lib/cn";
 import { celebrateCheck } from "@/lib/feedback";
 import { todayISODate } from "@/lib/format";
 import type { CalendarDayOut, TodoCategoryOut, TodoColor, TodoItemOut } from "@/lib/types";
 
+// 분류 색은 사용자가 고르는 데이터라 디자인 토큰이 아닌 고정 팔레트를 쓴다.
 const COLOR_HEX: Record<TodoColor, string> = {
   green: "#5db35b",
   sky: "#6aa9d8",
@@ -99,9 +102,7 @@ export default function SchedulePage() {
 
   async function toggleItem(item: TodoItemOut) {
     const next = !item.is_completed;
-    const nextItems = items.map((i) =>
-      i.id === item.id ? { ...i, is_completed: next } : i
-    );
+    const nextItems = items.map((i) => (i.id === item.id ? { ...i, is_completed: next } : i));
     const completed = nextItems.filter((i) => i.is_completed).length;
     if (next) {
       // 하루 6개 달성 순간엔 축하 팡파레, 그 외엔 짧은 "띠링"
@@ -178,80 +179,82 @@ export default function SchedulePage() {
 
   if (authLoading || !me) {
     return (
-      <div className="flex h-screen items-center justify-center bg-[linear-gradient(180deg,#0a1f11,#06120a_60%)]">
-        <p className="animate-pulse text-sm text-moss-600">불러오는 중…</p>
+      <div className="mx-auto max-w-sm animate-pulse">
+        <EmptyState title="불러오는 중…" />
       </div>
     );
   }
 
   return (
-    <div className="min-h-screen bg-[linear-gradient(180deg,#0a1f11,#06120a_60%)]">
-      <div className="ml-[230px] mr-10 max-w-[760px] pb-[90px] pt-[88px]">
-        <h1 className="font-serif text-[30px] font-bold text-moss-100">일정</h1>
-        <p className="mt-[7px] text-[13px] text-moss-600">
-          하루의 할 일을 콩으로 채워보세요 — 완료할수록 그날의 콩이 진해져요
-        </p>
+    <div className="mx-auto w-full max-w-3xl">
+      <h1 className="font-serif text-display font-bold text-content-primary">일정</h1>
+      <p className="mt-2 text-body-sm text-content-muted">
+        하루의 할 일을 콩으로 채워보세요 — 완료할수록 그날의 콩이 진해져요
+      </p>
 
-        <div className="mt-6">
-          <ScheduleCalendar
-            year={viewYear}
-            month={viewMonth}
-            selectedDate={selectedDate}
-            data={calendar}
-            onSelectDate={setSelectedDate}
-            onPrevMonth={() => changeMonth(-1)}
-            onNextMonth={() => changeMonth(1)}
-          />
-        </div>
+      <div className="mt-6">
+        <ScheduleCalendar
+          year={viewYear}
+          month={viewMonth}
+          selectedDate={selectedDate}
+          data={calendar}
+          onSelectDate={setSelectedDate}
+          onPrevMonth={() => changeMonth(-1)}
+          onNextMonth={() => changeMonth(1)}
+        />
+      </div>
 
-        <div className="mb-3 mt-8 flex items-center">
-          <h2 className="font-serif text-[18px] font-bold text-moss-100">
-            {selectedDate.replace(/-/g, ".")}
-          </h2>
-          {!addingCategory && (
-            <button
-              type="button"
-              onClick={() => setAddingCategory(true)}
-              className="ml-auto rounded-full border border-[rgba(143,220,138,.25)] px-3.5 py-1.5 text-[12px] font-semibold text-moss-400 transition-colors hover:bg-[rgba(143,220,138,.12)] hover:text-moss-200"
-            >
-              + 분류 추가
-            </button>
-          )}
-        </div>
-
-        {addingCategory && (
-          <CategoryEditor
-            onSave={addCategory}
-            onCancel={() => setAddingCategory(false)}
-          />
-        )}
-
-        {loading ? (
-          <div className="mt-3 space-y-3">
-            {[0, 1, 2].map((i) => (
-              <div
-                key={i}
-                className="h-24 animate-pulse rounded-2xl border border-[rgba(143,220,138,.1)] bg-[rgba(14,33,20,.35)]"
-              />
-            ))}
-          </div>
-        ) : (
-          <div className="mt-3 flex flex-col gap-4">
-            {categories.map((category) => (
-              <CategorySection
-                key={category.id}
-                category={category}
-                items={itemsByCategory[category.id] ?? []}
-                onToggleItem={toggleItem}
-                onAddItem={(content) => addItem(category.id, content)}
-                onRemoveItem={removeItem}
-                onRename={renameCategory}
-                onDelete={() => removeCategory(category.id)}
-              />
-            ))}
-          </div>
+      <div className="mb-3 mt-8 flex items-center gap-3">
+        <h2 className="font-serif text-heading font-bold text-content-primary">
+          {selectedDate.replace(/-/g, ".")}
+        </h2>
+        {!addingCategory && (
+          <Button
+            size="sm"
+            variant="ghost"
+            className="ml-auto"
+            onClick={() => setAddingCategory(true)}
+          >
+            <PlusIcon size={14} />
+            분류 추가
+          </Button>
         )}
       </div>
+
+      {addingCategory && (
+        <CategoryEditor onSave={addCategory} onCancel={() => setAddingCategory(false)} />
+      )}
+
+      {loading ? (
+        <div className="mt-3 space-y-3">
+          {[0, 1, 2].map((i) => (
+            <div
+              key={i}
+              className="h-24 animate-pulse rounded-lg border border-line bg-surface-raised"
+            />
+          ))}
+        </div>
+      ) : categories.length === 0 ? (
+        <EmptyState
+          title="아직 분류가 없어요."
+          description="'분류 추가'로 학교·자격증처럼 나만의 묶음을 만들어보세요."
+        />
+      ) : (
+        <div className="mt-3 flex flex-col gap-4">
+          {categories.map((category) => (
+            <CategorySection
+              key={category.id}
+              category={category}
+              items={itemsByCategory[category.id] ?? []}
+              onToggleItem={toggleItem}
+              onAddItem={(content) => addItem(category.id, content)}
+              onRemoveItem={removeItem}
+              onRename={renameCategory}
+              onDelete={() => removeCategory(category.id)}
+            />
+          ))}
+        </div>
+      )}
 
       {celebrating && <DayCompleteCelebration onDone={() => setCelebrating(false)} />}
     </div>
@@ -284,7 +287,7 @@ function CategorySection({
   const hex = COLOR_HEX[category.color];
 
   return (
-    <div className="rounded-2xl border border-[rgba(143,220,138,.13)] bg-[linear-gradient(180deg,rgba(14,33,20,.5),rgba(8,20,12,.8))] p-4">
+    <Card>
       {editing ? (
         <CategoryEditor
           initialName={category.name}
@@ -298,15 +301,17 @@ function CategorySection({
         />
       ) : (
         <div className="mb-2 flex items-center gap-2">
-          <span className="h-3 w-3 rounded-full" style={{ background: hex }} />
-          <span className="text-[14px] font-bold text-moss-100">{category.name}</span>
-          <span className="text-[11px] text-moss-700">
+          <span className="h-3 w-3 shrink-0 rounded-full" style={{ background: hex }} />
+          <span className="min-w-0 truncate text-body-sm font-bold text-content-primary">
+            {category.name}
+          </span>
+          <span className="shrink-0 text-micro text-content-muted">
             {items.filter((i) => i.is_completed).length}/{items.length}
           </span>
           <button
             type="button"
             onClick={() => setEditing(true)}
-            className="ml-auto text-[11.5px] text-moss-600 transition-colors hover:text-moss-300"
+            className="ml-auto shrink-0 text-caption text-content-muted transition-colors hover:text-content-secondary"
           >
             편집
           </button>
@@ -318,19 +323,21 @@ function CategorySection({
           <div key={item.id} className="group flex items-center gap-2.5 py-1.5">
             <BeanCheckbox checked={item.is_completed} onToggle={() => onToggleItem(item)} />
             <span
-              className={`flex-1 text-[13.5px] ${
-                item.is_completed ? "text-moss-700 line-through" : "text-moss-200"
-              }`}
+              className={cn(
+                "min-w-0 flex-1 break-words text-body-sm",
+                item.is_completed ? "text-content-muted line-through" : "text-content-primary"
+              )}
             >
               {item.content}
             </span>
+            {/* 터치 기기엔 hover가 없으므로 좁은 화면에서는 항상 보인다. */}
             <button
               type="button"
               onClick={() => onRemoveItem(item)}
-              className="shrink-0 px-1 text-[13px] text-moss-800 opacity-0 transition-opacity hover:text-wither-300 group-hover:opacity-100"
+              className="shrink-0 px-1 text-content-muted transition-opacity hover:text-wither md:opacity-0 md:group-hover:opacity-100"
               aria-label="삭제"
             >
-              ✕
+              <CloseIcon size={14} />
             </button>
           </div>
         ))}
@@ -344,15 +351,18 @@ function CategorySection({
           setInput("");
         }}
       >
-        <span className="text-[15px] text-moss-700">+</span>
+        <PlusIcon size={15} className="shrink-0 text-content-muted" />
         <input
+          id={`todo-add-${category.id}`}
+          name={`todo-add-${category.id}`}
           value={input}
           onChange={(e) => setInput(e.target.value.slice(0, 200))}
           placeholder="할 일 추가 (예: 수학문제 10번까지 풀기)"
-          className="flex-1 bg-transparent py-1 text-[13px] text-moss-100 outline-none placeholder:text-moss-700"
+          aria-label={`${category.name}에 할 일 추가`}
+          className="min-w-0 flex-1 bg-transparent py-1 text-body-sm text-content-primary outline-none placeholder:text-content-muted"
         />
       </form>
-    </div>
+    </Card>
   );
 }
 
@@ -375,51 +385,53 @@ function CategoryEditor({
 }: CategoryEditorProps) {
   const [name, setName] = useState(initialName);
   const [color, setColor] = useState<TodoColor>(initialColor);
+  // 추가 편집기와 분류별 편집기가 동시에 열릴 수 있어 id가 겹치면 안 된다.
+  const fieldId = useId();
 
   return (
-    <div className="mb-3 rounded-2xl border border-[rgba(143,220,138,.2)] bg-[rgba(6,18,10,.6)] p-3.5">
-      <div className="flex items-center gap-2">
-        <input
+    <div className="mb-3 rounded-lg border border-line-strong bg-black/25 p-3.5">
+      <div className="flex items-end gap-2">
+        <Field
+          id={fieldId}
+          name="category-name"
+          label="분류 이름"
+          className="flex-1"
           autoFocus
           value={name}
           onChange={(e) => setName(e.target.value.slice(0, 20))}
           placeholder="분류 이름"
-          className="flex-1 rounded-lg border border-[rgba(143,220,138,.22)] bg-[rgba(255,255,255,.05)] px-3 py-2 text-[13px] text-moss-100 outline-none placeholder:text-moss-700 focus:border-[rgba(143,220,138,.45)]"
         />
-        <button
-          type="button"
+        <Button
+          size="sm"
           onClick={() => name.trim() && onSave(name.trim(), color)}
           disabled={!name.trim()}
-          className="rounded-lg border border-bean-400 bg-bean-500 px-3.5 py-2 text-[12.5px] font-bold text-[#f0f7ec] transition-colors hover:bg-[#4aa353] disabled:opacity-50"
         >
           저장
-        </button>
-        <button
-          type="button"
-          onClick={onCancel}
-          className="rounded-lg px-2.5 py-2 text-[12.5px] text-moss-500 hover:text-moss-300"
-        >
+        </Button>
+        <Button size="sm" variant="ghost" onClick={onCancel}>
           취소
-        </button>
+        </Button>
       </div>
-      <div className="mt-2.5 flex items-center gap-2">
+      <div className="mt-2.5 flex flex-wrap items-center gap-2">
         {COLORS.map((c) => (
           <button
             key={c}
             type="button"
             onClick={() => setColor(c)}
-            className={`h-6 w-6 rounded-full transition-transform hover:scale-110 ${
-              color === c ? "ring-2 ring-white/70 ring-offset-2 ring-offset-[#0a1f11]" : ""
-            }`}
+            className={cn(
+              "h-6 w-6 rounded-full transition-transform hover:scale-110",
+              color === c && "ring-2 ring-white/70 ring-offset-2 ring-offset-earth-base"
+            )}
             style={{ background: COLOR_HEX[c] }}
             aria-label={c}
+            aria-pressed={color === c}
           />
         ))}
         {onDelete && (
           <button
             type="button"
             onClick={onDelete}
-            className="ml-auto text-[11.5px] font-semibold text-wither-300 hover:brightness-125"
+            className="ml-auto text-caption font-semibold text-wither hover:brightness-125"
           >
             분류 삭제
           </button>
