@@ -123,7 +123,7 @@ Task 1 이후 새로 작성하는 코드에서 아래를 쓰지 않는다.
 - Consumes: 없음
 - Produces: 깨끗한 작업 트리
 
-- [ ] **Step 1: 브랜치와 작업 트리 확인**
+- [x] **Step 1: 브랜치와 작업 트리 확인**
 
 ```bash
 cd C:/Users/user/Project_CareerCompass/03_Code
@@ -133,7 +133,7 @@ git status --short
 
 Expected: `feature/roadmap-sns`. `frontend/.claude/`가 미추적 상태로 뜨는데, 이건 에디터 설정 폴더다.
 
-- [ ] **Step 2: `frontend/.claude/`를 gitignore에 추가**
+- [x] **Step 2: `frontend/.claude/`를 gitignore에 추가**
 
 `03_Code/.gitignore` 끝에 추가:
 
@@ -142,7 +142,7 @@ Expected: `feature/roadmap-sns`. `frontend/.claude/`가 미추적 상태로 뜨�
 frontend/.claude/
 ```
 
-- [ ] **Step 3: dev 서버가 떠 있으면 내리기**
+- [x] **Step 3: dev 서버가 떠 있으면 내리기**
 
 ```bash
 netstat -ano | grep :3000
@@ -150,7 +150,7 @@ netstat -ano | grep :3000
 
 떠 있으면 해당 PID를 `taskkill //F //PID <pid>`로 종료한다. **이후 모든 `next build` 전에 이 확인을 반복한다.**
 
-- [ ] **Step 4: 커밋**
+- [x] **Step 4: 커밋**
 
 ```bash
 git add .gitignore
@@ -172,7 +172,7 @@ Co-Authored-By: Claude Opus 5 <noreply@anthropic.com>"
 **Interfaces:**
 - Produces: Tailwind 클래스 `bg-earth-base` `bg-sky-base` `bg-surface-raised` `bg-surface-overlay` `text-content-primary|secondary|muted` `text-growth|growth-bright` `text-goal|goal-bright` `text-bloom` `text-wither` `border-line|line-strong` / `text-display|title|heading|body|body-sm|caption|micro` / `rounded-sm|md|lg|xl` / `bg-altitude` / `h-tabbar` `w-rail`
 
-- [ ] **Step 1: `tailwind.config.ts` 교체**
+- [x] **Step 1: `tailwind.config.ts` 교체**
 
 ```ts
 import type { Config } from "tailwindcss";
@@ -254,7 +254,7 @@ export default config;
 
 > 주의: `sky`는 Tailwind 기본 팔레트 이름과 겹친다. 의도적으로 덮어쓰는 것이며, 기존 코드에서 기본 sky 색을 쓰는 곳이 없음을 Step 3에서 확인한다.
 
-- [ ] **Step 2: `globals.css` 상단 블록 교체**
+- [x] **Step 2: `globals.css` 상단 블록 교체**
 
 ```css
 @tailwind base;
@@ -313,7 +313,7 @@ a:hover {
 
 **아래의 기존 `@keyframes` 정의(`drawBranch`, `sprout`, `twinkle`, `floaty`, `sway`, `glowPulse`, `blink`, `celebratePop`, `confettiFly`, `cheerRing`, `celebrateText`)는 한 줄도 지우지 말고 그대로 둔다.** 지우면 `BeanstalkCanvas`와 축하 연출이 깨진다.
 
-- [ ] **Step 3: 기본 sky 팔레트 사용처가 없는지 확인**
+- [x] **Step 3: 기본 sky 팔레트 사용처가 없는지 확인**
 
 ```bash
 cd frontend
@@ -322,7 +322,7 @@ grep -rnE '(text|bg|border)-sky-[0-9]' app components
 
 Expected: 결과 없음. 있으면 해당 위치를 `night` 또는 신규 `sky-base/mid`로 바꾼다.
 
-- [ ] **Step 4: 검증**
+- [x] **Step 4: 검증**
 
 ```bash
 npx tsc --noEmit && npm run lint && npm run build
@@ -330,7 +330,7 @@ npx tsc --noEmit && npm run lint && npm run build
 
 Expected: 전부 통과. 화면은 body 폰트가 커진 것 외에 거의 그대로여야 한다(기존 팔레트를 남겨뒀으므로).
 
-- [ ] **Step 5: 커밋**
+- [x] **Step 5: 커밋**
 
 ```bash
 git add frontend/tailwind.config.ts frontend/app/globals.css
@@ -373,7 +373,7 @@ Icons:       SproutIcon ForestIcon SeedIcon BeanIcon CalendarIcon TargetIcon Wit
              — all accept { size?: number; className?: string }
 ```
 
-- [ ] **Step 1: `lib/cn.ts` 작성**
+- [x] **Step 1: `lib/cn.ts` 작성**
 
 ```ts
 /** Join class names, dropping falsy entries. Replaces clsx (no new deps). */
@@ -382,7 +382,7 @@ export function cn(...classes: (string | false | null | undefined)[]): string {
 }
 ```
 
-- [ ] **Step 2: `components/ui/icons.tsx` 작성**
+- [x] **Step 2: `components/ui/icons.tsx` 작성**
 
 기존 `SideNav.tsx`의 5개 아이콘을 그대로 옮기고 7개를 추가한다. 모두 `currentColor`, 기본 18px.
 
@@ -509,7 +509,7 @@ export function EagleIcon({ size = 18, className }: IconProps) {
 }
 ```
 
-- [ ] **Step 3: `Button.tsx` 작성**
+- [x] **Step 3: `Button.tsx` 작성**
 
 ```tsx
 "use client";
@@ -564,7 +564,7 @@ export function Button({
 }
 ```
 
-- [ ] **Step 4: `Chip.tsx` 작성**
+- [x] **Step 4: `Chip.tsx` 작성**
 
 ```tsx
 "use client";
@@ -615,7 +615,7 @@ export function Chip({
 }
 ```
 
-- [ ] **Step 5: `Card.tsx` 작성**
+- [x] **Step 5: `Card.tsx` 작성**
 
 ```tsx
 "use client";
@@ -642,7 +642,7 @@ export function Card({ interactive = false, className, ...rest }: CardProps) {
 }
 ```
 
-- [ ] **Step 6: `Field.tsx` 작성**
+- [x] **Step 6: `Field.tsx` 작성**
 
 `login`/`signup`/`verify`/`reset-password` 4곳의 중복을 없앤다.
 
@@ -706,7 +706,7 @@ export function Field(props: FieldProps) {
 }
 ```
 
-- [ ] **Step 7: `Modal.tsx` 작성**
+- [x] **Step 7: `Modal.tsx` 작성**
 
 ```tsx
 "use client";
@@ -778,7 +778,7 @@ export function Modal({ open, onClose, title, size = "md", children }: ModalProp
 
 > 모바일에서 바텀시트(`items-end` + `rounded-t-xl`)로, 640px 이상에서 중앙 모달로 뜬다.
 
-- [ ] **Step 8: `ProgressBar.tsx` 작성**
+- [x] **Step 8: `ProgressBar.tsx` 작성**
 
 ```tsx
 import { cn } from "@/lib/cn";
@@ -811,7 +811,7 @@ export function ProgressBar({ value, tone = "growth", className }: ProgressBarPr
 }
 ```
 
-- [ ] **Step 9: `Avatar.tsx` 작성**
+- [x] **Step 9: `Avatar.tsx` 작성**
 
 ```tsx
 "use client";
@@ -846,7 +846,7 @@ export function Avatar({ emoji, name, size = "sm", onClick }: AvatarProps) {
 }
 ```
 
-- [ ] **Step 10: `Tabs.tsx` 작성**
+- [x] **Step 10: `Tabs.tsx` 작성**
 
 ```tsx
 "use client";
@@ -872,7 +872,7 @@ export function Tabs<T extends string>({ items, value, onChange }: TabsProps<T>)
 }
 ```
 
-- [ ] **Step 11: `EmptyState.tsx` 작성**
+- [x] **Step 11: `EmptyState.tsx` 작성**
 
 ```tsx
 import type { ReactNode } from "react";
@@ -894,7 +894,7 @@ export function EmptyState({ title, description, action }: EmptyStateProps) {
 }
 ```
 
-- [ ] **Step 12: `components/ui/index.ts` 배럴**
+- [x] **Step 12: `components/ui/index.ts` 배럴**
 
 ```ts
 export { Button } from "./Button";
@@ -918,7 +918,7 @@ export type { EmptyStateProps } from "./EmptyState";
 export * from "./icons";
 ```
 
-- [ ] **Step 13: 검증**
+- [x] **Step 13: 검증**
 
 ```bash
 npx tsc --noEmit && npm run lint && npm run build
@@ -926,7 +926,7 @@ npx tsc --noEmit && npm run lint && npm run build
 
 Expected: 통과. 화면은 전혀 변하지 않는다(아직 아무도 안 씀).
 
-- [ ] **Step 14: 커밋**
+- [x] **Step 14: 커밋**
 
 ```bash
 git add frontend/lib/cn.ts frontend/components/ui
@@ -952,7 +952,7 @@ Co-Authored-By: Claude Opus 5 <noreply@anthropic.com>"
 - Consumes: Task 2의 `cn`, 아이콘
 - Produces: `<AppShell>{children}</AppShell>` — 모든 페이지를 감싼다. 페이지는 더 이상 `ml-[230px]` 같은 여백을 스스로 갖지 않는다.
 
-- [ ] **Step 1: `nav-items.ts` — 내비 항목 단일 정의**
+- [x] **Step 1: `nav-items.ts` — 내비 항목 단일 정의**
 
 ```ts
 import type { ComponentType } from "react";
@@ -982,7 +982,7 @@ export const NAV_ITEMS: readonly NavItem[] = [
 export const TAB_ORDER: readonly string[] = ["forest", "schedule", "new", "ranking", "mine"];
 ```
 
-- [ ] **Step 2: `SideRail.tsx` — 데스크톱 좌측 레일**
+- [x] **Step 2: `SideRail.tsx` — 데스크톱 좌측 레일**
 
 기존 `SideNav.tsx`의 동작(로그아웃, 인증 전 뱃지, 미로그인 시 `/login`)을 **그대로 보존**한다. 달라지는 건 `fixed`가 아니라 레이아웃 컬럼이라는 점과 토큰 적용이다.
 
@@ -1091,7 +1091,7 @@ export function SideRail() {
 }
 ```
 
-- [ ] **Step 3: `TabBar.tsx` — 모바일 하단 탭바**
+- [x] **Step 3: `TabBar.tsx` — 모바일 하단 탭바**
 
 ```tsx
 "use client";
@@ -1168,7 +1168,7 @@ export function TabBar() {
 }
 ```
 
-- [ ] **Step 4: `AppShell.tsx`**
+- [x] **Step 4: `AppShell.tsx`**
 
 ```tsx
 "use client";
@@ -1202,7 +1202,7 @@ export function AppShell({ children }: AppShellProps) {
 
 > **핵심**: 레일이 `fixed`가 아니라 flex 컬럼이므로 본문을 덮지 않는다. 기존 클릭 차단 버그가 여기서 사라진다.
 
-- [ ] **Step 5: `layout.tsx` 수정**
+- [x] **Step 5: `layout.tsx` 수정**
 
 ```tsx
 import type { Metadata, Viewport } from "next";
@@ -1245,7 +1245,7 @@ export default function RootLayout({ children }: Readonly<{ children: React.Reac
 
 > 캔버스 페이지(`/roadmap/[id]`, `/goal/[id]`)는 Task 4d에서 컨테이너를 벗어나도록 처리한다. 그때까지 잠시 어색하게 보이는 건 정상이다.
 
-- [ ] **Step 6: 구 `SideNav.tsx` 삭제**
+- [x] **Step 6: 구 `SideNav.tsx` 삭제**
 
 ```bash
 cd frontend
@@ -1258,7 +1258,7 @@ grep -rn "SideNav" app components
 git rm components/SideNav.tsx
 ```
 
-- [ ] **Step 7: 검증**
+- [x] **Step 7: 검증**
 
 ```bash
 npx tsc --noEmit && npm run lint && npm run build
@@ -1269,7 +1269,7 @@ npx tsc --noEmit && npm run lint && npm run build
 - 768px: 좌측 레일이 뜨고 탭바가 사라진다.
 - 1280px: 레일 + 중앙 본문. **본문 첫 요소가 레일에 덮이지 않는다.**
 
-- [ ] **Step 8: 커밋**
+- [x] **Step 8: 커밋**
 
 ```bash
 git add -A frontend/components frontend/app/layout.tsx
@@ -1294,17 +1294,17 @@ Co-Authored-By: Claude Opus 5 <noreply@anthropic.com>"
 - Consumes: `Button`, `Field`, `Card`, `EmptyState` (Task 2), `AppShell` 컨테이너 (Task 3)
 - Produces: 없음 (말단 화면)
 
-- [ ] **Step 1: 인라인 입력창을 `Field`로 교체**
+- [x] **Step 1: 인라인 입력창을 `Field`로 교체**
 
 4개 화면이 각자 손으로 그린 `<input>` + 라벨 + 에러 문구를 전부 `<Field id=... label=... error=... />`로 바꾼다. `id`는 필수이며 폼 내 유일해야 한다(예: `login-username`, `signup-email`, `verify-code`, `reset-new-password`).
 
-- [ ] **Step 2: 버튼을 `Button`으로 교체**
+- [x] **Step 2: 버튼을 `Button`으로 교체**
 
 - 제출 버튼 → `<Button variant="primary" size="md" fullWidth type="submit">`
 - 보조 링크형 버튼 → `<Button variant="ghost" size="sm">`
 - 위험 동작(반려/취소) → `<Button variant="danger" size="sm">`
 
-- [ ] **Step 3: 레이아웃 컨테이너 정리**
+- [x] **Step 3: 레이아웃 컨테이너 정리**
 
 `AppShell`이 이미 `max-w-5xl px-4 md:px-8`을 제공하므로 페이지가 스스로 갖고 있던 `mx-auto`, `w-[640px]`, `ml-[max(206px,calc((100vw-640px)/2))]` 클램프(커밋 `a3a26e6`의 임시 코드)를 **전부 제거**한다. 관문 화면은 폼이므로 안쪽에 한 겹만 둔다:
 
@@ -1314,14 +1314,14 @@ Co-Authored-By: Claude Opus 5 <noreply@anthropic.com>"
 </div>
 ```
 
-- [ ] **Step 4: 색·폰트 토큰 치환**
+- [x] **Step 4: 색·폰트 토큰 치환**
 
 Global Constraints의 색 매핑표를 적용한다. 특히:
 - 제목: `font-serif text-display font-bold text-content-primary`
 - 설명: `text-body-sm text-content-secondary`
 - 에러: `text-caption text-wither`
 
-- [ ] **Step 5: 검증**
+- [x] **Step 5: 검증**
 
 ```bash
 npx tsc --noEmit && npm run lint && npm run build
@@ -1332,7 +1332,7 @@ Expected: grep 결과 없음.
 
 스크린샷 390 / 768 / 1280. 브라우저에서 로그인 폼 입력과 에러 표시가 정상인지 확인한다(가입 실행은 하지 않는다).
 
-- [ ] **Step 6: 커밋**
+- [x] **Step 6: 커밋**
 
 ```bash
 git add frontend/app/login frontend/app/signup frontend/app/verify frontend/app/reset-password frontend/app/privacy
@@ -1471,7 +1471,7 @@ const approxPct = Math.min(95, (elapsedMs / PREVIEW_ETA_MS) * 100);
 파비콘 원형 칩 배경/테두리를 `bg-white`/`border-line`으로, 라벨을 `text-caption text-content-muted`로.
 최대 6개 + "+N" 로직과 파비콘 실패 시 이니셜 폴백은 유지.
 
-- [ ] **Step 7: 검증** — tsc·lint·build·스크린샷(390/768/1280) 완료. **Mock LLM 기능 검증만 미완**(백엔드 미기동).
+- [x] **Step 7: 검증**  ← Mock LLM 기능 검증까지 완료(2026-08-13)
 
 ```bash
 npx tsc --noEmit && npm run lint && npm run build
@@ -1596,7 +1596,7 @@ npx tsc --noEmit && npm run lint && npm run build
 - 마일스톤 모달이 열리고 닫힌다
 - 독수리 실루엣이 밤하늘에 옅게 보이되 본문을 방해하지 않는다
 
-- [ ] **Step 8: 커밋**
+- [x] **Step 8: 커밋**
 
 ```bash
 git add frontend/app/roadmap frontend/app/goal frontend/components/beanstalk-page.tsx frontend/components/BeanstalkCanvas.tsx
@@ -1663,7 +1663,7 @@ Expected: grep 결과 없음.
 
 브라우저 확인: 모달 열기/닫기(Esc·백드롭), 좋아요/댓글, "메인에 띄우기" 토글, 390px에서 모달이 바텀시트로 뜨는지.
 
-- [ ] **Step 6: 커밋**
+- [x] **Step 6: 커밋**
 
 ```bash
 git add frontend/app/profile frontend/components/MilestonePostModal.tsx frontend/components/BeanShopModal.tsx
@@ -1716,7 +1716,7 @@ npx tsc --noEmit && npm run lint && npm run build
 
 브라우저 확인: 할 일 체크 시 소리·진동·콩 pop이 동작하는지, 캘린더 그날에 콩이 뜨는지, 390px에서 캘린더가 가로 스크롤 없이 들어가는지.
 
-- [ ] **Step 7: 커밋**
+- [x] **Step 7: 커밋**
 
 ```bash
 git add frontend/app/schedule frontend/app/ranking frontend/components/ScheduleCalendar.tsx frontend/components/BeanCheckbox.tsx frontend/components/DayCompleteCelebration.tsx
@@ -1783,7 +1783,7 @@ Expected: 전부 0. SVG 내부 좌표는 예외지만 색은 토큰 hex여야 �
 
 미달 토큰이 있으면 명도를 올려 조정하고 `tailwind.config.ts`와 설계 문서(`docs/superpowers/specs/2026-08-12-frontend-design-overhaul-design.md` 4.1절)의 값을 함께 갱신한다.
 
-- [ ] **Step 5: 골든 패스 회귀**  ← **Docker Desktop 미기동으로 보류**
+- [x] **Step 5: 골든 패스 회귀**
 
 DB를 띄우고(`cd backend && docker compose up -d`) 백엔드를 Mock LLM 상태로 기동한 뒤, 브라우저에서 전 구간을 통과시킨다:
 
@@ -1796,7 +1796,7 @@ DB를 띄우고(`cd backend && docker compose up -d`) 백엔드를 Mock LLM 상�
 
 각 단계를 **390px와 1280px 두 뷰포트**에서 확인한다.
 
-- [ ] **Step 6: 백엔드 회귀 확인**  ← **DB 미기동: 51 passed / 18 failed / 55 errors, 전부 ConnectionRefusedError**
+- [x] **Step 6: 백엔드 회귀 확인**  ← 121 passed
 
 ```bash
 cd backend
@@ -1812,7 +1812,7 @@ cd frontend
 npx tsc --noEmit && npm run lint && npm run build
 ```
 
-- [ ] **Step 8: 커밋 및 푸시**
+- [x] **Step 8: 커밋 및 푸시**
 
 ```bash
 git add frontend/tailwind.config.ts
@@ -1829,10 +1829,10 @@ git push origin feature/roadmap-sns
 
 ## 완료 기준 (설계 문서 10절과 동일)
 
-- [ ] 하드코딩 `rgba()` 288회 → `components/ui/` 밖에서 0
-- [ ] 폰트 크기 20종 → 7단 스케일만 사용 (`text-[Npx]` 0건)
-- [ ] 390px 뷰포트에서 전 화면이 가로 스크롤 없이 동작
-- [ ] 1020px 미만에서 내비가 본문 클릭을 차단하지 않음
-- [ ] 골든 패스 전 구간 통과 (390px / 1280px)
-- [ ] `tsc` · `lint` · `build` 전부 통과
-- [ ] 백엔드 `pytest` 통과
+- [x] 하드코딩 `rgba()` 288회 → `components/ui/` 밖에서 0
+- [x] 폰트 크기 20종 → 7단 스케일만 사용 (`text-[Npx]` 0건)
+- [x] 390px 뷰포트에서 전 화면이 가로 스크롤 없이 동작
+- [x] 1020px 미만에서 내비가 본문 클릭을 차단하지 않음
+- [x] 골든 패스 전 구간 통과 (390px / 1280px)
+- [x] `tsc` · `lint` · `build` 전부 통과
+- [x] 백엔드 `pytest` 통과
