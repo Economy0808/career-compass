@@ -135,7 +135,7 @@ export default function GoalDetailPage({ params }: { params: { id: string } }) {
             <div className="relative mb-3.5 text-caption font-semibold tracking-[.22em] text-goal-bright">
               대목표
             </div>
-            <div className="relative font-serif text-display font-bold leading-[1.45] text-content-primary [text-shadow:0_2px_24px_rgba(10,30,50,.8)]">
+            <div className="relative font-serif text-display font-bold leading-[1.45] text-content-primary [text-shadow:0_2px_24px_rgb(10_30_50_/_.8)]">
               {goal.title}
             </div>
             <div className="relative mt-3.5 text-body-sm text-content-secondary">{goalSub}</div>

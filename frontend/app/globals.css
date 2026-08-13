@@ -44,7 +44,8 @@ a:hover {
   width: 10px;
 }
 ::-webkit-scrollbar-thumb {
-  background: rgba(140, 180, 220, 0.22);
+  /* line-strong 토큰과 같은 색. CSS 의사 요소라 Tailwind 클래스를 못 쓴다. */
+  background: rgb(140 180 220 / 0.22);
   border-radius: 6px;
 }
 ::-webkit-scrollbar-track {

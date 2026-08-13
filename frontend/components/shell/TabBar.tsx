@@ -32,7 +32,7 @@ export function TabBar() {
               type="button"
               aria-label={item.shortLabel}
               onClick={() => router.push(target)}
-              className="-mt-4 flex h-12 w-12 items-center justify-center rounded-full bg-[linear-gradient(160deg,#3F8F47,#2F6FBF)] text-white shadow-[0_5px_18px_rgba(47,111,191,.45)]"
+              className="-mt-4 flex h-12 w-12 items-center justify-center rounded-full bg-[linear-gradient(160deg,#3F8F47,#2F6FBF)] text-white shadow-fab"
             >
               <item.Icon size={22} />
             </button>

@@ -207,7 +207,8 @@ export default function RoadmapDetailPage({ params }: { params: { id: string } }
               <div
                 className="pointer-events-none absolute -top-16 left-1/2 h-[360px] w-full max-w-[560px] -translate-x-1/2 rounded-full"
                 style={{
-                  background: "radial-gradient(closest-side, rgba(226,185,79,.3), rgba(226,185,79,0))",
+                  background:
+                    "radial-gradient(closest-side, rgb(226 185 79 / .3), rgb(226 185 79 / 0))",
                   animation: "glowPulse 3.6s ease-in-out infinite",
                 }}
               />
@@ -215,7 +216,7 @@ export default function RoadmapDetailPage({ params }: { params: { id: string } }
             <div className="relative mb-3.5 text-caption font-semibold tracking-[.22em] text-goal-bright">
               최종 목표
             </div>
-            <div className="relative font-serif text-display font-bold leading-[1.45] text-content-primary [text-shadow:0_2px_24px_rgba(10,30,50,.8)]">
+            <div className="relative font-serif text-display font-bold leading-[1.45] text-content-primary [text-shadow:0_2px_24px_rgb(10_30_50_/_.8)]">
               {roadmap.goal_raw_text}
             </div>
             <div className="relative mt-3.5 text-body-sm text-content-secondary">{goalSub}</div>

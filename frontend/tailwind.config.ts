@@ -26,35 +26,13 @@ const config: Config = {
         // growth = where the user is now; goal = where they are heading
         growth: { DEFAULT: "#5DB35B", bright: "#8FDC8A", dim: "#2C5B36" },
         goal: { DEFAULT: "#2F6FBF", bright: "#7CC4F0", dim: "#173A5E" },
-        bloom: {
-          DEFAULT: "#E2B94F",
-          // Legacy shades stay until Task 5 removes their last usage.
-          100: "#f5f7ea", 200: "#efe8bd", 300: "#f0e8b4", 500: "#e2b94f",
-        },
-        wither: {
-          DEFAULT: "#D8B078",
-          dim: "#5A4527",
-          // Legacy shades stay until Task 5 removes their last usage.
-          300: "#d8b078", 500: "#8a6a3a", 600: "#7a5c33", 700: "#6e5430",
-          800: "#5a4527",
-        },
+        bloom: { DEFAULT: "#E2B94F", bright: "#EFE8BD" },
+        wither: { DEFAULT: "#D8B078", dim: "#5A4527" },
         // --- Line: replaces 91 hand-written rgba borders ---
         line: {
           DEFAULT: "rgba(140,180,220,.17)",
           strong: "rgba(140,180,220,.34)",
         },
-        // Legacy palettes stay until Task 5 removes their last usage.
-        bean: {
-          950: "#050e07", 900: "#06120a", 850: "#081a0e", 800: "#0e2013",
-          750: "#132a18", 700: "#173420", 650: "#1c3a24", 600: "#2c5b36",
-          550: "#2a6134", 500: "#3f8f47", 400: "#5db35b", 300: "#6abf63",
-          200: "#8fdc8a", 100: "#b9eab2",
-        },
-        moss: {
-          50: "#f2f7ee", 100: "#eaf5e6", 300: "#c8ecc2", 400: "#a9c3aa",
-          500: "#8aa78d", 600: "#7fae83", 700: "#6f8f74",
-        },
-        night: { 300: "#9db8c9", 700: "#152a3d", 800: "#233a52" },
       },
       fontSize: {
         display: ["1.875rem", { lineHeight: "1.3" }],      // 30px
@@ -73,6 +51,7 @@ const config: Config = {
         glow: "0 0 34px rgb(63 143 71 / .28)",
         "glow-strong": "0 0 44px rgb(63 143 71 / .45)",
         "glow-bloom": "0 0 44px rgb(226 185 79 / .4)",
+        fab: "0 5px 18px rgb(47 111 191 / .45)",
         panel: "0 8px 26px rgb(0 0 0 / .38)",
         overlay: "0 14px 40px rgb(0 0 0 / .55)",
       },

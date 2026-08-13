@@ -1739,7 +1739,7 @@ Co-Authored-By: Claude Opus 5 <noreply@anthropic.com>"
 - Consumes: Task 4a~4f 완료
 - Produces: 완료 기준 충족
 
-- [ ] **Step 1: 레거시 팔레트 잔존 사용처 확인**
+- [x] **Step 1: 레거시 팔레트 잔존 사용처 확인**
 
 ```bash
 cd frontend
@@ -1748,11 +1748,11 @@ grep -rnE '(text|bg|border|from|to)-(bean|moss|night)-[0-9]' app components
 
 Expected: 결과 없음. 남아 있으면 색 매핑표에 따라 치환한다.
 
-- [ ] **Step 2: `tailwind.config.ts`에서 레거시 블록 삭제**
+- [x] **Step 2: `tailwind.config.ts`에서 레거시 블록 삭제**
 
 Task 1에서 `// Legacy palettes stay until Task 5 removes their last usage.` 주석을 단 `bean`/`moss`/`night` 세 블록을 지운다.
 
-- [ ] **Step 3: 금지 패턴 전수 검사**
+- [x] **Step 3: 금지 패턴 전수 검사**
 
 ```bash
 cd frontend
@@ -1768,7 +1768,7 @@ grep -rnE 'ml-\[[0-9]|w-\[640px\]|left-\[22px\]' app components | wc -l
 
 Expected: 전부 0. SVG 내부 좌표는 예외지만 색은 토큰 hex여야 한다.
 
-- [ ] **Step 4: WCAG AA 대비비 검사**
+- [x] **Step 4: WCAG AA 대비비 검사**
 
 목표는 본문 4.5:1, 큰 글자 3:1.
 
@@ -1783,7 +1783,7 @@ Expected: 전부 0. SVG 내부 좌표는 예외지만 색은 토큰 hex여야 �
 
 미달 토큰이 있으면 명도를 올려 조정하고 `tailwind.config.ts`와 설계 문서(`docs/superpowers/specs/2026-08-12-frontend-design-overhaul-design.md` 4.1절)의 값을 함께 갱신한다.
 
-- [ ] **Step 5: 골든 패스 회귀**
+- [ ] **Step 5: 골든 패스 회귀**  ← **Docker Desktop 미기동으로 보류**
 
 DB를 띄우고(`cd backend && docker compose up -d`) 백엔드를 Mock LLM 상태로 기동한 뒤, 브라우저에서 전 구간을 통과시킨다:
 
@@ -1796,7 +1796,7 @@ DB를 띄우고(`cd backend && docker compose up -d`) 백엔드를 Mock LLM 상�
 
 각 단계를 **390px와 1280px 두 뷰포트**에서 확인한다.
 
-- [ ] **Step 6: 백엔드 회귀 확인**
+- [ ] **Step 6: 백엔드 회귀 확인**  ← **DB 미기동: 51 passed / 18 failed / 55 errors, 전부 ConnectionRefusedError**
 
 ```bash
 cd backend
@@ -1805,7 +1805,7 @@ pytest -q
 
 Expected: 기존과 동일하게 통과(프론트 전용 작업이므로 영향 없음). 실패하면 이번 작업과 무관한 원인이므로 별도 조사한다.
 
-- [ ] **Step 7: 최종 빌드**
+- [x] **Step 7: 최종 빌드**
 
 ```bash
 cd frontend
