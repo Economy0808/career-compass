@@ -1427,28 +1427,28 @@ Co-Authored-By: Claude Opus 5 <noreply@anthropic.com>"
 - Consumes: `Chip`, `Button`, `Card`, `Field`, `ProgressBar`
 - Produces: 없음
 
-- [ ] **Step 1: 대화 말풍선 반응형·토큰화**
+- [x] **Step 1: 대화 말풍선 반응형·토큰화**
 
 말풍선 최대폭을 고정값에서 `max-w-[85%] sm:max-w-[72%]`로 바꾸고 색을 나눈다:
 - AI: `bg-surface-raised border border-line text-content-primary`
 - 사용자: `bg-goal/18 border border-line-strong text-content-primary`
 - 폰트: `text-body`
 
-- [ ] **Step 2: `FieldChips`를 `Chip`으로 교체**
+- [x] **Step 2: `FieldChips`를 `Chip`으로 교체**
 
 기존 타원형 칩 구현을 `<Chip interactive selected={...} onClick={...}>`으로 바꾼다.
 `data-testid="field-chips"` 컨테이너 속성은 **유지**한다(브라우저 검증에 쓰인다).
 최대 3개 선택 제한(`MAX_FIELD_SELECTION`)과 "기타 19개 +" 펼침 로직은 그대로 둔다.
 
-- [ ] **Step 3: 입력창을 `Field`로, 전송 버튼을 `Button`으로**
+- [x] **Step 3: 입력창을 `Field`로, 전송 버튼을 `Button`으로**
 
 입력 영역을 `sticky bottom-0`으로 두되, `AppShell`이 이미 탭바 높이만큼 하단 패딩을 주므로 추가 여백은 넣지 않는다.
 
-- [ ] **Step 4: 프리뷰 패널 반응형**
+- [x] **Step 4: 프리뷰 패널 반응형**
 
 프리뷰 마일스톤 목록에 `min-w-0`와 `break-words`를 적용해 좁은 화면에서 넘치지 않게 한다. `details` 토글 구조는 유지.
 
-- [ ] **Step 5: 진행 상태 표시**
+- [x] **Step 5: 진행 상태 표시**
 
 폴링 중 표시("접수 → 웹 검색 중")를 `ProgressBar` + 상태 문구로 정리한다. 실제 진행률을 백엔드가 주지 않으므로 **경과 시간을 실측 완주 시간(약 6분)으로 나눈 근사치**를 쓰고, 95%에서 멈춰 완료 전에 100%로 보이지 않게 한다.
 
@@ -1466,12 +1466,12 @@ const approxPct = Math.min(95, (elapsedMs / PREVIEW_ETA_MS) * 100);
 `statusLabel`은 기존 `onStatus` 콜백이 주는 값을 그대로 쓴다.
 **폴링 로직(2.5초 간격, 240회 = 10분 예산, `AbortSignal`, 페이지 이탈 시 중단)은 절대 건드리지 않는다.**
 
-- [ ] **Step 6: `SourceBadges` 토큰화**
+- [x] **Step 6: `SourceBadges` 토큰화**
 
 파비콘 원형 칩 배경/테두리를 `bg-white`/`border-line`으로, 라벨을 `text-caption text-content-muted`로.
 최대 6개 + "+N" 로직과 파비콘 실패 시 이니셜 폴백은 유지.
 
-- [ ] **Step 7: 검증**
+- [ ] **Step 7: 검증** — tsc·lint·build·스크린샷(390/768/1280) 완료. **Mock LLM 기능 검증만 미완**(백엔드 미기동).
 
 ```bash
 npx tsc --noEmit && npm run lint && npm run build
@@ -1481,7 +1481,7 @@ npx tsc --noEmit && npm run lint && npm run build
 
 스크린샷 390 / 768 / 1280.
 
-- [ ] **Step 8: 커밋**
+- [x] **Step 8: 커밋**
 
 ```bash
 git add frontend/app/new frontend/components/FieldChips.tsx frontend/components/SourceBadges.tsx

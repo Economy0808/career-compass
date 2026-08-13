@@ -1,6 +1,7 @@
 "use client";
 
 import { useEffect, useState } from "react";
+import { Card, Chip } from "@/components/ui";
 import { getNcsCategories } from "@/lib/api";
 import { MAX_FIELD_SELECTION, type NcsCategory } from "@/lib/types";
 
@@ -50,15 +51,12 @@ export default function FieldChips({
   }
 
   return (
-    <div
-      data-testid="field-chips"
-      className="mb-3.5 rounded-2xl border border-[rgba(143,220,138,.14)] bg-[rgba(10,26,15,.85)] px-[17px] py-[15px]"
-    >
-      <div className="mb-3 flex items-baseline justify-between gap-3">
-        <span className="text-[13px] font-semibold text-[#dcead8]">
+    <Card data-testid="field-chips" className="mb-3.5">
+      <div className="mb-3 flex flex-wrap items-baseline justify-between gap-x-3 gap-y-1">
+        <span className="text-body-sm font-semibold text-content-primary">
           어떤 밭에 심을까요?
         </span>
-        <span className="shrink-0 text-[11.5px] text-moss-600">
+        <span className="text-caption text-content-muted">
           최대 {MAX_FIELD_SELECTION}개 · 선택 안 해도 괜찮아요
         </span>
       </div>
@@ -69,34 +67,27 @@ export default function FieldChips({
           // 상한에 걸린 미선택 칩은 흐리게 — 왜 안 눌리는지 보이게 한다
           const muted = !on && atLimit;
           return (
-            <button
+            <Chip
               key={c.code}
-              type="button"
-              onClick={() => toggle(c.code)}
+              interactive
+              selected={on}
               disabled={disabled || muted}
-              aria-pressed={on}
-              className={`rounded-full border px-3.5 py-[7px] text-[12.5px] transition-all duration-150 ${
-                on
-                  ? "border-bean-400 bg-bean-500 font-semibold text-[#f0f7ec] shadow-[0_2px_12px_rgba(63,143,71,.3)]"
-                  : "border-[rgba(143,220,138,.22)] bg-[rgba(255,255,255,.04)] text-moss-300 hover:border-[rgba(143,220,138,.45)] hover:bg-[rgba(143,220,138,.1)]"
-              } ${muted ? "cursor-not-allowed opacity-35" : ""} ${
-                disabled ? "cursor-not-allowed opacity-50" : ""
-              }`}
+              onClick={() => toggle(c.code)}
             >
               {c.name}
-            </button>
+            </Chip>
           );
         })}
 
         {!expanded && rest.length > 0 && (
-          <button
-            type="button"
-            onClick={() => setExpanded(true)}
+          <Chip
+            interactive
             disabled={disabled}
-            className="rounded-full border border-dashed border-[rgba(143,220,138,.3)] px-3.5 py-[7px] text-[12.5px] text-moss-500 transition-colors hover:border-[rgba(143,220,138,.5)] hover:text-moss-300 disabled:cursor-not-allowed disabled:opacity-50"
+            onClick={() => setExpanded(true)}
+            className="border-dashed"
           >
             기타 {rest.length}개 +
-          </button>
+          </Chip>
         )}
       </div>
 
@@ -104,11 +95,11 @@ export default function FieldChips({
         <button
           type="button"
           onClick={() => setExpanded(false)}
-          className="mt-2.5 text-[11.5px] text-moss-600 hover:text-moss-400"
+          className="mt-2.5 text-caption text-content-muted hover:text-content-secondary"
         >
           접기
         </button>
       )}
-    </div>
+    </Card>
   );
 }

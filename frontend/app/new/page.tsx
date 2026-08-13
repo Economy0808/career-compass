@@ -4,11 +4,18 @@ import { useRouter } from "next/navigation";
 import { useCallback, useEffect, useRef, useState } from "react";
 import FieldChips from "@/components/FieldChips";
 import SourceBadges from "@/components/SourceBadges";
+import { Button, Card, Chip, Field, ProgressBar, TargetIcon } from "@/components/ui";
 import { ApiError, generatePreview, postChat, postPlant } from "@/lib/api";
 import { useAuth } from "@/lib/auth-context";
+import { cn } from "@/lib/cn";
 import type { ChatMessageIn, ChatRole, RoadmapPreviewOut } from "@/lib/types";
 
 const TYPING_DELAY_MS = 550;
+
+// The backend reports a status string, not a percentage. Approximate from
+// elapsed time against the ~6 min observed end-to-end web-search run, and
+// cap below 100 so the bar never claims completion before the job returns.
+const PREVIEW_ETA_MS = 6 * 60 * 1000;
 
 const GREETING =
   "안녕하세요, 씨앗을 심으러 오셨군요.\n이루고 싶은 목표를 편하게 적어주세요. 콩나무가 자랄 길(마일스톤)을 그려드릴게요.";
@@ -18,11 +25,10 @@ function Bubble({ role, content }: { role: ChatRole; content: string }) {
   return (
     <div className={`mb-3.5 flex ${isUser ? "justify-end" : "justify-start"}`}>
       <div
-        className="max-w-[82%] whitespace-pre-line rounded-2xl border px-[17px] py-[13px] text-[13.5px] leading-[1.65] text-[#dcead8]"
-        style={{
-          background: isUser ? "rgba(63,143,71,.25)" : "rgba(10,26,15,.85)",
-          borderColor: isUser ? "rgba(93,179,91,.35)" : "rgba(143,220,138,.14)",
-        }}
+        className={cn(
+          "max-w-[85%] whitespace-pre-line rounded-lg border px-4 py-3 text-body text-content-primary sm:max-w-[72%]",
+          isUser ? "border-line-strong bg-goal/18" : "border-line bg-surface-raised"
+        )}
       >
         {content}
       </div>
@@ -32,11 +38,11 @@ function Bubble({ role, content }: { role: ChatRole; content: string }) {
 
 function RootingIndicator({ label }: { label: string }) {
   return (
-    <div className="mb-3.5 mt-1 flex items-center gap-1.5 text-[12.5px] text-moss-600">
+    <div className="mb-3.5 mt-1 flex items-center gap-1.5 text-caption text-content-muted">
       {[0, 1, 2].map((i) => (
         <span
           key={i}
-          className="h-[7px] w-[7px] rounded-full bg-bean-400"
+          className="h-[7px] w-[7px] rounded-full bg-growth"
           style={{ animation: `blink 1.2s ${i * 0.2}s infinite` }}
         />
       ))}
@@ -53,51 +59,47 @@ function formatDue(iso: string): string {
 function RoadmapPreviewPanel({ preview }: { preview: RoadmapPreviewOut }) {
   const many = preview.roadmaps.length > 1;
   return (
-    <div className="mb-3.5 rounded-2xl border border-[rgba(143,220,138,.2)] bg-[rgba(10,26,15,.9)] p-5">
-      <div className="mb-3 flex flex-wrap items-center gap-2 text-[12px]">
-        <span className="rounded-full border border-[rgba(226,192,110,.4)] bg-[rgba(226,192,110,.12)] px-2.5 py-0.5 font-semibold text-[#e2c06e]">
-          🎯 대목표 · {preview.career_goal.title}
-        </span>
-        <span className="text-moss-600">
-          {preview.career_goal.is_new
-            ? "새 대목표로 만들어요"
-            : "기존 대목표 아래에 심어요"}
+    <Card className="mb-3.5 p-5">
+      <div className="mb-3 flex flex-wrap items-center gap-2">
+        <Chip tone="bloom" selected>
+          <TargetIcon size={14} />
+          대목표 · {preview.career_goal.title}
+        </Chip>
+        <span className="text-caption text-content-muted">
+          {preview.career_goal.is_new ? "새 대목표로 만들어요" : "기존 대목표 아래에 심어요"}
         </span>
         {many && (
-          <span className="text-moss-500">
-            🌱 {preview.roadmaps.length}그루의 콩나무를 함께 심어요
+          <span className="text-caption text-content-secondary">
+            {preview.roadmaps.length}그루의 콩나무를 함께 심어요
           </span>
         )}
       </div>
       <div className="flex flex-col gap-5">
         {preview.roadmaps.map((roadmap, ri) => (
-          <div key={ri}>
-            <h2 className="mb-2 font-serif text-[18px] font-bold leading-snug text-moss-100">
+          <div key={ri} className="min-w-0">
+            <h2 className="mb-2 font-serif text-heading font-bold text-content-primary">
               {many ? `${ri + 1}. ` : ""}
               {roadmap.title}
             </h2>
             <ol className="flex flex-col gap-2.5">
               {roadmap.milestones.map((m, i) => (
-                <li
-                  key={i}
-                  className="rounded-xl border border-[rgba(143,220,138,.12)] bg-[rgba(255,255,255,.03)] px-3.5 py-3"
-                >
+                <li key={i} className="min-w-0 rounded-md border border-line bg-white/6 px-3.5 py-3">
                   <div className="flex items-baseline justify-between gap-3">
-                    <span className="text-[13.5px] font-semibold text-[#dcead8]">
+                    <span className="min-w-0 break-words text-body-sm font-semibold text-content-primary">
                       {i + 1}. {m.title}
                     </span>
-                    <span className="shrink-0 text-[11.5px] text-moss-600">
+                    <span className="shrink-0 text-caption text-content-muted">
                       ~{formatDue(m.due_date)}
                     </span>
                   </div>
-                  <p className="mt-1 text-[12.5px] leading-relaxed text-moss-400">
+                  <p className="mt-1 break-words text-caption text-content-secondary">
                     {m.description}
                   </p>
                   <details className="mt-1.5">
-                    <summary className="cursor-pointer select-none text-[11.5px] text-bean-300 hover:text-bean-100">
+                    <summary className="cursor-pointer select-none text-caption text-goal-bright">
                       자세한 가이드 보기
                     </summary>
-                    <p className="mt-1.5 whitespace-pre-line text-[12.5px] leading-relaxed text-moss-300">
+                    <p className="mt-1.5 whitespace-pre-line break-words text-caption leading-relaxed text-content-secondary">
                       {m.detail}
                     </p>
                   </details>
@@ -107,10 +109,10 @@ function RoadmapPreviewPanel({ preview }: { preview: RoadmapPreviewOut }) {
           </div>
         ))}
       </div>
-      <p className="mt-4 text-[12px] text-moss-600">
+      <p className="mt-4 text-caption text-content-muted">
         마음에 들면 아래 버튼으로 씨앗을 심어주세요. 심은 뒤에도 각 마일스톤의 가이드는 언제든 볼 수 있어요.
       </p>
-    </div>
+    </Card>
   );
 }
 
@@ -128,6 +130,7 @@ export default function NewRoadmapPage() {
   const [previewing, setPreviewing] = useState(false);
   const [previewPhase, setPreviewPhase] = useState<"pending" | "running" | null>(null);
   const [previewFailed, setPreviewFailed] = useState(false);
+  const [previewElapsedMs, setPreviewElapsedMs] = useState(0);
   const [planting, setPlanting] = useState(false);
   const [error, setError] = useState<string | null>(null);
 
@@ -147,6 +150,17 @@ export default function NewRoadmapPage() {
   useEffect(() => {
     bottomRef.current?.scrollIntoView({ behavior: "smooth" });
   }, [messages, typing, done, previewing, preview, planting]);
+
+  // 진행률 표시용 경과 시간 — 폴링 자체와는 무관한 화면 전용 타이머다.
+  useEffect(() => {
+    if (!previewing) {
+      setPreviewElapsedMs(0);
+      return;
+    }
+    const startedAt = Date.now();
+    const id = setInterval(() => setPreviewElapsedMs(Date.now() - startedAt), 1000);
+    return () => clearInterval(id);
+  }, [previewing]);
 
   const runPreview = useCallback(async () => {
     setPreviewing(true);
@@ -225,105 +239,99 @@ export default function NewRoadmapPage() {
   }
 
   const started = goalRawText !== "";
+  const previewStatusLabel =
+    previewPhase === "running"
+      ? "웹을 검색하며 로드맵 초안을 그리는 중… (몇 분 걸릴 수 있어요)"
+      : "지금까지 들은 이야기로 로드맵 초안을 준비하는 중… (몇 분 걸릴 수 있어요)";
+  const previewApproxPct = Math.min(95, (previewElapsedMs / PREVIEW_ETA_MS) * 100);
 
   if (authLoading || !me?.yonsei_verified) {
     return (
-      <div className="flex h-screen items-center justify-center bg-[linear-gradient(180deg,#0a1f11,#06120a_55%)]">
-        <p className="animate-pulse text-sm text-moss-600">확인 중…</p>
+      <div className="flex min-h-full items-center justify-center">
+        <p className="animate-pulse text-body-sm text-content-muted">확인 중…</p>
       </div>
     );
   }
 
   return (
-    <div className="min-h-screen bg-[linear-gradient(180deg,#0a1f11,#06120a_55%)]">
-      {/* SideNav(fixed, 좌 22~190px)를 비켜서 정렬: 넓은 화면은 중앙, 좁은 화면은
-          내비 오른쪽으로 밀되 폭을 함께 줄여 가로 오버플로를 막는다. */}
-      <div className="ml-[max(206px,calc((100vw-640px)/2))] mr-auto flex min-h-screen w-[640px] max-w-[calc(100vw-226px)] flex-col pt-[88px]">
-        <h1 className="font-serif text-[30px] font-bold text-moss-100">새 씨앗 심기</h1>
-        <p className="mb-7 mt-[7px] text-[13px] text-moss-600">
-          목표를 말해주면 AI가 콩나무가 자랄 길을 그려드려요
-        </p>
+    <div className="mx-auto flex min-h-full w-full max-w-2xl flex-col">
+      <h1 className="font-serif text-display font-bold text-content-primary">새 씨앗 심기</h1>
+      <p className="mb-7 mt-[7px] text-body-sm text-content-secondary">
+        목표를 말해주면 AI가 콩나무가 자랄 길을 그려드려요
+      </p>
 
-        <Bubble role="assistant" content={GREETING} />
-        {/* 분야는 초안을 그리기 전까지 언제든 바꿀 수 있다 — 초안이 나오면 감춘다. */}
-        {!preview && !previewing && (
-          <FieldChips
-            selected={fieldCodes}
-            onChange={setFieldCodes}
-            disabled={planting}
-          />
-        )}
-        {started && <Bubble role="user" content={goalRawText} />}
-        {messages.map((m, i) => (
-          <Bubble key={i} role={m.role} content={m.content} />
-        ))}
-        {typing && <RootingIndicator label="뿌리를 내리는 중…" />}
-        {previewing && (
-          <RootingIndicator
-            label={
-              previewPhase === "running"
-                ? "웹을 검색하며 로드맵 초안을 그리는 중… (몇 분 걸릴 수 있어요)"
-                : "지금까지 들은 이야기로 로드맵 초안을 준비하는 중… (몇 분 걸릴 수 있어요)"
-            }
-          />
-        )}
-        {planting && <RootingIndicator label="씨앗을 심는 중…" />}
-        {preview && <Bubble role="assistant" content={preview.briefing} />}
-        {preview && <SourceBadges urls={preview.source_urls} />}
-        {preview && <RoadmapPreviewPanel preview={preview} />}
-        {error && <p className="mb-3 text-[12.5px] text-wither-300">{error}</p>}
-        <div ref={bottomRef} />
-
-        <div className="sticky bottom-0 mt-auto bg-[linear-gradient(transparent,#06120a_45%)] pb-7 pt-4">
-          {preview && !previewing && (
-            <button
-              type="button"
-              onClick={plant}
-              disabled={planting}
-              className="mb-2.5 w-full rounded-xl border border-bean-400 bg-bean-500 p-3.5 text-sm font-bold text-[#f0f7ec] shadow-[0_6px_24px_rgba(63,143,71,.35)] transition-colors hover:bg-[#4aa353] disabled:opacity-60"
-            >
-              {planting
-                ? "심는 중…"
-                : preview.roadmaps.length > 1
-                  ? `${preview.roadmaps.length}그루 함께 심기`
-                  : "이 로드맵으로 씨앗 심기"}
-            </button>
-          )}
-          {previewFailed && !previewing && (
-            <button
-              type="button"
-              onClick={() => void runPreview()}
-              className="mb-2.5 w-full rounded-xl border border-[rgba(143,220,138,.28)] bg-[rgba(143,220,138,.13)] p-3.5 text-sm font-semibold text-bean-100 transition-colors hover:bg-[rgba(143,220,138,.25)]"
-            >
-              로드맵 다시 그리기
-            </button>
-          )}
-          <form
-            className="flex gap-2"
-            onSubmit={(e) => {
-              e.preventDefault();
-              void send();
-            }}
-          >
-            <input
-              autoFocus
-              value={input}
-              onChange={(e) => setInput(e.target.value)}
-              placeholder={
-                started ? "답변을 입력해주세요" : "예: 3학년 여름에 데이터 분석 인턴 하고 싶어"
-              }
-              disabled={done || planting}
-              className="flex-1 rounded-xl border border-[rgba(143,220,138,.22)] bg-[rgba(255,255,255,.05)] px-4 py-3 text-[13.5px] text-moss-100 outline-none placeholder:text-moss-700 focus:border-[rgba(143,220,138,.45)] disabled:opacity-50"
-            />
-            <button
-              type="submit"
-              disabled={!input.trim() || typing || done || planting}
-              className="rounded-xl border border-[rgba(143,220,138,.28)] bg-[rgba(143,220,138,.13)] px-5 py-3 text-[13px] font-semibold text-bean-100 transition-colors hover:bg-[rgba(143,220,138,.25)] disabled:opacity-50"
-            >
-              보내기
-            </button>
-          </form>
+      <Bubble role="assistant" content={GREETING} />
+      {/* 분야는 초안을 그리기 전까지 언제든 바꿀 수 있다 — 초안이 나오면 감춘다. */}
+      {!preview && !previewing && (
+        <FieldChips selected={fieldCodes} onChange={setFieldCodes} disabled={planting} />
+      )}
+      {started && <Bubble role="user" content={goalRawText} />}
+      {messages.map((m, i) => (
+        <Bubble key={i} role={m.role} content={m.content} />
+      ))}
+      {typing && <RootingIndicator label="뿌리를 내리는 중…" />}
+      {previewing && (
+        <div className="mb-3.5">
+          <ProgressBar tone="altitude" value={previewApproxPct} />
+          <p className="mt-2 text-caption text-content-muted">{previewStatusLabel}</p>
         </div>
+      )}
+      {planting && <RootingIndicator label="씨앗을 심는 중…" />}
+      {preview && <Bubble role="assistant" content={preview.briefing} />}
+      {preview && <SourceBadges urls={preview.source_urls} />}
+      {preview && <RoadmapPreviewPanel preview={preview} />}
+      {error && <p className="mb-3 text-body-sm text-wither">{error}</p>}
+      <div ref={bottomRef} />
+
+      <div className="sticky bottom-[calc(var(--tabbar-h)+var(--safe-bottom))] mt-auto bg-earth-base/95 pt-4 backdrop-blur-sm md:bottom-0">
+        {preview && !previewing && (
+          <Button
+            variant="primary"
+            fullWidth
+            onClick={plant}
+            disabled={planting}
+            className="mb-2.5"
+          >
+            {planting
+              ? "심는 중…"
+              : preview.roadmaps.length > 1
+                ? `${preview.roadmaps.length}그루 함께 심기`
+                : "이 로드맵으로 씨앗 심기"}
+          </Button>
+        )}
+        {previewFailed && !previewing && (
+          <Button
+            variant="secondary"
+            fullWidth
+            onClick={() => void runPreview()}
+            className="mb-2.5"
+          >
+            로드맵 다시 그리기
+          </Button>
+        )}
+        <form
+          className="flex items-end gap-2 pb-4"
+          onSubmit={(e) => {
+            e.preventDefault();
+            void send();
+          }}
+        >
+          <Field
+            id="new-chat-input"
+            label={started ? "답변" : "이루고 싶은 목표"}
+            className="flex-1"
+            autoFocus
+            value={input}
+            onChange={(e) => setInput(e.target.value)}
+            placeholder={
+              started ? "답변을 입력해주세요" : "예: 3학년 여름에 데이터 분석 인턴 하고 싶어"
+            }
+            disabled={done || planting}
+          />
+          <Button type="submit" disabled={!input.trim() || typing || done || planting}>
+            보내기
+          </Button>
+        </form>
       </div>
     </div>
   );

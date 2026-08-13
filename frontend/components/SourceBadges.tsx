@@ -21,10 +21,10 @@ function SourceChip({ url }: { url: string }) {
       target="_blank"
       rel="noopener noreferrer"
       title={host}
-      className="block h-7 w-7 shrink-0 overflow-hidden rounded-full ring-1 ring-[rgba(143,220,138,.2)] transition-transform hover:-translate-y-0.5 hover:ring-bean-400 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-bean-400 motion-reduce:transition-none"
+      className="block h-7 w-7 shrink-0 overflow-hidden rounded-full ring-1 ring-line transition-transform hover:-translate-y-0.5 hover:ring-goal-bright motion-reduce:transition-none"
     >
       {failed ? (
-        <span className="flex h-full w-full items-center justify-center bg-[rgba(143,220,138,.16)] text-[11px] font-bold uppercase text-moss-300">
+        <span className="flex h-full w-full items-center justify-center bg-white/10 text-micro font-bold uppercase text-content-secondary">
           {host.charAt(0)}
         </span>
       ) : (
@@ -34,7 +34,7 @@ function SourceChip({ url }: { url: string }) {
           src={`https://www.google.com/s2/favicons?domain=${host}&sz=64`}
           alt={host}
           onError={() => setFailed(true)}
-          className="h-full w-full bg-white/90 object-contain p-[3px]"
+          className="h-full w-full bg-white object-contain p-[3px]"
         />
       )}
     </a>
@@ -62,7 +62,7 @@ export default function SourceBadges({ urls }: { urls: string[] }) {
 
   return (
     <div className="mb-3.5 -mt-1 flex flex-col gap-1.5">
-      <span className="text-[10.5px] font-semibold tracking-[.08em] text-moss-600">
+      <span className="text-micro font-semibold uppercase tracking-[.08em] text-content-muted">
         AI가 찾아본 출처
       </span>
       <div className="flex flex-wrap items-center gap-2">
@@ -70,7 +70,7 @@ export default function SourceBadges({ urls }: { urls: string[] }) {
           <SourceChip key={u} url={u} />
         ))}
         {extra > 0 && (
-          <span className="flex h-7 items-center rounded-full bg-[rgba(10,26,15,.85)] px-2 text-[11px] font-semibold text-moss-500 ring-1 ring-[rgba(143,220,138,.14)]">
+          <span className="flex h-7 items-center rounded-full bg-surface-raised px-2 text-caption font-semibold text-content-secondary ring-1 ring-line">
             +{extra}
           </span>
         )}
