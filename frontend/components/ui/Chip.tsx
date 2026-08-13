@@ -4,10 +4,12 @@ import type { ReactNode } from "react";
 import { cn } from "@/lib/cn";
 
 type Tone = "goal" | "growth" | "bloom" | "wither" | "neutral";
+type Size = "sm" | "md";
 
 export interface ChipProps {
   children: ReactNode;
   tone?: Tone;
+  size?: Size;
   selected?: boolean;
   interactive?: boolean;
   disabled?: boolean;
@@ -24,13 +26,19 @@ const TONE: Record<Tone, { on: string; off: string }> = {
   neutral: { on: "bg-white/8 text-content-primary border-line-strong", off: "text-content-muted border-line" },
 };
 
+const SIZE: Record<Size, string> = {
+  sm: "px-2.5 py-0.5 text-micro",
+  md: "px-4 py-1.5 text-caption",
+};
+
 export function Chip({
-  children, tone = "goal", selected = false, interactive = false,
+  children, tone = "goal", size = "md", selected = false, interactive = false,
   disabled = false, onClick, title, className,
 }: ChipProps) {
   const base = cn(
     "inline-flex items-center gap-1.5 whitespace-nowrap rounded-full border",
-    "px-4 py-1.5 text-caption font-semibold transition-colors",
+    "font-semibold transition-colors",
+    SIZE[size],
     selected ? TONE[tone].on : TONE[tone].off,
     interactive && !selected && !disabled && "hover:bg-white/6",
     disabled && "cursor-not-allowed opacity-40",

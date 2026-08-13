@@ -1,6 +1,7 @@
 "use client";
 
-import type { CSSProperties, ReactNode } from "react";
+import { useEffect, useState, type CSSProperties, type ReactNode, type RefObject } from "react";
+import { EagleIcon } from "@/components/ui";
 import type { MilestoneOut } from "@/lib/types";
 
 // World geometry (px). The scroll world is SKY + n segments + GROUND tall;
@@ -12,6 +13,46 @@ const GROUND = 560;
 const SKY = 780;
 
 export const STALK_WIDTH = W;
+
+/** Container width the world geometry was authored against. */
+const DESIGN_WIDTH = 640;
+
+/**
+ * Floor for the world scale. Branch panels keep their text at full size, so a
+ * segment must stay taller than a panel (~190px) or neighbouring milestones
+ * collide. 0.72 * 360px segment = 259px, which clears the tallest panel.
+ */
+const MIN_SCALE = 0.72;
+
+/**
+ * Shrink-only scale factor for the canvas world.
+ *
+ * The geometry is a fixed pixel world, so narrow screens scale the whole world
+ * down rather than reflow it — the tapered stem stays the progress bar and the
+ * progress math is untouched, only the coordinate system shrinks.
+ *
+ * Returns null until the container has been measured: callers that position
+ * scroll by world coordinates must wait, or they land on the wrong branch.
+ *
+ * `ready` must flip to true once the measured element is actually mounted —
+ * these pages render a loading notice first, and a ref alone never re-triggers
+ * the effect when the real container finally appears.
+ */
+export function useCanvasScale(ref: RefObject<HTMLElement>, ready: boolean): number | null {
+  const [scale, setScale] = useState<number | null>(null);
+  useEffect(() => {
+    const el = ready ? ref.current : null;
+    if (!el) return;
+    const apply = (w: number) => {
+      if (w > 0) setScale(Math.max(MIN_SCALE, Math.min(1, w / DESIGN_WIDTH)));
+    };
+    apply(el.clientWidth);
+    const ro = new ResizeObserver(([entry]) => apply(entry.contentRect.width));
+    ro.observe(el);
+    return () => ro.disconnect();
+  }, [ref, ready]);
+  return scale;
+}
 
 export interface SproutState {
   milestoneId: number;
@@ -31,8 +72,11 @@ export function milestoneSide(i: number): 1 | -1 {
   return i % 2 ? -1 : 1;
 }
 
-export function worldBackground(): string {
-  return `linear-gradient(180deg,#233a52 0px,#152a3d 460px,#0f2820 ${SKY + 260}px,#081a0e 62%,#050e07 100%)`;
+/** Sky-to-soil gradient. The px stops are world coordinates, so they scale too. */
+export function worldBackground(scale = 1): string {
+  return `linear-gradient(180deg,#233a52 0px,#152a3d ${460 * scale}px,#0f2820 ${
+    (SKY + 260) * scale
+  }px,#081a0e 62%,#050e07 100%)`;
 }
 
 type Pt = [number, number];
@@ -109,6 +153,8 @@ interface BeanstalkCanvasProps {
   showTopBloom: boolean;
   fireflies: boolean;
   swayEnabled: boolean;
+  /** Shrink-only world scale from `useCanvasScale`. 1 = authored size. */
+  scale: number;
 }
 
 export function BeanstalkCanvas({
@@ -120,6 +166,7 @@ export function BeanstalkCanvas({
   showTopBloom,
   fireflies,
   swayEnabled,
+  scale,
 }: BeanstalkCanvasProps) {
   const n = milestones.length;
   const H = worldHeight(n);
@@ -139,10 +186,11 @@ export function BeanstalkCanvas({
 
   // Stem is a filled tapered polygon, not a stroke: thin at the top, thick at the ground.
   const hw = (y: number): number => 4.5 + 9.5 * ((y - stemTop) / (stemBot - stemTop));
-  const taperPoly = (arr: Pt[], scale: number): string => {
+  // `spread` widens the taper (drop shadow / vivid overlay), unrelated to world scale.
+  const taperPoly = (arr: Pt[], spread: number): string => {
     if (arr.length < 2) return "";
-    const left = arr.map((p) => `${(p[0] - hw(p[1]) * scale).toFixed(1)},${p[1]}`);
-    const right = [...arr].reverse().map((p) => `${(p[0] + hw(p[1]) * scale).toFixed(1)},${p[1]}`);
+    const left = arr.map((p) => `${(p[0] - hw(p[1]) * spread).toFixed(1)},${p[1]}`);
+    const right = [...arr].reverse().map((p) => `${(p[0] + hw(p[1]) * spread).toFixed(1)},${p[1]}`);
     return `M${left.join(" L")} L${right.join(" L")}Z`;
   };
   const lineOf = (arr: Pt[]): string =>
@@ -407,13 +455,25 @@ export function BeanstalkCanvas({
   }
 
   return (
-    <svg
-      width={W}
-      height={H}
-      viewBox={`0 0 ${W} ${H}`}
-      style={{ position: "absolute", left: "50%", transform: "translateX(-50%)", top: 0, display: "block" }}
-    >
-      {kids}
-    </svg>
+    // The viewBox stays in world units and only the rendered box shrinks, so
+    // every coordinate above — including the progress split — is untouched.
+    <div className="pointer-events-none absolute inset-0 overflow-hidden">
+      <svg
+        width={W * scale}
+        height={H * scale}
+        viewBox={`0 0 ${W} ${H}`}
+        style={{ position: "absolute", left: "50%", transform: "translateX(-50%)", top: 0, display: "block" }}
+      >
+        {kids}
+      </svg>
+      {/* A single distant eagle marks the sky the beanstalk is climbing toward. */}
+      <EagleIcon
+        size={26}
+        className={`absolute [animation:sway_9s_ease-in-out_infinite] ${
+          progressPct >= 100 ? "text-goal-bright/55" : "text-goal-bright/25"
+        }`}
+        style={{ left: "68%", top: 48 * scale }}
+      />
+    </div>
   );
 }

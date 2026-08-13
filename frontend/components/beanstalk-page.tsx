@@ -3,45 +3,51 @@
 import Link from "next/link";
 import type { ReactNode } from "react";
 import { milestoneSide, milestoneY } from "@/components/BeanstalkCanvas";
+import { Button, Chip, EmptyState } from "@/components/ui";
+import { cn } from "@/lib/cn";
 import { formatDateKo } from "@/lib/format";
 import type { MilestoneStatus, UserOut } from "@/lib/types";
 
 /** 콩나무 상세(로드맵/대목표) 두 페이지가 공유하는 조각들. */
 
-export const CHIP_STYLE: Record<MilestoneStatus, { bg: string; fg: string }> = {
-  완료: { bg: "rgba(93,179,91,.2)", fg: "#8fdc8a" },
-  진행중: { bg: "rgba(143,206,122,.13)", fg: "#c6ddba" },
-  기한초과: { bg: "rgba(196,154,90,.18)", fg: "#d8b078" },
-};
+/** 상태별 칩 색. 완료=성장, 진행중=목표, 기한초과=시듦. */
+const STATUS_TONE = {
+  완료: "growth",
+  진행중: "goal",
+  기한초과: "wither",
+} as const satisfies Record<MilestoneStatus, string>;
 
-/** 첫 진입 시 착지할 스크롤 위치 — 아직 완주하지 않은 가장 아래 가지. */
+export function StatusChip({ status }: { status: MilestoneStatus }) {
+  return (
+    <Chip tone={STATUS_TONE[status]} size="sm" selected>
+      {status}
+    </Chip>
+  );
+}
+
+/** 가지 패널 폭(px) — 위치 계산과 클래스가 같은 값을 써야 해서 상수로 둔다. */
+const PANEL_W = 292;
+
+/**
+ * 첫 진입 시 착지할 스크롤 위치 — 아직 완주하지 않은 가장 아래 가지.
+ * 월드 좌표는 `scale`이 곱해진 뒤에야 실제 픽셀이 된다.
+ */
 export function computeLandingScrollTop(
   count: number,
   firstIncompleteIdx: number,
   clientHeight: number,
+  scale: number,
 ): number {
   if (firstIncompleteIdx < 0) return 0;
-  return Math.max(0, milestoneY(count, firstIncompleteIdx) - clientHeight * 0.52);
+  return Math.max(0, milestoneY(count, firstIncompleteIdx) * scale - clientHeight * 0.52);
 }
 
-export function CenteredNotice({
-  tone,
-  children,
-}: {
-  tone: "loading" | "error";
-  children: ReactNode;
-}) {
+export function CenteredNotice({ tone, title }: { tone: "loading" | "error"; title: string }) {
   return (
-    <div className="flex h-screen items-center justify-center">
-      <p
-        className={
-          tone === "loading"
-            ? "animate-pulse text-sm text-moss-600"
-            : "text-sm text-wither-300"
-        }
-      >
-        {children}
-      </p>
+    <div className="flex h-dvh items-center justify-center px-4">
+      <div className={cn("w-full max-w-sm", tone === "loading" && "animate-pulse")}>
+        <EmptyState title={title} />
+      </div>
     </div>
   );
 }
@@ -54,24 +60,29 @@ export function BranchPanel({
   index,
   count,
   status,
+  scale,
   children,
 }: {
   index: number;
   count: number;
   status: MilestoneStatus;
+  scale: number;
   children: ReactNode;
 }) {
-  const y = milestoneY(count, index);
+  const y = milestoneY(count, index) * scale;
   const side = milestoneSide(index);
+  // 가지가 줄기에서 뻗는 거리도 scale을 타므로 패널도 같이 당겨온다.
+  const reach = 208 * scale;
   return (
     <div
-      className="group absolute z-[6] w-[292px]"
+      className="group absolute z-[6] w-[292px] max-w-[calc(100%-32px)]"
       style={{
-        top: status === "기한초과" ? y - 36 : y - 116,
+        // 기한초과 가지는 아래로 처지므로(월드 좌표 76px) 패널도 같은 만큼 따라 내린다.
+        top: y - 116 + (status === "기한초과" ? 76 * scale : 0),
         left:
           side === 1
-            ? "min(calc(50% + 208px), calc(100% - 312px))"
-            : "max(16px, calc(50% - 500px))",
+            ? `min(calc(50% + ${reach}px), calc(100% - ${PANEL_W + 16}px))`
+            : `max(16px, calc(50% - ${reach + PANEL_W}px))`,
       }}
     >
       {children}
@@ -93,12 +104,12 @@ export function PlanterInfo({
     <div className="absolute bottom-[118px] left-1/2 z-[6] flex -translate-x-1/2 flex-col items-center gap-2 text-center">
       <Link
         href={`/profile/${user.id}`}
-        className="flex h-[70px] w-[70px] items-center justify-center rounded-full border-2 border-[#3f6f49] bg-[rgba(16,36,21,.92)] text-[34px] no-underline shadow-[0_0_34px_rgba(93,179,91,.28)] transition-shadow hover:shadow-[0_0_44px_rgba(93,179,91,.45)]"
+        className="flex h-[70px] w-[70px] items-center justify-center rounded-full border-2 border-growth/45 bg-surface-overlay text-display no-underline shadow-[0_0_34px_rgba(63,143,71,.28)] transition-shadow hover:shadow-[0_0_44px_rgba(63,143,71,.45)]"
       >
         {user.avatar_emoji}
       </Link>
-      <div className="text-sm font-bold text-moss-100">{user.display_name}</div>
-      <div className="text-[11.5px] text-moss-600">
+      <div className="text-body-sm font-bold text-content-primary">{user.display_name}</div>
+      <div className="text-caption text-content-muted">
         {formatDateKo(createdAt)} {actionLabel}
       </div>
     </div>
@@ -124,28 +135,24 @@ export function OwnerChip({
   onToggleFollow: () => void;
 }) {
   return (
-    <div className="fixed right-[26px] top-[22px] z-[55] flex items-center gap-2.5 rounded-full border border-[rgba(143,220,138,.15)] bg-[rgba(6,18,10,.74)] py-2 pl-[15px] pr-2.5 backdrop-blur-[10px]">
-      <Link href={`/profile/${user.id}`} className="flex items-center gap-2.5 no-underline">
-        <span className="text-base">{user.avatar_emoji}</span>
-        <span className="text-[13px] font-semibold !text-moss-100 hover:!text-moss-300">
+    <div className="fixed right-4 top-4 z-[55] flex max-w-[calc(100vw-32px)] items-center gap-2.5 rounded-full border border-line bg-surface-overlay py-2 pl-4 pr-2 backdrop-blur-lg md:right-6 md:top-5">
+      <Link href={`/profile/${user.id}`} className="flex min-w-0 items-center gap-2 no-underline">
+        <span className="text-body">{user.avatar_emoji}</span>
+        <span className="truncate text-body-sm font-semibold !text-content-primary hover:!text-goal-bright">
           {label}
         </span>
       </Link>
-      <span className="whitespace-nowrap text-[11.5px] text-moss-600">{sub}</span>
+      {/* 좁은 화면에서는 진행률 문구를 접는다 — 칩이 화면을 가로지르면 안 된다. */}
+      <span className="hidden whitespace-nowrap text-caption text-content-muted sm:inline">{sub}</span>
       {canFollow && (
-        <button
-          type="button"
-          onClick={onToggleFollow}
+        <Button
+          size="sm"
+          variant={isFollowing ? "secondary" : "ghost"}
           disabled={followPending}
-          className="whitespace-nowrap rounded-full border px-[15px] py-1.5 text-xs font-semibold transition-[filter] hover:brightness-125 disabled:opacity-50"
-          style={{
-            background: isFollowing ? "rgba(143,220,138,.16)" : "rgba(255,255,255,.04)",
-            borderColor: isFollowing ? "rgba(143,220,138,.45)" : "rgba(143,220,138,.25)",
-            color: isFollowing ? "#b9eab2" : "#cfe6cb",
-          }}
+          onClick={onToggleFollow}
         >
           {isFollowing ? "팔로잉" : "팔로우"}
-        </button>
+        </Button>
       )}
     </div>
   );

@@ -4,17 +4,19 @@ import { useRouter } from "next/navigation";
 import { useEffect, useRef, useState } from "react";
 import {
   BeanstalkCanvas,
+  useCanvasScale,
   worldBackground,
   worldHeight,
 } from "@/components/BeanstalkCanvas";
 import {
   BranchPanel,
-  CHIP_STYLE,
   CenteredNotice,
   OwnerChip,
   PlanterInfo,
+  StatusChip,
   computeLandingScrollTop,
 } from "@/components/beanstalk-page";
+import { Card, WitherIcon } from "@/components/ui";
 import { getGoal } from "@/lib/api";
 import { useAuth } from "@/lib/auth-context";
 import { useFollowToggle } from "@/lib/use-follow";
@@ -55,6 +57,8 @@ export default function GoalDetailPage({ params }: { params: { id: string } }) {
 
   const scrollRef = useRef<HTMLDivElement>(null);
   const didInitialScroll = useRef(false);
+  const measuredScale = useCanvasScale(scrollRef, !loading && !!goal);
+  const scale = measuredScale ?? 1;
 
   useEffect(() => {
     let cancelled = false;
@@ -76,35 +80,41 @@ export default function GoalDetailPage({ params }: { params: { id: string } }) {
     };
   }, [goalId, me?.id]);
 
-  // 첫 진입: 아직 완주하지 않은 가장 아래 로드맵 가지에 착지
+  // 첫 진입: 아직 완주하지 않은 가장 아래 로드맵 가지에 착지.
+  // 월드 스케일이 측정되기 전에는 좌표가 확정되지 않으므로 기다린다.
   useEffect(() => {
-    if (!goal || didInitialScroll.current) return;
+    if (!goal || measuredScale === null || didInitialScroll.current) return;
     const el = scrollRef.current;
     if (!el) return;
     const idx = goal.roadmaps.findIndex((r) => r.status !== "완료");
-    el.scrollTop = computeLandingScrollTop(goal.roadmaps.length, idx, el.clientHeight);
+    el.scrollTop = computeLandingScrollTop(
+      goal.roadmaps.length,
+      idx,
+      el.clientHeight,
+      measuredScale,
+    );
     didInitialScroll.current = true;
-  }, [goal]);
+  }, [goal, measuredScale]);
 
   if (loading) {
-    return <CenteredNotice tone="loading">콩나무 숲을 살피는 중…</CenteredNotice>;
+    return <CenteredNotice tone="loading" title="콩나무 숲을 살피는 중…" />;
   }
 
   if (error || !goal) {
-    return <CenteredNotice tone="error">{error ?? "대목표를 찾을 수 없어요."}</CenteredNotice>;
+    return <CenteredNotice tone="error" title={error ?? "대목표를 찾을 수 없어요."} />;
   }
 
   const ms = toCanvasMilestones(goal);
   const n = ms.length;
-  const H = worldHeight(n);
+  const H = worldHeight(n) * scale;
   const pct = goal.progress_pct;
   const goalSub = `${pct}% 자람 · 로드맵 ${goal.completed_count}/${n}`;
   const allDone = n > 0 && goal.completed_count === n;
 
   return (
-    <div className="fixed inset-0 overflow-hidden">
+    <div className="relative h-dvh overflow-hidden">
       <div ref={scrollRef} className="absolute inset-0 overflow-y-auto overflow-x-hidden">
-        <div className="relative w-full" style={{ height: H, background: worldBackground() }}>
+        <div className="relative w-full" style={{ height: H, background: worldBackground(scale) }}>
           <BeanstalkCanvas
             milestones={ms}
             progressPct={pct}
@@ -114,61 +124,66 @@ export default function GoalDetailPage({ params }: { params: { id: string } }) {
             showTopBloom={allDone}
             fireflies
             swayEnabled
+            scale={scale}
           />
 
           {/* 대목표 — 구름 위 */}
-          <div className="absolute left-1/2 top-[120px] z-[5] w-[620px] max-w-[86vw] -translate-x-1/2 text-center">
-            <div className="relative mb-3.5 text-[11.5px] font-semibold tracking-[.22em] text-night-300">
-              🎯 대목표
+          <div
+            className="absolute left-1/2 z-[5] w-full max-w-[620px] -translate-x-1/2 px-4 text-center"
+            style={{ top: 120 * scale }}
+          >
+            <div className="relative mb-3.5 text-caption font-semibold tracking-[.22em] text-goal-bright">
+              대목표
             </div>
-            <div className="relative font-serif text-[34px] font-bold leading-[1.45] text-moss-50 [text-shadow:0_2px_24px_rgba(10,30,50,.8)]">
+            <div className="relative font-serif text-display font-bold leading-[1.45] text-content-primary [text-shadow:0_2px_24px_rgba(10,30,50,.8)]">
               {goal.title}
             </div>
-            <div className="relative mt-3.5 text-[13px] text-[#a8c2b3]">{goalSub}</div>
+            <div className="relative mt-3.5 text-body-sm text-content-secondary">{goalSub}</div>
             {allDone && (
-              <div className="relative mt-3.5 inline-block rounded-full border border-[rgba(240,232,180,.45)] bg-[rgba(240,232,180,.13)] px-[18px] py-[7px] text-[12.5px] font-semibold text-bloom-300">
+              <div className="relative mt-3.5 inline-block rounded-full border border-bloom/45 bg-bloom/13 px-4 py-1.5 text-caption font-semibold text-bloom">
                 모든 소목표 콩나무가 다 자랐어요
               </div>
             )}
           </div>
 
           {/* 가지 옆 패널 = 소분류 로드맵 */}
-          {goal.roadmaps.map((r, i) => {
-            const chip = CHIP_STYLE[r.status];
-            return (
-              <BranchPanel key={r.id} index={i} count={n} status={r.status}>
-                <div
-                  onClick={() => router.push(`/roadmap/${r.id}`)}
-                  className="cursor-pointer rounded-[14px] border border-[rgba(143,220,138,.16)] bg-[rgba(7,22,12,.78)] px-4 py-3.5 shadow-[0_8px_26px_rgba(0,0,0,.38)] backdrop-blur-[6px] transition-colors hover:border-[rgba(143,220,138,.35)]"
-                >
-                  <div className="mb-1.5 flex items-center gap-2">
-                    <span className="font-serif text-[13px] text-moss-600">
-                      {String(i + 1).padStart(2, "0")}
-                    </span>
-                    <span
-                      className="whitespace-nowrap rounded-full px-[9px] py-0.5 text-[11px] font-semibold tracking-[.04em]"
-                      style={{ background: chip.bg, color: chip.fg }}
-                    >
-                      {r.status}
-                    </span>
-                    {r.is_withered && <span title="시들어버린 콩나무">🥀</span>}
-                    <span className="ml-auto text-[11px] font-semibold text-bean-200">
-                      {r.progress_pct}%
-                    </span>
-                  </div>
-                  <div className="mb-1 text-[15.5px] font-bold leading-[1.35] text-moss-100">
-                    {r.title}
-                  </div>
-                  <div className="mt-1.5 text-[11px] font-semibold text-bean-300/80">
-                    이 콩나무 보러 가기 →
-                  </div>
+          {goal.roadmaps.map((r, i) => (
+            <BranchPanel key={r.id} index={i} count={n} status={r.status} scale={scale}>
+              <Card
+                interactive
+                onClick={() => router.push(`/roadmap/${r.id}`)}
+                className="shadow-[0_8px_26px_rgba(0,0,0,.38)]"
+              >
+                <div className="mb-1.5 flex items-center gap-2">
+                  <span className="font-serif text-body-sm text-content-muted">
+                    {String(i + 1).padStart(2, "0")}
+                  </span>
+                  <StatusChip status={r.status} />
+                  {r.is_withered && (
+                    <WitherIcon size={14} className="shrink-0 text-wither" />
+                  )}
+                  <span className="ml-auto text-micro font-semibold text-growth-bright">
+                    {r.progress_pct}%
+                  </span>
                 </div>
-              </BranchPanel>
-            );
-          })}
+                <div className="mb-1 break-words text-body font-bold leading-[1.35] text-content-primary">
+                  {r.title}
+                </div>
+                <div className="mt-1.5 text-micro font-semibold text-goal-bright">
+                  이 콩나무 보러 가기 →
+                </div>
+              </Card>
+            </BranchPanel>
+          ))}
 
           <PlanterInfo user={goal.user} createdAt={goal.created_at} actionLabel="대목표 세움" />
         </div>
+
+        {/* 모바일 탭바가 땅을 가리지 않도록 스크롤 월드 아래에 여백을 둔다. */}
+        <div
+          className="md:h-4"
+          style={{ height: "calc(var(--tabbar-h) + var(--safe-bottom) + 16px)" }}
+        />
       </div>
 
       <OwnerChip

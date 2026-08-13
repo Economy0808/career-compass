@@ -1508,7 +1508,7 @@ Co-Authored-By: Claude Opus 5 <noreply@anthropic.com>"
 - Consumes: `Card`, `Button`, `Chip`, `Avatar`, `EmptyState`
 - Produces: 없음
 
-- [ ] **Step 1: 캔버스 페이지가 셸 컨테이너를 벗어나게**
+- [x] **Step 1: 캔버스 페이지가 셸 컨테이너를 벗어나게**
 
 `layout.tsx`의 `AppShell`은 전역이라 페이지별 prop을 줄 수 없다. 라우트별 레이아웃으로 컨테이너 패딩을 상쇄한다.
 
@@ -1521,7 +1521,7 @@ export default function CanvasLayout({ children }: { children: React.ReactNode }
 }
 ```
 
-- [ ] **Step 2: `BeanstalkCanvas`에 폭 스케일 도입**
+- [x] **Step 2: `BeanstalkCanvas`에 폭 스케일 도입**
 
 고정 픽셀 지오메트리를 컨테이너 폭에 비례시킨다. 컴포넌트 상단에 추가:
 
@@ -1548,7 +1548,7 @@ function useCanvasScale(ref: React.RefObject<HTMLDivElement>): number {
 기존 지오메트리 상수(줄기 폭, 가지 길이, 노드 간격, 잎 위치)에 `scale`을 곱한다.
 **줄기 테이퍼 폴리곤이 프로그레스 바 역할을 하므로 진행률 계산식 자체는 건드리지 않는다 — 좌표만 스케일한다.**
 
-- [ ] **Step 3: 하단 탭바 안전 여백**
+- [x] **Step 3: 하단 탭바 안전 여백**
 
 캔버스 스크롤 컨테이너 맨 아래에 여백 요소를 둔다:
 
@@ -1559,15 +1559,15 @@ function useCanvasScale(ref: React.RefObject<HTMLDivElement>): number {
 />
 ```
 
-- [ ] **Step 4: 랜딩 스크롤 위치 재계산**
+- [x] **Step 4: 랜딩 스크롤 위치 재계산**
 
 `beanstalk-page.tsx`의 `computeLandingScrollTop`이 고정 픽셀을 전제하므로 `scale`을 인자로 받아 반영하도록 수정한다. 수정 후 마운트 시 첫 미완료 마일스톤이 화면에 들어오는지 세 뷰포트에서 확인한다.
 
-- [ ] **Step 5: 공용 부품 토큰화**
+- [x] **Step 5: 공용 부품 토큰화**
 
 `beanstalk-page.tsx`의 `CHIP_STYLE` → `Chip`, `CenteredNotice` → `EmptyState`, `BranchPanel`/`PlanterInfo`/`OwnerChip` → `Card`/`Avatar`/`Chip` 조합으로 바꾼다.
 
-- [ ] **Step 6: 독수리 모티프 (설계 문서 3절)**
+- [x] **Step 6: 독수리 모티프 (설계 문서 3절)**
 
 밤하늘 영역(캔버스 최상단, 목표 지점 부근)에 `EagleIcon` 실루엣 하나를 아주 옅게 배치한다. 기존 `sway` 키프레임을 재사용해 미세하게 움직인다.
 
@@ -1582,7 +1582,7 @@ function useCanvasScale(ref: React.RefObject<HTMLDivElement>): number {
 
 완주(100%) 시점에는 불투명도를 `text-goal-bright/55`로 올린다. **기존 100% 축하 연출(줄기를 따라 잎이 돋는 웨이브)은 그대로 두고 대체하지 않는다** — confetti 금지 원칙과 동일하게, 독수리는 추가 장식일 뿐이다.
 
-- [ ] **Step 7: 검증**
+- [x] **Step 7: 검증**
 
 ```bash
 npx tsc --noEmit && npm run lint && npm run build

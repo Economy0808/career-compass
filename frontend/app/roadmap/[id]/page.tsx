@@ -3,18 +3,20 @@
 import { useEffect, useRef, useState } from "react";
 import {
   BeanstalkCanvas,
+  useCanvasScale,
   worldBackground,
   worldHeight,
   type SproutState,
 } from "@/components/BeanstalkCanvas";
 import {
   BranchPanel,
-  CHIP_STYLE,
   CenteredNotice,
   OwnerChip,
   PlanterInfo,
+  StatusChip,
   computeLandingScrollTop,
 } from "@/components/beanstalk-page";
+import { BeanIcon, Button, Card, CheckIcon, WitherIcon } from "@/components/ui";
 import { MilestonePostModal } from "@/components/MilestonePostModal";
 import { apiUrl, getRoadmap, patchMilestone } from "@/lib/api";
 import { useAuth } from "@/lib/auth-context";
@@ -66,6 +68,8 @@ export default function RoadmapDetailPage({ params }: { params: { id: string } }
 
   const scrollRef = useRef<HTMLDivElement>(null);
   const didInitialScroll = useRef(false);
+  const measuredScale = useCanvasScale(scrollRef, !loading && !!roadmap);
+  const scale = measuredScale ?? 1;
 
   useEffect(() => {
     let cancelled = false;
@@ -90,15 +94,16 @@ export default function RoadmapDetailPage({ params }: { params: { id: string } }
   }, [roadmapId, me?.id]);
 
   // First entry: land on the lowest incomplete milestone (never scrollIntoView).
+  // World coordinates are only final once the canvas scale has been measured.
   useEffect(() => {
-    if (!roadmap || didInitialScroll.current) return;
+    if (!roadmap || measuredScale === null || didInitialScroll.current) return;
     const el = scrollRef.current;
     if (!el) return;
     const ms = sortedMilestones(roadmap);
     const idx = ms.findIndex((m) => m.status !== "완료");
-    el.scrollTop = computeLandingScrollTop(ms.length, idx, el.clientHeight);
+    el.scrollTop = computeLandingScrollTop(ms.length, idx, el.clientHeight, measuredScale);
     didInitialScroll.current = true;
-  }, [roadmap]);
+  }, [roadmap, measuredScale]);
 
   // Celebration wave lasts ~9s.
   useEffect(() => {
@@ -159,16 +164,16 @@ export default function RoadmapDetailPage({ params }: { params: { id: string } }
   }
 
   if (loading) {
-    return <CenteredNotice tone="loading">콩나무를 살피는 중…</CenteredNotice>;
+    return <CenteredNotice tone="loading" title="콩나무를 살피는 중…" />;
   }
 
   if (error || !roadmap) {
-    return <CenteredNotice tone="error">{error ?? "로드맵을 찾을 수 없어요."}</CenteredNotice>;
+    return <CenteredNotice tone="error" title={error ?? "로드맵을 찾을 수 없어요."} />;
   }
 
   const ms = sortedMilestones(roadmap);
   const n = ms.length;
-  const H = worldHeight(n);
+  const H = worldHeight(n) * scale;
   const pct = roadmap.progress_pct;
   const doneCount = ms.filter((m) => m.status === "완료").length;
   const goalSub = `${pct}% 자람 · ${doneCount}/${n} 마일스톤`;
@@ -178,9 +183,9 @@ export default function RoadmapDetailPage({ params }: { params: { id: string } }
   const postMilestone = ms.find((m) => m.id === postMilestoneId) ?? null;
 
   return (
-    <div className="fixed inset-0 overflow-hidden">
+    <div className="relative h-dvh overflow-hidden">
       <div ref={scrollRef} className="absolute inset-0 overflow-y-auto overflow-x-hidden">
-        <div className="relative w-full" style={{ height: H, background: worldBackground() }}>
+        <div className="relative w-full" style={{ height: H, background: worldBackground(scale) }}>
           <BeanstalkCanvas
             milestones={ms}
             progressPct={pct}
@@ -190,145 +195,142 @@ export default function RoadmapDetailPage({ params }: { params: { id: string } }
             showTopBloom={showTopBloom}
             fireflies={flags.fireflies}
             swayEnabled={flags.sway}
+            scale={scale}
           />
 
           {/* Goal — above the clouds at the top of the world */}
-          <div className="absolute left-1/2 top-[120px] z-[5] w-[620px] max-w-[86vw] -translate-x-1/2 text-center">
+          <div
+            className="absolute left-1/2 z-[5] w-full max-w-[620px] -translate-x-1/2 px-4 text-center"
+            style={{ top: 120 * scale }}
+          >
             {showTopBloom && (
               <div
-                className="pointer-events-none absolute -top-[70px] left-1/2 h-[360px] w-[560px] rounded-full"
+                className="pointer-events-none absolute -top-16 left-1/2 h-[360px] w-full max-w-[560px] -translate-x-1/2 rounded-full"
                 style={{
-                  background: "radial-gradient(closest-side, rgba(240,232,180,.3), rgba(240,232,180,0))",
+                  background: "radial-gradient(closest-side, rgba(226,185,79,.3), rgba(226,185,79,0))",
                   animation: "glowPulse 3.6s ease-in-out infinite",
                 }}
               />
             )}
-            <div className="relative mb-3.5 text-[11.5px] font-semibold tracking-[.22em] text-night-300">
+            <div className="relative mb-3.5 text-caption font-semibold tracking-[.22em] text-goal-bright">
               최종 목표
             </div>
-            <div className="relative font-serif text-[34px] font-bold leading-[1.45] text-moss-50 [text-shadow:0_2px_24px_rgba(10,30,50,.8)]">
+            <div className="relative font-serif text-display font-bold leading-[1.45] text-content-primary [text-shadow:0_2px_24px_rgba(10,30,50,.8)]">
               {roadmap.goal_raw_text}
             </div>
-            <div className="relative mt-3.5 text-[13px] text-[#a8c2b3]">{goalSub}</div>
+            <div className="relative mt-3.5 text-body-sm text-content-secondary">{goalSub}</div>
             {pct >= 100 && (
-              <div className="relative mt-3.5 inline-block rounded-full border border-[rgba(240,232,180,.45)] bg-[rgba(240,232,180,.13)] px-[18px] py-[7px] text-[12.5px] font-semibold text-bloom-300">
+              <div className="relative mt-3.5 inline-block rounded-full border border-bloom/45 bg-bloom/13 px-4 py-1.5 text-caption font-semibold text-bloom">
                 콩나무가 다 자랐어요 · 목표 달성
               </div>
             )}
             {beansNotice !== null && (
               <div className="relative mt-2.5 block">
-                <span className="inline-block rounded-full border border-[rgba(240,232,180,.5)] bg-[rgba(240,232,180,.18)] px-[16px] py-[6px] text-[13px] font-bold text-bloom-200">
-                  🫘 콩 {beansNotice}개 수확!
+                <span className="inline-flex items-center gap-1.5 rounded-full border border-bloom/50 bg-bloom/18 px-4 py-1.5 text-body-sm font-bold text-bloom">
+                  <BeanIcon size={15} className="text-bloom" />콩 {beansNotice}개 수확!
                 </span>
               </div>
             )}
             {roadmap.is_withered && (
-              <div className="relative mt-3.5 inline-block rounded-full border border-[rgba(216,176,120,.45)] bg-[rgba(196,154,90,.14)] px-[18px] py-[7px] text-[12.5px] font-semibold text-wither-300">
-                🥀 시들어버린 콩나무 — 지금이라도 물을 주면 다시 자라요
+              <div className="relative mt-3.5 inline-flex items-center gap-1.5 rounded-full border border-wither/45 bg-wither/13 px-4 py-1.5 text-caption font-semibold text-wither">
+                <WitherIcon size={15} />
+                시들어버린 콩나무 — 지금이라도 물을 주면 다시 자라요
               </div>
             )}
           </div>
 
           {/* Milestone panels — glass cards beside each branch */}
           {ms.map((m, i) => {
-            const chip = CHIP_STYLE[m.status];
             const done = m.status === "완료";
-            // 기록이 없어도 클릭 시 마일스톤 가이드(무엇을/어떻게)를 볼 수 있으므로 항상 열림
-            const openable = true;
             return (
-              <BranchPanel key={m.id} index={i} count={n} status={m.status}>
+              <BranchPanel key={m.id} index={i} count={n} status={m.status} scale={scale}>
                 {/* hover: 폴라로이드 팝오버 (사진 + 문구) */}
                 {m.post && (
                   <div className="pointer-events-none absolute -top-2 left-1/2 z-20 hidden w-[230px] -translate-x-1/2 -translate-y-full rotate-[-2deg] group-hover:block">
-                    <div className="rounded-[10px] border border-[rgba(240,232,180,.5)] bg-[#f5f2e4] p-2 shadow-[0_14px_40px_rgba(0,0,0,.55)]">
+                    <div className="rounded-md border border-bloom/50 bg-[#f5f2e4] p-2 shadow-[0_14px_40px_rgba(0,0,0,.55)]">
                       {m.post.has_image && m.post.image_url && (
                         // eslint-disable-next-line @next/next/no-img-element
                         <img
                           src={apiUrl(m.post.image_url)}
                           alt=""
-                          className="h-[140px] w-full rounded-[6px] object-cover"
+                          className="h-[140px] w-full rounded-sm object-cover"
                         />
                       )}
-                      <p className="mt-1.5 px-1 pb-0.5 font-serif text-[12px] leading-relaxed text-[#3d3b2f]">
+                      {/* 폴라로이드 종이 위 글씨라 유일하게 어두운 잉크색을 쓴다. */}
+                      <p className="mt-1.5 px-1 pb-0.5 font-serif text-caption leading-relaxed text-[#3d3b2f]">
                         “{m.post.caption}”
                       </p>
                     </div>
                   </div>
                 )}
-                <div
-                  onClick={openable ? () => setPostMilestoneId(m.id) : undefined}
-                  className={`rounded-[14px] border border-[rgba(143,220,138,.16)] bg-[rgba(7,22,12,.78)] px-4 py-3.5 shadow-[0_8px_26px_rgba(0,0,0,.38)] backdrop-blur-[6px] ${
-                    openable
-                      ? "cursor-pointer transition-colors hover:border-[rgba(143,220,138,.35)]"
-                      : ""
-                  }`}
+                {/* 기록이 없어도 마일스톤 가이드(무엇을/어떻게)를 볼 수 있으므로 항상 열린다 */}
+                <Card
+                  interactive
+                  onClick={() => setPostMilestoneId(m.id)}
+                  className="shadow-[0_8px_26px_rgba(0,0,0,.38)]"
                 >
                   <div className="mb-1.5 flex items-center gap-2">
-                    <span className="font-serif text-[13px] text-moss-600">
+                    <span className="font-serif text-body-sm text-content-muted">
                       {String(m.order_index + 1).padStart(2, "0")}
                     </span>
-                    <span
-                      className="whitespace-nowrap rounded-full px-[9px] py-0.5 text-[11px] font-semibold tracking-[.04em]"
-                      style={{ background: chip.bg, color: chip.fg }}
-                    >
-                      {m.status}
-                    </span>
-                    <span className="ml-auto text-[11px] text-moss-700">
+                    <StatusChip status={m.status} />
+                    <span className="ml-auto text-micro text-content-muted">
                       ~ {m.due_date.replace(/-/g, ".")}
                     </span>
                   </div>
-                  <div className="mb-1 text-[15.5px] font-bold leading-[1.35] text-moss-100">
+                  <div className="mb-1 break-words text-body font-bold leading-[1.35] text-content-primary">
                     {m.title}
                   </div>
-                  <div className="line-clamp-2 text-[12.5px] leading-[1.55] text-moss-400">
+                  <div className="line-clamp-2 text-caption leading-[1.55] text-content-secondary">
                     {m.description}
                   </div>
-                  <div className="mt-1.5 text-[11px] font-semibold text-bean-300/80">
+                  <div className="mt-1.5 text-micro font-semibold text-goal-bright">
                     자세히 보기 →
                   </div>
                   {m.status === "기한초과" && (
-                    <div className="mt-[7px] text-[11.5px] text-wither-300">
+                    <div className="mt-2 text-micro text-wither">
                       괜찮아요 — 지금 완료하면 가지가 다시 자라요.
                     </div>
                   )}
-                  <div className="mt-[11px] flex items-center gap-2">
+                  <div className="mt-3 flex items-center gap-2">
                     {isOwn && (
-                      <button
-                        type="button"
+                      <Button
+                        size="sm"
+                        variant={done ? "secondary" : "ghost"}
                         onClick={(e) => {
                           e.stopPropagation();
                           void toggleMilestone(m);
                         }}
-                        className="inline-flex items-center gap-[7px] whitespace-nowrap rounded-full border px-3.5 py-[7px] text-[12.5px] font-semibold transition-[filter] hover:brightness-125"
-                        style={{
-                          background: done ? "rgba(93,179,91,.22)" : "rgba(255,255,255,.04)",
-                          borderColor: done ? "rgba(143,220,138,.5)" : "rgba(143,220,138,.26)",
-                          color: done ? "#b9eab2" : "#cfe6cb",
-                        }}
                       >
-                        {done ? "✓ 완료됨" : "완료로 표시"}
-                      </button>
+                        {done && <CheckIcon size={14} />}
+                        {done ? "완료됨" : "완료로 표시"}
+                      </Button>
                     )}
                     {m.post ? (
-                      <span className="ml-auto whitespace-nowrap text-[11.5px] text-moss-600">
-                        {m.post.has_image ? "📷" : "📝"} 기록 · 🌼 {m.post.like_count} · 💬{" "}
-                        {m.post.comment_count}
+                      <span className="ml-auto whitespace-nowrap text-micro text-content-muted">
+                        기록 · 🌼 {m.post.like_count} · 💬 {m.post.comment_count}
                       </span>
                     ) : (
                       isOwn && (
-                        <span className="ml-auto whitespace-nowrap text-[11.5px] text-moss-700 transition-colors group-hover:text-moss-400">
-                          ✎ 기록 남기기
+                        <span className="ml-auto whitespace-nowrap text-micro text-content-muted transition-colors group-hover:text-content-secondary">
+                          기록 남기기
                         </span>
                       )
                     )}
                   </div>
-                </div>
+                </Card>
               </BranchPanel>
             );
           })}
 
           <PlanterInfo user={roadmap.user} createdAt={roadmap.created_at} actionLabel="씨앗 심음" />
         </div>
+
+        {/* 모바일 탭바가 땅을 가리지 않도록 스크롤 월드 아래에 여백을 둔다. */}
+        <div
+          className="md:h-4"
+          style={{ height: "calc(var(--tabbar-h) + var(--safe-bottom) + 16px)" }}
+        />
       </div>
 
       <OwnerChip
@@ -341,16 +343,19 @@ export default function RoadmapDetailPage({ params }: { params: { id: string } }
         onToggleFollow={toggleFollow}
       />
 
-      {/* Ambience toggles */}
-      <div className="fixed bottom-[22px] right-[26px] z-[55] flex flex-col items-end gap-2">
+      {/* Ambience toggles — stay clear of the mobile tab bar. */}
+      <div
+        className="fixed right-4 z-[55] flex flex-col items-end gap-2 md:right-6 md:bottom-6"
+        style={{ bottom: "calc(var(--tabbar-h) + var(--safe-bottom) + 16px)" }}
+      >
         {flagsOpen && (
-          <div className="flex flex-col gap-2 rounded-2xl border border-[rgba(143,220,138,.15)] bg-[rgba(6,18,10,.85)] p-3.5 text-[12.5px] text-moss-400 backdrop-blur-[10px]">
+          <Card className="flex flex-col gap-2 text-body-sm text-content-secondary">
             <label className="flex cursor-pointer items-center gap-2">
               <input
                 type="checkbox"
                 checked={flags.fireflies}
                 onChange={(e) => setFlags((f) => ({ ...f, fireflies: e.target.checked }))}
-                className="accent-bean-500"
+                className="accent-growth"
               />
               반딧불이
             </label>
@@ -359,7 +364,7 @@ export default function RoadmapDetailPage({ params }: { params: { id: string } }
                 type="checkbox"
                 checked={flags.sway}
                 onChange={(e) => setFlags((f) => ({ ...f, sway: e.target.checked }))}
-                className="accent-bean-500"
+                className="accent-growth"
               />
               꽃 흔들림
             </label>
@@ -369,20 +374,16 @@ export default function RoadmapDetailPage({ params }: { params: { id: string } }
                   type="checkbox"
                   checked={flags.celebratePreview}
                   onChange={(e) => setFlags((f) => ({ ...f, celebratePreview: e.target.checked }))}
-                  className="accent-bean-500"
+                  className="accent-growth"
                 />
                 축하 미리보기
               </label>
             )}
-          </div>
+          </Card>
         )}
-        <button
-          type="button"
-          onClick={() => setFlagsOpen((v) => !v)}
-          className="rounded-full border border-[rgba(143,220,138,.15)] bg-[rgba(6,18,10,.74)] px-3.5 py-2 text-xs font-semibold text-moss-500 backdrop-blur-[10px] transition-colors hover:bg-[rgba(143,220,138,.16)] hover:text-moss-300"
-        >
+        <Button size="sm" variant="ghost" onClick={() => setFlagsOpen((v) => !v)}>
           ✦ 분위기
-        </button>
+        </Button>
       </div>
 
       {postMilestone && (
