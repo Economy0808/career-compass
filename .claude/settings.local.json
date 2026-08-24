@@ -4,6 +4,7 @@
       "PowerShell(Get-ChildItem -Path \"C:\\\\Users\\\\user\\\\Project_CareerCompass\\\\03_Code\" -Force | ForEach-Object { $_.FullName })",
       "Bash(python -m alembic init alembic)",
       "Bash(pip show *)"
-    ]
+    ],
+    "defaultMode": "plan"
   }
 }

@@ -3,14 +3,16 @@
 ## Project Identity
 - AI masterplan + milestone companion service for 1st/2nd-year undeclared university students in Korea
 - Solo founder (Yonsei Univ., Philosophy, 1st year)
-- User-facing copy is Korean. Code, comments, configs, commit messages, and this document are English.
+- Korean: user-facing copy, code comments, and docstrings.
+- English: commit messages, config files, and this document. Config files must also stay
+  ASCII-only for a technical reason — see Environment Conventions.
 
 ## Tech Stack (locked-in)
 - Backend: Python 3.11+ / FastAPI / Pydantic v2
 - DB: PostgreSQL 16 + pgvector
 - Embedding: OpenAI text-embedding-3-small (benchmark vs bge-m3 for Korean later)
 - Frontend: Next.js 14 (App Router) + TailwindCSS
-- LLM: Anthropic Claude Sonnet 4.6 default; Opus 4.7 for complex work
+- LLM: Anthropic Claude Sonnet 5 default; Opus 5 for complex work
 - Notifications: Resend (email) + Solapi (KakaoTalk)
 
 ## Coding Standards
@@ -20,7 +22,14 @@
 - Branches: `main` is protected. All work on `feature/*` branches.
 
 ## Working Principles — Apply Every Task
-1. Use `/plan` mode first. Wait for my approval before executing.
+1. Every task follows explore -> plan -> approval -> implement. Never edit before I approve.
+   - Explore: read the relevant code first; delegate plain search to a Haiku subagent.
+   - Plan: the Opus main thread writes it, splitting the work into reasoning-heavy vs
+     mechanical items and naming the model for each (see Model Selection Guide).
+   - Approval: present the plan and stop. `permissions.defaultMode` is `plan` for this repo,
+     so the harness enforces this gate too.
+   - Implement: spawn the subagents the plan named. They inherit no conversation context, so
+     every briefing must carry the plan, file paths, and constraints in full.
 2. If a change touches 5+ files, break it into reviewable steps.
 3. No code on `main` without tests. TDD preferred.
 4. Never commit `.env`. Verify `.gitignore` first.
@@ -45,9 +54,12 @@
 - When this outgrows healthcheck-level testing, migrate to per-test transaction rollback fixtures.
 
 ## Model Selection Guide
-- General implementation, bug fixes, tests: Sonnet 4.6 (default)
-- Architecture, complex debugging, security review: `/model opus`
-- Quick exploration, file search: Haiku is fine
+- Main thread runs Opus 5 (see Working Principles 1) — it explores and plans, then delegates.
+- Reasoning-heavy implementation: Sonnet 5 subagent
+- Mechanical work (boilerplate, bulk substitution, file moves, formatting): Haiku 4.5 subagent
+- Quick exploration and file search: Haiku 4.5 subagent
+- Capability order is Haiku 4.5 < Sonnet 5 < Opus 5. Harder work goes to the stronger model.
+- Skip delegation when briefing a subagent would cost more than doing the edit inline.
 
 ## Common Commands
 - Run backend: `fastapi dev app/main.py`
