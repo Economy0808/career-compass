@@ -52,6 +52,18 @@ a:hover {
   background: transparent;
 }
 
+/* 콩나무 캔버스(goal/[id], roadmap/[id])는 밤하늘 위로 스크롤하는 몰입형
+   장면이라, 화면 중앙 본문 칸 경계에 뜨는 기본/전역 스크롤바가 그림 위에
+   밝은 세로줄로 겹쳐 보인다. 이 컨테이너만 스크롤 기능은 그대로 두고
+   막대만 숨긴다. */
+.canvas-scroll {
+  scrollbar-width: none;
+  -ms-overflow-style: none;
+}
+.canvas-scroll::-webkit-scrollbar {
+  display: none;
+}
+
 @keyframes drawBranch {
   from {
     stroke-dashoffset: 300;

@@ -44,7 +44,15 @@ export function useCanvasScale(ref: RefObject<HTMLElement>, ready: boolean): num
     const el = ready ? ref.current : null;
     if (!el) return;
     const apply = (w: number) => {
-      if (w > 0) setScale(Math.max(MIN_SCALE, Math.min(1, w / DESIGN_WIDTH)));
+      if (w <= 0) return;
+      // Containers up to W (the SVG's authored width) shrink-only, as before.
+      // Wider containers (desktop's centered content column can exceed W)
+      // grow scale just enough that the SVG fills the container exactly —
+      // otherwise the artwork stops at W while the flat background keeps
+      // going, leaving a hard-edged gap where bleed shapes (ground hill,
+      // stars) get clipped mid-shape instead of running off the frame.
+      const s = w > W ? w / W : Math.min(1, w / DESIGN_WIDTH);
+      setScale(Math.max(MIN_SCALE, s));
     };
     apply(el.clientWidth);
     const ro = new ResizeObserver(([entry]) => apply(entry.contentRect.width));

@@ -113,7 +113,7 @@ export default function GoalDetailPage({ params }: { params: { id: string } }) {
 
   return (
     <div className="relative h-dvh overflow-hidden">
-      <div ref={scrollRef} className="absolute inset-0 overflow-y-auto overflow-x-hidden">
+      <div ref={scrollRef} className="absolute inset-0 overflow-y-auto overflow-x-hidden canvas-scroll">
         <div className="relative w-full" style={{ height: H, background: worldBackground(scale) }}>
           <BeanstalkCanvas
             milestones={ms}
