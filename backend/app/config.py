@@ -38,6 +38,13 @@ class Settings(BaseSettings):
     # set LLM_SYNTHESIS_WEB_SEARCH=true in .env to experiment (e.g. with Opus).
     llm_synthesis_web_search: bool = False
     job_research_ttl_days: int = 30
+    # 이메일 발송 (Resend). 실제 키는 env(.env)에서만 온다.
+    resend_api_key: str = ""
+    # 발신 주소. Resend는 검증된 도메인에서만 보낼 수 있다. 도메인 검증 전에는
+    # onboarding@resend.dev만 쓸 수 있고, 수신은 Resend 계정 소유자 본인
+    # 주소로 제한된다 (제3자 수신은 도메인 검증 후에 열린다).
+    email_from: str = "Career Compass <onboarding@resend.dev>"
+    email_timeout_sec: float = 10.0
 
     @property
     def cookie_secure(self) -> bool:
@@ -52,6 +59,15 @@ class Settings(BaseSettings):
         # plausibly real key: correct prefix, no "..." marker, reasonable length.
         key = self.anthropic_api_key.strip()
         looks_real = key.startswith("sk-ant-") and "..." not in key and len(key) >= 40
+        return looks_real and self.app_env != "test"
+
+    @property
+    def use_real_email(self) -> bool:
+        # use_real_llm과 같은 판별. .env / .env.example이 싣고 있는 "re_..."
+        # 플레이스홀더가 실제 발송을 켜면 첫 가입이 401로 죽으므로, 그럴듯한
+        # 키(접두사 re_, "..." 없음, 충분한 길이)만 실제 어댑터를 활성화한다.
+        key = self.resend_api_key.strip()
+        looks_real = key.startswith("re_") and "..." not in key and len(key) >= 20
         return looks_real and self.app_env != "test"
 
 

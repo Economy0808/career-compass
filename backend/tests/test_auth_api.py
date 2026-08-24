@@ -5,6 +5,7 @@ from httpx import ASGITransport, AsyncClient
 from sqlalchemy import select
 
 from app.db import get_session_factory
+from app.email.base import EmailSendError
 from app.email.mock_sender import MockEmailSender
 from app.main import app
 from app.models.roadmap import User
@@ -231,9 +232,7 @@ async def test_verify_email_attempts_exhausted(cleanup_emails: list[str]) -> Non
         wrong = "000000" if code != "000000" else "111111"
         # 시도 5회 소진 (verify-email 레이트리밋과 겹치지 않게 최대 5회)
         for _ in range(5):
-            resp = await client.post(
-                "/api/auth/verify-email", json={"email": email, "code": wrong}
-            )
+            resp = await client.post("/api/auth/verify-email", json={"email": email, "code": wrong})
             assert resp.status_code == 400
         # 시도 초과 후에는 올바른 코드도 거부된다 (단, 레이트리밋에 먼저 걸리면 429)
         resp = await client.post("/api/auth/verify-email", json={"email": email, "code": code})
@@ -251,3 +250,37 @@ async def test_login_rate_limited() -> None:
             statuses.append(resp.status_code)
         assert statuses[:5] == [401] * 5
         assert statuses[5] == 429
+
+
+async def test_signup_returns_502_when_email_send_fails(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """발송 실패를 삼키면 코드 없는 계정이 남는다 — 502 + 롤백을 잠근다."""
+    sfx = unique_suffix()
+    email = f"{sfx}@gmail.com"
+
+    class _FailingSender:
+        async def send(self, to: str, subject: str, body: str) -> None:
+            raise EmailSendError("resend unavailable")
+
+    monkeypatch.setattr("app.api.auth.get_email_sender", lambda: _FailingSender())
+
+    async with _client() as client:
+        resp = await client.post(
+            "/api/auth/signup",
+            json={
+                "username": f"u{sfx}",
+                "password": "hunter2hunter2!",
+                "email": email,
+                "display_name": "발송실패",
+                "consent": True,
+            },
+        )
+    assert resp.status_code == 502
+
+    # commit 앞에서 터졌으므로 계정이 남아 있으면 안 된다.
+    session = await _get_session()
+    try:
+        assert await session.scalar(select(User).where(User.email == email)) is None
+    finally:
+        await session.close()

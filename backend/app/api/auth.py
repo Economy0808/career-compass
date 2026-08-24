@@ -7,6 +7,8 @@
   트레이드오프는 인지된 결정이다.
 - 인증 코드·세션 토큰은 해시로만 저장.
 """
+
+import logging
 import uuid
 from datetime import datetime
 from pathlib import Path
@@ -35,6 +37,7 @@ from app.core.security import (
 from app.core.uploads import detect_image_ext
 from app.db import get_db
 from app.email import get_email_sender
+from app.email.base import EmailSendError
 from app.models.account import AuthSession, EmailVerification, StudentCardVerification
 from app.models.roadmap import User
 from app.schemas.auth import (
@@ -52,6 +55,8 @@ from app.schemas.auth import (
 )
 
 router = APIRouter(prefix="/api/auth", tags=["auth"])
+
+logger = logging.getLogger("app.api.auth")
 
 # 존재하지 않는 유저의 로그인 시도에도 해시 검증 1회를 수행해
 # 응답 시간으로 계정 존재를 추정하기 어렵게 한다.
@@ -113,11 +118,22 @@ async def _issue_verification(
             expires_at=verification_expiry(settings),
         )
     )
-    await get_email_sender().send(
-        to=email,
-        subject="[Career Compass] 이메일 인증 코드",
-        body=f"인증 코드: {code} (10분 안에 입력해주세요)",
-    )
+    try:
+        await get_email_sender().send(
+            to=email,
+            subject="[Career Compass] 이메일 인증 코드",
+            body=f"인증 코드: {code} (10분 안에 입력해주세요)",
+        )
+    except EmailSendError as exc:
+        # 발송 실패는 삼키지 않는다. 이 호출은 commit 앞이므로 가입/재설정
+        # 전체가 롤백된다 — 코드가 안 간 계정을 남기지 않으려는 의도된 동작.
+        # 다만 500 스택트레이스 대신 원인이 드러나는 502로 바꿔, 유저가
+        # 재시도하면 되는 상황인지 알 수 있게 한다.
+        logger.error("인증 코드 발송 실패 user_id=%s purpose=%s: %s", user.id, purpose, exc)
+        raise HTTPException(
+            status_code=502,
+            detail="인증 메일을 보내지 못했습니다. 잠시 후 다시 시도해주세요.",
+        ) from exc
 
 
 async def _consume_verification(
@@ -247,9 +263,7 @@ async def logout(
 
 
 @router.get("/me", response_model=MeOut)
-async def me(
-    user: User = Depends(get_current_user), db: AsyncSession = Depends(get_db)
-) -> MeOut:
+async def me(user: User = Depends(get_current_user), db: AsyncSession = Depends(get_db)) -> MeOut:
     return await _me_out(db, user)
 
 
@@ -383,7 +397,9 @@ async def upload_student_card(
     else:
         db.add(StudentCardVerification(user_id=user.id, image_path=str(image_path)))
     await db.commit()
-    return DetailOut(detail="학생증이 접수됐어요. 운영자 승인 후 이용할 수 있어요 (보통 24시간 이내).")
+    return DetailOut(
+        detail="학생증이 접수됐어요. 운영자 승인 후 이용할 수 있어요 (보통 24시간 이내)."
+    )
 
 
 @router.get("/student-card/status", response_model=DetailOut)
