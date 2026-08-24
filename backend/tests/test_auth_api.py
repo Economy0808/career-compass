@@ -301,13 +301,14 @@ async def test_verify_email_attempts_exhausted(cleanup_emails: list[str]) -> Non
         assert resp.status_code == 201
         code = _last_code()
         wrong = "000000" if code != "000000" else "111111"
-        # 시도 5회 소진 (verify-email 레이트리밋과 겹치지 않게 최대 5회)
+        # 시도 5회 소진 (= email_verification_max_attempts)
         for _ in range(5):
             resp = await client.post("/api/auth/verify-email", json={"email": email, "code": wrong})
             assert resp.status_code == 400
-        # 시도 초과 후에는 올바른 코드도 거부된다 (단, 레이트리밋에 먼저 걸리면 429)
+        # 시도 초과 후에는 올바른 코드도 거부된다. 레이트리밋(10)이 아니라
+        # 시도 제한(5)에 걸리므로 429가 아닌 400이어야 한다.
         resp = await client.post("/api/auth/verify-email", json={"email": email, "code": code})
-        assert resp.status_code in (400, 429)
+        assert resp.status_code == 400
 
 
 @pytest.mark.asyncio

@@ -196,7 +196,9 @@ async def verify_email(
     request: VerifyEmailRequest,
     db: AsyncSession = Depends(get_db),
     settings: Settings = Depends(get_settings),
-    _: None = Depends(rate_limit("verify-email", limit=5)),
+    # 10 = email_verification_max_attempts(5)보다 넉넉히 크게. 같은 값이면 IP
+    # 레이트리밋이 먼저 걸려 "시도 횟수 초과" 400이 429로 가려진다.
+    _: None = Depends(rate_limit("verify-email", limit=10)),
 ) -> DetailOut:
     generic = HTTPException(status_code=400, detail="인증 코드가 올바르지 않거나 만료되었습니다.")
     user = await db.scalar(select(User).where(User.email == request.email.lower()))
