@@ -121,7 +121,7 @@ async def _issue_verification(
     try:
         await get_email_sender().send(
             to=email,
-            subject="[Career Compass] 이메일 인증 코드",
+            subject="[OurCompass] 이메일 인증 코드",
             body=f"인증 코드: {code} (10분 안에 입력해주세요)",
         )
     except EmailSendError as exc:

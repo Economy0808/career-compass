@@ -1,4 +1,4 @@
-# Handoff: Career Compass — 콩나무(Beanstalk) 로드맵 리디자인
+# Handoff: OurCompass — 콩나무(Beanstalk) 로드맵 리디자인
 
 ## Overview
 전공 미정 대학교 1~2학년을 위한 목표 로드맵 SNS의 프론트엔드 리디자인.
@@ -117,7 +117,7 @@ TailwindCSS + TypeScript strict, no any)** 의 기존 패턴으로 재구현하�
 ### 내비게이션 (전 화면 공통, **좌측 상단** 고정)
 - 하단 탭바/상단 가로 내비 금지. top 22px / left 22px, 폭 168px, 세로 스택.
 - 컨테이너: bg `rgba(6,18,10,.74)` + blur(10px), border `rgba(143,220,138,.15)`, radius 16px.
-- 브랜드: "Career Compass" (Gowun Batang 15px) + "콩나무 로드맵" (10.5px `#7fae83`).
+- 브랜드: "OurCompass" (Gowun Batang 15px) + "콩나무 로드맵" (10.5px `#7fae83`).
 - 항목 3개(아이콘 18px + 라벨 13px 600): **내 콩나무**(새싹 아이콘) / **로드맵 숲**(줄기 3개) /
   **새 씨앗 심기**(+). active: bg `rgba(143,220,138,.16)` text `#c8ecc2`,
   inactive text `#8aa78d`, hover bg `rgba(143,220,138,.16)`.

@@ -12,7 +12,7 @@ const plex = IBM_Plex_Sans_KR({
 });
 
 export const metadata: Metadata = {
-  title: "Career Compass — 콩나무 로드맵",
+  title: "OurCompass — 콩나무 로드맵",
   description: "목표를 심으면 콩나무가 자라는 로드맵 SNS",
 };
 

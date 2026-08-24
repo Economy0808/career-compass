@@ -1,17 +1,17 @@
 services:
   db:
     image: pgvector/pgvector:pg16
-    container_name: careercompass-db
+    container_name: ourcompass-db
     environment:
       POSTGRES_USER: postgres
       POSTGRES_PASSWORD: postgres
-      POSTGRES_DB: careercompass
+      POSTGRES_DB: ourcompass
     ports:
       - "5432:5432"
     volumes:
       - postgres_data:/var/lib/postgresql/data
     healthcheck:
-      test: ["CMD-SHELL", "pg_isready -U postgres -d careercompass"]
+      test: ["CMD-SHELL", "pg_isready -U postgres -d ourcompass"]
       interval: 5s
       timeout: 5s
       retries: 5

@@ -1,4 +1,4 @@
-# Career Compass — Backend
+# OurCompass — Backend
 
 FastAPI 기반 백엔드 서비스.
 

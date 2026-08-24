@@ -1,7 +1,7 @@
 [project]
-name = "career-compass-backend"
+name = "ourcompass-backend"
 version = "0.1.0"
-description = "Career Compass - AI career masterplan service backend"
+description = "OurCompass - AI career masterplan service backend"
 requires-python = ">=3.11"
 dependencies = [
     "fastapi[standard]>=0.115",

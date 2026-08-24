@@ -28,7 +28,7 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
 def create_app() -> FastAPI:
     settings = get_settings()
     app = FastAPI(
-        title="Career Compass API",
+        title="OurCompass API",
         version=settings.app_version,
         lifespan=lifespan,
     )

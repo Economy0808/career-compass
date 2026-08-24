@@ -6,7 +6,7 @@ from pydantic_settings import BaseSettings, SettingsConfigDict
 class Settings(BaseSettings):
     model_config = SettingsConfigDict(env_file=".env", extra="ignore")
 
-    database_url: str = "postgresql+asyncpg://postgres:postgres@localhost:5432/careercompass"
+    database_url: str = "postgresql+asyncpg://postgres:postgres@localhost:5432/ourcompass"
     app_env: str = "development"
     app_version: str = "0.1.0"
     secret_key: str = "change-me"
@@ -43,7 +43,7 @@ class Settings(BaseSettings):
     # 발신 주소. Resend는 검증된 도메인에서만 보낼 수 있다. 도메인 검증 전에는
     # onboarding@resend.dev만 쓸 수 있고, 수신은 Resend 계정 소유자 본인
     # 주소로 제한된다 (제3자 수신은 도메인 검증 후에 열린다).
-    email_from: str = "Career Compass <onboarding@resend.dev>"
+    email_from: str = "OurCompass <onboarding@resend.dev>"
     email_timeout_sec: float = 10.0
 
     @property
