@@ -168,7 +168,7 @@ async def signup(
     request: SignupRequest,
     db: AsyncSession = Depends(get_db),
     settings: Settings = Depends(get_settings),
-    _: None = Depends(rate_limit("signup", limit=3)),
+    _: None = Depends(rate_limit("signup", limit=3, hard_limit=20)),
 ) -> DetailOut:
     email = request.email.lower()
     dup = await db.scalar(

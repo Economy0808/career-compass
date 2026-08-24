@@ -212,6 +212,77 @@ async def test_signup_duplicate_username(cleanup_emails: list[str]) -> None:
 
 
 @pytest.mark.asyncio
+async def test_signup_conflict_refunds_rate_limit_slot(cleanup_emails: list[str]) -> None:
+    """회귀 테스트: 중복 409가 반복돼도 슬롯이 환불되어 뒤이은 정상 가입은 성공해야 한다.
+
+    signup의 soft limit은 3 — 중복 아이디/이메일로 3번(=limit 전부) 연속 실패해도
+    환불되면 4번째 정상 요청은 여전히 통과해야 한다. 환불이 없다면(버그 상태) 4번째
+    요청은 429로 막혀, 오탈자 몇 번에 정상 재시도까지 잠기는 실사용 버그가 재현된다.
+    """
+    session = await _get_session()
+    existing = await create_user(session)
+    cleanup_emails.append(existing.email or "")
+
+    sfx = unique_suffix()
+    email = f"{sfx}@gmail.com"
+    cleanup_emails.append(email)
+
+    async with _client() as client:
+        for _ in range(3):
+            resp = await client.post(
+                "/api/auth/signup",
+                json={
+                    "username": existing.username,
+                    "password": "hunter2hunter2!",
+                    "email": existing.email,
+                    "display_name": "중복재시도",
+                    "consent": True,
+                },
+            )
+            assert resp.status_code == 409
+
+        # soft limit(3)을 전부 중복 실패로 소진했지만, 환불되었으므로 다음 정상
+        # 가입은 레이트리밋에 막히지 않고 성공해야 한다.
+        resp = await client.post(
+            "/api/auth/signup",
+            json={
+                "username": f"u{sfx}",
+                "password": "hunter2hunter2!",
+                "email": email,
+                "display_name": "정상가입",
+                "consent": True,
+            },
+        )
+        assert resp.status_code == 201
+
+
+@pytest.mark.asyncio
+async def test_signup_hard_limit_blocks_unbounded_enumeration(cleanup_emails: list[str]) -> None:
+    """soft limit이 환불돼도 hard limit(20)은 절대 환불되지 않아 총 시도 횟수를 막는다."""
+    session = await _get_session()
+    existing = await create_user(session)
+    cleanup_emails.append(existing.email or "")
+
+    async with _client() as client:
+        statuses = []
+        for _ in range(22):
+            resp = await client.post(
+                "/api/auth/signup",
+                json={
+                    "username": existing.username,
+                    "password": "hunter2hunter2!",
+                    "email": existing.email,
+                    "display_name": "열거시도",
+                    "consent": True,
+                },
+            )
+            statuses.append(resp.status_code)
+        assert statuses[:20] == [409] * 20
+        assert statuses[20] == 429
+        assert statuses[21] == 429  # 429가 유지되어야 함 (hard limit은 환불되지 않음)
+
+
+@pytest.mark.asyncio
 async def test_verify_email_attempts_exhausted(cleanup_emails: list[str]) -> None:
     sfx = unique_suffix()
     email = f"{sfx}@gmail.com"
