@@ -30,6 +30,6 @@
   // `wrangler secret put DATABASE_URL` 등으로 등록 — 여기 평문으로 넣지 않는다.
   "vars": {
     "APP_ENV": "production",
-    "CORS_ALLOWED_ORIGINS": "https://ourcompass-frontend.<YOUR-SUBDOMAIN>.workers.dev"
+    "CORS_ALLOWED_ORIGINS": "https://ourcompass-frontend.ourcompass.workers.dev"
   }
 }
