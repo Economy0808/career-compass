@@ -1,0 +1,35 @@
+{
+  "$schema": "node_modules/wrangler/config-schema.json",
+  "name": "ourcompass-backend",
+  "main": "src/index.ts",
+  "compatibility_date": "2026-08-25",
+  "compatibility_flags": ["nodejs_compat"],
+  "containers": [
+    {
+      "class_name": "OurCompassBackend",
+      "image": "./Dockerfile",
+      // 고정 1개 인스턴스로 말기는 설계(src/index.ts 참고)라 여유분 정도만.
+      "max_instances": 2
+    }
+  ],
+  "durable_objects": {
+    "bindings": [
+      {
+        "class_name": "OurCompassBackend",
+        "name": "OURCOMPASS_BACKEND"
+      }
+    ]
+  },
+  "migrations": [
+    {
+      "tag": "v1",
+      "new_sqlite_classes": ["OurCompassBackend"]
+    }
+  ],
+  // 컨테이너 안 FastAPI가 읽는 환경변수. 진짜 값은 배포 후
+  // `wrangler secret put DATABASE_URL` 등으로 등록 — 여기 평문으로 넣지 않는다.
+  "vars": {
+    "APP_ENV": "production",
+    "CORS_ALLOWED_ORIGINS": "https://ourcompass-frontend.<YOUR-SUBDOMAIN>.workers.dev"
+  }
+}

@@ -1,0 +1,14 @@
+{
+  "name": "ourcompass-backend-container-router",
+  "private": true,
+  "version": "0.1.0",
+  "description": "Cloudflare Worker entrypoint that routes to the FastAPI container (Dockerfile). Node tooling only — the actual backend is Python.",
+  "type": "module",
+  "scripts": {
+    "deploy": "wrangler deploy"
+  },
+  "devDependencies": {
+    "@cloudflare/containers": "^0.0.31",
+    "wrangler": "^4.125.0"
+  }
+}
