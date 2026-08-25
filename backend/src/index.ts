@@ -11,7 +11,7 @@ export class OurCompassBackend extends Container {
   sleepAfter = "10m";
 }
 
-const SINGLETON_ID = "ourcompass-backend-singleton";
+const SINGLETON_ID = "ourcompass-backend-singleton-v2";
 
 export default {
   async fetch(request: Request, env: { OURCOMPASS_BACKEND: DurableObjectNamespace }) {
