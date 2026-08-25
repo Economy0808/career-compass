@@ -1,0 +1,16 @@
+{
+  "$schema": "node_modules/wrangler/config-schema.json",
+  "name": "ourcompass-frontend",
+  "main": ".open-next/worker.js",
+  "compatibility_date": "2026-08-25",
+  "compatibility_flags": ["nodejs_compat", "global_fetch_strictly_public"],
+  "assets": {
+    "directory": ".open-next/assets",
+    "binding": "ASSETS"
+  },
+  // 백엔드(Cloudflare Containers로 별도 배포)의 공개 URL을 여기 넣는다.
+  // 실제 값은 배포 시 `wrangler secret put` 또는 대시보드 환경변수로 덮어써도 된다.
+  "vars": {
+    "NEXT_PUBLIC_API_BASE_URL": "https://ourcompass-backend.<YOUR-SUBDOMAIN>.workers.dev"
+  }
+}

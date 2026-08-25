@@ -10,6 +10,9 @@ class Settings(BaseSettings):
     app_env: str = "development"
     app_version: str = "0.1.0"
     secret_key: str = "change-me"
+    # 세션 쿠키를 보내도 되는 프론트 origin 화이트리스트. 콤마로 여러 개
+    # 지정 (예: 배포 환경에서 로컬 개발 origin과 실제 배포 도메인을 함께 허용).
+    cors_allowed_origins: str = "http://localhost:3000"
     # data.go.kr API key comes from the environment (.env). The previous
     # hardcoded default was committed to git history - rotate the key.
     data_go_kr_api_key: str = ""

@@ -15,8 +15,6 @@ from app.api.todos import router as todos_router
 from app.api.users import router as users_router
 from app.config import get_settings
 
-ALLOWED_ORIGINS = ["http://localhost:3000"]
-
 
 @asynccontextmanager
 async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
@@ -27,6 +25,7 @@ async def lifespan(app: FastAPI) -> AsyncGenerator[None, None]:
 
 def create_app() -> FastAPI:
     settings = get_settings()
+    allowed_origins = [o.strip() for o in settings.cors_allowed_origins.split(",") if o.strip()]
     app = FastAPI(
         title="OurCompass API",
         version=settings.app_version,
@@ -35,7 +34,7 @@ def create_app() -> FastAPI:
     # 세션 쿠키를 쓰므로 credentials 허용 + origin 화이트리스트.
     app.add_middleware(
         CORSMiddleware,
-        allow_origins=ALLOWED_ORIGINS,
+        allow_origins=allowed_origins,
         allow_credentials=True,
         allow_methods=["*"],
         allow_headers=["*"],
@@ -51,7 +50,7 @@ def create_app() -> FastAPI:
         """
         if request.method in {"POST", "PUT", "PATCH", "DELETE"}:
             origin = request.headers.get("origin")
-            if origin is not None and origin not in ALLOWED_ORIGINS:
+            if origin is not None and origin not in allowed_origins:
                 return JSONResponse(status_code=403, content={"detail": "origin not allowed"})
         return await call_next(request)
 
