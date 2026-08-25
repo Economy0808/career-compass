@@ -9,7 +9,7 @@
       "class_name": "OurCompassBackend",
       "image": "./Dockerfile",
       // 고정 1개 인스턴스로 말기는 설계(src/index.ts 참고)라 여유분 정도만.
-      "max_instances": 2
+      "max_instances": 5
     }
   ],
   "durable_objects": {
