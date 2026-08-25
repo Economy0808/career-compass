@@ -16,6 +16,9 @@ const SINGLETON_ID = "ourcompass-backend-singleton";
 export default {
   async fetch(request: Request, env: { OURCOMPASS_BACKEND: DurableObjectNamespace }) {
     const instance = getContainer(env.OURCOMPASS_BACKEND, SINGLETON_ID);
+    // 이 라이브러리 버전은 fetch()가 자동으로 컨테이너를 켜주지 않는다 —
+    // 잠들어 있으면(sleepAfter) 매번 먼저 깨워야 한다. 이미 떠 있으면 즉시 반환.
+    await instance.startAndWaitForPorts();
     return instance.fetch(request);
   },
 };
