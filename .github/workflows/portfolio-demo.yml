@@ -1,0 +1,50 @@
+name: Deploy portfolio demo to GitHub Pages
+
+# portfolio-demo/ 는 frontend/backend(실서비스 소스)와 완전히 분리된 정적
+# 스냅샷이다. 이 워크플로도 그 디렉터리에만 반응한다 — 실서비스 코드가
+# 바뀌어도 이 배포는 트리거되지 않는다.
+on:
+  push:
+    branches: [main]
+    paths:
+      - "portfolio-demo/**"
+      - ".github/workflows/portfolio-demo.yml"
+  workflow_dispatch:
+
+permissions:
+  contents: read
+  pages: write
+  id-token: write
+
+concurrency:
+  group: pages
+  cancel-in-progress: false
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+      - uses: actions/setup-node@v4
+        with:
+          node-version: "20"
+          cache: "npm"
+          cache-dependency-path: portfolio-demo/package-lock.json
+      - run: npm ci
+        working-directory: portfolio-demo
+      - run: npm run build
+        working-directory: portfolio-demo
+      - uses: actions/configure-pages@v5
+      - uses: actions/upload-pages-artifact@v3
+        with:
+          path: portfolio-demo/out
+
+  deploy:
+    needs: build
+    runs-on: ubuntu-latest
+    environment:
+      name: github-pages
+      url: ${{ steps.deployment.outputs.page_url }}
+    steps:
+      - id: deployment
+        uses: actions/deploy-pages@v4
