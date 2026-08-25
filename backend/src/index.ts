@@ -16,12 +16,9 @@ const SINGLETON_ID = "ourcompass-backend-singleton";
 export default {
   async fetch(request: Request, env: { OURCOMPASS_BACKEND: DurableObjectNamespace }) {
     const instance = getContainer(env.OURCOMPASS_BACKEND, SINGLETON_ID);
-    // 이 라이브러리 버전은 fetch()가 자동으로 컨테이너를 켜주지 않는다 —
-    // 잠들어 있으면(sleepAfter) 매번 먼저 깨워야 한다. 이미 떠 있으면 즉시 반환.
-    // 기본 대기시간(~8초)으로는 부족하다: 콜드 스타트마다 Dockerfile CMD가
-    // 원격 Neon DB로 alembic upgrade head를 먼저 돌리는데, SSL 핸드셰이크 +
-    // Python 부팅까지 합치면 8초를 넘기기 쉽다.
-    await instance.startAndWaitForPorts(8000, { portReadyTimeoutMS: 30_000 });
+    // containerFetch()가 내부적으로 이미 "안 떠있으면 startAndWaitForPorts부터
+    // 호출"을 처리한다 (node_modules/@cloudflare/containers/dist/lib/container.js
+    // 확인함) — 여기서 따로 먼저 켤 필요 없고, 오히려 이중 시작 경합만 만들었다.
     return instance.fetch(request);
   },
 };
