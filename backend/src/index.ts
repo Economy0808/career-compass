@@ -9,6 +9,19 @@ export class OurCompassBackend extends Container {
   defaultPort = 8000;
   // 트래픽이 뜸하면 재우고, 다음 요청이 오면 자동으로 다시 깨운다.
   sleepAfter = "10m";
+
+  constructor(ctx: DurableObjectState, env: Record<string, string>) {
+    super(ctx, env);
+    // Worker의 env(vars/secrets)는 컨테이너 프로세스에 자동으로 안 넘어간다 —
+    // 명시적으로 envVars에 복사해줘야 파이썬 쪽 os.environ에 나타난다.
+    // 이걸 빼먹어서 DATABASE_URL이 안 넘어가 앱이 config.py 기본값
+    // (localhost:5432)으로 접속을 시도했고, 그게 "Connection refused"였다.
+    this.envVars = {
+      DATABASE_URL: env.DATABASE_URL,
+      APP_ENV: env.APP_ENV,
+      CORS_ALLOWED_ORIGINS: env.CORS_ALLOWED_ORIGINS,
+    };
+  }
 }
 
 const SINGLETON_ID = "ourcompass-backend-singleton-v2";
