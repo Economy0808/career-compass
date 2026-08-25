@@ -24,7 +24,7 @@ export class OurCompassBackend extends Container {
   }
 }
 
-const SINGLETON_ID = "ourcompass-backend-singleton-v5";
+const SINGLETON_ID = "ourcompass-backend-singleton-v6";
 
 export default {
   async fetch(request: Request, env: { OURCOMPASS_BACKEND: DurableObjectNamespace }) {
