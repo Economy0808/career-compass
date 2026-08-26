@@ -162,6 +162,10 @@ export default function NewConstellationPage() {
   const [notes, setNotes] = useState<Record<string, ElementNote>>(INITIAL_NOTES);
   const [panelMode, setPanelMode] = useState<PanelMode>("bins");
   const [notesNodeId, setNotesNodeId] = useState<string | null>(null);
+  // notesNodeId를 같은 값으로 다시 세팅해도(같은 원소를 카드에서 또 클릭 등)
+  // 노트 패널이 "펼치고 스크롤"을 다시 수행해야 하므로, nodeId 자체가 아니라
+  // 매번 증가하는 이 토큰으로 "펼침 요청"을 전달한다.
+  const [notesExpandToken, setNotesExpandToken] = useState(0);
   const fillTimers = useRef<Set<ReturnType<typeof setTimeout>>>(new Set());
 
   // 노트를 nodeId별로 묶는다. 이 그룹의 length가 카드의 "노트 N개"를 결정하는
@@ -352,6 +356,7 @@ export default function NewConstellationPage() {
   // 여는 게 아니라 같은 자리를 교체) + 상단 탭 선택도 「노트」로 옮긴다.
   const handleOpenNotes = useCallback((nodeId: string) => {
     setNotesNodeId(nodeId);
+    setNotesExpandToken((t) => t + 1);
     setPanelMode("notes");
   }, []);
 
@@ -405,6 +410,7 @@ export default function NewConstellationPage() {
     focusTokenRef.current += 1;
     setFocusRequest({ nodeId, token: focusTokenRef.current });
     setNotesNodeId(nodeId);
+    setNotesExpandToken((t) => t + 1);
     setPanelMode("notes");
   }, []);
 
@@ -469,9 +475,11 @@ export default function NewConstellationPage() {
           />
         ) : (
           <ElementNotesPanel
-            node={notesNodeId ? nodesWithNoteCounts[notesNodeId] : undefined}
-            notes={notesNodeId ? notesByNode.get(notesNodeId) ?? [] : []}
-            onCreateNote={(input) => notesNodeId && handleCreateNote(notesNodeId, input)}
+            nodes={Object.values(nodesWithNoteCounts)}
+            notesByNode={notesByNode}
+            expandNodeId={notesNodeId}
+            expandToken={notesExpandToken}
+            onCreateNote={handleCreateNote}
             onUpdateNote={handleUpdateNote}
             onDeleteNote={handleDeleteNote}
             resolveLink={resolveWikiLink}

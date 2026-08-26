@@ -4,15 +4,21 @@
  * 원소 노트 패널 - 오른쪽 패널이 「군집」에서 「노트」로 바뀐 상태.
  *
  * 새 영역을 여는 게 아니라 ElementBinPanel과 같은 자리(같은 fixed 오버레이
- * 위치/치수)를 그대로 대체한다 - onOpenNotes(nodeId)는 새 창을 띄우는 게
- * 아니라 이 패널이 그 위치에서 「보관함 -> 노트」로 스왑되는 신호다.
+ * 위치/치수)를 그대로 대체한다.
+ *
+ * 이제 "선택된 원소 하나"가 아니라 캔버스 위 모든 원소를 계단식(staircase)
+ * 아코디언으로 나열한다 - 1단은 원소 바(닫혀 있으면 카운트만, 열리면 그
+ * 원소의 노트들), 2단은 개별 노트(닫혀 있으면 제목/날짜, 열리면 편집기).
+ * "계단"이라는 은유가 곧 "한 번에 한 경로"라는 뜻이므로 원소도 노트도 항상
+ * 하나만 열려 있다 - 두 단 모두 다중 열림을 허용하면 실제 데이터량에서 패널이
+ * 읽기 힘들어진다.
  *
  * 노트 자체는 이 컴포넌트가 소유하지 않는다 - 상태는 부모(page.tsx)의
  * React state에 그래프와 나란히 산다(백엔드 연동 전 데모라 새로고침하면
  * 사라진다). 이 컴포넌트는 순수 표현 계층 + 편집 폼 로컬 상태만 가진다.
  */
 
-import { useEffect, useMemo, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { cn } from "@/lib/cn";
 import type { CanvasNode } from "@/components/ConstellationCanvas";
 import { Markdown, type ResolveWikiLink } from "@/lib/markdown";
@@ -30,11 +36,17 @@ export interface ElementNote {
 }
 
 export interface ElementNotesPanelProps {
-  /** 선택된 원소가 없으면(예: 「노트」 탭을 먼저 눌렀을 때) undefined - 이때는
-   * 빈 상태만 보여준다. */
-  node?: CanvasNode;
-  notes: ElementNote[];
-  onCreateNote: (input: { title: string; body: string; isPublic: boolean }) => void;
+  /** 캔버스 위 모든 노드 - 노트가 0개인 원소도 포함해서 항상 전부 나열한다. */
+  nodes: CanvasNode[];
+  /** nodeId -> 그 원소의 노트들. 카드의 "노트 N개"와 같은 진실(notesByNode)을
+   * 그대로 받아써서 두 표시가 어긋나지 않게 한다. */
+  notesByNode: Map<string, ElementNote[]>;
+  /** "이 원소를 펼치고 스크롤해서 보여줘" 요청 - 카드의 「노트 N개 ›」나 노트
+   * 본문의 [[위키링크]] 클릭에서 온다. token은 같은 nodeId를 다시 요청해도
+   * (예: 같은 원소를 두 번 연달아 클릭) 효과가 재실행되도록 매번 증가한다. */
+  expandNodeId: string | null;
+  expandToken: number;
+  onCreateNote: (nodeId: string, input: { title: string; body: string; isPublic: boolean }) => void;
   onUpdateNote: (id: string, patch: { title: string; body: string; isPublic: boolean }) => void;
   onDeleteNote: (id: string) => void;
   resolveLink: ResolveWikiLink;
@@ -42,7 +54,18 @@ export interface ElementNotesPanelProps {
   className?: string;
 }
 
-type ViewState = { mode: "list" } | { mode: "new" } | { mode: "edit"; noteId: string };
+// ConstellationCanvas.tsx의 TYPE_COLOR(항성 분광형 악센트)와 시각적으로 맞춘
+// 값. 캔버스 컴포넌트는 이 매핑을 export하지 않으므로(내부 렌더링 전용 상수),
+// ElementBinPanel.tsx가 이미 하듯 여기서도 최소한만 복제해 둔다 - 세 곳(캔버스
+// 노드/보관함 칩/이 패널의 원소 바)의 점 색이 어긋나면 안 되므로.
+const TYPE_DOT: Record<string, string> = {
+  course: "var(--spec-b)",
+  certification: "var(--spec-a)",
+  organization: "var(--spec-g)",
+  activity: "var(--spec-k)",
+  networking: "var(--spec-m)",
+};
+const DEFAULT_DOT = "var(--text-lo)";
 
 function formatUpdatedAt(ts: number): string {
   const d = new Date(ts);
@@ -52,12 +75,14 @@ function formatUpdatedAt(ts: number): string {
 
 function previewOf(body: string): string {
   const oneLine = body.replace(/\s+/g, " ").trim();
-  return oneLine.length > 60 ? `${oneLine.slice(0, 60)}…` : oneLine;
+  return oneLine.length > 48 ? `${oneLine.slice(0, 48)}…` : oneLine;
 }
 
 export function ElementNotesPanel({
-  node,
-  notes,
+  nodes,
+  notesByNode,
+  expandNodeId,
+  expandToken,
   onCreateNote,
   onUpdateNote,
   onDeleteNote,
@@ -65,23 +90,35 @@ export function ElementNotesPanel({
   onLinkClick,
   className,
 }: ElementNotesPanelProps) {
-  const [view, setView] = useState<ViewState>({ mode: "list" });
+  // 1단(원소)과 2단(노트) 각각 "열려 있는 것 하나"만 기억한다. 2단 키는 실제
+  // 노트 id이거나, 그 원소의 "+ 새 노트" 편집기를 가리키는 `new:{nodeId}`
+  // 센티널이다 - 새 노트 작성도 "노트 하나가 열려 있다"는 규칙 안에 있어야
+  // 하므로(그렇지 않으면 원소 하나를 펼치고 노트도 하나 편집 중인데 동시에
+  // 새 노트 폼까지 열려버리는 상태가 가능해진다).
+  const [expandedNodeId, setExpandedNodeId] = useState<string | null>(null);
+  const [activeNoteKey, setActiveNoteKey] = useState<string | null>(null);
+  const barRefs = useRef(new Map<string, HTMLButtonElement>());
 
-  const sortedNotes = useMemo(
-    () => [...notes].sort((a, b) => b.updatedAt - a.updatedAt),
-    [notes]
-  );
-
-  // 노드가 바뀌면(다른 원소의 노트로 전환) 항상 목록으로 리셋한다 - 편집 폼이
-  // 이전 원소의 노트를 가리킨 채로 남아있으면 안 되므로. node가 없어졌다
-  // (선택 해제) 돌아와도 마찬가지로 리셋.
+  // 외부 요청(카드의 「노트 N개 ›」, 노트 속 [[위키링크]] 클릭) - 그 원소만
+  // 펼치고 다른 건 다 접은 뒤, 시야 밖에 있으면 스크롤해서 보여준다. 노트
+  // 단(2단)은 일부러 접어 둔 채로 둔다 - "그 원소의 노트로 왔다"는 것과 "특정
+  // 노트의 편집 폼에 포커스를 강제로 넣는다"는 다른 얘기이고, 후자는 캔버스의
+  // Delete/Backspace 삭제 단축키와 맞물려 예상 밖의 포커스 위치가 위험하다.
   useEffect(() => {
-    setView({ mode: "list" });
-  }, [node?.id]);
+    if (!expandNodeId) return;
+    setExpandedNodeId(expandNodeId);
+    setActiveNoteKey(null);
+    const raf = requestAnimationFrame(() => {
+      barRefs.current.get(expandNodeId)?.scrollIntoView({ block: "nearest" });
+    });
+    return () => cancelAnimationFrame(raf);
+    // expandToken만 바뀌어도(같은 원소를 다시 가리켜도) 재실행되어야 한다.
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [expandToken]);
 
-  // 「노트」 탭을 눌렀지만 아직 원소를 선택하지 않은 상태 - 탭을 막지 않고
-  // 대신 빈 상태로 안내한다(막힌 탭은 아무것도 설명해주지 않으므로).
-  if (!node) {
+  // 캔버스에 원소가 하나도 없을 때만 빈 상태를 보여준다 - "원소를 선택 안 함"
+  // 빈 상태는 이제 존재하지 않는다(탭은 항상 내용을 갖는다).
+  if (nodes.length === 0) {
     return (
       <div
         id="panel-notes"
@@ -91,7 +128,7 @@ export function ElementNotesPanel({
         className={cn("flex min-h-0 flex-1 flex-col overflow-hidden", className)}
       >
         <p className="px-3 py-6 text-center font-sans text-body-sm leading-relaxed text-text-lo">
-          캔버스에서 원소를 먼저 선택하면 그 원소의 노트를 볼 수 있어요.
+          캔버스에 아직 원소가 없어요. 원소를 놓으면 여기서 노트를 볼 수 있어요.
         </p>
       </div>
     );
@@ -101,135 +138,155 @@ export function ElementNotesPanel({
     <div
       id="panel-notes"
       role="tabpanel"
-      aria-label={`${node.label} 노트`}
+      aria-label="노트"
       tabIndex={0}
       className={cn("flex min-h-0 flex-1 flex-col overflow-hidden", className)}
     >
-      <div className="flex items-center gap-2 border-b border-rule px-3 py-3">
-        <div className="min-w-0 flex-1">
-          <div className="truncate font-sans text-body-sm font-bold text-text-hi">{node.label}</div>
-          {node.code && <div className="font-mono text-[11px] leading-none text-text-lo">{node.code}</div>}
-        </div>
-      </div>
+      <div className="canvas-scroll min-h-0 flex-1 space-y-1.5 overflow-y-auto p-2.5">
+        {nodes.map((node) => {
+          const notes = [...(notesByNode.get(node.id) ?? [])].sort((a, b) => b.updatedAt - a.updatedAt);
+          const isOpen = expandedNodeId === node.id;
+          const regionId = `notes-region-${node.id}`;
+          const barId = `notes-bar-${node.id}`;
+          const newNoteKey = `new:${node.id}`;
 
-      <div className="canvas-scroll min-h-0 flex-1 overflow-y-auto p-2.5">
-        {view.mode === "list" && (
-          <NoteList
-            notes={sortedNotes}
-            onNew={() => setView({ mode: "new" })}
-            onEdit={(id) => setView({ mode: "edit", noteId: id })}
-            onDelete={onDeleteNote}
-            resolveLink={resolveLink}
-            onLinkClick={onLinkClick}
-          />
-        )}
-        {view.mode === "new" && (
-          <NoteEditor
-            initial={{ title: "", body: "", isPublic: false }}
-            onCancel={() => setView({ mode: "list" })}
-            resolveLink={resolveLink}
-            onLinkClick={onLinkClick}
-            onSave={(input) => {
-              onCreateNote(input);
-              setView({ mode: "list" });
-            }}
-          />
-        )}
-        {view.mode === "edit" &&
-          (() => {
-            const target = notes.find((n) => n.id === view.noteId);
-            if (!target) {
-              setView({ mode: "list" });
-              return null;
-            }
-            return (
-              <NoteEditor
-                initial={{ title: target.title, body: target.body, isPublic: target.isPublic }}
-                onCancel={() => setView({ mode: "list" })}
-                resolveLink={resolveLink}
-                onLinkClick={onLinkClick}
-                onSave={(input) => {
-                  onUpdateNote(target.id, input);
-                  setView({ mode: "list" });
+          return (
+            <div key={node.id} className="rounded-md border border-rule bg-ink-900/60">
+              <button
+                type="button"
+                id={barId}
+                ref={(el) => {
+                  if (el) barRefs.current.set(node.id, el);
+                  else barRefs.current.delete(node.id);
                 }}
-              />
-            );
-          })()}
+                aria-expanded={isOpen}
+                aria-controls={regionId}
+                onClick={() =>
+                  setExpandedNodeId((cur) => {
+                    const next = cur === node.id ? null : node.id;
+                    setActiveNoteKey(null);
+                    return next;
+                  })
+                }
+                className="flex w-full items-center gap-2 rounded-md px-2.5 py-2 text-left focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-1 focus-visible:outline-spec-b"
+              >
+                <span
+                  aria-hidden
+                  className="h-1.5 w-1.5 shrink-0 rounded-full"
+                  style={{ background: TYPE_DOT[node.type] ?? DEFAULT_DOT }}
+                />
+                <span className="min-w-0 flex-1 truncate font-sans text-sm font-medium text-text-hi">
+                  {node.label}
+                </span>
+                {node.code && <span className="shrink-0 font-mono text-[11px] text-text-lo">{node.code}</span>}
+                <span className="shrink-0 font-sans text-[11px] text-text-lo">{notes.length}개</span>
+                <span
+                  aria-hidden
+                  className={cn("shrink-0 text-text-lo transition-transform", isOpen && "rotate-90")}
+                >
+                  {"›"}
+                </span>
+              </button>
+
+              {isOpen && (
+                <div id={regionId} role="region" aria-labelledby={barId} className="space-y-1.5 border-t border-rule px-2.5 py-2">
+                  <button
+                    type="button"
+                    onClick={() => setActiveNoteKey((cur) => (cur === newNoteKey ? null : newNoteKey))}
+                    className="w-full rounded-md border border-dashed border-rule px-2.5 py-1.5 text-left font-sans text-xs text-text-lo hover:border-spec-b hover:text-text-hi focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-1 focus-visible:outline-spec-b"
+                  >
+                    {"+ 새 노트"}
+                  </button>
+
+                  {activeNoteKey === newNoteKey && (
+                    <NoteEditor
+                      initial={{ title: "", body: "", isPublic: false }}
+                      onCancel={() => setActiveNoteKey(null)}
+                      resolveLink={resolveLink}
+                      onLinkClick={onLinkClick}
+                      onSave={(input) => {
+                        onCreateNote(node.id, input);
+                        setActiveNoteKey(null);
+                      }}
+                    />
+                  )}
+
+                  {notes.length === 0 ? (
+                    <p className="px-1 py-4 text-center font-sans text-[11px] leading-relaxed text-text-lo">
+                      아직 노트가 없어요. 여기서 배운 걸 처음으로 적어보세요.
+                    </p>
+                  ) : (
+                    notes.map((note) => {
+                      const noteOpen = activeNoteKey === note.id;
+                      const noteRegionId = `note-region-${note.id}`;
+                      const noteBarId = `note-bar-${note.id}`;
+                      return (
+                        <div key={note.id} className="rounded-md border border-rule bg-ink-800/60">
+                          <div className="flex items-center gap-2 px-2.5 py-1.5">
+                            <button
+                              type="button"
+                              id={noteBarId}
+                              aria-expanded={noteOpen}
+                              aria-controls={noteRegionId}
+                              onClick={() => setActiveNoteKey(noteOpen ? null : note.id)}
+                              className="min-w-0 flex-1 rounded text-left focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-1 focus-visible:outline-spec-b"
+                            >
+                              <div className="truncate font-sans text-xs font-medium text-text-hi">
+                                {note.title || "(제목 없음)"}
+                              </div>
+                              <div className="truncate font-sans text-[10px] text-text-lo">
+                                {previewOf(note.body) || "내용 없음"}
+                              </div>
+                            </button>
+                            <span
+                              className={cn(
+                                "shrink-0 rounded px-1.5 py-0.5 font-sans text-[10px] leading-none",
+                                note.isPublic ? "bg-spec-g/20 text-spec-g" : "bg-ink-700 text-text-lo"
+                              )}
+                              title={note.isPublic ? "공개 노트" : "비공개 노트"}
+                            >
+                              {note.isPublic ? "공개" : "비공개"}
+                            </span>
+                            <span className="shrink-0 font-mono text-[10px] text-text-lo">
+                              {formatUpdatedAt(note.updatedAt)}
+                            </span>
+                            <button
+                              type="button"
+                              onClick={() => onDeleteNote(note.id)}
+                              className="shrink-0 rounded px-1.5 py-0.5 font-sans text-[11px] text-text-lo hover:bg-ink-700 hover:text-text-hi focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-1 focus-visible:outline-spec-b"
+                            >
+                              삭제
+                            </button>
+                          </div>
+                          {noteOpen && (
+                            <div
+                              id={noteRegionId}
+                              role="region"
+                              aria-labelledby={noteBarId}
+                              className="border-t border-rule px-2.5 py-2"
+                            >
+                              <NoteEditor
+                                initial={{ title: note.title, body: note.body, isPublic: note.isPublic }}
+                                onCancel={() => setActiveNoteKey(null)}
+                                resolveLink={resolveLink}
+                                onLinkClick={onLinkClick}
+                                onSave={(input) => {
+                                  onUpdateNote(note.id, input);
+                                  setActiveNoteKey(null);
+                                }}
+                              />
+                            </div>
+                          )}
+                        </div>
+                      );
+                    })
+                  )}
+                </div>
+              )}
+            </div>
+          );
+        })}
       </div>
-    </div>
-  );
-}
-
-interface NoteListProps {
-  notes: ElementNote[];
-  onNew: () => void;
-  onEdit: (id: string) => void;
-  onDelete: (id: string) => void;
-  resolveLink: ResolveWikiLink;
-  onLinkClick: (nodeId: string) => void;
-}
-
-function NoteList({ notes, onNew, onEdit, onDelete, resolveLink, onLinkClick }: NoteListProps) {
-  return (
-    <div className="space-y-2">
-      <button
-        type="button"
-        onClick={onNew}
-        className="w-full rounded-md border border-dashed border-rule px-3 py-2 text-left font-sans text-xs text-text-lo hover:border-spec-b hover:text-text-hi focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-1 focus-visible:outline-spec-b"
-      >
-        {"+ 새 노트"}
-      </button>
-
-      {notes.length === 0 ? (
-        <p className="px-1 py-6 text-center font-sans text-body-sm leading-relaxed text-text-lo">
-          아직 노트가 없어요. 여기서 배운 걸 처음으로 적어보세요.
-        </p>
-      ) : (
-        notes.map((note) => (
-          <div
-            key={note.id}
-            className="rounded-md border border-rule bg-ink-900/60 p-2.5"
-          >
-            <div className="flex items-start justify-between gap-2">
-              <button
-                type="button"
-                onClick={() => onEdit(note.id)}
-                className="min-w-0 flex-1 rounded text-left focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-1 focus-visible:outline-spec-b"
-              >
-                <div className="truncate font-sans text-sm font-medium text-text-hi">
-                  {note.title || "(제목 없음)"}
-                </div>
-                <div className="mt-0.5 truncate font-sans text-[11px] text-text-lo">
-                  {previewOf(note.body) || "내용 없음"}
-                </div>
-              </button>
-              <span
-                className={cn(
-                  "shrink-0 rounded px-1.5 py-0.5 font-sans text-[10px] leading-none",
-                  note.isPublic ? "bg-spec-g/20 text-spec-g" : "bg-ink-700 text-text-lo"
-                )}
-                title={note.isPublic ? "공개 노트" : "비공개 노트"}
-              >
-                {note.isPublic ? "공개" : "비공개"}
-              </span>
-            </div>
-            <div className="mt-1.5 flex items-center justify-between">
-              <span className="font-mono text-[10px] text-text-lo">{formatUpdatedAt(note.updatedAt)}</span>
-              <button
-                type="button"
-                onClick={() => onDelete(note.id)}
-                className="rounded px-1.5 py-0.5 font-sans text-[11px] text-text-lo hover:bg-ink-700 hover:text-text-hi focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-1 focus-visible:outline-spec-b"
-              >
-                삭제
-              </button>
-            </div>
-            {/* 목록에서도 본문 일부를 렌더링해 위키링크/서식이 눈에 보이게 한다. */}
-            <div className="mt-1.5 border-t border-rule pt-1.5 font-sans text-[11px] text-text-lo">
-              <Markdown text={previewOf(note.body)} resolveLink={resolveLink} onLinkClick={onLinkClick} />
-            </div>
-          </div>
-        ))
-      )}
     </div>
   );
 }
