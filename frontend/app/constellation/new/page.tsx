@@ -125,15 +125,26 @@ export default function NewConstellationPage() {
     );
   }, []);
 
+  // 잇기는 토글이다: 이미 이어진 쌍(방향 무관)을 다시 이으면 끊어지고, 아니면
+  // 새로 이어진다 - 절대 같은 쌍에 두 번째 엣지를 만들지 않는다. 캔버스는
+  // drag-to-connect와 툴바의 "잇기" 양쪽 모두 이 콜백 하나로 들어오므로, 토글
+  // 규칙을 캔버스가 아니라 그래프 상태를 들고 있는 여기 한 곳에만 둔다 -
+  // 캔버스의 props API(연결 "생성"이라는 이름)는 그대로 유지된다.
   const handleEdgeCreate = useCallback((sourceNodeId: string, targetNodeId: string) => {
     if (sourceNodeId === targetNodeId) return;
     setEdges((prev) => {
-      const alreadyLinked = Object.values(prev).some(
-        (e) =>
+      const existingId = Object.keys(prev).find((id) => {
+        const e = prev[id];
+        return (
           (e.sourceNodeId === sourceNodeId && e.targetNodeId === targetNodeId) ||
           (e.sourceNodeId === targetNodeId && e.targetNodeId === sourceNodeId)
-      );
-      if (alreadyLinked) return prev;
+        );
+      });
+      if (existingId) {
+        const next = { ...prev };
+        delete next[existingId];
+        return next;
+      }
       edgeCounter += 1;
       const id = `edge-local-${edgeCounter}`;
       return { ...prev, [id]: { id, sourceNodeId, targetNodeId } };
@@ -145,6 +156,30 @@ export default function NewConstellationPage() {
       const next = { ...prev };
       delete next[edgeId];
       return next;
+    });
+  }, []);
+
+  // 노드 삭제(툴바 "삭제") - 노드 자체와 그 노드를 참조하는 엣지를 함께
+  // 정리한다. 캔버스는 존재하지 않는 노드의 엣지를 그리지 않도록 방어하지만,
+  // 상태에 고아 엣지를 남겨두는 건 지저분하므로 여기서 바로 없앤다.
+  const handleNodeDelete = useCallback((nodeId: string) => {
+    setNodes((prev) => {
+      if (!prev[nodeId]) return prev;
+      const next = { ...prev };
+      delete next[nodeId];
+      return next;
+    });
+    setEdges((prev) => {
+      const next: Record<string, CanvasEdge> = {};
+      let changed = false;
+      for (const [id, edge] of Object.entries(prev)) {
+        if (edge.sourceNodeId === nodeId || edge.targetNodeId === nodeId) {
+          changed = true;
+          continue;
+        }
+        next[id] = edge;
+      }
+      return changed ? next : prev;
     });
   }, []);
 
@@ -186,6 +221,7 @@ export default function NewConstellationPage() {
         onNodeToggleComplete={handleNodeToggleComplete}
         onEdgeCreate={handleEdgeCreate}
         onEdgeDelete={handleEdgeDelete}
+        onNodeDelete={handleNodeDelete}
         onExternalDrop={handleExternalDrop}
       />
       <ElementBinPanel bins={bins} onItemDragToCanvas={placeItem} onCreateBin={handleCreateBin} placedItemIds={placedItemIds} />

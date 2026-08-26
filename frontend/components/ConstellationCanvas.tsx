@@ -20,6 +20,7 @@ import {
   useState,
   type KeyboardEvent as ReactKeyboardEvent,
   type PointerEvent as ReactPointerEvent,
+  type RefObject,
   type WheelEvent as ReactWheelEvent,
 } from "react";
 import { cn } from "@/lib/cn";
@@ -54,6 +55,10 @@ export interface ConstellationCanvasProps {
   onNodeToggleComplete: (nodeId: string) => void;
   onEdgeCreate: (sourceNodeId: string, targetNodeId: string) => void;
   onEdgeDelete?: (edgeId: string) => void;
+  /** 노드 삭제(툴바 "삭제" 버튼). 이 노드를 참조하는 엣지 정리는 상태를 들고
+   * 있는 부모(page.tsx)의 책임 - 캔버스는 nodes/edges를 그대로 받아 그리기만
+   * 하므로 스스로 정리할 수 없다. */
+  onNodeDelete?: (nodeId: string) => void;
   /**
    * 외부(원소 보관함 패널 등)에서 HTML5 드래그로 들어온 드롭을 받는다. 캔버스는
    * 드롭된 데이터의 의미(어떤 원소인지)를 알 필요가 없으므로, dataTransfer의
@@ -136,6 +141,7 @@ export function ConstellationCanvas({
   onNodeToggleComplete,
   onEdgeCreate,
   onEdgeDelete,
+  onNodeDelete,
   onExternalDrop,
   readOnly = false,
   className,
@@ -151,6 +157,11 @@ export function ConstellationCanvas({
   const [edgeCursor, setEdgeCursor] = useState<CanvasPosition | null>(null);
   const [hoveredNodeId, setHoveredNodeId] = useState<string | null>(null);
   const [focusedNodeId, setFocusedNodeId] = useState<string | null>(null);
+  // 선택된 노드 - 툴바(달성/잇기/삭제)를 여는 트리거. 클릭/Enter는 이제 완료를
+  // 즉시 토글하지 않고 선택만 한다(아래 activateNode 참고).
+  const [selectedNodeId, setSelectedNodeId] = useState<string | null>(null);
+  // "잇기" 모드의 출발 노드. 설정돼 있으면 다음 노드 클릭이 연결 대상이 된다.
+  const [connectSource, setConnectSource] = useState<string | null>(null);
 
   const positionOf = useCallback(
     (nodeId: string): CanvasPosition => {
@@ -290,6 +301,49 @@ export function ConstellationCanvas({
     [nodes, transform.k]
   );
 
+  // --- 선택 / 잇기 모드 ------------------------------------------------------
+
+  // 이미 이어진 쌍인지(방향 무관) 확인 - "잇기" 토글(다시 이으면 끊김) 힌트와
+  // 배너 문구에 쓴다. 실제 토글 실행은 부모(page.tsx)의 onEdgeCreate가 맡는다.
+  const isLinked = useCallback(
+    (a: string, b: string) =>
+      Object.values(edges).some(
+        (edge) =>
+          (edge.sourceNodeId === a && edge.targetNodeId === b) ||
+          (edge.sourceNodeId === b && edge.targetNodeId === a)
+      ),
+    [edges]
+  );
+
+  // 클릭(또는 Enter/Space)의 공통 처리. "잇기" 모드 중이면 이 노드가 연결
+  // 대상이 되고, 아니면 이 노드를 선택해 툴바를 연다. 클릭이 완료 토글을
+  // 곧바로 실행하던 이전 동작은 제거했다 - 그게 우연히 눌리는 사고의 원인이었다.
+  const activateNode = useCallback(
+    (nodeId: string) => {
+      if (connectSource) {
+        if (nodeId !== connectSource) onEdgeCreate(connectSource, nodeId);
+        setConnectSource(null);
+        setSelectedNodeId(null);
+      } else {
+        setSelectedNodeId(nodeId);
+      }
+    },
+    [connectSource, onEdgeCreate]
+  );
+
+  // Esc는 어디에 포커스가 있든(툴바 버튼 포함) 잇기 모드와 선택/툴바를 닫는다.
+  useEffect(() => {
+    if (readOnly) return;
+    function onKeyDown(e: KeyboardEvent) {
+      if (e.key === "Escape") {
+        setConnectSource(null);
+        setSelectedNodeId(null);
+      }
+    }
+    window.addEventListener("keydown", onKeyDown);
+    return () => window.removeEventListener("keydown", onKeyDown);
+  }, [readOnly]);
+
   // --- 공통 포인터 이동/해제 ------------------------------------------------
 
   const handlePointerMove = useCallback(
@@ -329,8 +383,8 @@ export function ConstellationCanvas({
           const world = clientToWorld(e.clientX, e.clientY);
           onNodeDrag(drag.nodeId, world);
         } else {
-          // 임계값 이내로만 움직였다 = 드래그가 아니라 클릭 -> 완료 토글.
-          onNodeToggleComplete(drag.nodeId);
+          // 임계값 이내로만 움직였다 = 드래그가 아니라 클릭 -> 선택(또는 잇기 대상 지정).
+          activateNode(drag.nodeId);
         }
         setDragPosition(null);
       } else if (drag.kind === "edge") {
@@ -338,10 +392,18 @@ export function ConstellationCanvas({
         const targetId = findNodeNear(world, drag.sourceNodeId);
         if (targetId) onEdgeCreate(drag.sourceNodeId, targetId);
         setEdgeCursor(null);
+      } else if (drag.kind === "pan") {
+        const dx = e.clientX - drag.startClientX;
+        const dy = e.clientY - drag.startClientY;
+        if (Math.hypot(dx, dy) <= CLICK_THRESHOLD) {
+          // 빈 캔버스 클릭 - 선택/잇기 모드를 닫는다(토글 아님).
+          setSelectedNodeId(null);
+          setConnectSource(null);
+        }
       }
-      // pan은 별도 처리 불필요 - transform이 이미 최신 상태.
+      // pan의 transform 자체는 별도 처리 불필요 - 이미 최신 상태.
     },
-    [clientToWorld, findNodeNear, onEdgeCreate, onNodeDrag, onNodeToggleComplete]
+    [activateNode, clientToWorld, findNodeNear, onEdgeCreate, onNodeDrag]
   );
 
   const handleNodeKeyDown = useCallback(
@@ -349,10 +411,13 @@ export function ConstellationCanvas({
       if (readOnly) return;
       if (e.key === "Enter" || e.key === " ") {
         e.preventDefault();
-        onNodeToggleComplete(nodeId);
+        // 선택인가 토글인가: 클릭과 동일한 의미(선택)로 통일한다. 키보드
+        // 사용자도 툴바를 거쳐 달성/잇기/삭제에 동등하게 접근해야 하므로,
+        // 여기서만 즉시 토글해 버리면 클릭과 다른 동작이 되어 일관성이 깨진다.
+        activateNode(nodeId);
       }
     },
-    [readOnly, onNodeToggleComplete]
+    [readOnly, activateNode]
   );
 
   // --- 파생 데이터 ----------------------------------------------------------
@@ -454,12 +519,17 @@ export function ConstellationCanvas({
             const color = colorForType(node.type);
             const isHovered = hoveredNodeId === node.id;
             const isFocused = focusedNodeId === node.id;
+            const isSelected = selectedNodeId === node.id;
+            const isConnectSource = connectSource === node.id;
             // level(1000~4000)을 겉보기 등급처럼 쓴다: 낮은 학년 과목일수록 더
             // 밝고 큰 별로 읽히게. level이 없으면 중간값(2000)으로 취급해
             // 항상 자연스럽게 보이도록 한다. 은은하게만 - magT는 0~1.
             const magT = Math.min(1, Math.max(0, ((node.level ?? 2000) - 1000) / 3000));
             const r = NODE_RADIUS - magT * 2.4;
-            const magOpacity = node.isCompleted ? 1 : 1 - magT * 0.22;
+            // 완료 여부를 "밝기"로 읽히게 한다 - 미완료는 속이 빈 어두운 점(희미한
+            // 별), 완료는 분광형 색으로 꽉 찬 밝은 별(+발광). 대비를 세게 줬다:
+            // 미완료는 불투명도도 낮춰 눈에 잘 안 띄게, 완료는 항상 100%.
+            const magOpacity = node.isCompleted ? 1 : 0.55 - magT * 0.18;
             const { code, rest } = splitCourseCode(node.label);
             return (
               <g
@@ -490,21 +560,29 @@ export function ConstellationCanvas({
                   />
                 )}
 
-                {(isFocused || node.isCompleted) && (
+                {/* "잇기" 모드의 출발 노드 표시 - 점선 링. */}
+                {isConnectSource && (
+                  <circle r={r + 8} fill="none" stroke="var(--spec-b)" strokeWidth={1.5} strokeDasharray="3 3" />
+                )}
+
+                {(isFocused || isSelected || node.isCompleted) && (
                   <circle
                     r={r + 5}
                     fill="none"
                     stroke={node.isCompleted ? color : "var(--spec-b)"}
-                    strokeWidth={isFocused ? 1.5 : 1}
+                    strokeWidth={isFocused || isSelected ? 1.5 : 1}
                     opacity={node.isCompleted ? 0.35 : 0.7}
                   />
                 )}
 
+                {/* 완료 = 밝은 별(분광형 색 채움 + 발광), 미완료 = 속이 빈 희미한 점.
+                    타입 색은 미완료일 때 더 이상 쓰지 않는다 - "밝기"만으로 완료
+                    여부가 읽혀야 하고, 색은 완료된 뒤에야 드러나는 보상이어야 한다. */}
                 <circle
                   r={r}
-                  fill={node.isCompleted ? color : "var(--ink-900)"}
-                  stroke={color}
-                  strokeWidth={node.isCompleted ? 0 : 1.5}
+                  fill={node.isCompleted ? color : "none"}
+                  stroke={node.isCompleted ? "none" : "var(--rule)"}
+                  strokeWidth={node.isCompleted ? 0 : 1}
                   opacity={magOpacity}
                   filter={node.isCompleted ? "url(#const-glow)" : undefined}
                 />
@@ -516,6 +594,7 @@ export function ConstellationCanvas({
                   fontSize={11.5}
                   className="font-sans"
                   fill={node.isCompleted ? "var(--text-hi)" : "var(--text-lo)"}
+                  opacity={node.isCompleted ? 1 : 0.6}
                   style={{ paintOrder: "stroke", stroke: "var(--ink-900)", strokeWidth: 3, strokeOpacity: 0.75 }}
                 >
                   {code && (
@@ -531,9 +610,139 @@ export function ConstellationCanvas({
         </g>
       </svg>
 
+      {/* 빈 캔버스 안내 - 노드가 하나라도 생기면 즉시 사라진다. */}
+      {!readOnly && Object.keys(nodes).length === 0 && (
+        <div className="pointer-events-none absolute inset-0 flex items-center justify-center px-8">
+          <p className="max-w-xs text-center font-sans text-sm leading-relaxed text-text-lo">
+            보관함에서 원소를 끌어와 캔버스에 놓거나,
+            <br />
+            칩을 포커스한 뒤 Enter를 누르면 여기에 놓입니다.
+          </p>
+        </div>
+      )}
+
+      {/* 잇기 모드 배너 */}
+      {!readOnly && connectSource && (
+        <div
+          className="pointer-events-none absolute left-1/2 top-4 -translate-x-1/2 rounded-full border border-rule bg-ink-800/90 px-4 py-1.5 font-sans text-xs text-text-hi shadow-lg"
+          role="status"
+        >
+          {hoveredNodeId && hoveredNodeId !== connectSource && isLinked(connectSource, hoveredNodeId)
+            ? "이미 이어져 있음 · 다시 누르면 끊어집니다"
+            : "잇는 중 · 대상 노드를 클릭하세요 (Esc로 취소)"}
+        </div>
+      )}
+
+      {/* 노드 선택 툴바 - 달성/잇기/삭제. transform(팬/줌)이 바뀔 때마다 다시
+          계산되므로 캔버스를 움직여도 선택된 노드를 계속 따라간다. */}
+      {!readOnly && !connectSource && selectedNodeId && nodes[selectedNodeId] && (
+        <NodeToolbar
+          node={nodes[selectedNodeId]}
+          transform={transform}
+          containerRef={svgRef}
+          onToggleComplete={() => onNodeToggleComplete(selectedNodeId)}
+          onStartConnect={() => setConnectSource(selectedNodeId)}
+          onDelete={
+            onNodeDelete
+              ? () => {
+                  onNodeDelete(selectedNodeId);
+                  setSelectedNodeId(null);
+                }
+              : undefined
+          }
+          onDismiss={() => setSelectedNodeId(null)}
+        />
+      )}
+
       {readOnly && (
         <div className="pointer-events-none absolute inset-0" aria-hidden />
       )}
+    </div>
+  );
+}
+
+const TOOLBAR_WIDTH = 176;
+const TOOLBAR_HEIGHT = 40;
+const TOOLBAR_MARGIN = 8;
+const TOOLBAR_GAP = 14; // 노드 가장자리와 툴바 사이 여백
+
+interface NodeToolbarProps {
+  node: CanvasNode;
+  transform: Transform;
+  containerRef: RefObject<SVGSVGElement>;
+  onToggleComplete: () => void;
+  onStartConnect: () => void;
+  onDelete?: () => void;
+  onDismiss: () => void;
+}
+
+/**
+ * 선택된 노드 옆에 뜨는 작은 플로팅 툴바(달성/잇기/삭제).
+ *
+ * 위치는 노드의 world 좌표에 현재 pan/zoom transform을 적용해 화면 좌표로
+ * 바꾼 뒤, 컨테이너 경계 안으로 clamp한다 - transform이 리렌더마다 최신값을
+ * props로 받으므로 팬/줌을 해도 매 프레임 다시 계산되어 노드를 계속 따라간다.
+ * 기본은 노드 위쪽에 뜨고, 위쪽 여백이 부족하면 아래로 뒤집는다.
+ */
+function NodeToolbar({
+  node,
+  transform,
+  containerRef,
+  onToggleComplete,
+  onStartConnect,
+  onDelete,
+  onDismiss,
+}: NodeToolbarProps) {
+  const rect = containerRef.current?.getBoundingClientRect();
+  const width = rect?.width ?? 9999;
+  const height = rect?.height ?? 9999;
+
+  const screenX = transform.x + node.position.x * transform.k;
+  const screenY = transform.y + node.position.y * transform.k;
+
+  const preferAbove = screenY - TOOLBAR_GAP - TOOLBAR_HEIGHT >= TOOLBAR_MARGIN;
+  const top = preferAbove
+    ? screenY - TOOLBAR_GAP - TOOLBAR_HEIGHT
+    : Math.min(screenY + TOOLBAR_GAP + 24, height - TOOLBAR_MARGIN - TOOLBAR_HEIGHT);
+  const left = Math.min(
+    Math.max(TOOLBAR_MARGIN, screenX - TOOLBAR_WIDTH / 2),
+    Math.max(TOOLBAR_MARGIN, width - TOOLBAR_MARGIN - TOOLBAR_WIDTH)
+  );
+
+  const btnClass =
+    "rounded px-2 py-1 text-xs font-sans text-text-hi hover:bg-ink-700 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-1 focus-visible:outline-spec-b";
+
+  return (
+    <div
+      role="toolbar"
+      aria-label={`${node.label} 작업`}
+      className="absolute z-10 flex items-center gap-1 rounded-lg border border-rule bg-ink-800 p-1 shadow-lg"
+      style={{ left, top, width: TOOLBAR_WIDTH, minHeight: TOOLBAR_HEIGHT }}
+    >
+      <button
+        type="button"
+        className={btnClass}
+        aria-pressed={node.isCompleted}
+        onClick={onToggleComplete}
+      >
+        {node.isCompleted ? "✓ 달성 취소" : "✓ 달성"}
+      </button>
+      <button type="button" className={btnClass} onClick={onStartConnect}>
+        {"⧸ 잇기"}
+      </button>
+      {onDelete && (
+        <button type="button" className={btnClass} onClick={onDelete}>
+          {"🗑 삭제"}
+        </button>
+      )}
+      <button
+        type="button"
+        aria-label="닫기"
+        className={cn(btnClass, "ml-auto px-1.5 text-text-lo")}
+        onClick={onDismiss}
+      >
+        {"✕"}
+      </button>
     </div>
   );
 }
