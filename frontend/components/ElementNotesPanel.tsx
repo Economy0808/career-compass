@@ -19,6 +19,7 @@
  */
 
 import { useEffect, useRef, useState, type ClipboardEvent as ReactClipboardEvent } from "react";
+import { createPortal } from "react-dom";
 import { cn } from "@/lib/cn";
 import type { CanvasNode } from "@/components/ConstellationCanvas";
 import { Markdown, type ResolveWikiLink } from "@/lib/markdown";
@@ -68,10 +69,12 @@ export interface ElementNotesPanelProps {
    * (예: 같은 원소를 두 번 연달아 클릭) 효과가 재실행되도록 매번 증가한다. */
   expandNodeId: string | null;
   expandToken: number;
+  /** 자동저장 첫 커밋에서 만들어진 노트 id를 돌려준다 - 새 노트 편집기가 이후의
+   * 자동저장을 onCreateNote가 아니라 onUpdateNote(id, ...)로 이어가기 위해서다. */
   onCreateNote: (
     nodeId: string,
     input: { title: string; body: string; isPublic: boolean; attachments: NoteAttachment[] }
-  ) => void;
+  ) => string;
   onUpdateNote: (
     id: string,
     patch: { title: string; body: string; isPublic: boolean; attachments: NoteAttachment[] }
@@ -132,6 +135,10 @@ export function ElementNotesPanel({
   const [expandedNodeId, setExpandedNodeId] = useState<string | null>(null);
   const [activeNoteKey, setActiveNoteKey] = useState<string | null>(null);
   const barRefs = useRef(new Map<string, HTMLButtonElement>());
+  // "확대 버튼으로 노트를 연 것"이라는 의도를 activeNoteKey가 바뀐 뒤(커밋 후)
+  // 실행되는 아래 리셋 effect에 전달하기 위한 값 - 없으면 그 effect가 매번
+  // false로 덮어써서 확대 버튼이 두 번 클릭해야 먹는 버그가 생긴다.
+  const expandIntentRef = useRef<string | null>(null);
 
   // 외부 요청(카드의 「노트 N개 ›」, 노트 속 [[위키링크]] 클릭) - 그 원소만
   // 펼치고 다른 건 다 접은 뒤, 시야 밖에 있으면 스크롤해서 보여준다. 노트
@@ -152,7 +159,18 @@ export function ElementNotesPanel({
 
   // 열려 있는 노트가 바뀌거나 닫히면 "크게 보기"도 함께 원상복구한다 - 다른
   // 노트로 옮겨갔는데 이전 노트의 확장 상태가 그대로 남아있으면 안 되므로.
+  // 단, 이번 전환이 확대 버튼의 "닫힌 노트를 열면서 바로 확대" 의도였다면
+  // (expandIntentRef가 방금 활성화된 노트를 가리키면) false로 덮어쓰지 않고
+  // true를 유지한다 - 그렇지 않으면 setActiveNoteKey로 인한 이 effect 재실행이
+  // 버튼 핸들러가 방금 켠 true를 즉시 꺼버려서 한 번 클릭으로는 확대되지
+  // 않는 버그가 생긴다(두 번째 클릭에서야 반영됨).
   useEffect(() => {
+    if (expandIntentRef.current !== null && expandIntentRef.current === activeNoteKey) {
+      expandIntentRef.current = null;
+      onNoteExpandedChange(true);
+      return;
+    }
+    expandIntentRef.current = null;
     onNoteExpandedChange(false);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [activeNoteKey]);
@@ -240,17 +258,15 @@ export function ElementNotesPanel({
                   </button>
 
                   {activeNoteKey === newNoteKey && (
-                    <NoteEditor
-                      initial={{ title: "", body: "", isPublic: false, attachments: [] }}
-                      onCancel={() => setActiveNoteKey(null)}
+                    <NewNoteEditor
+                      nodeId={node.id}
+                      onCreateNote={onCreateNote}
+                      onUpdateNote={onUpdateNote}
+                      onClose={() => setActiveNoteKey(null)}
                       resolveLink={resolveLink}
                       onLinkClick={onLinkClick}
                       isExpanded={isNoteExpanded}
                       onExpandedChange={onNoteExpandedChange}
-                      onSave={(input) => {
-                        onCreateNote(node.id, input);
-                        setActiveNoteKey(null);
-                      }}
                     />
                   )}
 
@@ -265,7 +281,10 @@ export function ElementNotesPanel({
                       const noteBarId = `note-bar-${note.id}`;
                       return (
                         <div key={note.id} className="rounded-none border border-rule bg-ink-800/60">
-                          <div className="flex items-center gap-2 px-2.5 py-1.5">
+                          {/* "직사각형 상단" - 노트패드가 아니라 이 행의 헤더. 확대
+                              버튼과 부가 옵션(⋮ 메뉴)이 여기 산다. 제목은 굵고 잘리지
+                              않게(요청 3) - 대신 두 번째 줄(본문 미리보기)만 truncate. */}
+                          <div className="flex items-center gap-1.5 px-2.5 py-1.5">
                             <button
                               type="button"
                               id={noteBarId}
@@ -274,32 +293,41 @@ export function ElementNotesPanel({
                               onClick={() => setActiveNoteKey(noteOpen ? null : note.id)}
                               className="min-w-0 flex-1 rounded-none text-left focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-1 focus-visible:outline-spec-b"
                             >
-                              <div className="truncate font-sans text-xs font-medium text-text-hi">
+                              <div className="font-sans text-sm font-bold text-text-hi">
                                 {note.title || "무제"}
                               </div>
                               <div className="truncate font-sans text-[10px] text-text-lo">
                                 {previewOf(note.body) || "내용 없음"}
                               </div>
                             </button>
-                            <span
-                              className={cn(
-                                "shrink-0 rounded-none px-1.5 py-0.5 font-sans text-[10px] leading-none",
-                                note.isPublic ? "bg-spec-g/20 text-spec-g" : "bg-ink-700 text-text-lo"
-                              )}
-                              title={note.isPublic ? "공개 노트" : "비공개 노트"}
-                            >
-                              {note.isPublic ? "공개" : "비공개"}
-                            </span>
-                            <span className="shrink-0 font-mono text-[10px] text-text-lo">
-                              {formatUpdatedAt(note.updatedAt)}
-                            </span>
                             <button
                               type="button"
-                              onClick={() => onDeleteNote(note.id)}
-                              className="shrink-0 rounded-none px-1.5 py-0.5 font-sans text-[11px] text-text-lo hover:bg-ink-700 hover:text-text-hi focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-1 focus-visible:outline-spec-b"
+                              aria-pressed={noteOpen && isNoteExpanded}
+                              aria-label={noteOpen && isNoteExpanded ? "노트 축소" : "노트 확대"}
+                              onClick={() => {
+                                if (!noteOpen) {
+                                  expandIntentRef.current = note.id;
+                                  setActiveNoteKey(note.id);
+                                  onNoteExpandedChange(true);
+                                } else {
+                                  onNoteExpandedChange(!isNoteExpanded);
+                                }
+                              }}
+                              className="flex h-6 w-6 shrink-0 items-center justify-center rounded-none border border-rule text-text-lo hover:border-spec-b hover:text-text-hi focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-1 focus-visible:outline-spec-b"
                             >
-                              삭제
+                              {/* 사이드 패널 글리프: 사각형 + 세로 분할선(이미지 1) -
+                                  이전의 모서리 화살표(⛶) 스타일을 대체. */}
+                              <svg width="13" height="13" viewBox="0 0 13 13" fill="none" aria-hidden="true">
+                                <rect x="1" y="1.5" width="11" height="10" stroke="currentColor" strokeWidth="1.2" />
+                                <path d="M8.3 1.5v10" stroke="currentColor" strokeWidth="1.2" />
+                              </svg>
                             </button>
+                            <NoteKebabMenu
+                              isPublic={note.isPublic}
+                              createdAt={note.createdAt}
+                              onTogglePublic={() => onUpdateNote(note.id, { ...note, isPublic: !note.isPublic })}
+                              onDelete={() => onDeleteNote(note.id)}
+                            />
                           </div>
                           {noteOpen && (
                             <div
@@ -312,18 +340,15 @@ export function ElementNotesPanel({
                                 initial={{
                                   title: note.title,
                                   body: note.body,
-                                  isPublic: note.isPublic,
                                   attachments: note.attachments,
                                 }}
-                                onCancel={() => setActiveNoteKey(null)}
+                                isPublic={note.isPublic}
+                                onClose={() => setActiveNoteKey(null)}
                                 resolveLink={resolveLink}
                                 onLinkClick={onLinkClick}
                                 isExpanded={isNoteExpanded}
                                 onExpandedChange={onNoteExpandedChange}
-                                onSave={(input) => {
-                                  onUpdateNote(note.id, input);
-                                  setActiveNoteKey(null);
-                                }}
+                                onPersist={(input) => onUpdateNote(note.id, input)}
                               />
                             </div>
                           )}
@@ -342,27 +367,44 @@ export function ElementNotesPanel({
 }
 
 interface NoteEditorProps {
-  initial: { title: string; body: string; isPublic: boolean; attachments: NoteAttachment[] };
-  onCancel: () => void;
-  onSave: (input: { title: string; body: string; isPublic: boolean; attachments: NoteAttachment[] }) => void;
+  initial: { title: string; body: string; attachments: NoteAttachment[] };
+  /** 공개/비공개는 이제 이 편집기가 소유하지 않는다 - 행 헤더의 ⋮ 메뉴가 부모
+   * 상태(note.isPublic)를 직접 토글하므로, 편집기는 매 렌더 최신 값을 프롭으로
+   * 받아 자동저장 페이로드에 그대로 실어 보내기만 한다(로컬 state로 복사해두면
+   * 편집 중 ⋮ 메뉴가 바꾼 값을 다음 자동저장이 덮어써버리는 경쟁 상태가 생긴다). */
+  isPublic: boolean;
+  /** Esc/포커스 아웃 등으로 편집기를 닫아 달라는 요청 - "취소"가 아니다. 자동저장이
+   * 이미 최신 초안을 커밋했으므로 닫아도 입력은 유실되지 않는다. */
+  onClose: () => void;
+  /** 자동저장 커밋 한 번 - 편집기를 닫지 않는다. 디바운스/blur/Esc/언마운트에서
+   * 호출된다. */
+  onPersist: (input: { title: string; body: string; isPublic: boolean; attachments: NoteAttachment[] }) => void;
   resolveLink: ResolveWikiLink;
   onLinkClick: (nodeId: string) => void;
   isExpanded: boolean;
   onExpandedChange: (expanded: boolean) => void;
+  /** "+ 새 노트"(아직 한 번도 저장된 적 없는) 경로인지 - true면 flushSave가
+   * 완전히 빈 상태에서는 저장을 건너뛴다(빈 노트를 만들지 않기 위해). 기존
+   * 노트(false, 기본값)는 이미 실재하므로, 사용자가 내용을 전부 지웠다면
+   * 그 빈 상태도 그대로 저장해야 한다 - 지워도 옛 내용이 되살아나면 안 된다. */
+  isNewNote?: boolean;
 }
+
+const AUTOSAVE_DEBOUNCE_MS = 800;
 
 function NoteEditor({
   initial,
-  onCancel,
-  onSave,
+  isPublic,
+  onClose,
+  onPersist,
   resolveLink,
   onLinkClick,
   isExpanded,
   onExpandedChange,
+  isNewNote = false,
 }: NoteEditorProps) {
   const [title, setTitle] = useState(initial.title);
   const [body, setBody] = useState(initial.body);
-  const [isPublic, setIsPublic] = useState(initial.isPublic);
   // 옵시디언처럼 모드 버튼이 없다 - 본문에 포커스가 있으면 원문(마크다운)을
   // 편집하고, 포커스를 잃으면 그 자리에서 바로 렌더링된다. 새 노트(본문 없음)는
   // 바로 타이핑할 수 있게 편집 상태로 시작, 기존 노트는 읽는 상태로 시작한다.
@@ -371,10 +413,9 @@ function NoteEditor({
   const [attachError, setAttachError] = useState<string | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
   const textareaRef = useRef<HTMLTextAreaElement>(null);
-  // 이번 편집 세션에서 새로 만든 object URL만 추적한다 - 저장 없이 편집기가
-  // 닫히면(취소/다른 노트로 이동) 이 URL들만 회수한다. initial로 받은,
-  // 이미 저장된 첨부의 URL은 노트가 살아있는 한(다시 열릴 수 있으므로)
-  // 여기서 회수하면 안 된다.
+  // 이번 편집 세션에서 새로 만든 object URL만 추적한다 - 편집기가 닫히면(자동저장
+  // 후 collapse/노트 전환) 이 URL들만 회수한다. initial로 받은, 이미 저장된
+  // 첨부의 URL은 노트가 살아있는 한(다시 열릴 수 있으므로) 여기서 회수하면 안 된다.
   const pendingUrlsRef = useRef<Set<string>>(new Set());
 
   useEffect(() => {
@@ -383,6 +424,108 @@ function NoteEditor({
       pending.forEach((url) => URL.revokeObjectURL(url));
       pending.clear();
     };
+  }, []);
+
+  // --- 자동저장 -----------------------------------------------------------
+  // 항상 최신값을 가리키는 ref들 - setTimeout 콜백/언마운트 클린업이 클로저에
+  // 갇힌 옛 값을 저장하지 않도록 한다.
+  const draftRef = useRef({ title, body, attachments });
+  useEffect(() => {
+    draftRef.current = { title, body, attachments };
+  }, [title, body, attachments]);
+  const isPublicRef = useRef(isPublic);
+  useEffect(() => {
+    isPublicRef.current = isPublic;
+  }, [isPublic]);
+  const onPersistRef = useRef(onPersist);
+  useEffect(() => {
+    onPersistRef.current = onPersist;
+  }, [onPersist]);
+  const debounceRef = useRef<ReturnType<typeof setTimeout> | undefined>(undefined);
+
+  // 첨부는 내용이 바뀌지 않고 추가/삭제만 되므로 id 나열만으로 서명을 만든다.
+  function attachmentsSignatureOf(atts: NoteAttachment[]): string {
+    return atts.map((a) => a.id).join(",");
+  }
+
+  // 이 노트가 실제로 한 번이라도 저장된 적 있는지 - "+ 새 노트"는 false로
+  // 시작하고(아직 실재하지 않으므로 완전히 빈 채로 저장하지 않는다), 기존
+  // 노트를 여는 경우는 true로 시작한다(이미 실재하므로 사용자가 다 지운
+  // 빈 상태도 그대로 저장해야 옛 내용이 되살아나지 않는다).
+  const everPersistedRef = useRef(!isNewNote);
+  // 마지막으로 실제 저장된 값의 스냅샷 - 노트를 열기만 하고 아무것도 안
+  // 바꿨는데 800ms 디바운스나 닫을 때(언마운트) flushSave가 똑같은 내용을
+  // 다시 써서 updatedAt만 갱신하고 목록 순서를 흔드는 것을 막는다.
+  const lastCommittedRef = useRef({
+    title: initial.title,
+    body: initial.body,
+    attachmentsSignature: attachmentsSignatureOf(initial.attachments),
+  });
+
+  function flushSave() {
+    if (debounceRef.current) {
+      clearTimeout(debounceRef.current);
+      debounceRef.current = undefined;
+    }
+    const d = draftRef.current;
+    const rawTitle = d.title.trim();
+    const rawBody = d.body.trim();
+    // 브랜드 뉴 노트(아직 한 번도 저장된 적 없음) 경로에서만 "전부 비어 있으면
+    // 저장 안 함" 가드를 적용한다 - 새 노트를 열기만 하고 아무것도 안 적은 채
+    // 접는 경우 빈 노트를 만들지 않기 위해서다. 이미 실재하는 노트는 사용자가
+    // 의도적으로 내용을 전부 지웠을 수 있으므로 이 가드에서 제외한다.
+    if (!everPersistedRef.current && !rawTitle && !rawBody && d.attachments.length === 0) return;
+    const committedTitle = rawTitle || "무제";
+    const committedBody = d.body;
+    const attachmentsSignature = attachmentsSignatureOf(d.attachments);
+    const last = lastCommittedRef.current;
+    // 마지막 커밋과 완전히 같으면 아무 것도 바뀐 게 없다는 뜻 - 그냥 열었다
+    // 닫기만 한 경우가 대표적이다. 여기서 멈추면 updatedAt이 갱신되지 않아
+    // 목록 순서가 흔들리지 않는다.
+    if (last.title === committedTitle && last.body === committedBody && last.attachmentsSignature === attachmentsSignature) {
+      return;
+    }
+    onPersistRef.current({
+      title: committedTitle,
+      body: committedBody,
+      isPublic: isPublicRef.current,
+      attachments: d.attachments,
+    });
+    everPersistedRef.current = true;
+    lastCommittedRef.current = { title: committedTitle, body: committedBody, attachmentsSignature };
+    // 커밋되면 이 첨부들의 object URL 소유권은 상위 상태(notes)로 넘어간다 -
+    // 이 편집기가 나중에 언마운트돼도 더 이상 회수 대상이 아니다(회수하면
+    // 방금 저장된 노트의 이미지가 깨진다).
+    pendingUrlsRef.current.clear();
+  }
+
+  // 타이핑 중 ~800ms 디바운스 자동저장.
+  useEffect(() => {
+    if (debounceRef.current) clearTimeout(debounceRef.current);
+    debounceRef.current = setTimeout(flushSave, AUTOSAVE_DEBOUNCE_MS);
+    return () => {
+      if (debounceRef.current) clearTimeout(debounceRef.current);
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [title, body]);
+
+  // 첨부 변경(붙여넣기/⋯로 추가, × 삭제)은 타이핑처럼 연속적이지 않으니 디바운스
+  // 없이 즉시 커밋한다. 마운트 시 initial 그대로는 다시 저장하지 않는다.
+  const skipFirstAttachSave = useRef(true);
+  useEffect(() => {
+    if (skipFirstAttachSave.current) {
+      skipFirstAttachSave.current = false;
+      return;
+    }
+    flushSave();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [attachments]);
+
+  // 노트 전환/collapse는 이 컴포넌트의 언마운트로 나타난다(부모가 noteOpen이길
+  // 조건부 렌더하므로) - 언마운트 시 마지막 초안을 반드시 커밋한다.
+  useEffect(() => {
+    return () => flushSave();
+    // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
 
   function attachFiles(files: File[]) {
@@ -442,7 +585,11 @@ function NoteEditor({
       onExpandedChange(false);
       return;
     }
-    onCancel();
+    // 자동저장이므로 Esc는 "취소"가 아니라 "닫기" - 닫히기 전에 최신 초안부터
+    // 커밋한다(닫히면 언마운트 클린업도 flushSave를 부르지만, 순서를 명시적으로
+    // 보장하기 위해 여기서도 부른다).
+    flushSave();
+    onClose();
   }
 
   // 렌더링된 본문을 클릭하면 편집 모드로 들어간다 - 단, 클릭한 게 위키링크나
@@ -473,49 +620,41 @@ function NoteEditor({
   const bodyPlaceholder =
     "내용을 마크다운으로 적어보세요. **굵게**, `코드`, [[원소 라벨]] 등을 쓸 수 있어요. 이미지는 붙여넣기(Ctrl+V)나 ⋯로 첨부할 수 있어요(최대 10MB).";
 
-  return (
-    <div className={editorWrapperClass}>
+  // isExpanded 상태에서는 이 편집기를 document.body로 포탈한다. 부모 aside가
+  // backdrop-blur-md(=backdrop-filter)를 갖고 있는데, backdrop-filter는
+  // transform/filter와 마찬가지로 자손 fixed 요소의 containing block을
+  // 자기 자신으로 바꿔버린다 - 그러면 여기 있는 "fixed; left:212px; right:16px"가
+  // 뷰포트가 아니라 ~288px 너비의 aside 기준으로 계산되어, 오른쪽 끝에 붙은
+  // ~60px 세로 슬리버가 된다(제목 글자가 한 자씩 줄바꿈되는 버그의 원인).
+  // body로 포탈하면 fixed가 다시 뷰포트 기준이 된다. 접힌(비확장) 상태는
+  // 그대로 패널 안 인라인 렌더링을 유지한다.
+  // 확대(isExpanded) 상태에서는 오버레이 자체는 여전히 레일 경계까지 넓게
+  // 펴지지만(212px~), 그 안의 글줄까지 그 폭을 다 채우면 옵시디언과 달리
+  // 한 줄이 너무 길어져 읽기 힘들어진다 - 옵시디언은 넓은 창에서도 본문을
+  // 화면 중앙의 좁은 단(칼럼)에 고정한다. 그래서 제목/본문/첨부만 최대
+  // ~720px 중앙 정렬 칼럼으로 감싼다. 접힌 상태에서는 패널 자체가 이미
+  // 좁으므로 감싸지 않고 기존 그대로 전체 폭을 쓴다.
+  const contentColumn = (
+    <>
       {/* 옵시디언 스타일: 폼이 아니라 한 장의 문서. 제목과 본문 사이에 테두리도
-          배경 구분도 없다 - 처음 적는 줄이 곧 제목이다. 확대 버튼만 우측 상단에
-          겹치지 않게 살짝 띄운다. */}
-      <div className="relative">
-        <input
-          type="text"
-          value={title}
-          onChange={(e) => setTitle(e.target.value)}
-          placeholder="제목"
-          className="w-full border-0 bg-transparent py-1 pr-9 font-serif text-display font-bold text-text-hi placeholder:text-text-lo/60 focus-visible:outline-none"
-          onKeyDown={(e) => {
-            if (e.key === "Escape") handleEscape();
-            if (e.key === "Enter") {
-              e.preventDefault();
-              setIsBodyFocused(true);
-              requestAnimationFrame(() => textareaRef.current?.focus());
-            }
-          }}
-        />
-        {/* 크게 보기: 라벨 없는 정사각형 아이콘 버튼 - 옵시디언 문서 위에 텍스트
-            라벨과 알약형 스위치가 얹혀 있으면 폼처럼 보인다는 피드백을 받아,
-            내부 사각 모서리와 맞춘 사각 버튼 + 기하학적 확대/축소 아이콘으로
-            바꿨다. 접근성 라벨은 화면에 보이지 않게(aria-label) 남긴다. */}
-        <button
-          type="button"
-          aria-pressed={isExpanded}
-          aria-label={isExpanded ? "노트 축소" : "노트 확대"}
-          onClick={() => onExpandedChange(!isExpanded)}
-          className="absolute right-0 top-1 flex h-6 w-6 shrink-0 items-center justify-center rounded-none border border-rule text-text-lo hover:border-spec-b hover:text-text-hi focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-1 focus-visible:outline-spec-b"
-        >
-          {isExpanded ? (
-            <svg width="13" height="13" viewBox="0 0 13 13" fill="none" aria-hidden="true">
-              <path d="M4 1v3H1M9 1v3h3M9 12V9h3M4 12V9H1" stroke="currentColor" strokeWidth="1.3" />
-            </svg>
-          ) : (
-            <svg width="13" height="13" viewBox="0 0 13 13" fill="none" aria-hidden="true">
-              <path d="M1 4V1h3M9 1h3v3M12 9v3H9M4 12H1V9" stroke="currentColor" strokeWidth="1.3" />
-            </svg>
-          )}
-        </button>
-      </div>
+          배경 구분도 없다 - 처음 적는 줄이 곧 제목이다. 확대 버튼과 ⋮ 메뉴는
+          더 이상 이 패드 위에 없다 - 행 헤더(부모)로 옮겨졌다. */}
+      <input
+        type="text"
+        value={title}
+        onChange={(e) => setTitle(e.target.value)}
+        onBlur={flushSave}
+        placeholder="제목"
+        className="w-full border-0 bg-transparent py-1 font-serif text-display font-bold text-text-hi placeholder:text-text-lo/60 focus-visible:outline-none"
+        onKeyDown={(e) => {
+          if (e.key === "Escape") handleEscape();
+          if (e.key === "Enter") {
+            e.preventDefault();
+            setIsBodyFocused(true);
+            requestAnimationFrame(() => textareaRef.current?.focus());
+          }
+        }}
+      />
 
       {/* 옵시디언처럼 모드 버튼이 없다 - 포커스가 있으면 원문, 없으면 렌더링.
           렌더링 상태를 클릭(또는 Enter)하면 다시 편집으로 들어간다. 제목과
@@ -525,7 +664,10 @@ function NoteEditor({
           ref={textareaRef}
           value={body}
           onChange={(e) => setBody(e.target.value)}
-          onBlur={() => setIsBodyFocused(false)}
+          onBlur={() => {
+            setIsBodyFocused(false);
+            flushSave();
+          }}
           onPaste={handleBodyPaste}
           placeholder={bodyPlaceholder}
           rows={isExpanded ? 20 : 9}
@@ -603,49 +745,168 @@ function NoteEditor({
           ))}
         </div>
       )}
+    </>
+  );
 
-      <div className="flex items-center justify-between gap-2 pt-1">
-        <label className="flex items-center gap-1.5 font-sans text-[11px] text-text-lo">
-          <input
-            type="checkbox"
-            checked={isPublic}
-            onChange={(e) => setIsPublic(e.target.checked)}
-            className="h-3 w-3 rounded-none border-rule accent-spec-b focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-1 focus-visible:outline-spec-b"
-          />
-          <span>{isPublic ? "공개" : "비공개"}</span>
-        </label>
+  const editorNode = (
+    <div className={editorWrapperClass}>
+      {isExpanded ? (
+        <div className="mx-auto flex w-full max-w-[720px] flex-1 flex-col gap-2.5 pt-2">{contentColumn}</div>
+      ) : (
+        contentColumn
+      )}
 
-        <div className="flex items-center gap-1.5">
-          <button
-            type="button"
-            onClick={() => fileInputRef.current?.click()}
-            aria-label="파일 탐색기에서 이미지 첨부"
-            title="파일에서 첨부"
-            className="flex h-6 w-6 shrink-0 items-center justify-center rounded-none border border-rule font-sans text-xs leading-none text-text-lo hover:border-spec-b hover:text-text-hi focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-1 focus-visible:outline-spec-b"
-          >
-            {"⋯"}
-          </button>
-          <button
-            type="button"
-            onClick={onCancel}
-            className="rounded-none px-2.5 py-1.5 font-sans text-xs text-text-lo hover:bg-ink-700 hover:text-text-hi focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-1 focus-visible:outline-spec-b"
-          >
-            취소
-          </button>
-          <button
-            type="button"
-            onClick={() => {
-              // 저장하면 이번 세션에서 만든 URL들은 상위 상태로 소유권이 넘어간다 -
-              // 언마운트 시 더 이상 회수 대상이 아니다.
-              pendingUrlsRef.current.clear();
-              onSave({ title: title.trim() || "무제", body, isPublic, attachments });
-            }}
-            className="rounded-none bg-spec-b px-2.5 py-1.5 font-sans text-xs font-medium text-ink-900 hover:opacity-90 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-1 focus-visible:outline-text-hi"
-          >
-            저장
-          </button>
-        </div>
+      {/* 공개/비공개·삭제·저장/취소는 전부 행 헤더의 ⋮ 메뉴 + 자동저장으로
+          옮겨갔다 - 이 바닥 줄에는 편집 도구인 첨부 버튼만 남는다. */}
+      <div className={cn("flex items-center justify-end pt-1", isExpanded && "mx-auto w-full max-w-[720px]")}>
+        <button
+          type="button"
+          onClick={() => fileInputRef.current?.click()}
+          aria-label="파일 탐색기에서 이미지 첨부"
+          title="파일에서 첨부"
+          className="flex h-6 w-6 shrink-0 items-center justify-center rounded-none border border-rule font-sans text-xs leading-none text-text-lo hover:border-spec-b hover:text-text-hi focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-1 focus-visible:outline-spec-b"
+        >
+          {"⋯"}
+        </button>
       </div>
+    </div>
+  );
+
+  if (isExpanded && typeof document !== "undefined") {
+    return createPortal(editorNode, document.body);
+  }
+  return editorNode;
+}
+
+/**
+ * "+ 새 노트" 흐름 전용 래퍼 - 노트가 아직 존재하지 않으므로 첫 번째
+ * 유의미한 자동저장에서 onCreateNote를 호출해 id를 받고, 그 뒤로는 같은
+ * id로 onUpdateNote를 호출해 이어간다. 아직 아무것도 안 적었으면(전부
+ * 공백) NoteEditor의 flushSave가 애초에 onPersist를 부르지 않으므로 빈
+ * 노트가 생기지 않는다.
+ */
+function NewNoteEditor({
+  nodeId,
+  onCreateNote,
+  onUpdateNote,
+  onClose,
+  resolveLink,
+  onLinkClick,
+  isExpanded,
+  onExpandedChange,
+}: {
+  nodeId: string;
+  onCreateNote: ElementNotesPanelProps["onCreateNote"];
+  onUpdateNote: ElementNotesPanelProps["onUpdateNote"];
+  onClose: () => void;
+  resolveLink: ResolveWikiLink;
+  onLinkClick: (nodeId: string) => void;
+  isExpanded: boolean;
+  onExpandedChange: (expanded: boolean) => void;
+}) {
+  const createdIdRef = useRef<string | null>(null);
+  return (
+    <NoteEditor
+      initial={{ title: "", body: "", attachments: [] }}
+      isPublic={false}
+      onClose={onClose}
+      resolveLink={resolveLink}
+      onLinkClick={onLinkClick}
+      isExpanded={isExpanded}
+      onExpandedChange={onExpandedChange}
+      isNewNote
+      onPersist={(input) => {
+        if (createdIdRef.current) {
+          onUpdateNote(createdIdRef.current, input);
+        } else {
+          createdIdRef.current = onCreateNote(nodeId, input);
+        }
+      }}
+    />
+  );
+}
+
+interface NoteKebabMenuProps {
+  isPublic: boolean;
+  createdAt: number;
+  onTogglePublic: () => void;
+  onDelete: () => void;
+}
+
+/**
+ * 세로 점 세 개(⋮) 메뉴 - 공개/비공개 전환, 삭제, 그리고(행 헤더에서 밀려난)
+ * 만든 날짜를 비활성 텍스트로 보여준다. 요청 6: "온갖 부가적인 잡다한
+ * 옵션들은 세로 쩜쩜쩜으로".
+ */
+function NoteKebabMenu({ isPublic, createdAt, onTogglePublic, onDelete }: NoteKebabMenuProps) {
+  const [open, setOpen] = useState(false);
+  const rootRef = useRef<HTMLDivElement>(null);
+
+  useEffect(() => {
+    if (!open) return;
+    function onPointerDown(e: MouseEvent) {
+      if (rootRef.current && !rootRef.current.contains(e.target as Node)) setOpen(false);
+    }
+    function onKeyDown(e: KeyboardEvent) {
+      if (e.key === "Escape") setOpen(false);
+    }
+    document.addEventListener("mousedown", onPointerDown);
+    document.addEventListener("keydown", onKeyDown);
+    return () => {
+      document.removeEventListener("mousedown", onPointerDown);
+      document.removeEventListener("keydown", onKeyDown);
+    };
+  }, [open]);
+
+  return (
+    <div ref={rootRef} className="relative shrink-0">
+      <button
+        type="button"
+        aria-haspopup="menu"
+        aria-expanded={open}
+        aria-label="노트 옵션 더보기"
+        onClick={() => setOpen((v) => !v)}
+        className="flex h-6 w-6 items-center justify-center rounded-none border border-rule text-text-lo hover:border-spec-b hover:text-text-hi focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-1 focus-visible:outline-spec-b"
+      >
+        <svg width="13" height="13" viewBox="0 0 13 13" fill="none" aria-hidden="true">
+          <circle cx="6.5" cy="2" r="1" fill="currentColor" />
+          <circle cx="6.5" cy="6.5" r="1" fill="currentColor" />
+          <circle cx="6.5" cy="11" r="1" fill="currentColor" />
+        </svg>
+      </button>
+      {open && (
+        <div
+          role="menu"
+          aria-label="노트 옵션"
+          className="absolute right-0 top-full z-10 mt-1 w-40 rounded-none border border-rule bg-ink-800 py-1 shadow-lg"
+        >
+          <button
+            type="button"
+            role="menuitem"
+            onClick={() => {
+              onTogglePublic();
+              setOpen(false);
+            }}
+            className="block w-full rounded-none px-2.5 py-1.5 text-left font-sans text-xs text-text-hi hover:bg-ink-700"
+          >
+            {isPublic ? "비공개로 전환" : "공개로 전환"}
+          </button>
+          <button
+            type="button"
+            role="menuitem"
+            onClick={() => {
+              onDelete();
+              setOpen(false);
+            }}
+            className="block w-full rounded-none px-2.5 py-1.5 text-left font-sans text-xs text-spec-m hover:bg-ink-700"
+          >
+            삭제
+          </button>
+          <div className="mt-1 border-t border-rule px-2.5 pt-1.5 font-mono text-[10px] text-text-lo" aria-hidden="true">
+            {formatUpdatedAt(createdAt)} 생성
+          </div>
+        </div>
+      )}
     </div>
   );
 }

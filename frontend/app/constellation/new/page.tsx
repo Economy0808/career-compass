@@ -392,6 +392,9 @@ export default function NewConstellationPage() {
           updatedAt: now,
         },
       }));
+      // 자동저장: 새 노트 편집기가 첫 유의미한 입력에서 이 id로 노트를 만들고,
+      // 이후 타이핑은 이 id로 onUpdateNote를 호출해야 하므로 id를 돌려준다.
+      return id;
     },
     []
   );
