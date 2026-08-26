@@ -1,0 +1,55 @@
+# OurLab 디자인 외주 인계 가이드
+
+외부 디자이너가 **기능 코드를 건드리지 않고** 시각 디자인만 교체할 수 있도록,
+바꿔도 되는 지점과 절대 건드리면 안 되는 지점을 정리한 문서다.
+
+## 1. 시각의 단일 진실 공급원 (여기만 바꾸면 된다)
+
+| 파일 | 담당 | 주의 |
+|---|---|---|
+| `frontend/app/globals.css` | 모든 색 토큰(CSS 변수 `--ink-*`, `--spec-*`, `--lit`, `--rule`, `--text-*`), 키프레임, 배경 격자 유틸리티 | |
+| `frontend/tailwind.config.ts` | 같은 토큰의 Tailwind 노출 | ⚠️ **hex가 CSS 변수와 별개로 하드코딩돼 있다. 두 파일을 반드시 같이 고칠 것.** 여기만 고치면 `bg-ink-900`류가 옛 색으로 남는다. Tailwind 설정 변경은 dev 서버 재시작 필요 |
+| `frontend/app/layout.tsx` | 서체 로딩 (`next/font/google`) | Google Fonts만 사용 가능 |
+| `frontend/components/SpaceBackdrop.tsx` | 캔버스 배경 장식(성운·은하·블랙홀) | **props 없는 순수 장식 컴포넌트 — 통째로 교체 가능한 스왑 포인트.** 어떤 로직도 없음 |
+
+## 2. 컴포넌트 지도 — 장식 vs 로직
+
+- **자유롭게 재스킨 가능**: `SpaceBackdrop.tsx`(전체 교체 OK), `shell/SideRail.tsx`·`shell/TabBar.tsx`(스타일만),
+  `ui/*`(공용 프리미티브), 각 페이지의 마크업 클래스.
+- **스타일은 바꿔도 되지만 구조·핸들러는 금지**: `ConstellationCanvas.tsx`, `ElementBinPanel.tsx`,
+  `ElementNotesPanel.tsx`, `app/constellation/new/page.tsx`. 이 4개는 상호작용 로직 덩어리다.
+  className·색·크기 상수는 바꿔도 되나 이벤트 핸들러, 좌표 계산, 상태 배선은 손대지 말 것.
+
+## 3. 절대 규칙 (어기면 기능이 깨진다 — 전부 실제로 겪은 버그)
+
+1. **SVG에서 투명한 채움은 `fill="none"`이 아니라 `fill="transparent"`**.
+   `none`은 클릭 판정에서 제외된다. 실제로 미달성 노드가 클릭 불능이 된 사고가 있었다.
+2. **더블클릭 핸들러는 노드 `<g>`에 있다.** 자식 원으로 내리면 유효 클릭 영역이 좁아져
+   "달성이 안 된다"는 버그가 재발한다.
+3. **배경 장식은 전부 `pointer-events: none`** + 그래프 뒤 레이어. 팬/드래그를 가로채면 안 된다.
+4. **배경에 애니메이션 금지.** 모션은 의미 있는 곳(발광 엣지, 호버 위성)에만 쓴다는 것이 하우스 룰.
+   7,109개 과목이 실리면 프레임 비용도 실제 문제가 된다.
+5. **`prefers-reduced-motion` 존중.** 새 애니메이션을 넣으면 반드시 이 미디어쿼리로 끌 수 있어야 한다.
+6. **`font-mono`(IBM Plex Mono)를 한글에 쓰지 말 것.** 한글 글리프가 없다. 학정번호·숫자 전용.
+7. **키보드 접근성 유지**: 포커스 링을 제거하려면 대체 표시를 넣을 것. 노드는 Tab 도달
+   + Enter 선택, 캔버스 조작엔 전부 키보드 경로가 있다.
+8. **`Delete`/`Backspace`는 캔버스 노드 삭제에 바인딩**되어 있고 텍스트 입력 중엔 무시된다
+   (`isTypingTarget` 가드). 새 입력 요소는 네이티브 `input`/`textarea`로 만들어야 이 가드가 통한다.
+9. **패널은 그래프 위에 떠 있는 오버레이**다(전체화면 캔버스가 바닥). 그리드 컬럼으로 바꾸면
+   좌표 변환이 어긋난다.
+
+## 4. 알려진 부채 (외주 전에 정리 권장)
+
+- **유형→색 매핑이 3곳에 복사돼 있다**: `ConstellationCanvas.tsx`의 `TYPE_COLOR`,
+  `ElementBinPanel.tsx`·`ElementNotesPanel.tsx`의 `TYPE_DOT`. 색을 바꾸려면 셋 다 고쳐야 한다.
+  → 공용 모듈(`lib/element-colors.ts`)로 추출한 뒤 외주를 맡기는 것이 안전하다. **(TODO)**
+- `tailwind.config.ts`와 `globals.css`의 hex 이중화(§1 참고)도 같은 성격의 함정.
+
+## 5. 참고 자료
+
+- 기존에 받은 시안 번들: `C:\Users\user\Desktop\별자리 로드맵 UI 개선\design_handoff_constellation_roadmap\`
+  — 이 중 우측 패널의 군집/노트 세그먼트 탭만 채택됐고 나머지 팔레트는 반려됨.
+- 제품 컨셉: 별자리는 별이 아니라 **잇고 이름 붙이는 행위**. 학생은 게임 플레이어가 아니라
+  자기 진로의 제도사. 만화·게임적 장식(마스코트, 일러스트) 금지 — 이전 콩나무 버전에서 전부 걷어냈다.
+- 검증 명령: `cd frontend && npx tsc --noEmit && npx next lint`
+  (⚠️ dev 서버가 떠 있는 동안 `next build` 실행 금지 — `.next` 캐시가 깨진다)

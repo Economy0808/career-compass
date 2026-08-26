@@ -23,28 +23,28 @@ export function SpaceBackdrop() {
     >
       <defs>
         <radialGradient id="sb-nebula-a" cx="50%" cy="50%" r="50%">
-          <stop offset="0%" stopColor="#5b4fd1" stopOpacity="0.06" />
-          <stop offset="55%" stopColor="#5b4fd1" stopOpacity="0.025" />
+          <stop offset="0%" stopColor="#5b4fd1" stopOpacity="0.20" />
+          <stop offset="55%" stopColor="#5b4fd1" stopOpacity="0.08" />
           <stop offset="100%" stopColor="#5b4fd1" stopOpacity="0" />
         </radialGradient>
         <radialGradient id="sb-nebula-b" cx="50%" cy="50%" r="50%">
-          <stop offset="0%" stopColor="#2f8fa8" stopOpacity="0.05" />
-          <stop offset="55%" stopColor="#2f8fa8" stopOpacity="0.02" />
+          <stop offset="0%" stopColor="#2f8fa8" stopOpacity="0.16" />
+          <stop offset="55%" stopColor="#2f8fa8" stopOpacity="0.06" />
           <stop offset="100%" stopColor="#2f8fa8" stopOpacity="0" />
         </radialGradient>
         <radialGradient id="sb-galaxy" cx="50%" cy="50%" r="50%">
-          <stop offset="0%" stopColor="#9db4ff" stopOpacity="0.09" />
-          <stop offset="60%" stopColor="#9db4ff" stopOpacity="0.03" />
+          <stop offset="0%" stopColor="#9db4ff" stopOpacity="0.28" />
+          <stop offset="60%" stopColor="#9db4ff" stopOpacity="0.09" />
           <stop offset="100%" stopColor="#9db4ff" stopOpacity="0" />
         </radialGradient>
         <radialGradient id="sb-hole-glow" cx="50%" cy="50%" r="50%">
-          <stop offset="0%" stopColor="#ffa76b" stopOpacity="0.06" />
-          <stop offset="45%" stopColor="#ffa76b" stopOpacity="0.02" />
+          <stop offset="0%" stopColor="#ffa76b" stopOpacity="0.18" />
+          <stop offset="45%" stopColor="#ffa76b" stopOpacity="0.06" />
           <stop offset="100%" stopColor="#ffa76b" stopOpacity="0" />
         </radialGradient>
         <linearGradient id="sb-hole-ring" x1="0%" y1="0%" x2="100%" y2="0%">
-          <stop offset="0%" stopColor="#ffa76b" stopOpacity="0.03" />
-          <stop offset="50%" stopColor="#ffd9b0" stopOpacity="0.16" />
+          <stop offset="0%" stopColor="#ffa76b" stopOpacity="0.10" />
+          <stop offset="50%" stopColor="#ffd9b0" stopOpacity="0.50" />
           <stop offset="100%" stopColor="#ffa76b" stopOpacity="0.03" />
         </linearGradient>
         <filter id="sb-blur-soft" x="-50%" y="-50%" width="200%" height="200%">
@@ -96,7 +96,7 @@ export function SpaceBackdrop() {
         filter="url(#sb-blur-tight)"
         transform="rotate(-20 1180 740)"
       />
-      <circle cx="1180" cy="740" r="36" fill="var(--ink-900)" opacity="0.55" />
+      <circle cx="1180" cy="740" r="36" fill="#000000" opacity="0.9" />
     </svg>
   );
 }
