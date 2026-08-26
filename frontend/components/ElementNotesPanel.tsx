@@ -222,8 +222,30 @@ export function ElementNotesPanel({
     onNoteExpandedChange(true);
   }
 
+  // 탭 바의 원래 취지: "그 원소의 노트들 사이를 편하게 오가기". 그런데 지금까지는
+  // 노트를 하나씩 열 때마다(행 확대 버튼이든 + 피커든) 그 노트 하나만 탭으로
+  // 쌓여서, 형제 노트가 여러 개 있어도 탭 바에는 방금 연 것 하나만 보이는
+  // 버그였다. 이제 "어떤 경로로든 한 원소의 노트를 확대해서 연다"는 항상 그
+  // 원소의 노트 전부를(이미 열려 있는 것은 건드리지 않고 없는 것만 추가) 탭으로
+  // 갖춰 두도록 openTab/createNoteInTab이 공통으로 이 함수를 거친다. 다른
+  // 원소의 기존 탭은 건드리지 않는다(원래 설계: 원소 경계 무관하게 탭이 쌓인다).
+  function ensureElementTabs(nodeId: string, activeNoteId: string) {
+    setNoteTabs((prev) => {
+      const siblingIds = [...(notesByNode.get(nodeId) ?? [])]
+        .sort((a, b) => b.updatedAt - a.updatedAt)
+        .map((n) => n.id);
+      // activeNoteId가 방금 막 생성된 노트라면(같은 렌더 사이클 안이라
+      // notesByNode에 아직 반영되지 않았을 수 있다) 형제 목록에 없을 때만
+      // 끝에 더해 준다.
+      const orderedIds = siblingIds.includes(activeNoteId) ? siblingIds : [...siblingIds, activeNoteId];
+      const existingKeys = new Set(prev.map((t) => t.key));
+      const toAdd = orderedIds.filter((id) => !existingKeys.has(id)).map((id) => ({ key: id, nodeId }));
+      return toAdd.length === 0 ? prev : [...prev, ...toAdd];
+    });
+  }
+
   function openTab(nodeId: string, noteId: string) {
-    setNoteTabs((prev) => (prev.some((t) => t.key === noteId) ? prev : [...prev, { key: noteId, nodeId }]));
+    ensureElementTabs(nodeId, noteId);
     setActiveTabKey(noteId);
     activateNoteExpanded(nodeId, noteId);
     setPickerOpen(false);
@@ -231,11 +253,12 @@ export function ElementNotesPanel({
 
   // "+" 피커의 "새 노트" 행 - 그 자리에서 바로 노트를 만들고(onCreateNote는
   // page.tsx의 생성 경로를 그대로 타므로 제목 기본값 "무제"/isPublic:false 등
-  // 규칙이 여기서도 동일하게 적용된다), 새 탭으로 열어 즉시 활성화한다.
-  // 노트가 아직 비어 있으니 제목부터 적을 수 있게 title autofocus 신호도 함께 켠다.
+  // 규칙이 여기서도 동일하게 적용된다), 그 원소의 기존 노트들 + 새 노트를 탭으로
+  // 갖추고 새 노트를 활성화한다. 노트가 아직 비어 있으니 제목부터 적을 수 있게
+  // title autofocus 신호도 함께 켠다.
   function createNoteInTab(nodeId: string) {
     const newId = onCreateNote(nodeId, { title: "", body: "", isPublic: false, attachments: [] });
-    setNoteTabs((prev) => (prev.some((t) => t.key === newId) ? prev : [...prev, { key: newId, nodeId }]));
+    ensureElementTabs(nodeId, newId);
     setActiveTabKey(newId);
     activateNoteExpanded(nodeId, newId);
     setAutoFocusTitleKey(newId);
