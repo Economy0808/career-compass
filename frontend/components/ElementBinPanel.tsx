@@ -10,7 +10,7 @@
  * 렌더링한다.
  */
 
-import { useMemo, useState, type DragEvent, type KeyboardEvent } from "react";
+import { useMemo, useState, type DragEvent, type FormEvent, type KeyboardEvent } from "react";
 import { cn } from "@/lib/cn";
 import type { CanvasPosition } from "@/components/ConstellationCanvas";
 
@@ -36,6 +36,8 @@ export interface ElementBinPanelProps {
   /** 키보드/클릭 경로용 - 드래그 없이도 기본 위치에 노드를 놓을 수 있어야 한다. */
   onItemDragToCanvas: (item: BinItem, position: CanvasPosition) => void;
   onCreateBin: (label: string) => void;
+  /** 보관함에 직접 원소를 추가한다 - id는 page.tsx가 생성한다. */
+  onAddItem: (binId: string, item: Omit<BinItem, "id">) => void;
   /** 이미 캔버스에 배치된 원소는 흐리게 + 체크 표시로 구분한다. */
   placedItemIds?: Set<string>;
   className?: string;
@@ -53,6 +55,16 @@ const TYPE_DOT: Record<string, string> = {
   networking: "var(--spec-m)",
 };
 const DEFAULT_DOT = "var(--text-lo)";
+
+/** 사용자가 직접 원소를 추가할 때 고를 수 있는 종류 - type이 노드 색(분광형
+ * 악센트)을 결정하므로 추측하지 않고 항상 명시적으로 고르게 한다. */
+const ELEMENT_TYPE_OPTIONS: { value: string; label: string }[] = [
+  { value: "course", label: "수업" },
+  { value: "certification", label: "자격증" },
+  { value: "organization", label: "학회" },
+  { value: "activity", label: "대외활동" },
+  { value: "networking", label: "네트워킹" },
+];
 
 const COURSE_CODE_RE = /^([A-Z]{2,6}\d{3,5})\s+(.+)$/;
 function splitCourseCode(label: string): { code: string | null; rest: string } {
@@ -105,6 +117,31 @@ function defaultDropPosition(seed: number): CanvasPosition {
 }
 
 let dropSeed = 0;
+
+// 황금각(137.5도) 나선형 배치. "모두 추가"로 보관함 하나를 통째로 캔버스에
+// 내려놓을 때, 항목을 겹치지 않게 흩뿌리면서도 하나의 "군집"으로 읽히게 하는
+// 가장 단순한 방법 - index가 늘어날수록 반지름도 같이 늘어나 서로 겹치지
+// 않고, 각도는 황금각만큼씩 돌아 나선을 그린다. items는 level 오름차순(기초
+// 학년 먼저)으로 미리 정렬해 넘기면, 나선 중심(=기초 원소)에서 바깥(=고학년)
+// 으로 자연스럽게 펼쳐진다.
+const GOLDEN_ANGLE_RAD = 137.5 * (Math.PI / 180);
+function spiralPosition(index: number, base: CanvasPosition): CanvasPosition {
+  const angle = index * GOLDEN_ANGLE_RAD;
+  const radius = 46 + index * 28;
+  return {
+    x: Math.round(base.x + Math.cos(angle) * radius),
+    y: Math.round(base.y + Math.sin(angle) * radius),
+  };
+}
+
+/** level 오름차순(없으면 맨 뒤)으로 정렬 - "기초 원소가 나선 안쪽" 규칙의 기반. */
+function sortByLevelAscending(items: BinItem[]): BinItem[] {
+  return [...items].sort((a, b) => {
+    const la = typeof a.level === "number" ? a.level : Number.POSITIVE_INFINITY;
+    const lb = typeof b.level === "number" ? b.level : Number.POSITIVE_INFINITY;
+    return la - lb;
+  });
+}
 
 function ItemChip({
   item,
@@ -169,22 +206,73 @@ function ItemChip({
   );
 }
 
+/** 보관함 통째로 드래그할 때 캔버스로 넘기는 페이로드 - 단일 원소 페이로드
+ * (BinItem 그대로)와 구분하기 위해 kind: "bin" 태그를 붙인다. page.tsx의
+ * onExternalDrop이 이 태그로 분기한다. */
+export interface BinDropPayload {
+  kind: "bin";
+  binId: string;
+}
+
 // 보관함 하나 = 섬 하나. Obsidian 그래프뷰처럼 절제된 톤 - 진한 채도나 그림자
 // 대신 얇은 rule 헤어라인 하나로 다른 섬과 분리한다.
 function BinSection({
   bin,
   placedItemIds,
   onItemDragToCanvas,
+  onAddItem,
 }: {
   bin: Bin;
   placedItemIds: Set<string>;
   onItemDragToCanvas: (item: BinItem, position: CanvasPosition) => void;
+  onAddItem: (binId: string, item: Omit<BinItem, "id">) => void;
 }) {
   const groups = useMemo(() => groupByLevel(bin.items), [bin.items]);
+  const [addLabel, setAddLabel] = useState("");
+  const [addType, setAddType] = useState(ELEMENT_TYPE_OPTIONS[0].value);
+
+  const allPlaced = bin.items.length > 0 && bin.items.every((item) => placedItemIds.has(item.id));
+  const canPlaceAll = !bin.isLoading && bin.items.length > 0 && !allPlaced;
+
+  function handleAddItem(e: FormEvent<HTMLFormElement>) {
+    e.preventDefault();
+    const label = addLabel.trim();
+    if (!label) return;
+    onAddItem(bin.id, { label, type: addType });
+    setAddLabel("");
+  }
+
+  // "모두 추가" - 아직 캔버스에 없는 원소만, level 오름차순으로 나선형 배치.
+  // 이미 놓인 원소는 건너뛰어 두 번 눌러도 중복 생성되지 않는다(placeItem
+  // 쪽에서도 같은 id는 무시하지만, 여기서 먼저 걸러야 위치가 낭비되지 않는다).
+  function handlePlaceAll() {
+    const unplaced = sortByLevelAscending(bin.items).filter((item) => !placedItemIds.has(item.id));
+    if (unplaced.length === 0) return;
+    dropSeed += 1;
+    const base = defaultDropPosition(dropSeed);
+    unplaced.forEach((item, i) => onItemDragToCanvas(item, spiralPosition(i, base)));
+  }
+
+  // 보관함 섬 자체를 드래그해도 통째로 놓을 수 있게 - 헤더를 드래그 손잡이로
+  // 쓴다(칩 하나하나의 드래그와 겹치지 않도록 items 영역이 아니라 헤더에만).
+  function handleBinDragStart(e: DragEvent<HTMLElement>) {
+    if (bin.isLoading || bin.items.length === 0) {
+      e.preventDefault();
+      return;
+    }
+    const payload: BinDropPayload = { kind: "bin", binId: bin.id };
+    e.dataTransfer.effectAllowed = "copy";
+    e.dataTransfer.setData("application/json", JSON.stringify(payload));
+  }
 
   return (
     <section className="rounded-lg border border-rule bg-ink-700/50 px-3 py-2.5">
-      <header className="mb-2 flex items-center gap-1.5">
+      <header
+        className="mb-2 flex items-center gap-1.5"
+        draggable={!bin.isLoading && bin.items.length > 0}
+        onDragStart={handleBinDragStart}
+        title="보관함 전체를 캔버스로 끌어놓을 수 있어요"
+      >
         <h3 className="text-caption font-bold tracking-[.02em] text-text-hi">{bin.label}</h3>
         {bin.origin === "user" && (
           <span className="rounded-sm bg-ink-800 px-1.5 py-0.5 text-micro font-semibold text-text-lo">
@@ -192,7 +280,17 @@ function BinSection({
           </span>
         )}
         {!bin.isLoading && (
-          <span className="ml-auto font-mono text-micro text-text-lo">{bin.items.length}</span>
+          <>
+            <button
+              type="button"
+              onClick={handlePlaceAll}
+              disabled={!canPlaceAll}
+              className="ml-auto shrink-0 rounded-sm px-1.5 py-0.5 text-micro font-semibold text-spec-b transition-colors hover:bg-spec-b/15 disabled:cursor-not-allowed disabled:text-text-lo disabled:opacity-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-spec-b/70"
+            >
+              모두 추가
+            </button>
+            <span className="font-mono text-micro text-text-lo">{bin.items.length}</span>
+          </>
         )}
       </header>
 
@@ -215,7 +313,15 @@ function BinSection({
         // 왼쪽의 얇은 세로선은 "같은 tier"라는 연결을 은은하게만 표시하는
         // connector - 실제 계층 구조는 카드 배경/그림자가 아니라 이 헤어라인과
         // 위→아래 순서만으로 표현한다.
-        <div className="space-y-2">
+        //
+        // 실 데이터(NCS 과목 카탈로그 7,109개)가 들어오면 보관함 하나에 수십
+        // 개가 쌓일 수 있어, 이 목록만 자체 높이(max-h)로 스크롤한다 - 바깥
+        // 패널(ElementBinPanel의 canvas-scroll 영역)까지 한없이 늘어나면 다른
+        // 보관함들이 화면 밖으로 밀려나기 때문. overscroll-contain으로 이
+        // 안쪽 스크롤이 끝에 닿아도 바깥 패널 스크롤로 새지 않게 막아, 모바일
+        // 하단 시트에서 "안쪽 다 내렸는데 갑자기 시트 전체가 스크롤"되는
+        // 흔한 중첩 스크롤 함정을 피한다.
+        <div className="canvas-scroll max-h-56 space-y-2 overflow-y-auto overscroll-contain pr-0.5">
           {groups.map((group) => (
             <div key={group.level ?? "unleveled"} className="relative pl-2.5">
               <div className="absolute inset-y-0.5 left-0 w-px bg-rule" aria-hidden />
@@ -239,6 +345,41 @@ function BinSection({
           ))}
         </div>
       )}
+
+      {!bin.isLoading && (
+        <form
+          onSubmit={handleAddItem}
+          className="mt-2 flex items-center gap-1.5 border-t border-rule pt-2"
+          aria-label={`${bin.label}에 원소 직접 추가`}
+        >
+          <select
+            value={addType}
+            onChange={(e) => setAddType(e.target.value)}
+            aria-label="새 원소 종류"
+            className="shrink-0 rounded-sm border border-rule bg-ink-800 px-1 py-1 text-micro text-text-hi focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-spec-b/70"
+          >
+            {ELEMENT_TYPE_OPTIONS.map((opt) => (
+              <option key={opt.value} value={opt.value}>
+                {opt.label}
+              </option>
+            ))}
+          </select>
+          <input
+            value={addLabel}
+            onChange={(e) => setAddLabel(e.target.value)}
+            placeholder="요소 이름 직접 추가"
+            aria-label="새 원소 이름"
+            className="min-w-0 flex-1 rounded-sm border border-rule bg-transparent px-2 py-1 text-micro text-text-hi placeholder:text-text-lo focus:border-spec-b focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-spec-b/70"
+          />
+          <button
+            type="submit"
+            disabled={!addLabel.trim()}
+            className="shrink-0 rounded-sm bg-spec-b/18 px-2 py-1 text-micro font-semibold text-spec-b transition-colors hover:bg-spec-b/25 disabled:cursor-not-allowed disabled:opacity-40 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-spec-b/70"
+          >
+            추가
+          </button>
+        </form>
+      )}
     </section>
   );
 }
@@ -247,6 +388,7 @@ export function ElementBinPanel({
   bins,
   onItemDragToCanvas,
   onCreateBin,
+  onAddItem,
   placedItemIds,
   className,
 }: ElementBinPanelProps) {
@@ -292,6 +434,7 @@ export function ElementBinPanel({
               bin={bin}
               placedItemIds={resolvedPlaced}
               onItemDragToCanvas={onItemDragToCanvas}
+              onAddItem={onAddItem}
             />
           ))
         )}

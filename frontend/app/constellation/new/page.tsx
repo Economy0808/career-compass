@@ -15,7 +15,7 @@ import {
   type CanvasNode,
   type CanvasPosition,
 } from "@/components/ConstellationCanvas";
-import { ElementBinPanel, type Bin, type BinItem } from "@/components/ElementBinPanel";
+import { ElementBinPanel, type Bin, type BinItem, type BinDropPayload } from "@/components/ElementBinPanel";
 import { ElementNotesPanel, type ElementNote } from "@/components/ElementNotesPanel";
 import type { ResolveWikiLink } from "@/lib/markdown";
 
@@ -85,6 +85,30 @@ const INITIAL_EDGES: Record<string, CanvasEdge> = {
 
 let edgeCounter = 0;
 let noteCounter = 0;
+let userItemCounter = 0;
+
+// "모두 추가"/보관함 드래그로 통째로 놓을 때 쓰는 나선형 배치 - level(학정번호
+// 앞자리) 오름차순으로 정렬한 뒤 index가 늘수록 반지름도 커지는 황금각 나선을
+// 그린다. ElementBinPanel의 spiralPosition과 같은 규칙(기초 원소가 안쪽)을
+// page.tsx 쪽 드래그 경로에서도 그대로 재현한다.
+const GOLDEN_ANGLE_RAD = 137.5 * (Math.PI / 180);
+function spiralOffset(index: number, base: CanvasPosition): CanvasPosition {
+  const angle = index * GOLDEN_ANGLE_RAD;
+  const radius = 46 + index * 28;
+  return {
+    x: Math.round(base.x + Math.cos(angle) * radius),
+    y: Math.round(base.y + Math.sin(angle) * radius),
+  };
+}
+
+function isBinDropPayload(value: unknown): value is BinDropPayload {
+  return (
+    !!value &&
+    typeof value === "object" &&
+    (value as Record<string, unknown>).kind === "bin" &&
+    typeof (value as Record<string, unknown>).binId === "string"
+  );
+}
 
 // 회계원리(1)에 미리 채워 둔 데모 노트 - 시드 노드가 이미 "노트 3개"라고
 // 주장하므로(INITIAL_NODES 참고) 실제로 3개를 만들어 패널이 바로 시연 가능하게
@@ -212,17 +236,45 @@ export default function NewConstellationPage() {
 
   const handleExternalDrop = useCallback(
     (data: string, position: CanvasPosition) => {
-      let parsed: BinItem;
+      let parsed: unknown;
       try {
-        parsed = JSON.parse(data) as BinItem;
+        parsed = JSON.parse(data);
       } catch {
         return;
       }
-      if (!parsed?.id || !parsed?.label) return;
-      placeItem(parsed, position);
+      // 보관함 헤더를 통째로 끌어놓은 경우 - 보관함 하나를 찾아 아직 캔버스에
+      // 없는 원소만 나선형으로 펼쳐 놓는다(단일 원소 placeItem과 동일하게
+      // 중복은 조용히 무시).
+      if (isBinDropPayload(parsed)) {
+        const bin = bins.find((b) => b.id === parsed.binId);
+        if (!bin) return;
+        const unplaced = [...bin.items]
+          .sort((a, b) => {
+            const la = typeof a.level === "number" ? a.level : Number.POSITIVE_INFINITY;
+            const lb = typeof b.level === "number" ? b.level : Number.POSITIVE_INFINITY;
+            return la - lb;
+          })
+          .filter((item) => !nodes[nodeIdForItem(item.id)]);
+        unplaced.forEach((item, i) => placeItem(item, spiralOffset(i, position)));
+        return;
+      }
+      const item = parsed as BinItem;
+      if (!item?.id || !item?.label) return;
+      placeItem(item, position);
     },
-    [placeItem]
+    [placeItem, bins, nodes]
   );
+
+  // 보관함에 사용자가 직접 원소를 추가한다(모든 보관함에서 허용 - LLM이 놓친
+  // 과목/자격증 등을 손으로 채울 수 있어야 하므로 origin이 "llm"이어도 막지
+  // 않는다). id는 여기서 생성해 항상 유일함을 보장한다.
+  const handleAddItem = useCallback((binId: string, item: Omit<BinItem, "id">) => {
+    userItemCounter += 1;
+    const id = `item-user-${userItemCounter}`;
+    setBins((prev) =>
+      prev.map((bin) => (bin.id === binId ? { ...bin, items: [...bin.items, { id, ...item }] } : bin))
+    );
+  }, []);
 
   const handleNodeDrag = useCallback((nodeId: string, position: CanvasPosition) => {
     setNodes((prev) => (prev[nodeId] ? { ...prev, [nodeId]: { ...prev[nodeId], position } } : prev));
@@ -391,7 +443,13 @@ export default function NewConstellationPage() {
         focusRequest={focusRequest}
       />
       {rightPanel.mode === "bins" ? (
-        <ElementBinPanel bins={bins} onItemDragToCanvas={placeItem} onCreateBin={handleCreateBin} placedItemIds={placedItemIds} />
+        <ElementBinPanel
+          bins={bins}
+          onItemDragToCanvas={placeItem}
+          onCreateBin={handleCreateBin}
+          onAddItem={handleAddItem}
+          placedItemIds={placedItemIds}
+        />
       ) : nodesWithNoteCounts[rightPanel.nodeId] ? (
         <ElementNotesPanel
           node={nodesWithNoteCounts[rightPanel.nodeId]}
