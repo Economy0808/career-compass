@@ -40,13 +40,13 @@ export function ProfileHeader({
   return (
     <Card className="flex flex-col gap-5 p-6 sm:flex-row sm:items-start sm:gap-6">
       {/* 아바타 이모지는 사용자 콘텐츠라 아이콘으로 바꾸지 않는다. */}
-      <div className="flex h-20 w-20 shrink-0 items-center justify-center rounded-full border-2 border-growth/45 bg-surface-overlay text-display shadow-glow">
+      <div className="flex h-20 w-20 shrink-0 items-center justify-center rounded-full border-2 border-lit/45 bg-ink-900 text-display shadow-glow">
         {profile.avatar_emoji}
       </div>
 
       <div className="min-w-0 flex-1">
         <div className="flex flex-wrap items-center gap-3">
-          <h1 className="min-w-0 break-words font-serif text-title font-bold text-content-primary">
+          <h1 className="min-w-0 break-words font-serif text-title font-bold text-text-hi">
             {profile.display_name}
           </h1>
           {profile.yonsei_verified && (
@@ -67,12 +67,12 @@ export function ProfileHeader({
           )}
         </div>
 
-        <div className="mt-3 flex flex-wrap items-center gap-x-5 gap-y-2 text-caption text-content-muted">
+        <div className="mt-3 flex flex-wrap items-center gap-x-5 gap-y-2 text-caption text-text-lo">
           <span>
-            팔로워 <b className="text-content-secondary">{profile.follower_count}</b>
+            팔로워 <b className="text-text-lo">{profile.follower_count}</b>
           </span>
           <span>
-            팔로잉 <b className="text-content-secondary">{profile.following_count}</b>
+            팔로잉 <b className="text-text-lo">{profile.following_count}</b>
           </span>
         </div>
 
@@ -105,9 +105,9 @@ export function ProfileHeader({
             </div>
           </form>
         ) : (
-          <p className="mt-4 break-words text-body-sm leading-relaxed text-content-secondary">
+          <p className="mt-4 break-words text-body-sm leading-relaxed text-text-lo">
             {profile.bio ?? (
-              <span className="text-content-muted">
+              <span className="text-text-lo">
                 {isMe ? "아직 소개글이 없어요." : "소개글이 없어요."}
               </span>
             )}
@@ -115,7 +115,7 @@ export function ProfileHeader({
               <button
                 type="button"
                 onClick={() => setEditing(true)}
-                className="ml-2 text-caption font-semibold text-goal-bright hover:brightness-125"
+                className="ml-2 text-caption font-semibold text-spec-b hover:brightness-125"
               >
                 {profile.bio ? "수정" : "소개글 쓰기"}
               </button>

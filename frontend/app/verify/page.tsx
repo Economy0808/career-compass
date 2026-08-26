@@ -16,9 +16,9 @@ import { useAuth } from "@/lib/auth-context";
 type Method = "school_email" | "student_card";
 
 const LINK_PRIMARY =
-  "flex-1 rounded-md border border-transparent bg-goal p-3 text-center text-body-sm font-bold text-white no-underline transition-[filter] duration-150 hover:brightness-110";
+  "flex-1 rounded-md border border-transparent bg-spec-b p-3 text-center text-body-sm font-bold text-ink-900 no-underline transition-[filter] duration-150 hover:brightness-110";
 const LINK_SECONDARY =
-  "rounded-md border border-line-strong bg-goal/12 p-3 text-center text-body-sm font-semibold text-goal-bright no-underline transition-colors hover:bg-goal/20";
+  "rounded-md border border-rule bg-spec-b/12 p-3 text-center text-body-sm font-semibold text-spec-b no-underline transition-colors hover:bg-spec-b/20";
 
 export default function VerifyPage() {
   const router = useRouter();
@@ -40,7 +40,7 @@ export default function VerifyPage() {
   if (loading || !me) {
     return (
       <div className="mx-auto w-full max-w-md py-16 text-center">
-        <p className="animate-pulse text-body-sm text-content-secondary">확인 중…</p>
+        <p className="animate-pulse text-body-sm text-text-lo">확인 중…</p>
       </div>
     );
   }
@@ -94,11 +94,11 @@ export default function VerifyPage() {
 
   const body = me.yonsei_verified ? (
     <div className="text-center">
-      <div className="text-5xl">🌳</div>
-      <h2 className="mt-3 font-serif text-title font-bold text-content-primary">
+      <div className="text-5xl">✨</div>
+      <h2 className="mt-3 font-serif text-title font-bold text-text-hi">
         연세대 학부생 인증 완료!
       </h2>
-      <p className="mt-2 text-body-sm text-content-secondary">
+      <p className="mt-2 text-body-sm text-text-lo">
         {me.verification_method === "student_card"
           ? "학생증 심사가 승인됐어요."
           : "학교 이메일로 인증됐어요."}{" "}
@@ -116,20 +116,20 @@ export default function VerifyPage() {
   ) : me.card_status === "pending" ? (
     <div className="text-center">
       <div className="text-5xl">🕰️</div>
-      <h2 className="mt-3 font-serif text-title font-bold text-content-primary">학생증 심사 중</h2>
-      <p className="mt-2 text-body-sm leading-relaxed text-content-secondary">
+      <h2 className="mt-3 font-serif text-title font-bold text-text-hi">학생증 심사 중</h2>
+      <p className="mt-2 text-body-sm leading-relaxed text-text-lo">
         운영자가 확인하는 대로 알려드릴게요 (보통 24시간 이내).
         <br />
-        심사가 끝나면 이미지는 즉시 파기돼요. 그동안 숲 구경은 자유예요!
+        심사가 끝나면 이미지는 즉시 파기돼요. 그동안 둘러보는 건 자유예요!
       </p>
       <Link href="/" className={cn(LINK_SECONDARY, "mt-6 block w-full")}>
-        숲 구경하기
+        둘러보기
       </Link>
     </div>
   ) : (
     <>
       {me.card_status === "rejected" && (
-        <p className="mb-4 rounded-md border border-wither/30 bg-wither/12 p-3 text-caption leading-relaxed text-wither">
+        <p className="mb-4 rounded-md border border-spec-m/30 bg-spec-m/12 p-3 text-caption leading-relaxed text-spec-m">
           이전 학생증 심사가 반려됐어요. 학생증이 선명하게 보이는 사진으로 다시 올리거나, 학교
           이메일로 인증해주세요.
         </p>
@@ -197,23 +197,23 @@ export default function VerifyPage() {
         </div>
       ) : (
         <form onSubmit={uploadCard} className="flex flex-col gap-3">
-          <p className="text-caption leading-relaxed text-content-secondary">
+          <p className="text-caption leading-relaxed text-text-lo">
             모바일 학생증 캡처 또는 실물 학생증 사진(JPEG/PNG, 5MB 이하)을 올려주세요. 운영자
-            확인 후 <b className="text-content-primary">이미지는 즉시 파기</b>되고 승인 여부만 남아요.
+            확인 후 <b className="text-text-hi">이미지는 즉시 파기</b>되고 승인 여부만 남아요.
           </p>
           <input
             ref={fileRef}
             type="file"
             accept="image/jpeg,image/png"
-            className="text-caption text-content-secondary file:mr-3 file:cursor-pointer file:rounded-full file:border file:border-line-strong file:bg-goal/12 file:px-4 file:py-2 file:text-caption file:font-semibold file:text-goal-bright"
+            className="text-caption text-text-lo file:mr-3 file:cursor-pointer file:rounded-full file:border file:border-rule file:bg-spec-b/12 file:px-4 file:py-2 file:text-caption file:font-semibold file:text-spec-b"
           />
           <Button type="submit" variant="primary" size="md" fullWidth disabled={pending}>
             {pending ? "올리는 중…" : "학생증 제출하기"}
           </Button>
         </form>
       )}
-      {notice && !error && <p className="mt-3 text-caption text-growth-bright">{notice}</p>}
-      {error && <p className="mt-3 text-caption text-wither">{error}</p>}
+      {notice && !error && <p className="mt-3 text-caption text-lit">{notice}</p>}
+      {error && <p className="mt-3 text-caption text-spec-m">{error}</p>}
     </>
   );
 
@@ -222,8 +222,8 @@ export default function VerifyPage() {
       <Card className="p-8">
         {!me.yonsei_verified && me.card_status !== "pending" && (
           <>
-            <h1 className="font-serif text-display font-bold text-content-primary">연세대 학부생 인증</h1>
-            <p className="mb-6 mt-[7px] text-body-sm leading-relaxed text-content-secondary">
+            <h1 className="font-serif text-display font-bold text-text-hi">연세대 학부생 인증</h1>
+            <p className="mb-6 mt-[7px] text-body-sm leading-relaxed text-text-lo">
               별자리를 만들고 키우려면 인증이 필요해요. 둘 중 편한 방법을 골라주세요.
             </p>
           </>

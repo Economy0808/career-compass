@@ -51,8 +51,8 @@ export default function ResetPasswordPage() {
   return (
     <div className="mx-auto w-full max-w-md">
       <Card className="p-8">
-        <h1 className="font-serif text-display font-bold text-content-primary">비밀번호 재설정</h1>
-        <p className="mb-6 mt-[7px] text-body-sm leading-relaxed text-content-secondary">
+        <h1 className="font-serif text-display font-bold text-text-hi">비밀번호 재설정</h1>
+        <p className="mb-6 mt-[7px] text-body-sm leading-relaxed text-text-lo">
           {step === "email"
             ? "가입한 이메일로 6자리 재설정 코드를 보내드려요."
             : `${email} 로 보낸 코드와 새 비밀번호를 입력해주세요.`}
@@ -69,14 +69,14 @@ export default function ResetPasswordPage() {
               onChange={(e) => setEmail(e.target.value)}
               autoComplete="email"
             />
-            {error && <p className="text-caption text-wither">{error}</p>}
+            {error && <p className="text-caption text-spec-m">{error}</p>}
             <Button type="submit" variant="primary" size="md" fullWidth disabled={pending || !email.trim()} className="mt-1">
               {pending ? "보내는 중…" : "재설정 코드 받기"}
             </Button>
           </form>
         ) : (
           <form onSubmit={submitReset} className="flex flex-col gap-3">
-            {notice && <p className="text-caption text-growth-bright">{notice}</p>}
+            {notice && <p className="text-caption text-lit">{notice}</p>}
             <Field
               id="reset-code"
               label="인증 코드 6자리"
@@ -94,7 +94,7 @@ export default function ResetPasswordPage() {
               onChange={(e) => setNewPassword(e.target.value)}
               autoComplete="new-password"
             />
-            {error && <p className="text-caption text-wither">{error}</p>}
+            {error && <p className="text-caption text-spec-m">{error}</p>}
             <Button
               type="submit"
               variant="primary"
@@ -107,8 +107,8 @@ export default function ResetPasswordPage() {
           </form>
         )}
 
-        <p className="mt-5 text-center text-body-sm text-content-secondary">
-          <Link href="/login" className="font-semibold text-goal-bright">
+        <p className="mt-5 text-center text-body-sm text-text-lo">
+          <Link href="/login" className="font-semibold text-spec-b">
             로그인으로 돌아가기
           </Link>
         </p>

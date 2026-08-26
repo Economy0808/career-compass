@@ -90,10 +90,9 @@ a:hover {
   background: transparent;
 }
 
-/* 콩나무 캔버스(goal/[id], roadmap/[id])는 밤하늘 위로 스크롤하는 몰입형
-   장면이라, 화면 중앙 본문 칸 경계에 뜨는 기본/전역 스크롤바가 그림 위에
-   밝은 세로줄로 겹쳐 보인다. 이 컨테이너만 스크롤 기능은 그대로 두고
-   막대만 숨긴다. */
+/* 별자리 캔버스는 화면 가득 스크롤하는 몰입형 장면이라, 화면 중앙
+   본문 칸 경계에 뜨는 기본/전역 스크롤바가 그림 위에 밝은 세로줄로
+   겹쳐 보인다. 이 컨테이너만 스크롤 기능은 그대로 두고 막대만 숨긴다. */
 .canvas-scroll {
   scrollbar-width: none;
   -ms-overflow-style: none;
@@ -102,14 +101,6 @@ a:hover {
   display: none;
 }
 
-@keyframes drawBranch {
-  from {
-    stroke-dashoffset: 300;
-  }
-  to {
-    stroke-dashoffset: 0;
-  }
-}
 @keyframes sprout {
   0% {
     transform: scale(0);
@@ -121,39 +112,6 @@ a:hover {
     transform: scale(1);
   }
 }
-@keyframes twinkle {
-  0%,
-  100% {
-    opacity: 0.2;
-  }
-  50% {
-    opacity: 0.95;
-  }
-}
-@keyframes floaty {
-  0%,
-  100% {
-    transform: translate(0, 0);
-  }
-  25% {
-    transform: translate(14px, -24px);
-  }
-  50% {
-    transform: translate(-10px, -40px);
-  }
-  75% {
-    transform: translate(9px, -14px);
-  }
-}
-@keyframes sway {
-  0%,
-  100% {
-    transform: rotate(-2deg);
-  }
-  50% {
-    transform: rotate(2.4deg);
-  }
-}
 @keyframes glowPulse {
   0%,
   100% {
@@ -163,15 +121,6 @@ a:hover {
   50% {
     opacity: 0.95;
     transform: translateX(-50%) scale(1.07);
-  }
-}
-@keyframes blink {
-  0%,
-  100% {
-    opacity: 0.25;
-  }
-  50% {
-    opacity: 1;
   }
 }
 /* 하루 6개 완료 축하 연출 */

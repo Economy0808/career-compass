@@ -32,9 +32,9 @@ export function DangerZone({ onDeleted }: DangerZoneProps) {
   }
 
   return (
-    <div className="mt-14 rounded-lg border border-wither/30 bg-wither/8 p-5">
-      <h2 className="text-body-sm font-bold text-wither">위험 구역</h2>
-      <p className="mt-1.5 text-caption leading-relaxed text-content-muted">
+    <div className="mt-14 rounded-lg border border-spec-m/30 bg-spec-m/8 p-5">
+      <h2 className="text-body-sm font-bold text-spec-m">위험 구역</h2>
+      <p className="mt-1.5 text-caption leading-relaxed text-text-lo">
         회원 탈퇴 시 계정과 모든 별자리·기록·일정이 영구 삭제되며 되돌릴 수 없어요.
       </p>
       <Button
@@ -51,9 +51,9 @@ export function DangerZone({ onDeleted }: DangerZoneProps) {
       </Button>
 
       <Modal open={open} onClose={() => !pending && setOpen(false)} title="회원 탈퇴" size="sm">
-        <p className="text-body-sm leading-relaxed text-content-secondary">
+        <p className="text-body-sm leading-relaxed text-text-lo">
           계정과 모든 데이터(별자리·기록·일정)가{" "}
-          <b className="text-content-primary">영구 삭제</b>되고 되돌릴 수 없어요. 계속하려면
+          <b className="text-text-hi">영구 삭제</b>되고 되돌릴 수 없어요. 계속하려면
           비밀번호를 입력해주세요.
         </p>
         <Field

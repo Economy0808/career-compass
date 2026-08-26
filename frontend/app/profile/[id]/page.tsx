@@ -99,7 +99,7 @@ export default function ProfilePage({ params }: { params: { id: string } }) {
           예전 "콩나무 목록" 섹션(GoalSection)은 로드맵 API와 함께 통째로 삭제됐고,
           별자리 목록 API가 붙기 전까지는 빈 상태만 보여준다. */}
       <div className="mt-9">
-        <h2 className="mb-4 font-serif text-heading font-bold text-content-primary">
+        <h2 className="mb-4 font-serif text-heading font-bold text-text-hi">
           {isOwn ? "내 별자리" : "별자리"}
         </h2>
         <EmptyState
@@ -111,7 +111,7 @@ export default function ProfilePage({ params }: { params: { id: string } }) {
             <button
               type="button"
               onClick={() => router.push("/constellation/new")}
-              className="text-caption font-semibold text-goal-bright hover:brightness-125"
+              className="text-caption font-semibold text-spec-b hover:brightness-125"
             >
               별자리 생성하러 가기
             </button>

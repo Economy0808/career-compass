@@ -24,35 +24,6 @@ const config: Config = {
           m: "#FF7B72", // networking    (네트워킹)
         },
         lit: "#FFF3C4", // warm starlight — a "lit" edge (never green)
-
-        // --- Legacy beanstalk-era palette ---
-        // Kept byte-for-byte (not part of this pass's scope) because it is
-        // still referenced outside components/shell and components/ui:
-        // app/** pages, ScheduleCalendar.tsx, DayCompleteCelebration.tsx,
-        // ConstellationCanvas.tsx, ElementBinPanel.tsx, profile/_components.
-        // Deleting these would silently drop Tailwind classes (not a tsc
-        // error) across ~20 files this task did not touch. A follow-up pass
-        // should migrate those call sites onto the tokens above and remove
-        // this block.
-        sky: { base: "#0B1E3D", mid: "#0E2438" },
-        earth: { base: "#06120A", mid: "#0D2119" },
-        surface: {
-          raised: "rgba(10,28,42,.55)",
-          overlay: "rgba(6,16,12,.86)",
-        },
-        content: {
-          primary: "#EAF3EE",
-          secondary: "#9FB6AD",
-          muted: "#7D968C",
-        },
-        growth: { DEFAULT: "#5DB35B", bright: "#8FDC8A", dim: "#2C5B36" },
-        goal: { DEFAULT: "#2F6FBF", bright: "#7CC4F0", dim: "#173A5E" },
-        bloom: { DEFAULT: "#E2B94F", bright: "#EFE8BD" },
-        wither: { DEFAULT: "#D8B078", dim: "#5A4527" },
-        line: {
-          DEFAULT: "rgba(140,180,220,.17)",
-          strong: "rgba(140,180,220,.34)",
-        },
       },
       fontSize: {
         display: ["1.875rem", { lineHeight: "1.3" }],      // 30px
