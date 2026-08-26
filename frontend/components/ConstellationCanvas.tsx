@@ -14,6 +14,7 @@
 
 import {
   useCallback,
+  useEffect,
   useMemo,
   useRef,
   useState,
@@ -141,6 +142,7 @@ export function ConstellationCanvas({
 }: ConstellationCanvasProps) {
   const svgRef = useRef<SVGSVGElement>(null);
   const dragRef = useRef<DragState>(null);
+  const didAutoCenterRef = useRef(false);
 
   const [transform, setTransform] = useState<Transform>({ x: 0, y: 0, k: 1 });
   // 드래그 중인 노드 하나만 낙관적으로 덮어쓴다. 부모의 영속화는 디바운스될 수
@@ -171,6 +173,30 @@ export function ConstellationCanvas({
     },
     [transform]
   );
+
+  // --- 최초 자동 중앙 정렬 ----------------------------------------------------
+  // transform의 초기값은 {x:0, y:0, k:1}이고 SVG에는 viewBox가 없으므로,
+  // world 좌표 (0,0)은 항상 SVG 자신의 좌상단 픽셀에 고정된다. 시드 노드처럼
+  // 좌표가 음수를 포함하면 그래프 전체가 뷰포트 밖(왼쪽/위)으로 나가 버린다 -
+  // "엣지가 노드에서 어긋나 보인다"고 오인되기 쉽지만 실제로는 엣지·노드가
+  // 똑같이 잘못된 위치에 같이 그려지는 것뿐이다. 마운트 후 컨테이너 크기를
+  // 알 수 있게 되면 노드들의 바운딩 박스를 뷰포트 중앙에 오도록 딱 한 번만
+  // 보정한다 - 이후 사용자의 팬/줌은 절대 덮어쓰지 않는다.
+  useEffect(() => {
+    if (didAutoCenterRef.current) return;
+    const svg = svgRef.current;
+    if (!svg) return;
+    const nodeList = Object.values(nodes);
+    if (nodeList.length === 0) return;
+    const rect = svg.getBoundingClientRect();
+    if (rect.width === 0 || rect.height === 0) return;
+    const xs = nodeList.map((n) => n.position.x);
+    const ys = nodeList.map((n) => n.position.y);
+    const cx = (Math.min(...xs) + Math.max(...xs)) / 2;
+    const cy = (Math.min(...ys) + Math.max(...ys)) / 2;
+    didAutoCenterRef.current = true;
+    setTransform({ x: rect.width / 2 - cx, y: rect.height / 2 - cy, k: 1 });
+  }, [nodes]);
 
   // --- 팬 & 줌 -------------------------------------------------------------
 
@@ -399,7 +425,7 @@ export function ConstellationCanvas({
                   strokeWidth={lit ? 2 : 1}
                   opacity={lit ? 1 : 0.8}
                   filter={lit ? "url(#const-glow)" : undefined}
-                  style={lit ? { animation: "glowPulse 3.2s ease-in-out infinite" } : undefined}
+                  style={lit ? { animation: "edgeGlowPulse 3.2s ease-in-out infinite" } : undefined}
                   onDoubleClick={
                     !readOnly && onEdgeDelete ? () => onEdgeDelete(edge.id) : undefined
                   }

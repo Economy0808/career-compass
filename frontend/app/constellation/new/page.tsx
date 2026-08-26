@@ -9,7 +9,6 @@
  */
 
 import { useCallback, useMemo, useRef, useState } from "react";
-import { SideRail } from "@/components/shell/SideRail";
 import {
   ConstellationCanvas,
   type CanvasEdge,
@@ -175,19 +174,20 @@ export default function NewConstellationPage() {
   }, []);
 
   return (
-    <div className="flex h-dvh w-full overflow-hidden bg-ink-900">
-      <SideRail />
-      <main className="min-w-0 flex-1">
-        <ConstellationCanvas
-          nodes={nodes}
-          edges={edges}
-          onNodeDrag={handleNodeDrag}
-          onNodeToggleComplete={handleNodeToggleComplete}
-          onEdgeCreate={handleEdgeCreate}
-          onEdgeDelete={handleEdgeDelete}
-          onExternalDrop={handleExternalDrop}
-        />
-      </main>
+    // 그래프뷰 자체가 페이지의 배경 - 카드도 컬럼도 아니라 뷰포트를 꽉 채우는
+    // 바닥이다. 레일/보관함 패널은 이 위에 뜨는 반투명 판(오버레이)일 뿐,
+    // 캔버스의 폭을 나눠 갖지 않는다. 패닝/줌은 패널 마진 아래를 포함해
+    // 화면 전체에서 동작해야 하므로 캔버스는 항상 inset-0.
+    <div className="relative h-full w-full overflow-hidden bg-ink-900">
+      <ConstellationCanvas
+        nodes={nodes}
+        edges={edges}
+        onNodeDrag={handleNodeDrag}
+        onNodeToggleComplete={handleNodeToggleComplete}
+        onEdgeCreate={handleEdgeCreate}
+        onEdgeDelete={handleEdgeDelete}
+        onExternalDrop={handleExternalDrop}
+      />
       <ElementBinPanel bins={bins} onItemDragToCanvas={placeItem} onCreateBin={handleCreateBin} placedItemIds={placedItemIds} />
     </div>
   );

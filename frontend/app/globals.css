@@ -123,6 +123,20 @@ a:hover {
     transform: translateX(-50%) scale(1.07);
   }
 }
+/* 별자리 캔버스의 "빛나는 엣지"(인접 발광) 전용 - glowPulse는 원래
+   left:50% + translateX(-50%)로 중앙 정렬하는 HTML 배지 용도라 SVG <line>에
+   그대로 쓰면 translateX(-50%)가 부모 <g>의 좌표 변환과 어긋나 엣지가
+   가로로 어긋나 보이는 버그가 생긴다(콩나무 리디자인 시안에서 그대로 복사돼
+   들어온 값). opacity만 애니메이션한다 - transform 없음. */
+@keyframes edgeGlowPulse {
+  0%,
+  100% {
+    opacity: 0.6;
+  }
+  50% {
+    opacity: 1;
+  }
+}
 /* 하루 6개 완료 축하 연출 */
 @keyframes celebratePop {
   0% {
