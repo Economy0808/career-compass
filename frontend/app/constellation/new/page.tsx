@@ -125,6 +125,7 @@ const INITIAL_NOTES: Record<string, ElementNote> = {
       "- 자산 증가 -> 차변\n- 부채/자본 증가 -> 대변\n\n" +
       "`재무상태표`와 `손익계산서`가 어떻게 이어지는지는 [[경영학회 활동]]에서 실습으로 다시 확인.",
     isPublic: false,
+    attachments: [],
     createdAt: SEED_TIME,
     updatedAt: SEED_TIME,
   },
@@ -135,6 +136,7 @@ const INITIAL_NOTES: Record<string, ElementNote> = {
     body:
       "> 정액법: (취득원가 - 잔존가치) / 내용연수\n\n감가상각비는 비용이지만 현금 유출이 없다는 점이 헷갈렸음.",
     isPublic: false,
+    attachments: [],
     createdAt: SEED_TIME + 1000 * 60 * 60,
     updatedAt: SEED_TIME + 1000 * 60 * 60 * 5,
   },
@@ -144,6 +146,7 @@ const INITIAL_NOTES: Record<string, ElementNote> = {
     title: "스터디 공유용 요약",
     body: "1. 거래의 이중성\n2. 계정과목 5대 분류\n3. 시산표 작성 순서\n\n다음 스터디에서 [[투자자산운용사]] 준비랑 연결해서 볼 것.",
     isPublic: true,
+    attachments: [],
     createdAt: SEED_TIME + 1000 * 60 * 60 * 24,
     updatedAt: SEED_TIME + 1000 * 60 * 60 * 24,
   },
@@ -166,6 +169,10 @@ export default function NewConstellationPage() {
   // 노트 패널이 "펼치고 스크롤"을 다시 수행해야 하므로, nodeId 자체가 아니라
   // 매번 증가하는 이 토큰으로 "펼침 요청"을 전달한다.
   const [notesExpandToken, setNotesExpandToken] = useState(0);
+  // "크게 보기" - 열린 노트 편집기를 레일 경계까지 넓힌다. 노트 패널을 벗어나면
+  // (탭 전환 등) 의미가 없으므로 여기 최상위에서 관리하되, 실제 리셋은
+  // ElementNotesPanel이 activeNoteKey 변화에 맞춰 호출해 준다.
+  const [isNoteExpanded, setIsNoteExpanded] = useState(false);
   const fillTimers = useRef<Set<ReturnType<typeof setTimeout>>>(new Set());
 
   // 노트를 nodeId별로 묶는다. 이 그룹의 length가 카드의 "노트 N개"를 결정하는
@@ -368,20 +375,29 @@ export default function NewConstellationPage() {
   }, []);
 
   const handleCreateNote = useCallback(
-    (nodeId: string, input: { title: string; body: string; isPublic: boolean }) => {
+    (nodeId: string, input: { title: string; body: string; isPublic: boolean; attachments: ElementNote["attachments"] }) => {
       noteCounter += 1;
       const id = `note-local-${noteCounter}`;
       const now = Date.now();
       setNotes((prev) => ({
         ...prev,
-        [id]: { id, nodeId, title: input.title, body: input.body, isPublic: input.isPublic, createdAt: now, updatedAt: now },
+        [id]: {
+          id,
+          nodeId,
+          title: input.title,
+          body: input.body,
+          isPublic: input.isPublic,
+          attachments: input.attachments,
+          createdAt: now,
+          updatedAt: now,
+        },
       }));
     },
     []
   );
 
   const handleUpdateNote = useCallback(
-    (noteId: string, patch: { title: string; body: string; isPublic: boolean }) => {
+    (noteId: string, patch: { title: string; body: string; isPublic: boolean; attachments: ElementNote["attachments"] }) => {
       setNotes((prev) =>
         prev[noteId]
           ? { ...prev, [noteId]: { ...prev[noteId], ...patch, updatedAt: Date.now() } }
@@ -394,6 +410,9 @@ export default function NewConstellationPage() {
   const handleDeleteNote = useCallback((noteId: string) => {
     setNotes((prev) => {
       if (!prev[noteId]) return prev;
+      // 이 노트가 물고 있던 첨부 object URL도 함께 회수한다 - 노트가
+      // 사라지면 그 이미지들을 다시 볼 방법이 없으므로 계속 들고 있을 이유가 없다.
+      prev[noteId].attachments.forEach((att) => URL.revokeObjectURL(att.url));
       const next = { ...prev };
       delete next[noteId];
       return next;
@@ -484,6 +503,8 @@ export default function NewConstellationPage() {
             onDeleteNote={handleDeleteNote}
             resolveLink={resolveWikiLink}
             onLinkClick={handleNoteLinkClick}
+            isNoteExpanded={isNoteExpanded}
+            onNoteExpandedChange={setIsNoteExpanded}
           />
         )}
       </aside>
