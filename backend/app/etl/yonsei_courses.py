@@ -21,6 +21,9 @@ from pydantic import BaseModel
 # 학정번호 패턴: 영문 접두사(2~6자) + 숫자(3~5자리). 예: HUM2037, KOR1001, PSY1001.
 _CODE_RE = re.compile(r"\b([A-Z]{2,6}\d{3,5})\b")
 
+# 학정번호 숫자부 첫 자리 = 계층 수준(level)으로 간주한다. 예: KOR1001 -> 1, STA3109 -> 3.
+_LEVEL_RE = re.compile(r"^[A-Z]{2,6}([1-9])\d{2,4}$")
+
 # File B 페이지 부속물(반복 헤더/푸터) - 건너뛴다.
 _FURNITURE_SUBSTRINGS = (
     "개설교과목 개요",
@@ -89,16 +92,23 @@ class CourseDesc(BaseModel):
 
 
 class MergedCourse(BaseModel):
-    """File A + File B를 학정번호로 병합한 최종 과목 정보."""
+    """File A + File B를 학정번호의 합집합으로 병합한 최종 과목 정보.
+
+    File B(개설교과목 개요, 커버리지 높음)를 스파인으로 삼는 outer join이다 -
+    File A(교과과정 표, 커버리지 낮음)에 해당 코드가 없어도 항목이 버려지지 않는다.
+    kind/years/semester/credits/lecture_hours/lab_hours는 File A 전용 계층 정보이므로
+    File A에 해당 코드가 없으면 비어 있다(kind=None, years=[]).
+    """
 
     code: str
     name: str
-    kind: str
-    years: list[int]
+    kind: str | None = None
+    years: list[int] = []
     semester: int | None = None
     credits: float | None = None
     lecture_hours: float | None = None
     lab_hours: float | None = None
+    level: int | None = None
     name_en: str | None = None
     description: str | None = None
     college: str | None = None
@@ -319,20 +329,73 @@ def parse_descriptions_file(path: Path) -> tuple[list[CourseDesc], int]:
     return descs, len(descs)
 
 
+def parse_course_level(code: str) -> int | None:
+    """학정번호 숫자부 첫 자리에서 계층 수준(level)을 유추한다.
+
+    예: "KOR1001" -> 1, "STA3109" -> 3, "BIZ4123" -> 4. 형식이 안 맞으면 None.
+
+    정확도에 대한 정직한 경고: 이것은 약한 근사치다. 실제 years 데이터가 있는
+    항목을 기준으로 측정했을 때, level == min(years)인 경우는 42%,
+    level <= min(years)인 경우도 52%에 그친다 - 즉 학정번호 첫 자리가 실제 학년/
+    이수단계와 다른 경우가 절반 가까이 된다. years가 없을 때(File A 커버리지 밖)
+    쓸 수 있는 "차선의 정렬 신호"일 뿐이며, 절대로 실제 years를 덮어쓰거나
+    years와 섞어 쓰면 안 된다. 두 필드는 항상 분리해서 유지한다.
+    """
+    match = _LEVEL_RE.match(code)
+    if match is None:
+        return None
+    return int(match.group(1))
+
+
 def merge_courses(
     rows: list[CourseRow], descs: list[CourseDesc]
 ) -> tuple[list[MergedCourse], int, int]:
-    """A(rows)와 B(descs)를 학정번호로 병합한다.
+    """A(rows)와 B(descs)를 학정번호의 합집합으로 병합한다 (outer join).
+
+    File B(개요, 커버리지 6,948개 코드)가 File A(교과과정 표, 커버리지 1,321개
+    코드)보다 훨씬 넓으므로 File B를 스파인으로 삼는다 - 어느 한쪽에만 있는
+    코드도 절대 버리지 않는다. File A에만 있는 코드는 description 등 File B
+    전용 필드가 비고, File B에만 있는 코드는 kind/years 등 File A 전용 계층
+    필드가 빈다(kind=None, years=[]).
 
     반환값: (병합된 리스트, A에는 있지만 B에 없는 코드 수, B에는 있지만 A에 없는 코드 수)
     """
-    desc_by_code = {d.code: d for d in descs}
-    row_codes = {r.code for r in rows}
-    desc_codes = set(desc_by_code.keys())
+    row_by_code = {r.code: r for r in rows}
+    row_codes = set(row_by_code.keys())
+    desc_codes = {d.code for d in descs}
 
     merged: list[MergedCourse] = []
+    seen: set[str] = set()
+
+    # File B를 스파인으로 순회 - name/description은 B가 원천이다.
+    for desc in descs:
+        if desc.code in seen:
+            continue
+        seen.add(desc.code)
+        row = row_by_code.get(desc.code)
+        merged.append(
+            MergedCourse(
+                code=desc.code,
+                name=row.name if row else desc.name_ko,
+                kind=row.kind if row else None,
+                years=row.years if row else [],
+                semester=row.semester if row else None,
+                credits=row.credits if row else None,
+                lecture_hours=row.lecture_hours if row else None,
+                lab_hours=row.lab_hours if row else None,
+                level=parse_course_level(desc.code),
+                name_en=desc.name_en,
+                description=desc.description,
+                college=desc.college,
+                department=(row.department if row and row.department else desc.department),
+            )
+        )
+
+    # File A에만 있는 코드 - description 계열 필드는 비운다.
     for row in rows:
-        desc = desc_by_code.get(row.code)
+        if row.code in seen:
+            continue
+        seen.add(row.code)
         merged.append(
             MergedCourse(
                 code=row.code,
@@ -343,10 +406,11 @@ def merge_courses(
                 credits=row.credits,
                 lecture_hours=row.lecture_hours,
                 lab_hours=row.lab_hours,
-                name_en=desc.name_en if desc else None,
-                description=desc.description if desc else None,
-                college=desc.college if desc else None,
-                department=desc.department if desc else None,
+                level=parse_course_level(row.code),
+                name_en=None,
+                description=None,
+                college=None,
+                department=row.department,
             )
         )
 

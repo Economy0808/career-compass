@@ -14,6 +14,7 @@ from app.etl.yonsei_courses import (
     CourseRow,
     _split_name_en,
     merge_courses,
+    parse_course_level,
     parse_course_row,
     parse_curriculum_file,
     parse_descriptions_file,
@@ -194,6 +195,12 @@ def test_parse_descriptions_file(scratch_dir):
 
 
 def test_merge_courses_joins_by_code_and_reports_coverage():
+    """outer join이므로 A/B 어느 한쪽에만 있는 코드도 결과에 남는다 (총 3개).
+
+    기존 버전은 inner join(A 기준)이라 len(merged) == 2, YYY0000(B 전용)이
+    버려졌었다 - 이것이 바로 이번에 고친 데이터 손실 버그이므로 기대값을
+    outer join 기준(3개, 아무것도 버려지지 않음)으로 갱신했다.
+    """
     rows = [
         CourseRow(
             code="HUM2037",
@@ -218,7 +225,7 @@ def test_merge_courses_joins_by_code_and_reports_coverage():
         CourseDesc(code="YYY0000", name_ko="표에없는과목", description="설명2"),
     ]
     merged, a_missing_b, b_missing_a = merge_courses(rows, descs)
-    assert len(merged) == 2
+    assert len(merged) == 3
     assert a_missing_b == 1  # ZZZ9999
     assert b_missing_a == 1  # YYY0000
     hum = next(m for m in merged if m.code == "HUM2037")
@@ -226,6 +233,109 @@ def test_merge_courses_joins_by_code_and_reports_coverage():
     assert hum.college == "문과대학"
     no_desc = next(m for m in merged if m.code == "ZZZ9999")
     assert no_desc.description is None
+
+
+def test_outer_join_keeps_course_present_only_in_file_b():
+    """B 전용 코드는 hierarchy 필드(kind/years)가 비어 있는 채로 살아남는다."""
+    descs = [CourseDesc(code="YYY0000", name_ko="표에없는과목", description="설명2")]
+    merged, a_missing_b, b_missing_a = merge_courses([], descs)
+    assert len(merged) == 1
+    only_b = merged[0]
+    assert only_b.code == "YYY0000"
+    assert only_b.name == "표에없는과목"
+    assert only_b.description == "설명2"
+    assert only_b.kind is None
+    assert only_b.years == []
+    assert b_missing_a == 1
+    assert a_missing_b == 0
+
+
+def test_outer_join_keeps_course_present_only_in_file_a():
+    """A 전용 코드는 description 계열 필드가 비어 있는 채로 살아남는다."""
+    rows = [
+        CourseRow(
+            code="ZZZ9999", name="설명없음과목", kind="일반", years=[1], semester=1, credits=3.0
+        )
+    ]
+    merged, a_missing_b, b_missing_a = merge_courses(rows, [])
+    assert len(merged) == 1
+    only_a = merged[0]
+    assert only_a.code == "ZZZ9999"
+    assert only_a.name == "설명없음과목"
+    assert only_a.kind == "일반"
+    assert only_a.years == [1]
+    assert only_a.description is None
+    assert only_a.name_en is None
+    assert only_a.college is None
+    assert a_missing_b == 1
+    assert b_missing_a == 0
+
+
+def test_course_in_both_sources_gets_fields_from_both():
+    rows = [
+        CourseRow(
+            code="HUM2037",
+            name="동서양공연예술의이해",
+            kind="일반",
+            years=[1, 2, 3, 4],
+            semester=2,
+            credits=3.0,
+        )
+    ]
+    descs = [
+        CourseDesc(
+            code="HUM2037",
+            name_ko="동서양공연예술의이해",
+            name_en="Understanding...",
+            description="설명",
+            college="문과대학",
+            department="문과대학 공통",
+        )
+    ]
+    merged, _, _ = merge_courses(rows, descs)
+    assert len(merged) == 1
+    both = merged[0]
+    assert both.kind == "일반"
+    assert both.years == [1, 2, 3, 4]
+    assert both.name_en == "Understanding..."
+    assert both.description == "설명"
+    assert both.college == "문과대학"
+
+
+# --- level(계층 수준) 폴백 --------------------------------------------------
+
+
+def test_parse_course_level_known_codes():
+    assert parse_course_level("KOR1001") == 1
+    assert parse_course_level("STA3109") == 3
+    assert parse_course_level("BIZ4123") == 4
+
+
+def test_parse_course_level_malformed_code_returns_none():
+    assert parse_course_level("KOR") is None
+    assert parse_course_level("1001") is None
+    assert parse_course_level("KO0R1001X") is None
+
+
+def test_level_does_not_populate_or_alter_years():
+    """level은 years가 없을 때 참고용 폴백일 뿐, years 필드를 채우거나 바꾸면 안 된다."""
+    rows = [
+        CourseRow(code="STA3109", name="통계학", kind="전선", years=[], semester=None, credits=3.0)
+    ]
+    merged, _, _ = merge_courses(rows, [])
+    course = merged[0]
+    assert course.level == 3
+    assert course.years == []  # level이 있어도 years는 그대로 비어 있다
+
+    rows_with_years = [
+        CourseRow(
+            code="STA3109", name="통계학", kind="전선", years=[1, 2], semester=None, credits=3.0
+        )
+    ]
+    merged2, _, _ = merge_courses(rows_with_years, [])
+    course2 = merged2[0]
+    assert course2.level == 3
+    assert course2.years == [1, 2]  # 실제 years가 있으면 level과 무관하게 그대로 유지
 
 
 def test_parse_curriculum_file_records_diagnostics(scratch_dir):
