@@ -212,8 +212,10 @@ export function Markdown({ text, resolveLink, onLinkClick, className }: Markdown
         switch (block.kind) {
           case "heading": {
             const Tag = (`h${block.level}` as unknown) as "h1" | "h2" | "h3";
+            // em 단위 - 부모(NoteEditor의 본문 컨테이너)가 COLLAPSED/EXPANDED
+            // 타이포 스케일에 맞춰 font-size를 바꿔주면 제목도 비례해서 커지도록.
             const sizeClass =
-              block.level === 1 ? "text-base" : block.level === 2 ? "text-[0.95rem]" : "text-sm";
+              block.level === 1 ? "text-[1.3em]" : block.level === 2 ? "text-[1.15em]" : "text-[1.05em]";
             return (
               <Tag key={bi} className={`${sizeClass} mb-1 mt-3 font-bold text-text-hi first:mt-0`}>
                 {renderInline(block.text, resolveLink, onLinkClick, keyPrefix)}

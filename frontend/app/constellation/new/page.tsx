@@ -487,7 +487,12 @@ export default function NewConstellationPage() {
         )}
       >
         <PanelTabs mode={panelMode} onChange={handleTabChange} />
-        {panelMode === "bins" ? (
+        {/* 두 패널을 항상 마운트해 두고 CSS로만 숨긴다(조건부 렌더로 언마운트하지
+            않음) - ElementNotesPanel이 로컬로 들고 있는 "확대된 노트 탭들" 상태가
+            상단 탭을 「군집」으로 옮겼다 「노트」로 되돌아와도 그대로 남아있어야
+            하기 때문. 확대된 편집기 자체는 어차피 document.body로 포탈되어
+            그린다(아래 참고). */}
+        <div className={cn("flex min-h-0 flex-1 flex-col overflow-hidden", panelMode !== "bins" && "hidden")}>
           <ElementBinPanel
             bins={bins}
             onItemDragToCanvas={placeItem}
@@ -495,21 +500,21 @@ export default function NewConstellationPage() {
             onAddItem={handleAddItem}
             placedItemIds={placedItemIds}
           />
-        ) : (
-          <ElementNotesPanel
-            nodes={Object.values(nodesWithNoteCounts)}
-            notesByNode={notesByNode}
-            expandNodeId={notesNodeId}
-            expandToken={notesExpandToken}
-            onCreateNote={handleCreateNote}
-            onUpdateNote={handleUpdateNote}
-            onDeleteNote={handleDeleteNote}
-            resolveLink={resolveWikiLink}
-            onLinkClick={handleNoteLinkClick}
-            isNoteExpanded={isNoteExpanded}
-            onNoteExpandedChange={setIsNoteExpanded}
-          />
-        )}
+        </div>
+        <ElementNotesPanel
+          className={panelMode !== "notes" ? "hidden" : undefined}
+          nodes={Object.values(nodesWithNoteCounts)}
+          notesByNode={notesByNode}
+          expandNodeId={notesNodeId}
+          expandToken={notesExpandToken}
+          onCreateNote={handleCreateNote}
+          onUpdateNote={handleUpdateNote}
+          onDeleteNote={handleDeleteNote}
+          resolveLink={resolveWikiLink}
+          onLinkClick={handleNoteLinkClick}
+          isNoteExpanded={isNoteExpanded}
+          onNoteExpandedChange={setIsNoteExpanded}
+        />
       </aside>
     </div>
   );

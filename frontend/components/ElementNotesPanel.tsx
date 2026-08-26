@@ -18,7 +18,14 @@
  * 사라진다). 이 컴포넌트는 순수 표현 계층 + 편집 폼 로컬 상태만 가진다.
  */
 
-import { useEffect, useRef, useState, type ClipboardEvent as ReactClipboardEvent } from "react";
+import {
+  useEffect,
+  useMemo,
+  useRef,
+  useState,
+  type ClipboardEvent as ReactClipboardEvent,
+  type ReactNode,
+} from "react";
 import { createPortal } from "react-dom";
 import { cn } from "@/lib/cn";
 import type { CanvasNode } from "@/components/ConstellationCanvas";
@@ -52,6 +59,35 @@ export interface ElementNote {
 }
 
 const MAX_ATTACHMENT_BYTES = 10 * 1024 * 1024;
+
+/**
+ * 타이포 스케일 두 개를 상수로 못박아 둔다(fluid clamp() 금지) - COLLAPSED는
+ * 패널 안(~288px 너비)에서, EXPANDED는 720px 중앙 칼럼에서 각각 "이 정도가
+ * 의도된 크기다"라고 디자이너가 나중에 손댈 수 있게 하는 고정 핀이다. 제목
+ * input, 본문 textarea, 렌더링된 마크다운(제목 태그는 em 단위라 이 base
+ * font-size에 비례해서 커진다) 세 군데 모두 이 값을 그대로 쓴다.
+ */
+const COLLAPSED_TYPE_SCALE = {
+  titleFontSize: "18px",
+  titleFontWeight: 700,
+  titleLineHeight: 1.3,
+  bodyFontSize: "13px",
+  bodyLineHeight: 1.7,
+} as const;
+const EXPANDED_TYPE_SCALE = {
+  titleFontSize: "30px",
+  titleFontWeight: 700,
+  titleLineHeight: 1.25,
+  bodyFontSize: "16px",
+  bodyLineHeight: 1.85,
+} as const;
+
+/** 확대된 편집기 위에서 열려 있는 탭 하나 - 항상 실재하는 노트를 가리킨다
+ * (초안 상태의 "+ 새 노트"는 탭 시스템 범위 밖 - 아래 NewNoteEditor 참고). */
+interface NoteTabInfo {
+  key: string;
+  nodeId: string;
+}
 
 function makeAttachmentId(): string {
   if (typeof crypto !== "undefined" && "randomUUID" in crypto) return crypto.randomUUID();
@@ -135,6 +171,91 @@ export function ElementNotesPanel({
   const [expandedNodeId, setExpandedNodeId] = useState<string | null>(null);
   const [activeNoteKey, setActiveNoteKey] = useState<string | null>(null);
   const barRefs = useRef(new Map<string, HTMLButtonElement>());
+
+  // --- 확대 시 탭 바 ---------------------------------------------------------
+  // "확대된 상태에서 연 노트들"을 원소 경계와 무관하게 여기(패널 로컬 state)에
+  // 쌓아 둔다. page.tsx가 오른쪽 패널을 「군집」 <-> 「노트」로 스왑할 때도 이
+  // 컴포넌트 자체는 언마운트되지 않도록 부모를 고쳤으므로(항상 마운트, CSS로만
+  // 숨김) 탭을 여기 두어도 패널을 오갈 때 사라지지 않는다.
+  const [noteTabs, setNoteTabs] = useState<NoteTabInfo[]>([]);
+  const [activeTabKey, setActiveTabKey] = useState<string | null>(null);
+  const [pickerOpen, setPickerOpen] = useState(false);
+
+  const notesById = useMemo(() => {
+    const map = new Map<string, ElementNote>();
+    for (const list of Array.from(notesByNode.values())) for (const n of list) map.set(n.id, n);
+    return map;
+  }, [notesByNode]);
+
+  // "+" 피커에 쓸, 노트가 하나라도 있는 원소만 골라 최신순으로 정렬한 목록.
+  const pickerSections = useMemo(
+    () =>
+      nodes
+        .map((n) => ({
+          nodeId: n.id,
+          label: n.label,
+          code: n.code,
+          notes: [...(notesByNode.get(n.id) ?? [])].sort((a, b) => b.updatedAt - a.updatedAt),
+        }))
+        .filter((s) => s.notes.length > 0),
+    [nodes, notesByNode]
+  );
+
+  // 탭 추가/활성화 - 패널의 어느 원소가 열려 있든 그 노트로 아코디언 초점을
+  // 옮기고(expandedNodeId/activeNoteKey는 "지금 확대되어 보이는 노트"를 가리키는
+  // 기존 상태를 그대로 재사용) 확대 스위치를 켠다.
+  // expandIntentRef를 여기서 함께 세팅한다 - activeNoteKey를 바꾸는 모든 탭
+  // 조작(열기/전환/이웃 활성화)이 아래쪽 "확장 상태 리셋" effect(활성 노트가
+  // 바뀌면 기본적으로 축소로 되돌리는 effect)에 걸려 방금 켠 확대를 도로
+  // 꺼버리지 않도록 하기 위해서다.
+  function activateNoteExpanded(nodeId: string, noteId: string) {
+    expandIntentRef.current = noteId;
+    setExpandedNodeId(nodeId);
+    setActiveNoteKey(noteId);
+    onNoteExpandedChange(true);
+  }
+
+  function openTab(nodeId: string, noteId: string) {
+    setNoteTabs((prev) => (prev.some((t) => t.key === noteId) ? prev : [...prev, { key: noteId, nodeId }]));
+    setActiveTabKey(noteId);
+    activateNoteExpanded(nodeId, noteId);
+    setPickerOpen(false);
+  }
+
+  function switchTab(key: string) {
+    const tab = noteTabs.find((t) => t.key === key);
+    if (!tab) return;
+    setActiveTabKey(key);
+    activateNoteExpanded(tab.nodeId, key);
+  }
+
+  // 탭 하나를 닫는다. 그게 활성 탭이었으면 이웃 탭을 활성화하고, 마지막 탭이면
+  // 확대 자체를 끈다(요청: "닫히면 확대 뷰가 접힌다").
+  function closeTab(key: string) {
+    setNoteTabs((prev) => {
+      const idx = prev.findIndex((t) => t.key === key);
+      if (idx === -1) return prev;
+      const next = [...prev.slice(0, idx), ...prev.slice(idx + 1)];
+      if (activeTabKey === key) {
+        const neighbor = next[idx] ?? next[idx - 1];
+        if (neighbor) {
+          setActiveTabKey(neighbor.key);
+          activateNoteExpanded(neighbor.nodeId, neighbor.key);
+        } else {
+          setActiveTabKey(null);
+          onNoteExpandedChange(false);
+        }
+      }
+      return next;
+    });
+  }
+
+  // 탭 바 오른쪽 끝의 닫기(축소) 버튼 - "확대"를 끄기만 한다. expandedNodeId/
+  // activeNoteKey는 그대로 두므로 활성 탭이었던 노트의 패널 내 인라인 편집기로
+  // 자연스레 돌아간다(그 노트의 아코디언 행이 이미 열려 있는 상태이므로).
+  function closeOverlay() {
+    onNoteExpandedChange(false);
+  }
   // "확대 버튼으로 노트를 연 것"이라는 의도를 activeNoteKey가 바뀐 뒤(커밋 후)
   // 실행되는 아래 리셋 effect에 전달하기 위한 값 - 없으면 그 effect가 매번
   // false로 덮어써서 확대 버튼이 두 번 클릭해야 먹는 버그가 생긴다.
@@ -302,15 +423,13 @@ export function ElementNotesPanel({
                             </button>
                             <button
                               type="button"
-                              aria-pressed={noteOpen && isNoteExpanded}
-                              aria-label={noteOpen && isNoteExpanded ? "노트 축소" : "노트 확대"}
+                              aria-pressed={isNoteExpanded && activeTabKey === note.id}
+                              aria-label={isNoteExpanded && activeTabKey === note.id ? "노트 축소" : "노트 확대"}
                               onClick={() => {
-                                if (!noteOpen) {
-                                  expandIntentRef.current = note.id;
-                                  setActiveNoteKey(note.id);
-                                  onNoteExpandedChange(true);
+                                if (isNoteExpanded && activeTabKey === note.id) {
+                                  closeOverlay();
                                 } else {
-                                  onNoteExpandedChange(!isNoteExpanded);
+                                  openTab(node.id, note.id);
                                 }
                               }}
                               className="flex h-6 w-6 shrink-0 items-center justify-center rounded-none border border-rule text-text-lo hover:border-spec-b hover:text-text-hi focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-1 focus-visible:outline-spec-b"
@@ -349,6 +468,24 @@ export function ElementNotesPanel({
                                 isExpanded={isNoteExpanded}
                                 onExpandedChange={onNoteExpandedChange}
                                 onPersist={(input) => onUpdateNote(note.id, input)}
+                                tabBar={
+                                  isNoteExpanded ? (
+                                    <NoteTabBar
+                                      elementLabel={node.label}
+                                      elementCode={node.code}
+                                      tabs={noteTabs}
+                                      activeTabKey={activeTabKey}
+                                      notesById={notesById}
+                                      onSwitchTab={switchTab}
+                                      onCloseTab={closeTab}
+                                      onCloseOverlay={closeOverlay}
+                                      pickerSections={pickerSections}
+                                      pickerOpen={pickerOpen}
+                                      onPickerOpenChange={setPickerOpen}
+                                      onPickNote={openTab}
+                                    />
+                                  ) : undefined
+                                }
                               />
                             </div>
                           )}
@@ -388,6 +525,11 @@ interface NoteEditorProps {
    * 노트(false, 기본값)는 이미 실재하므로, 사용자가 내용을 전부 지웠다면
    * 그 빈 상태도 그대로 저장해야 한다 - 지워도 옛 내용이 되살아나면 안 된다. */
   isNewNote?: boolean;
+  /** 확대 상태에서만 렌더할 탭 바(요소 이름/노트 제목 브레드크럼, 탭 칩, +
+   * 피커, 닫기 버튼을 포함) - 부모(ElementNotesPanel)가 탭 목록을 소유하므로
+   * 완성된 노드를 그대로 받아 상단에 얹기만 한다. 접힌 상태나 "+ 새 노트"
+   * 초안 경로에서는 undefined. */
+  tabBar?: ReactNode;
 }
 
 const AUTOSAVE_DEBOUNCE_MS = 800;
@@ -402,6 +544,7 @@ function NoteEditor({
   isExpanded,
   onExpandedChange,
   isNewNote = false,
+  tabBar,
 }: NoteEditorProps) {
   const [title, setTitle] = useState(initial.title);
   const [body, setBody] = useState(initial.body);
@@ -606,6 +749,10 @@ function NoteEditor({
   // 경계(212px = SideRail.tsx의 w-rail 196px + 16px 여백, tailwind.config.ts의
   // rail: "196px")까지 넓어진다. md 미만(모바일 바텀시트)에서는 레일이 아예
   // 없으므로 전체화면으로 대체한다.
+  // 두 타이포 스케일 중 지금 상태에 맞는 쪽을 고른다 - 제목 input, 본문
+  // textarea, 렌더링된 마크다운 컨테이너 세 곳 모두 이 값 하나를 그대로 쓴다.
+  const typeScale = isExpanded ? EXPANDED_TYPE_SCALE : COLLAPSED_TYPE_SCALE;
+
   const editorWrapperClass = isExpanded
     ? cn(
         "fixed inset-2 z-[25] flex flex-col gap-2.5 overflow-y-auto rounded-none border border-rule bg-ink-800/95 p-3.5 shadow-2xl backdrop-blur-md",
@@ -645,7 +792,12 @@ function NoteEditor({
         onChange={(e) => setTitle(e.target.value)}
         onBlur={flushSave}
         placeholder="제목"
-        className="w-full border-0 bg-transparent py-1 font-serif text-display font-bold text-text-hi placeholder:text-text-lo/60 focus-visible:outline-none"
+        style={{
+          fontSize: typeScale.titleFontSize,
+          fontWeight: typeScale.titleFontWeight,
+          lineHeight: typeScale.titleLineHeight,
+        }}
+        className="w-full border-0 bg-transparent py-1 font-serif text-text-hi placeholder:text-text-lo/60 focus-visible:outline-none"
         onKeyDown={(e) => {
           if (e.key === "Escape") handleEscape();
           if (e.key === "Enter") {
@@ -671,7 +823,8 @@ function NoteEditor({
           onPaste={handleBodyPaste}
           placeholder={bodyPlaceholder}
           rows={isExpanded ? 20 : 9}
-          className="w-full resize-none border-0 bg-transparent px-0 py-1 font-sans text-xs leading-relaxed text-text-hi placeholder:text-text-lo focus-visible:outline-none"
+          style={{ fontSize: typeScale.bodyFontSize, lineHeight: typeScale.bodyLineHeight }}
+          className="w-full resize-none border-0 bg-transparent px-0 py-1 font-sans text-text-hi placeholder:text-text-lo focus-visible:outline-none"
           onKeyDown={(e) => {
             // Esc로 편집을 취소할 수 있어야 하지만(키보드로 빠져나가기), 캔버스의
             // 전역 Delete/Backspace 핸들러가 여기서 절대 발동하면 안 된다 - 이
@@ -691,8 +844,9 @@ function NoteEditor({
             if (e.key === "Enter") enterEditMode();
             if (e.key === "Escape") handleEscape();
           }}
+          style={{ fontSize: typeScale.bodyFontSize, lineHeight: typeScale.bodyLineHeight }}
           className={cn(
-            "min-h-[120px] cursor-text border-0 bg-transparent px-0 py-1 font-sans text-xs text-text-hi focus-visible:outline-none",
+            "min-h-[120px] cursor-text border-0 bg-transparent px-0 py-1 font-sans text-text-hi focus-visible:outline-none",
             isExpanded && "min-h-[320px]"
           )}
         >
@@ -750,6 +904,7 @@ function NoteEditor({
 
   const editorNode = (
     <div className={editorWrapperClass}>
+      {isExpanded && tabBar}
       {isExpanded ? (
         <div className="mx-auto flex w-full max-w-[720px] flex-1 flex-col gap-2.5 pt-2">{contentColumn}</div>
       ) : (
@@ -776,6 +931,251 @@ function NoteEditor({
     return createPortal(editorNode, document.body);
   }
   return editorNode;
+}
+
+interface PickerSection {
+  nodeId: string;
+  label: string;
+  code?: string | null;
+  notes: ElementNote[];
+}
+
+interface NoteTabBarProps {
+  elementLabel: string;
+  elementCode?: string | null;
+  tabs: NoteTabInfo[];
+  activeTabKey: string | null;
+  notesById: Map<string, ElementNote>;
+  onSwitchTab: (key: string) => void;
+  onCloseTab: (key: string) => void;
+  onCloseOverlay: () => void;
+  pickerSections: PickerSection[];
+  pickerOpen: boolean;
+  onPickerOpenChange: (open: boolean) => void;
+  onPickNote: (nodeId: string, noteId: string) => void;
+}
+
+/**
+ * 확대된 편집기 맨 위의 옵시디언 스타일 탭 스트립 - 탭 칩들 + "+"(피커) +
+ * 브레드크럼(요소 / 노트 제목) + 맨 오른쪽 닫기(축소) 버튼. 부모
+ * (ElementNotesPanel)가 탭 목록/활성 탭을 소유하므로 이 컴포넌트는 순수
+ * 표현 + 방향키 네비게이션만 담당한다.
+ */
+function NoteTabBar({
+  elementLabel,
+  elementCode,
+  tabs,
+  activeTabKey,
+  notesById,
+  onSwitchTab,
+  onCloseTab,
+  onCloseOverlay,
+  pickerSections,
+  pickerOpen,
+  onPickerOpenChange,
+  onPickNote,
+}: NoteTabBarProps) {
+  const tabRefs = useRef<Array<HTMLDivElement | null>>([]);
+  const activeNote = activeTabKey ? notesById.get(activeTabKey) : undefined;
+
+  function focusTab(index: number) {
+    if (tabs.length === 0) return;
+    const wrapped = (index + tabs.length) % tabs.length;
+    const tab = tabs[wrapped];
+    onSwitchTab(tab.key);
+    tabRefs.current[wrapped]?.focus();
+  }
+
+  return (
+    <div className="mx-auto flex w-full max-w-[720px] items-center gap-2 border-b border-rule pb-2">
+      <div role="tablist" aria-label="열린 노트 탭" className="flex min-w-0 flex-1 items-center gap-1 overflow-x-auto">
+        {tabs.map((tab, index) => {
+          const note = notesById.get(tab.key);
+          const selected = tab.key === activeTabKey;
+          return (
+            <div
+              key={tab.key}
+              role="tab"
+              id={`note-tab-${tab.key}`}
+              aria-selected={selected}
+              tabIndex={selected ? 0 : -1}
+              ref={(el) => {
+                tabRefs.current[index] = el;
+              }}
+              onClick={() => onSwitchTab(tab.key)}
+              onKeyDown={(e) => {
+                if (e.key === "ArrowRight") {
+                  e.preventDefault();
+                  focusTab(index + 1);
+                } else if (e.key === "ArrowLeft") {
+                  e.preventDefault();
+                  focusTab(index - 1);
+                } else if (e.key === "Enter" || e.key === " ") {
+                  e.preventDefault();
+                  onSwitchTab(tab.key);
+                }
+              }}
+              className={cn(
+                "flex shrink-0 cursor-pointer items-center gap-1.5 rounded-none border px-2 py-1 font-sans text-xs",
+                "focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-1 focus-visible:outline-spec-b",
+                selected
+                  ? "border-spec-b bg-ink-700 text-text-hi"
+                  : "border-rule text-text-lo hover:border-spec-b hover:text-text-hi"
+              )}
+            >
+              <span className="max-w-[9rem] truncate">{note?.title || "무제"}</span>
+              <button
+                type="button"
+                tabIndex={-1}
+                aria-label={`${note?.title || "무제"} 탭 닫기`}
+                onClick={(e) => {
+                  e.stopPropagation();
+                  onCloseTab(tab.key);
+                }}
+                className="shrink-0 text-text-lo hover:text-spec-m"
+              >
+                ×
+              </button>
+            </div>
+          );
+        })}
+        <NoteTabPicker
+          sections={pickerSections}
+          openKeys={new Set(tabs.map((t) => t.key))}
+          isOpen={pickerOpen}
+          onOpenChange={onPickerOpenChange}
+          onPick={onPickNote}
+        />
+      </div>
+
+      <div className="min-w-0 shrink truncate font-sans text-xs text-text-lo">
+        <span className="text-text-hi">{elementLabel}</span>
+        {elementCode && <span className="ml-1 font-mono text-[11px]">{elementCode}</span>}
+        <span className="mx-1">/</span>
+        <span>{activeNote?.title || "무제"}</span>
+      </div>
+
+      <button
+        type="button"
+        aria-label="노트 축소"
+        onClick={onCloseOverlay}
+        className="flex h-6 w-6 shrink-0 items-center justify-center rounded-none border border-rule text-text-lo hover:border-spec-b hover:text-text-hi focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-1 focus-visible:outline-spec-b"
+      >
+        {/* 확대 토글과 동일한 사이드 패널 글리프 - "같은 스위치가 꺼진다"는 것을
+            시각적으로 보여준다. */}
+        <svg width="13" height="13" viewBox="0 0 13 13" fill="none" aria-hidden="true">
+          <rect x="1" y="1.5" width="11" height="10" stroke="currentColor" strokeWidth="1.2" />
+          <path d="M8.3 1.5v10" stroke="currentColor" strokeWidth="1.2" />
+        </svg>
+      </button>
+    </div>
+  );
+}
+
+interface NoteTabPickerProps {
+  sections: PickerSection[];
+  openKeys: Set<string>;
+  isOpen: boolean;
+  onOpenChange: (open: boolean) => void;
+  onPick: (nodeId: string, noteId: string) => void;
+}
+
+/**
+ * "+" 버튼 - 원소 -> 그 원소의 노트들을 나열하는 작은 팝업. 이미 탭으로 열려
+ * 있는 노트는 흐리게 표시하고 클릭해도 그 탭을 활성화만 한다(중복 탭 없음).
+ */
+function NoteTabPicker({ sections, openKeys, isOpen, onOpenChange, onPick }: NoteTabPickerProps) {
+  const rootRef = useRef<HTMLDivElement>(null);
+  const itemRefs = useRef<Array<HTMLButtonElement | null>>([]);
+  const flatItems = useMemo(
+    () => sections.flatMap((s) => s.notes.map((n) => ({ nodeId: s.nodeId, noteId: n.id }))),
+    [sections]
+  );
+
+  useEffect(() => {
+    if (!isOpen) return;
+    function onPointerDown(e: MouseEvent) {
+      if (rootRef.current && !rootRef.current.contains(e.target as Node)) onOpenChange(false);
+    }
+    document.addEventListener("mousedown", onPointerDown);
+    return () => document.removeEventListener("mousedown", onPointerDown);
+  }, [isOpen, onOpenChange]);
+
+  function focusItem(index: number) {
+    if (flatItems.length === 0) return;
+    const wrapped = (index + flatItems.length) % flatItems.length;
+    itemRefs.current[wrapped]?.focus();
+  }
+
+  return (
+    <div ref={rootRef} className="relative shrink-0">
+      <button
+        type="button"
+        aria-haspopup="menu"
+        aria-expanded={isOpen}
+        aria-label="다른 노트를 탭으로 열기"
+        onClick={() => onOpenChange(!isOpen)}
+        className="flex h-6 w-6 shrink-0 items-center justify-center rounded-none border border-dashed border-rule font-sans text-xs text-text-lo hover:border-spec-b hover:text-text-hi focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-1 focus-visible:outline-spec-b"
+      >
+        +
+      </button>
+      {isOpen && (
+        <div
+          role="menu"
+          aria-label="노트 열기"
+          onKeyDown={(e) => {
+            if (e.key === "Escape") {
+              e.stopPropagation();
+              onOpenChange(false);
+            }
+          }}
+          className="absolute left-0 top-full z-10 mt-1 max-h-72 w-56 overflow-y-auto rounded-none border border-rule bg-ink-800 py-1 shadow-lg"
+        >
+          {flatItems.length === 0 && (
+            <p className="px-2.5 py-1.5 font-sans text-[11px] text-text-lo">열 수 있는 노트가 없어요.</p>
+          )}
+          {sections.map((section) => (
+            <div key={section.nodeId}>
+              <div className="px-2.5 pt-1.5 font-sans text-[10px] uppercase tracking-wide text-text-lo">
+                {section.label}
+              </div>
+              {section.notes.map((note) => {
+                const already = openKeys.has(note.id);
+                const flatIndex = flatItems.findIndex((f) => f.noteId === note.id);
+                return (
+                  <button
+                    key={note.id}
+                    type="button"
+                    role="menuitem"
+                    ref={(el) => {
+                      itemRefs.current[flatIndex] = el;
+                    }}
+                    onClick={() => onPick(section.nodeId, note.id)}
+                    onKeyDown={(e) => {
+                      if (e.key === "ArrowDown") {
+                        e.preventDefault();
+                        focusItem(flatIndex + 1);
+                      } else if (e.key === "ArrowUp") {
+                        e.preventDefault();
+                        focusItem(flatIndex - 1);
+                      }
+                    }}
+                    className={cn(
+                      "block w-full truncate rounded-none px-2.5 py-1.5 text-left font-sans text-xs hover:bg-ink-700",
+                      already ? "text-text-lo/60" : "text-text-hi"
+                    )}
+                  >
+                    {note.title || "무제"}
+                    {already && " · 열림"}
+                  </button>
+                );
+              })}
+            </div>
+          ))}
+        </div>
+      )}
+    </div>
+  );
 }
 
 /**
