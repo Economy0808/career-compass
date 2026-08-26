@@ -19,6 +19,7 @@ import {
   useRef,
   useState,
   type KeyboardEvent as ReactKeyboardEvent,
+  type MouseEvent as ReactMouseEvent,
   type PointerEvent as ReactPointerEvent,
   type RefObject,
   type WheelEvent as ReactWheelEvent,
@@ -38,6 +39,17 @@ export interface CanvasNode {
   isCompleted: boolean;
   position: CanvasPosition;
   level?: number | null;
+  /** 학정번호 등 식별 코드(현재는 수업만 채워짐). font-mono로 렌더링한다.
+   * 과거에는 label에서 정규식으로 잘라냈지만(splitCourseCode), 그건 스키마
+   * 공백을 메우던 임시방편이었다 - 이제 이 필드가 있으면 우선한다. */
+  code?: string;
+  /** 팝오버에 2~3줄로 클램프해 보여주는 설명. 수업은 요람 파싱, 그 외
+   * 타입(학회/자격증/대외활동/네트워킹)은 나중에 LLM이 채운다. 없으면 그냥
+   * 섹션 자체를 렌더링하지 않는다(빈 박스/플레이스홀더 금지). */
+  description?: string;
+  /** 이 노드에 달린 노트 개수. undefined면 아직 하나도 없다는 뜻으로
+   * "노트 추가"를 보여준다(0개와는 다른 상태). */
+  noteCount?: number;
 }
 
 /** 백엔드 Edge 모델과 1:1로 대응. */
@@ -55,10 +67,13 @@ export interface ConstellationCanvasProps {
   onNodeToggleComplete: (nodeId: string) => void;
   onEdgeCreate: (sourceNodeId: string, targetNodeId: string) => void;
   onEdgeDelete?: (edgeId: string) => void;
-  /** 노드 삭제(툴바 "삭제" 버튼). 이 노드를 참조하는 엣지 정리는 상태를 들고
-   * 있는 부모(page.tsx)의 책임 - 캔버스는 nodes/edges를 그대로 받아 그리기만
-   * 하므로 스스로 정리할 수 없다. */
+  /** 노드 삭제(선택된 노드에서 Delete/Backspace 키). 이 노드를 참조하는 엣지
+   * 정리는 상태를 들고 있는 부모(page.tsx)의 책임 - 캔버스는 nodes/edges를
+   * 그대로 받아 그리기만 하므로 스스로 정리할 수 없다. */
   onNodeDelete?: (nodeId: string) => void;
+  /** 팝오버의 "노트 N개 ›" 행 클릭. 노트 패널 자체는 다음 작업에서 만든다 -
+   * 여기서는 훅만 열어 둔다. */
+  onOpenNotes?: (nodeId: string) => void;
   /**
    * 외부(원소 보관함 패널 등)에서 HTML5 드래그로 들어온 드롭을 받는다. 캔버스는
    * 드롭된 데이터의 의미(어떤 원소인지)를 알 필요가 없으므로, dataTransfer의
@@ -74,7 +89,7 @@ export interface ConstellationCanvasProps {
 
 const NODE_RADIUS = 9;
 const HANDLE_RADIUS = 17;
-/** 클릭과 드래그를 구분하는 임계값(px, 화면 좌표 기준). 이보다 적게 움직이면 클릭 = 완료 토글. */
+/** 클릭과 드래그를 구분하는 임계값(px, 화면 좌표 기준). 이보다 적게 움직이면 클릭 = 선택(정보 카드 열기). */
 const CLICK_THRESHOLD = 4;
 const MIN_ZOOM = 0.35;
 const MAX_ZOOM = 2.5;
@@ -95,7 +110,9 @@ function colorForType(type: string): string {
 }
 
 /** 라벨 앞에 학정번호(예: "BIZ2101 경영정보시스템")가 붙어 있으면 분리한다.
- * 코드는 식별자이므로 font-mono로 작게, 나머지는 본문 폰트로 렌더링한다. */
+ * 코드는 식별자이므로 font-mono로 작게, 나머지는 본문 폰트로 렌더링한다.
+ * node.code가 있으면 이 함수는 아예 쓰이지 않는다 - 아직 code 필드가 없는
+ * 과거 데이터를 위한 하위호환 fallback으로만 남겨둔다. */
 const COURSE_CODE_RE = /^([A-Z]{2,6}\d{3,5})\s+(.+)$/;
 function splitCourseCode(label: string): { code: string | null; rest: string } {
   const m = COURSE_CODE_RE.exec(label);
@@ -142,6 +159,7 @@ export function ConstellationCanvas({
   onEdgeCreate,
   onEdgeDelete,
   onNodeDelete,
+  onOpenNotes,
   onExternalDrop,
   readOnly = false,
   className,
@@ -157,11 +175,10 @@ export function ConstellationCanvas({
   const [edgeCursor, setEdgeCursor] = useState<CanvasPosition | null>(null);
   const [hoveredNodeId, setHoveredNodeId] = useState<string | null>(null);
   const [focusedNodeId, setFocusedNodeId] = useState<string | null>(null);
-  // 선택된 노드 - 툴바(달성/잇기/삭제)를 여는 트리거. 클릭/Enter는 이제 완료를
-  // 즉시 토글하지 않고 선택만 한다(아래 activateNode 참고).
+  // 선택된 노드 - 정보 카드(이름/코드/설명/노트)를 여는 트리거이자 Delete 키
+  // 삭제의 대상. 클릭/Enter는 완료를 즉시 토글하지 않고 선택만 한다(아래
+  // activateNode 참고) - 완료 토글은 이제 더블클릭 제스처다.
   const [selectedNodeId, setSelectedNodeId] = useState<string | null>(null);
-  // "잇기" 모드의 출발 노드. 설정돼 있으면 다음 노드 클릭이 연결 대상이 된다.
-  const [connectSource, setConnectSource] = useState<string | null>(null);
 
   const positionOf = useCallback(
     (nodeId: string): CanvasPosition => {
@@ -301,10 +318,11 @@ export function ConstellationCanvas({
     [nodes, transform.k]
   );
 
-  // --- 선택 / 잇기 모드 ------------------------------------------------------
+  // --- 선택 ------------------------------------------------------------------
 
-  // 이미 이어진 쌍인지(방향 무관) 확인 - "잇기" 토글(다시 이으면 끊김) 힌트와
-  // 배너 문구에 쓴다. 실제 토글 실행은 부모(page.tsx)의 onEdgeCreate가 맡는다.
+  // 이미 이어진 쌍인지(방향 무관) 확인 - 핸들 링 드래그로 연결하는 중에 이미
+  // 이어진 대상 위에 있으면(놓으면 끊어진다는) 힌트에 쓴다. 실제 토글 실행은
+  // 부모(page.tsx)의 onEdgeCreate가 맡는다.
   const isLinked = useCallback(
     (a: string, b: string) =>
       Object.values(edges).some(
@@ -315,34 +333,40 @@ export function ConstellationCanvas({
     [edges]
   );
 
-  // 클릭(또는 Enter/Space)의 공통 처리. "잇기" 모드 중이면 이 노드가 연결
-  // 대상이 되고, 아니면 이 노드를 선택해 툴바를 연다. 클릭이 완료 토글을
-  // 곧바로 실행하던 이전 동작은 제거했다 - 그게 우연히 눌리는 사고의 원인이었다.
-  const activateNode = useCallback(
-    (nodeId: string) => {
-      if (connectSource) {
-        if (nodeId !== connectSource) onEdgeCreate(connectSource, nodeId);
-        setConnectSource(null);
-        setSelectedNodeId(null);
-      } else {
-        setSelectedNodeId(nodeId);
-      }
-    },
-    [connectSource, onEdgeCreate]
-  );
+  // 클릭(또는 Enter/Space)은 이제 오직 선택만 한다 - 완료 토글(더블클릭)과
+  // 연결(핸들 링 드래그), 삭제(Delete 키)는 전부 다른 제스처로 분리됐다.
+  const activateNode = useCallback((nodeId: string) => {
+    setSelectedNodeId(nodeId);
+  }, []);
 
-  // Esc는 어디에 포커스가 있든(툴바 버튼 포함) 잇기 모드와 선택/툴바를 닫는다.
+  // Esc는 어디에 포커스가 있든 선택/카드를 닫는다. Delete/Backspace는 "선택된
+  // 노드가 있을 때만" 그 노드를 삭제한다 - 이 앱엔 undo가 없으므로, 입력
+  // 필드(텍스트 편집 중)에서 눌렸다면 무시해서 실수로 지워지지 않게 막는다.
+  // 확인 대화상자는 일부러 안 붙였다(요청받지 않음) - 대신 삭제 전제 조건을
+  // "선택 상태"로 좁혀서 아무 데서나 손쉽게 눌리지 않게 한다.
   useEffect(() => {
     if (readOnly) return;
+    function isTypingTarget(target: EventTarget | null): boolean {
+      if (!(target instanceof HTMLElement)) return false;
+      const tag = target.tagName;
+      return tag === "INPUT" || tag === "TEXTAREA" || target.isContentEditable;
+    }
     function onKeyDown(e: KeyboardEvent) {
       if (e.key === "Escape") {
-        setConnectSource(null);
         setSelectedNodeId(null);
+        return;
+      }
+      if ((e.key === "Delete" || e.key === "Backspace") && !isTypingTarget(e.target)) {
+        setSelectedNodeId((cur) => {
+          if (!cur) return cur;
+          if (onNodeDelete) onNodeDelete(cur);
+          return null;
+        });
       }
     }
     window.addEventListener("keydown", onKeyDown);
     return () => window.removeEventListener("keydown", onKeyDown);
-  }, [readOnly]);
+  }, [readOnly, onNodeDelete]);
 
   // --- 공통 포인터 이동/해제 ------------------------------------------------
 
@@ -396,9 +420,8 @@ export function ConstellationCanvas({
         const dx = e.clientX - drag.startClientX;
         const dy = e.clientY - drag.startClientY;
         if (Math.hypot(dx, dy) <= CLICK_THRESHOLD) {
-          // 빈 캔버스 클릭 - 선택/잇기 모드를 닫는다(토글 아님).
+          // 빈 캔버스 클릭 - 선택을 닫는다(토글 아님).
           setSelectedNodeId(null);
-          setConnectSource(null);
         }
       }
       // pan의 transform 자체는 별도 처리 불필요 - 이미 최신 상태.
@@ -411,13 +434,26 @@ export function ConstellationCanvas({
       if (readOnly) return;
       if (e.key === "Enter" || e.key === " ") {
         e.preventDefault();
-        // 선택인가 토글인가: 클릭과 동일한 의미(선택)로 통일한다. 키보드
-        // 사용자도 툴바를 거쳐 달성/잇기/삭제에 동등하게 접근해야 하므로,
-        // 여기서만 즉시 토글해 버리면 클릭과 다른 동작이 되어 일관성이 깨진다.
+        // 선택인가 토글인가: 클릭과 동일한 의미(선택)로 통일한다. 완료 토글은
+        // 이제 더블클릭 제스처로 옮겼으므로, 키보드에서도 Enter/Space는 선택만
+        // 하고 달성 토글은 하지 않는다(일관성 유지).
         activateNode(nodeId);
       }
     },
     [readOnly, activateNode]
+  );
+
+  // 더블클릭 = 달성 토글. 단일 클릭(선택)과는 별개의 네이티브 dblclick
+  // 이벤트로 처리하므로, 클릭-드래그 임계값(CLICK_THRESHOLD) 로직과 서로
+  // 간섭하지 않는다 - 첫 클릭의 pointerup에서 이미 선택 처리가 끝난 뒤에
+  // 브라우저가 두 번째 클릭까지 보고 나서야 이 이벤트를 한 번 더 얹어 준다.
+  const handleNodeDoubleClick = useCallback(
+    (nodeId: string) => (e: ReactMouseEvent<SVGCircleElement>) => {
+      if (readOnly) return;
+      e.stopPropagation();
+      onNodeToggleComplete(nodeId);
+    },
+    [readOnly, onNodeToggleComplete]
   );
 
   // --- 파생 데이터 ----------------------------------------------------------
@@ -520,7 +556,7 @@ export function ConstellationCanvas({
             const isHovered = hoveredNodeId === node.id;
             const isFocused = focusedNodeId === node.id;
             const isSelected = selectedNodeId === node.id;
-            const isConnectSource = connectSource === node.id;
+            const isDragEdgeSource = dragEdgeSource === node.id;
             // level(1000~4000)을 겉보기 등급처럼 쓴다: 낮은 학년 과목일수록 더
             // 밝고 큰 별로 읽히게. level이 없으면 중간값(2000)으로 취급해
             // 항상 자연스럽게 보이도록 한다. 은은하게만 - magT는 0~1.
@@ -530,7 +566,11 @@ export function ConstellationCanvas({
             // 별), 완료는 분광형 색으로 꽉 찬 밝은 별(+발광). 대비를 세게 줬다:
             // 미완료는 불투명도도 낮춰 눈에 잘 안 띄게, 완료는 항상 100%.
             const magOpacity = node.isCompleted ? 1 : 0.55 - magT * 0.18;
-            const { code, rest } = splitCourseCode(node.label);
+            // node.code가 있으면 그걸 그대로 쓰고(라벨은 순수 이름), 없으면
+            // 과거처럼 라벨에서 정규식으로 분리한다(하위호환 fallback).
+            const fallbackSplit = node.code ? null : splitCourseCode(node.label);
+            const code = node.code ?? fallbackSplit?.code ?? null;
+            const rest = node.code ? node.label : fallbackSplit?.rest ?? node.label;
             return (
               <g
                 key={node.id}
@@ -547,21 +587,27 @@ export function ConstellationCanvas({
                 onPointerDown={beginNodeDrag(node.id)}
                 style={{ cursor: readOnly ? "default" : "pointer", outline: "none" }}
               >
-                {/* 엣지 생성용 핸들 링 - 호버/포커스일 때만 보이는 넓은 히트 영역 */}
+                {/* 엣지 생성용 핸들 링 - 항상 존재하는 히트 영역이지만, 평소에는
+                    투명하다가 호버/포커스일 때 뚜렷한 실선 링 + 옅은 채움으로
+                    "여기서 끌면 연결된다"는 걸 분명히 announce한다. 예전의
+                    가는 점선(strokeOpacity 0.35)은 너무 희미해서 발견이 안 됐던
+                    것 - "왜 줄 잇기가 안 되니" 피드백의 원인이었다. 커서도
+                    crosshair로 바꿔 손잡이라는 걸 알린다. */}
                 {!readOnly && (
                   <circle
                     r={HANDLE_RADIUS}
-                    fill="transparent"
+                    fill={isHovered || isFocused ? "var(--spec-b)" : "transparent"}
+                    fillOpacity={isHovered || isFocused ? 0.12 : 0}
                     stroke={isHovered || isFocused ? "var(--spec-b)" : "transparent"}
-                    strokeOpacity={0.35}
-                    strokeWidth={1}
-                    strokeDasharray="2 3"
+                    strokeOpacity={isHovered || isFocused ? 0.9 : 0}
+                    strokeWidth={2}
                     onPointerDown={beginEdgeDrag(node.id)}
+                    style={{ cursor: "crosshair" }}
                   />
                 )}
 
-                {/* "잇기" 모드의 출발 노드 표시 - 점선 링. */}
-                {isConnectSource && (
+                {/* 핸들 링 드래그로 연결 중인 출발 노드 표시 - 점선 링. */}
+                {isDragEdgeSource && (
                   <circle r={r + 8} fill="none" stroke="var(--spec-b)" strokeWidth={1.5} strokeDasharray="3 3" />
                 )}
 
@@ -585,6 +631,7 @@ export function ConstellationCanvas({
                   strokeWidth={node.isCompleted ? 0 : 1}
                   opacity={magOpacity}
                   filter={node.isCompleted ? "url(#const-glow)" : undefined}
+                  onDoubleClick={!readOnly ? handleNodeDoubleClick(node.id) : undefined}
                 />
 
                 <text
@@ -621,35 +668,28 @@ export function ConstellationCanvas({
         </div>
       )}
 
-      {/* 잇기 모드 배너 */}
-      {!readOnly && connectSource && (
+      {/* 연결 드래그 배너 - 핸들 링에서 드래그를 시작한 동안만 뜬다. */}
+      {!readOnly && dragEdgeSource && (
         <div
           className="pointer-events-none absolute left-1/2 top-4 -translate-x-1/2 rounded-full border border-rule bg-ink-800/90 px-4 py-1.5 font-sans text-xs text-text-hi shadow-lg"
           role="status"
         >
-          {hoveredNodeId && hoveredNodeId !== connectSource && isLinked(connectSource, hoveredNodeId)
+          {hoveredNodeId && hoveredNodeId !== dragEdgeSource && isLinked(dragEdgeSource, hoveredNodeId)
             ? "이미 이어져 있음 · 다시 누르면 끊어집니다"
-            : "잇는 중 · 대상 노드를 클릭하세요 (Esc로 취소)"}
+            : "연결하는 중 · 대상 노드에서 놓으세요"}
         </div>
       )}
 
-      {/* 노드 선택 툴바 - 달성/잇기/삭제. transform(팬/줌)이 바뀔 때마다 다시
-          계산되므로 캔버스를 움직여도 선택된 노드를 계속 따라간다. */}
-      {!readOnly && !connectSource && selectedNodeId && nodes[selectedNodeId] && (
-        <NodeToolbar
+      {/* 노드 선택 정보 카드 - 이름/코드/설명 + 노트. 달성/연결/삭제는 이제
+          제스처(더블클릭/핸들 링 드래그/Delete 키)로 옮겨서 버튼이 없다.
+          transform(팬/줌)이 바뀔 때마다 다시 계산되므로 캔버스를 움직여도
+          선택된 노드를 계속 따라간다. */}
+      {!readOnly && selectedNodeId && nodes[selectedNodeId] && (
+        <ElementPopover
           node={nodes[selectedNodeId]}
           transform={transform}
           containerRef={svgRef}
-          onToggleComplete={() => onNodeToggleComplete(selectedNodeId)}
-          onStartConnect={() => setConnectSource(selectedNodeId)}
-          onDelete={
-            onNodeDelete
-              ? () => {
-                  onNodeDelete(selectedNodeId);
-                  setSelectedNodeId(null);
-                }
-              : undefined
-          }
+          onOpenNotes={onOpenNotes ? () => onOpenNotes(selectedNodeId) : undefined}
           onDismiss={() => setSelectedNodeId(null)}
         />
       )}
@@ -661,87 +701,130 @@ export function ConstellationCanvas({
   );
 }
 
-const TOOLBAR_WIDTH = 176;
-const TOOLBAR_HEIGHT = 40;
-const TOOLBAR_MARGIN = 8;
-const TOOLBAR_GAP = 14; // 노드 가장자리와 툴바 사이 여백
+const POPOVER_WIDTH = 256;
+// 실제 높이는 콘텐츠(설명 유무, 노트 유무)에 따라 달라지므로 useLayoutEffect로
+// 측정한다. 이 값은 측정 전 첫 프레임에만 쓰는 대략치 - 측정 후엔 실제 높이로
+// 다시 계산되므로 화면 깜빡임 없이 자리를 잡는다.
+const POPOVER_ESTIMATED_HEIGHT = 160;
+const POPOVER_MARGIN = 8;
+const POPOVER_GAP = 12; // 노드 가장자리와 팝오버 사이 여백
 
-interface NodeToolbarProps {
+interface ElementPopoverProps {
   node: CanvasNode;
   transform: Transform;
   containerRef: RefObject<SVGSVGElement>;
-  onToggleComplete: () => void;
-  onStartConnect: () => void;
-  onDelete?: () => void;
+  onOpenNotes?: () => void;
   onDismiss: () => void;
 }
 
 /**
- * 선택된 노드 옆에 뜨는 작은 플로팅 툴바(달성/잇기/삭제).
+ * 선택된 노드의 아래오른쪽에 뜨는 작은 원소 정보 카드.
+ *
+ * 달성/연결/삭제는 이제 버튼이 아니라 제스처다(더블클릭 / 핸들 링 드래그 /
+ * Delete 키 - ConstellationCanvas 본문 참고). 그래서 이 카드에는 액션 버튼이
+ * 하나도 없고 이름·코드·설명·노트 링크만 있는 순수 정보 표면이다.
+ * role="toolbar"(버튼 묶음 전용, APG 기준)는 더 이상 맞지 않아 떼어냈고,
+ * 대신 aria-label이 붙은 role="dialog"(비모달 - Esc로 닫히는 플로팅 정보
+ * 패널)를 골랐다. 표 형태 목록도 아니고 액션 묶음도 아닌, 이름 붙은 보조
+ * 패널이라는 뜻에서 "region"보다 "dialog"가 더 정확하다고 판단했다.
  *
  * 위치는 노드의 world 좌표에 현재 pan/zoom transform을 적용해 화면 좌표로
  * 바꾼 뒤, 컨테이너 경계 안으로 clamp한다 - transform이 리렌더마다 최신값을
  * props로 받으므로 팬/줌을 해도 매 프레임 다시 계산되어 노드를 계속 따라간다.
- * 기본은 노드 위쪽에 뜨고, 위쪽 여백이 부족하면 아래로 뒤집는다.
+ * 기본은 노드 아래오른쪽에 뜨고, 오른쪽/아래쪽 여백이 부족하면 각 축을 독립적으로
+ * 뒤집는다(즉 4개 코너 중 들어맞는 곳으로).
  */
-function NodeToolbar({
+function ElementPopover({
   node,
   transform,
   containerRef,
-  onToggleComplete,
-  onStartConnect,
-  onDelete,
+  onOpenNotes,
   onDismiss,
-}: NodeToolbarProps) {
+}: ElementPopoverProps) {
+  const popoverRef = useRef<HTMLDivElement>(null);
+  const [measuredHeight, setMeasuredHeight] = useState<number | null>(null);
+
+  useEffect(() => {
+    setMeasuredHeight(popoverRef.current?.offsetHeight ?? null);
+  }, [node.id, node.description, node.code, node.noteCount, node.isCompleted]);
+
+  useEffect(() => {
+    function onKeyDown(e: KeyboardEvent) {
+      if (e.key === "Escape") onDismiss();
+    }
+    window.addEventListener("keydown", onKeyDown);
+    return () => window.removeEventListener("keydown", onKeyDown);
+  }, [onDismiss]);
+
   const rect = containerRef.current?.getBoundingClientRect();
-  const width = rect?.width ?? 9999;
-  const height = rect?.height ?? 9999;
+  const containerWidth = rect?.width ?? 9999;
+  const containerHeight = rect?.height ?? 9999;
+  const height = measuredHeight ?? POPOVER_ESTIMATED_HEIGHT;
 
   const screenX = transform.x + node.position.x * transform.k;
   const screenY = transform.y + node.position.y * transform.k;
 
-  const preferAbove = screenY - TOOLBAR_GAP - TOOLBAR_HEIGHT >= TOOLBAR_MARGIN;
-  const top = preferAbove
-    ? screenY - TOOLBAR_GAP - TOOLBAR_HEIGHT
-    : Math.min(screenY + TOOLBAR_GAP + 24, height - TOOLBAR_MARGIN - TOOLBAR_HEIGHT);
-  const left = Math.min(
-    Math.max(TOOLBAR_MARGIN, screenX - TOOLBAR_WIDTH / 2),
-    Math.max(TOOLBAR_MARGIN, width - TOOLBAR_MARGIN - TOOLBAR_WIDTH)
-  );
+  // 기본은 아래오른쪽. 오른쪽에 다 안 들어가면 왼쪽으로, 아래에 다 안 들어가면
+  // 위로 - 두 축을 독립적으로 뒤집어 4개 코너 중 맞는 곳을 고른다.
+  const fitsRight = screenX + POPOVER_GAP + POPOVER_WIDTH <= containerWidth - POPOVER_MARGIN;
+  const left = fitsRight
+    ? screenX + POPOVER_GAP
+    : Math.max(POPOVER_MARGIN, screenX - POPOVER_GAP - POPOVER_WIDTH);
+  const clampedLeft = Math.min(left, Math.max(POPOVER_MARGIN, containerWidth - POPOVER_MARGIN - POPOVER_WIDTH));
 
-  const btnClass =
-    "rounded px-2 py-1 text-xs font-sans text-text-hi hover:bg-ink-700 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-1 focus-visible:outline-spec-b";
+  const fitsBelow = screenY + POPOVER_GAP + height <= containerHeight - POPOVER_MARGIN;
+  const top = fitsBelow
+    ? screenY + POPOVER_GAP
+    : Math.max(POPOVER_MARGIN, screenY - POPOVER_GAP - height);
+  const clampedTop = Math.min(top, Math.max(POPOVER_MARGIN, containerHeight - POPOVER_MARGIN - height));
 
   return (
     <div
-      role="toolbar"
-      aria-label={`${node.label} 작업`}
-      className="absolute z-10 flex items-center gap-1 rounded-lg border border-rule bg-ink-800 p-1 shadow-lg"
-      style={{ left, top, width: TOOLBAR_WIDTH, minHeight: TOOLBAR_HEIGHT }}
+      ref={popoverRef}
+      role="dialog"
+      aria-label={`${node.label} 정보`}
+      className="absolute z-10 flex flex-col rounded-lg border border-rule bg-ink-800 shadow-lg"
+      style={{ left: clampedLeft, top: clampedTop, width: POPOVER_WIDTH }}
     >
-      <button
-        type="button"
-        className={btnClass}
-        aria-pressed={node.isCompleted}
-        onClick={onToggleComplete}
-      >
-        {node.isCompleted ? "✓ 달성 취소" : "✓ 달성"}
-      </button>
-      <button type="button" className={btnClass} onClick={onStartConnect}>
-        {"⧸ 잇기"}
-      </button>
-      {onDelete && (
-        <button type="button" className={btnClass} onClick={onDelete}>
-          {"🗑 삭제"}
-        </button>
+      <div className="flex items-start justify-between gap-2 px-3 pt-2.5">
+        <span className="min-w-0 truncate font-sans text-sm font-medium text-text-hi">{node.label}</span>
+        <div className="flex shrink-0 items-center gap-1.5">
+          {node.code && (
+            <span className="font-mono text-[11px] leading-none text-text-lo">{node.code}</span>
+          )}
+          <button
+            type="button"
+            aria-label="닫기"
+            className="rounded px-1 py-0.5 text-xs text-text-lo hover:bg-ink-700 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-1 focus-visible:outline-spec-b"
+            onClick={onDismiss}
+          >
+            {"✕"}
+          </button>
+        </div>
+      </div>
+
+      {/* 설명 - 2~3줄로 클램프. 없으면 섹션째로 생략(빈 박스/플레이스홀더 금지). */}
+      {node.description && (
+        <p
+          className="px-3 pb-1 pt-1 font-sans text-xs leading-relaxed text-text-lo"
+          style={{
+            display: "-webkit-box",
+            WebkitLineClamp: 3,
+            WebkitBoxOrient: "vertical",
+            overflow: "hidden",
+          }}
+        >
+          {node.description}
+        </p>
       )}
+
       <button
         type="button"
-        aria-label="닫기"
-        className={cn(btnClass, "ml-auto px-1.5 text-text-lo")}
-        onClick={onDismiss}
+        className="mt-1 flex items-center justify-between rounded-b-lg border-t border-rule px-3 py-1.5 font-sans text-xs text-text-lo hover:bg-ink-700 focus-visible:outline focus-visible:outline-2 focus-visible:-outline-offset-2 focus-visible:outline-spec-b"
+        onClick={onOpenNotes}
       >
-        {"✕"}
+        <span>{node.noteCount !== undefined ? `노트 ${node.noteCount}개` : "노트 추가"}</span>
+        <span aria-hidden>{"›"}</span>
       </button>
     </div>
   );

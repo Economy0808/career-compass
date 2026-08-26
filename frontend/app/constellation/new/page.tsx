@@ -53,6 +53,8 @@ const INITIAL_NODES: Record<string, CanvasNode> = {
     type: "organization",
     isCompleted: true,
     position: { x: 0, y: -40 },
+    description: "경영학 복수전공 이수를 위한 전체 로드맵의 최종 목표.",
+    noteCount: 2,
   },
   "club-activity": {
     id: "club-activity",
@@ -60,6 +62,18 @@ const INITIAL_NODES: Record<string, CanvasNode> = {
     type: "activity",
     isCompleted: true,
     position: { x: -120, y: 90 },
+    description: "학회 활동을 통해 실무 감각과 네트워크를 쌓는다.",
+  },
+  "course-accounting-1": {
+    id: "course-accounting-1",
+    label: "회계원리(1)",
+    type: "course",
+    isCompleted: false,
+    position: { x: 130, y: 60 },
+    level: 1000,
+    code: "BIZ1101",
+    description: "복식부기의 원리와 재무제표(재무상태표·손익계산서) 작성 과정을 익히는 전공 기초 과목. 기업의 재무상태와 경영성과를 숫자로 읽는 법을 배운다.",
+    noteCount: 3,
   },
 };
 
@@ -183,6 +197,12 @@ export default function NewConstellationPage() {
     });
   }, []);
 
+  // "노트 N개 ›" 클릭 - 노트 패널은 다음 작업에서 만든다. 지금은 콘솔 로그만
+  // 남기는 스텁으로, 프로토콜(prop이 실제로 호출되는지)만 확인 가능하게 해 둔다.
+  const handleOpenNotes = useCallback((nodeId: string) => {
+    console.log("[stub] open notes panel for", nodeId);
+  }, []);
+
   const handleCreateBin = useCallback((label: string) => {
     const id = `bin-user-${Date.now()}`;
     setBins((prev) => [...prev, { id, label, origin: "user", items: [], isLoading: true }]);
@@ -222,6 +242,7 @@ export default function NewConstellationPage() {
         onEdgeCreate={handleEdgeCreate}
         onEdgeDelete={handleEdgeDelete}
         onNodeDelete={handleNodeDelete}
+        onOpenNotes={handleOpenNotes}
         onExternalDrop={handleExternalDrop}
       />
       <ElementBinPanel bins={bins} onItemDragToCanvas={placeItem} onCreateBin={handleCreateBin} placedItemIds={placedItemIds} />
