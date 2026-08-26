@@ -82,6 +82,11 @@ const EXPANDED_TYPE_SCALE = {
   bodyLineHeight: 1.85,
 } as const;
 
+/** 옵시디언 스타일 명시적 모드 - "edit"는 원문(textarea), "read"는 렌더링된
+ * 마크다운. 이전엔 포커스 유무로 암묵적으로 정해졌지만, 이제 토글 버튼이
+ * 있는 sticky 상태라 blur돼도 "edit"에 그대로 머문다(자동저장만 실행). */
+type NoteMode = "edit" | "read";
+
 /** 확대된 편집기 위에서 열려 있는 탭 하나 - 항상 실재하는 노트를 가리킨다
  * (초안 상태의 "+ 새 노트"는 탭 시스템 범위 밖 - 아래 NewNoteEditor 참고). */
 interface NoteTabInfo {
@@ -543,23 +548,27 @@ export function ElementNotesPanel({
                                 autoFocusTitle={autoFocusTitleKey === note.id}
                                 onTitleAutoFocusConsumed={() => setAutoFocusTitleKey(null)}
                                 tabBar={
-                                  isNoteExpanded ? (
-                                    <NoteTabBar
-                                      elementLabel={node.label}
-                                      elementCode={node.code}
-                                      tabs={noteTabs}
-                                      activeTabKey={activeTabKey}
-                                      notesById={notesById}
-                                      onSwitchTab={switchTab}
-                                      onCloseTab={closeTab}
-                                      onCloseOverlay={closeOverlay}
-                                      pickerSections={pickerSections}
-                                      pickerOpen={pickerOpen}
-                                      onPickerOpenChange={setPickerOpen}
-                                      onPickNote={openTab}
-                                      onCreateNote={createNoteInTab}
-                                    />
-                                  ) : undefined
+                                  isNoteExpanded
+                                    ? (toggle) => (
+                                        <NoteTabBar
+                                          elementLabel={node.label}
+                                          elementCode={node.code}
+                                          tabs={noteTabs}
+                                          activeTabKey={activeTabKey}
+                                          notesById={notesById}
+                                          onSwitchTab={switchTab}
+                                          onCloseTab={closeTab}
+                                          onCloseOverlay={closeOverlay}
+                                          pickerSections={pickerSections}
+                                          pickerOpen={pickerOpen}
+                                          onPickerOpenChange={setPickerOpen}
+                                          onPickNote={openTab}
+                                          onCreateNote={createNoteInTab}
+                                          mode={toggle.mode}
+                                          onToggleMode={toggle.onToggleMode}
+                                        />
+                                      )
+                                    : undefined
                                 }
                               />
                             </div>
@@ -603,14 +612,66 @@ interface NoteEditorProps {
   /** 확대 상태에서만 렌더할 탭 바(요소 이름/노트 제목 브레드크럼, 탭 칩, +
    * 피커, 닫기 버튼을 포함) - 부모(ElementNotesPanel)가 탭 목록을 소유하므로
    * 완성된 노드를 그대로 받아 상단에 얹기만 한다. 접힌 상태나 "+ 새 노트"
-   * 초안 경로에서는 undefined. */
-  tabBar?: ReactNode;
+   * 초안 경로에서는 undefined. 읽기/편집 모드 토글 버튼은 탭 바의 ⫿ 버튼
+   * 바로 왼쪽에 들어가야 하는데, 그 버튼은 이 편집기의 로컬 state(mode)를
+   * 알아야 하므로 완성된 엘리먼트가 아니라 렌더 함수로 받아 mode/onToggle을
+   * 그 자리에서 주입한다. */
+  tabBar?: (toggle: { mode: NoteMode; onToggleMode: () => void }) => ReactNode;
   /** "+" 피커의 "새 노트"로 방금 만들어진 노트가 처음 마운트될 때만 true -
    * 제목 input에 포커스를 넣어 바로 이름을 지을 수 있게 한다. */
   autoFocusTitle?: boolean;
   /** autoFocusTitle을 실제로 소비(포커스 실행)했다는 신호 - 부모가 1회용
    * 상태를 다시 null로 되돌려 같은 노트를 나중에 재방문해도 재발동하지 않게 한다. */
   onTitleAutoFocusConsumed?: () => void;
+}
+
+/**
+ * 옵시디언 스타일 읽기/편집 모드 토글 - 아이콘은 "지금 상태"가 아니라 "눌렀을
+ * 때 들어갈 모드"를 보여준다(옵시디언 관례): 편집 중이면 책(→읽기), 읽는
+ * 중이면 연필(→편집). 접힌 편집기의 바닥 줄(⋯ 왼쪽)과 확대 탭 바(⫿ 왼쪽)
+ * 두 자리에서 재사용한다.
+ */
+function NoteModeToggleButton({ mode, onToggle }: { mode: NoteMode; onToggle: () => void }) {
+  const isEdit = mode === "edit";
+  const label = isEdit ? "읽기 모드로 전환" : "편집 모드로 전환";
+  return (
+    <button
+      type="button"
+      onClick={onToggle}
+      aria-label={label}
+      title={label}
+      className="flex h-6 w-6 shrink-0 items-center justify-center rounded-none border border-rule text-text-lo hover:border-spec-b hover:text-text-hi focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-1 focus-visible:outline-spec-b"
+    >
+      {isEdit ? (
+        // 펼쳐진 책 - 클릭하면 읽기 모드로 전환.
+        <svg width="13" height="13" viewBox="0 0 13 13" fill="none" aria-hidden="true">
+          <path
+            d="M1.5 2.7c1.4-.8 2.9-.8 4.3 0v7.6c-1.4-.8-2.9-.8-4.3 0z"
+            stroke="currentColor"
+            strokeWidth="1.1"
+            strokeLinejoin="round"
+          />
+          <path
+            d="M11.5 2.7c-1.4-.8-2.9-.8-4.3 0v7.6c1.4-.8 2.9-.8 4.3 0z"
+            stroke="currentColor"
+            strokeWidth="1.1"
+            strokeLinejoin="round"
+          />
+        </svg>
+      ) : (
+        // 연필 - 클릭하면 편집 모드로 전환.
+        <svg width="13" height="13" viewBox="0 0 13 13" fill="none" aria-hidden="true">
+          <path
+            d="M8.6 2.1l2.3 2.3-6.6 6.6H2v-2.3z"
+            stroke="currentColor"
+            strokeWidth="1.2"
+            strokeLinejoin="round"
+            strokeLinecap="round"
+          />
+        </svg>
+      )}
+    </button>
+  );
 }
 
 const AUTOSAVE_DEBOUNCE_MS = 800;
@@ -644,10 +705,26 @@ function NoteEditor({
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, []);
-  // 옵시디언처럼 모드 버튼이 없다 - 본문에 포커스가 있으면 원문(마크다운)을
-  // 편집하고, 포커스를 잃으면 그 자리에서 바로 렌더링된다. 새 노트(본문 없음)는
-  // 바로 타이핑할 수 있게 편집 상태로 시작, 기존 노트는 읽는 상태로 시작한다.
-  const [isBodyFocused, setIsBodyFocused] = useState(initial.body.trim() === "");
+  // 옵시디언 스타일 명시적 모드 토글 - 더 이상 포커스로 암묵 전환하지 않는다.
+  // 새로 만든 노트는 바로 타이핑할 수 있게 "edit"으로, 기존 노트를 열 때는
+  // "read"로 시작한다. "새로 만든 노트"는 두 경로로 들어온다: (1) 아코디언의
+  // "+ 새 노트"(NewNoteEditor, isNewNote=true - 아직 실재하지 않는 초안),
+  // (2) 탭 피커의 "+ 새 노트"(createNoteInTab - onCreateNote로 즉시 실재하는
+  // 노트를 만들고 바로 이 일반 NoteEditor 경로로 여는데, isNewNote는 안
+  // 넘어오므로 대신 autoFocusTitle 신호로 "방금 막 만들어졌다"를 판별한다).
+  // blur는 이제 모드를 바꾸지 않는다(자동저장만).
+  const [mode, setMode] = useState<NoteMode>(isNewNote || autoFocusTitle ? "edit" : "read");
+  // 렌더링된 본문 클릭 -> 편집 진입 시에만 textarea에 포커스를 넣기 위한 1회용
+  // 신호. requestAnimationFrame 대신 커밋 후 실행되는 effect를 쓴다 - mode가
+  // "edit"로 바뀌어 textarea가 막 렌더된 시점에도 ref가 이미 붙어 있으므로
+  // rAF 없이도 안전하게 포커스를 넣을 수 있다.
+  const focusOnEditRef = useRef(false);
+  useEffect(() => {
+    if (mode === "edit" && focusOnEditRef.current) {
+      focusOnEditRef.current = false;
+      textareaRef.current?.focus();
+    }
+  }, [mode]);
   const [attachments, setAttachments] = useState<NoteAttachment[]>(initial.attachments);
   const [attachError, setAttachError] = useState<string | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
@@ -836,8 +913,22 @@ function NoteEditor({
   // 무시한다.
   function enterEditMode(e?: { target: EventTarget }) {
     if (e && e.target instanceof HTMLElement && e.target.closest("button, a")) return;
-    setIsBodyFocused(true);
-    requestAnimationFrame(() => textareaRef.current?.focus());
+    focusOnEditRef.current = true;
+    setMode("edit");
+  }
+
+  // 토글 버튼 - "지금 이 아이콘이 곧 눌렀을 때 들어갈 모드"(옵시디언 관례).
+  // edit -> read 전환은 blur와 마찬가지로 최신 초안을 바로 커밋한다(디바운스가
+  // 아직 안 돌았을 수도 있는 텍스트가 렌더링 없이 그대로 남는 걸 막기 위해).
+  function toggleMode() {
+    setMode((cur) => {
+      if (cur === "edit") {
+        flushSave();
+        return "read";
+      }
+      focusOnEditRef.current = true;
+      return "edit";
+    });
   }
 
   // isExpanded일 때는 이 편집기 하나만 패널(아일랜드) 밖으로 튀어나와 뷰포트
@@ -899,24 +990,23 @@ function NoteEditor({
           if (e.key === "Escape") handleEscape();
           if (e.key === "Enter") {
             e.preventDefault();
-            setIsBodyFocused(true);
-            requestAnimationFrame(() => textareaRef.current?.focus());
+            focusOnEditRef.current = true;
+            setMode("edit");
           }
         }}
       />
 
-      {/* 옵시디언처럼 모드 버튼이 없다 - 포커스가 있으면 원문, 없으면 렌더링.
-          렌더링 상태를 클릭(또는 Enter)하면 다시 편집으로 들어간다. 제목과
-          이어지는 한 장의 문서로 보이도록 테두리/배경을 두지 않는다. */}
-      {isBodyFocused ? (
+      {/* 명시적 모드 토글(행 헤더/탭 바의 연필·책 버튼)이 mode를 정한다. "edit"는
+          원문 textarea, "read"는 렌더링. blur는 더 이상 모드를 바꾸지 않는다 -
+          자동저장만 하고 edit에 그대로 머문다(요청: sticky 모드). 렌더링 상태를
+          클릭(또는 Enter)하면 편집으로 들어간다. 제목과 이어지는 한 장의 문서로
+          보이도록 테두리/배경을 두지 않는다. */}
+      {mode === "edit" ? (
         <textarea
           ref={textareaRef}
           value={body}
           onChange={(e) => setBody(e.target.value)}
-          onBlur={() => {
-            setIsBodyFocused(false);
-            flushSave();
-          }}
+          onBlur={flushSave}
           onPaste={handleBodyPaste}
           placeholder={bodyPlaceholder}
           rows={isExpanded ? 20 : 9}
@@ -1001,7 +1091,7 @@ function NoteEditor({
 
   const editorNode = (
     <div className={editorWrapperClass}>
-      {isExpanded && tabBar}
+      {isExpanded && tabBar?.({ mode, onToggleMode: toggleMode })}
       {isExpanded ? (
         <div className="mx-auto flex w-full max-w-[720px] flex-1 flex-col gap-2.5 pt-2">{contentColumn}</div>
       ) : (
@@ -1009,8 +1099,11 @@ function NoteEditor({
       )}
 
       {/* 공개/비공개·삭제·저장/취소는 전부 행 헤더의 ⋮ 메뉴 + 자동저장으로
-          옮겨갔다 - 이 바닥 줄에는 편집 도구인 첨부 버튼만 남는다. */}
-      <div className={cn("flex items-center justify-end pt-1", isExpanded && "mx-auto w-full max-w-[720px]")}>
+          옮겨갔다 - 이 바닥 줄에는 편집 도구(첨부, 모드 토글)만 남는다. 모드
+          토글은 접힌 상태에서만 여기 둔다 - 확대 상태에서는 같은 토글이 이미
+          탭 바(⫿ 버튼 바로 왼쪽)에 있으므로 중복시키지 않는다. */}
+      <div className={cn("flex items-center justify-end gap-1.5 pt-1", isExpanded && "mx-auto w-full max-w-[720px]")}>
+        {!isExpanded && <NoteModeToggleButton mode={mode} onToggle={toggleMode} />}
         <button
           type="button"
           onClick={() => fileInputRef.current?.click()}
@@ -1051,6 +1144,10 @@ interface NoteTabBarProps {
   onPickerOpenChange: (open: boolean) => void;
   onPickNote: (nodeId: string, noteId: string) => void;
   onCreateNote: (nodeId: string) => void;
+  /** 지금 활성 탭(노트)의 읽기/편집 모드 - 그 노트의 NoteEditor가 소유한
+   * state를 그대로 받아 ⫿ 닫기 버튼 바로 왼쪽에 토글로 보여준다. */
+  mode: NoteMode;
+  onToggleMode: () => void;
 }
 
 /**
@@ -1073,6 +1170,8 @@ function NoteTabBar({
   onPickerOpenChange,
   onPickNote,
   onCreateNote,
+  mode,
+  onToggleMode,
 }: NoteTabBarProps) {
   const tabRefs = useRef<Array<HTMLDivElement | null>>([]);
   const activeNote = activeTabKey ? notesById.get(activeTabKey) : undefined;
@@ -1138,15 +1237,22 @@ function NoteTabBar({
             </div>
           );
         })}
-        <NoteTabPicker
-          sections={pickerSections}
-          openKeys={new Set(tabs.map((t) => t.key))}
-          isOpen={pickerOpen}
-          onOpenChange={onPickerOpenChange}
-          onPick={onPickNote}
-          onCreateNote={onCreateNote}
-        />
       </div>
+
+      {/* "+" 피커는 일부러 위 role="tablist" 바깥(형제)에 둔다 - 그 안은
+          overflow-x-auto라서(탭이 많아지면 가로 스크롤) 브라우저가 다른 축도
+          클립 대상으로 취급해(overflow-x/-y 중 하나만 visible이 아니면 나머지도
+          auto로 강제되는 CSS 규칙) 그 안에 절대 위치로 펼쳐지는 드롭다운이
+          세로로 잘려 "빈 막대"처럼 보이는 버그가 있었다. 바깥(이 줄의 overflow
+          없는 flex row)에 두면 팝업이 온전히 펼쳐진다. */}
+      <NoteTabPicker
+        sections={pickerSections}
+        openKeys={new Set(tabs.map((t) => t.key))}
+        isOpen={pickerOpen}
+        onOpenChange={onPickerOpenChange}
+        onPick={onPickNote}
+        onCreateNote={onCreateNote}
+      />
 
       <div className="min-w-0 shrink truncate font-sans text-xs text-text-lo">
         <span className="text-text-hi">{elementLabel}</span>
@@ -1154,6 +1260,8 @@ function NoteTabBar({
         <span className="mx-1">/</span>
         <span>{activeNote?.title || "무제"}</span>
       </div>
+
+      <NoteModeToggleButton mode={mode} onToggle={onToggleMode} />
 
       <button
         type="button"
