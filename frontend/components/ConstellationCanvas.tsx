@@ -53,6 +53,14 @@ export interface ConstellationCanvasProps {
   onNodeToggleComplete: (nodeId: string) => void;
   onEdgeCreate: (sourceNodeId: string, targetNodeId: string) => void;
   onEdgeDelete?: (edgeId: string) => void;
+  /**
+   * 외부(원소 보관함 패널 등)에서 HTML5 드래그로 들어온 드롭을 받는다. 캔버스는
+   * 드롭된 데이터의 의미(어떤 원소인지)를 알 필요가 없으므로, dataTransfer의
+   * "application/json" 페이로드 원문과 변환된 월드 좌표만 그대로 넘긴다.
+   * 좌표 변환(clientToWorld)은 pan/zoom transform을 아는 이 컴포넌트 안에서만
+   * 해야 하므로, 그 로직을 밖으로 복제하지 않고 이 콜백 하나로 캡슐화했다.
+   */
+  onExternalDrop?: (data: string, position: CanvasPosition) => void;
   /** 피드 카드/미리보기용. true면 드래그·토글·엣지 생성이 전부 실제로 막힌다. */
   readOnly?: boolean;
   className?: string;
@@ -117,6 +125,7 @@ export function ConstellationCanvas({
   onNodeToggleComplete,
   onEdgeCreate,
   onEdgeDelete,
+  onExternalDrop,
   readOnly = false,
   className,
 }: ConstellationCanvasProps) {
@@ -332,6 +341,18 @@ export function ConstellationCanvas({
         onPointerMove={handlePointerMove}
         onPointerUp={handlePointerUp}
         onPointerCancel={handlePointerUp}
+        onDragOver={(e) => {
+          if (readOnly || !onExternalDrop) return;
+          e.preventDefault();
+          e.dataTransfer.dropEffect = "copy";
+        }}
+        onDrop={(e) => {
+          if (readOnly || !onExternalDrop) return;
+          e.preventDefault();
+          const data = e.dataTransfer.getData("application/json");
+          if (!data) return;
+          onExternalDrop(data, clientToWorld(e.clientX, e.clientY));
+        }}
         style={{ cursor: readOnly ? "default" : "grab" }}
       >
         <defs>
