@@ -18,6 +18,7 @@ import {
 import { ElementBinPanel, type Bin, type BinItem, type BinDropPayload } from "@/components/ElementBinPanel";
 import { ElementNotesPanel, type ElementNote } from "@/components/ElementNotesPanel";
 import type { ResolveWikiLink } from "@/lib/markdown";
+import { cn } from "@/lib/cn";
 
 // 원소를 캔버스에 놓을 때 만드는 노드의 id는 항상 `element:{binItem.id}` 형태로
 // 고정한다. 같은 원소를 두 번 드롭/Enter해도 이미 그 id의 노드가 있으면
@@ -150,14 +151,17 @@ const INITIAL_NOTES: Record<string, ElementNote> = {
 
 // 오른쪽 패널이 지금 무엇을 보여주는지 - 「군집」(원소 보관함) 또는 「노트」
 // (선택된 원소 하나의 노트). 새 영역이 아니라 같은 자리를 스왑하는 상태다.
-type RightPanelState = { mode: "bins" } | { mode: "notes"; nodeId: string };
+// 상단 탭이 이 상태 하나만 조작하는 유일한 진입점이고, "어느 원소의 노트인지"는
+// 별도 state(notesNodeId)로 둬 탭을 오가도 마지막 선택이 남아있게 한다.
+type PanelMode = "bins" | "notes";
 
 export default function NewConstellationPage() {
   const [bins, setBins] = useState<Bin[]>(INITIAL_BINS);
   const [nodes, setNodes] = useState<Record<string, CanvasNode>>(INITIAL_NODES);
   const [edges, setEdges] = useState<Record<string, CanvasEdge>>(INITIAL_EDGES);
   const [notes, setNotes] = useState<Record<string, ElementNote>>(INITIAL_NOTES);
-  const [rightPanel, setRightPanel] = useState<RightPanelState>({ mode: "bins" });
+  const [panelMode, setPanelMode] = useState<PanelMode>("bins");
+  const [notesNodeId, setNotesNodeId] = useState<string | null>(null);
   const fillTimers = useRef<Set<ReturnType<typeof setTimeout>>>(new Set());
 
   // 노트를 nodeId별로 묶는다. 이 그룹의 length가 카드의 "노트 N개"를 결정하는
@@ -345,13 +349,17 @@ export default function NewConstellationPage() {
   }, []);
 
   // "노트 N개 ›" 클릭 - 오른쪽 패널을 「군집」에서 「노트」로 스왑한다(새 영역을
-  // 여는 게 아니라 같은 자리를 교체).
+  // 여는 게 아니라 같은 자리를 교체) + 상단 탭 선택도 「노트」로 옮긴다.
   const handleOpenNotes = useCallback((nodeId: string) => {
-    setRightPanel({ mode: "notes", nodeId });
+    setNotesNodeId(nodeId);
+    setPanelMode("notes");
   }, []);
 
-  const handleBackToBins = useCallback(() => {
-    setRightPanel({ mode: "bins" });
+  // 상단 탭 클릭 - 유일한 모드 전환 지점. 「노트」를 눌러도 notesNodeId는
+  // 건드리지 않는다(마지막으로 보던 원소의 노트를 그대로 보여주는 게 자연스럽고,
+  // 선택된 적이 없으면 패널이 알아서 빈 상태를 보여준다).
+  const handleTabChange = useCallback((mode: PanelMode) => {
+    setPanelMode(mode);
   }, []);
 
   const handleCreateNote = useCallback(
@@ -396,7 +404,8 @@ export default function NewConstellationPage() {
   const handleNoteLinkClick = useCallback((nodeId: string) => {
     focusTokenRef.current += 1;
     setFocusRequest({ nodeId, token: focusTokenRef.current });
-    setRightPanel({ mode: "notes", nodeId });
+    setNotesNodeId(nodeId);
+    setPanelMode("notes");
   }, []);
 
   const handleCreateBin = useCallback((label: string) => {
@@ -442,26 +451,94 @@ export default function NewConstellationPage() {
         onExternalDrop={handleExternalDrop}
         focusRequest={focusRequest}
       />
-      {rightPanel.mode === "bins" ? (
-        <ElementBinPanel
-          bins={bins}
-          onItemDragToCanvas={placeItem}
-          onCreateBin={handleCreateBin}
-          onAddItem={handleAddItem}
-          placedItemIds={placedItemIds}
-        />
-      ) : nodesWithNoteCounts[rightPanel.nodeId] ? (
-        <ElementNotesPanel
-          node={nodesWithNoteCounts[rightPanel.nodeId]}
-          notes={notesByNode.get(rightPanel.nodeId) ?? []}
-          onBack={handleBackToBins}
-          onCreateNote={(input) => handleCreateNote(rightPanel.nodeId, input)}
-          onUpdateNote={handleUpdateNote}
-          onDeleteNote={handleDeleteNote}
-          resolveLink={resolveWikiLink}
-          onLinkClick={handleNoteLinkClick}
-        />
-      ) : null}
+      <aside
+        className={cn(
+          "fixed z-20 flex flex-col overflow-hidden rounded-xl border border-rule bg-ink-800/95 shadow-lg backdrop-blur-md",
+          "inset-x-3 bottom-[calc(var(--tabbar-h)+var(--safe-bottom)+12px)] max-h-[46vh]",
+          "md:inset-x-auto md:bottom-4 md:right-4 md:top-4 md:h-auto md:max-h-none md:w-72"
+        )}
+      >
+        <PanelTabs mode={panelMode} onChange={handleTabChange} />
+        {panelMode === "bins" ? (
+          <ElementBinPanel
+            bins={bins}
+            onItemDragToCanvas={placeItem}
+            onCreateBin={handleCreateBin}
+            onAddItem={handleAddItem}
+            placedItemIds={placedItemIds}
+          />
+        ) : (
+          <ElementNotesPanel
+            node={notesNodeId ? nodesWithNoteCounts[notesNodeId] : undefined}
+            notes={notesNodeId ? notesByNode.get(notesNodeId) ?? [] : []}
+            onCreateNote={(input) => notesNodeId && handleCreateNote(notesNodeId, input)}
+            onUpdateNote={handleUpdateNote}
+            onDeleteNote={handleDeleteNote}
+            resolveLink={resolveWikiLink}
+            onLinkClick={handleNoteLinkClick}
+          />
+        )}
+      </aside>
+    </div>
+  );
+}
+
+const PANEL_TABS: { mode: PanelMode; label: string }[] = [
+  { mode: "bins", label: "군집" },
+  { mode: "notes", label: "노트" },
+];
+
+// 오른쪽 패널 맨 위에 상시 떠 있는 세그먼트 탭 - 「군집」/「노트」 둘 다 항상
+// 한 번의 클릭 거리에 있게 하고, 지금 보고 있는 쪽을 aria-selected로 알린다.
+// role="tablist"/"tab" + 방향키 이동을 갖춘 표준 탭 패턴(버튼 2개 + 컨테이너
+// 하나 - 커스텀 위젯을 새로 만들지 않는다).
+function PanelTabs({ mode, onChange }: { mode: PanelMode; onChange: (mode: PanelMode) => void }) {
+  const tabRefs = useRef<Array<HTMLButtonElement | null>>([]);
+
+  const focusAndSelect = (index: number) => {
+    const wrapped = (index + PANEL_TABS.length) % PANEL_TABS.length;
+    onChange(PANEL_TABS[wrapped].mode);
+    tabRefs.current[wrapped]?.focus();
+  };
+
+  return (
+    <div className="border-b border-rule p-2">
+      <div role="tablist" aria-label="오른쪽 패널 전환" className="flex gap-1 rounded-lg bg-ink-900/60 p-1">
+        {PANEL_TABS.map((tab, index) => {
+          const selected = tab.mode === mode;
+          return (
+            <button
+              key={tab.mode}
+              ref={(el) => {
+                tabRefs.current[index] = el;
+              }}
+              type="button"
+              role="tab"
+              id={`tab-${tab.mode}`}
+              aria-selected={selected}
+              aria-controls={`panel-${tab.mode}`}
+              tabIndex={selected ? 0 : -1}
+              onClick={() => onChange(tab.mode)}
+              onKeyDown={(e) => {
+                if (e.key === "ArrowRight" || e.key === "ArrowDown") {
+                  e.preventDefault();
+                  focusAndSelect(index + 1);
+                } else if (e.key === "ArrowLeft" || e.key === "ArrowUp") {
+                  e.preventDefault();
+                  focusAndSelect(index - 1);
+                }
+              }}
+              className={cn(
+                "flex-1 rounded-md px-2.5 py-1.5 font-sans text-xs font-medium transition-colors",
+                "focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-1 focus-visible:outline-spec-b",
+                selected ? "bg-ink-700 text-text-hi" : "text-text-lo hover:text-text-hi"
+              )}
+            >
+              {tab.label}
+            </button>
+          );
+        })}
+      </div>
     </div>
   );
 }

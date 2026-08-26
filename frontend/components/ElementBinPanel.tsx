@@ -408,14 +408,12 @@ export function ElementBinPanel({
     // /95 + backdrop-blur를 유지한다. 모바일에서는 3컬럼(레일·캔버스·패널)이
     // 성립하지 않으므로 탭바 위에 뜨는 하단 시트로 내려앉고, md 이상에서만
     // 오른쪽 도크가 된다.
-    <aside
-      className={cn(
-        "fixed z-20 flex flex-col overflow-hidden rounded-xl border border-rule bg-ink-800/95 shadow-lg backdrop-blur-md",
-        "inset-x-3 bottom-[calc(var(--tabbar-h)+var(--safe-bottom)+12px)] max-h-[46vh]",
-        "md:inset-x-auto md:bottom-4 md:right-4 md:top-4 md:h-auto md:max-h-none md:w-72",
-        className
-      )}
+    <div
+      id="panel-bins"
+      role="tabpanel"
       aria-label="원소 보관함"
+      tabIndex={0}
+      className={cn("flex min-h-0 flex-1 flex-col overflow-hidden", className)}
     >
       <div className="border-b border-rule px-4 py-3.5">
         <div className="text-body-sm font-bold text-text-hi">원소 보관함</div>
@@ -462,6 +460,6 @@ export function ElementBinPanel({
           추가
         </button>
       </form>
-    </aside>
+    </div>
   );
 }

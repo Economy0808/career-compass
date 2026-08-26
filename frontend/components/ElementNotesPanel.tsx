@@ -30,9 +30,10 @@ export interface ElementNote {
 }
 
 export interface ElementNotesPanelProps {
-  node: CanvasNode;
+  /** 선택된 원소가 없으면(예: 「노트」 탭을 먼저 눌렀을 때) undefined - 이때는
+   * 빈 상태만 보여준다. */
+  node?: CanvasNode;
   notes: ElementNote[];
-  onBack: () => void;
   onCreateNote: (input: { title: string; body: string; isPublic: boolean }) => void;
   onUpdateNote: (id: string, patch: { title: string; body: string; isPublic: boolean }) => void;
   onDeleteNote: (id: string) => void;
@@ -57,7 +58,6 @@ function previewOf(body: string): string {
 export function ElementNotesPanel({
   node,
   notes,
-  onBack,
   onCreateNote,
   onUpdateNote,
   onDeleteNote,
@@ -73,30 +73,39 @@ export function ElementNotesPanel({
   );
 
   // 노드가 바뀌면(다른 원소의 노트로 전환) 항상 목록으로 리셋한다 - 편집 폼이
-  // 이전 원소의 노트를 가리킨 채로 남아있으면 안 되므로.
+  // 이전 원소의 노트를 가리킨 채로 남아있으면 안 되므로. node가 없어졌다
+  // (선택 해제) 돌아와도 마찬가지로 리셋.
   useEffect(() => {
     setView({ mode: "list" });
-  }, [node.id]);
+  }, [node?.id]);
+
+  // 「노트」 탭을 눌렀지만 아직 원소를 선택하지 않은 상태 - 탭을 막지 않고
+  // 대신 빈 상태로 안내한다(막힌 탭은 아무것도 설명해주지 않으므로).
+  if (!node) {
+    return (
+      <div
+        id="panel-notes"
+        role="tabpanel"
+        aria-label="노트"
+        tabIndex={0}
+        className={cn("flex min-h-0 flex-1 flex-col overflow-hidden", className)}
+      >
+        <p className="px-3 py-6 text-center font-sans text-body-sm leading-relaxed text-text-lo">
+          캔버스에서 원소를 먼저 선택하면 그 원소의 노트를 볼 수 있어요.
+        </p>
+      </div>
+    );
+  }
 
   return (
-    <aside
-      className={cn(
-        "fixed z-20 flex flex-col overflow-hidden rounded-xl border border-rule bg-ink-800/95 shadow-lg backdrop-blur-md",
-        "inset-x-3 bottom-[calc(var(--tabbar-h)+var(--safe-bottom)+12px)] max-h-[46vh]",
-        "md:inset-x-auto md:bottom-4 md:right-4 md:top-4 md:h-auto md:max-h-none md:w-72",
-        className
-      )}
+    <div
+      id="panel-notes"
+      role="tabpanel"
       aria-label={`${node.label} 노트`}
+      tabIndex={0}
+      className={cn("flex min-h-0 flex-1 flex-col overflow-hidden", className)}
     >
       <div className="flex items-center gap-2 border-b border-rule px-3 py-3">
-        <button
-          type="button"
-          onClick={onBack}
-          className="shrink-0 rounded px-1.5 py-1 font-sans text-xs text-text-lo hover:bg-ink-700 hover:text-text-hi focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-1 focus-visible:outline-spec-b"
-          aria-label="군집 보관함으로 돌아가기"
-        >
-          {"‹ 군집"}
-        </button>
         <div className="min-w-0 flex-1">
           <div className="truncate font-sans text-body-sm font-bold text-text-hi">{node.label}</div>
           {node.code && <div className="font-mono text-[11px] leading-none text-text-lo">{node.code}</div>}
@@ -147,7 +156,7 @@ export function ElementNotesPanel({
             );
           })()}
       </div>
-    </aside>
+    </div>
   );
 }
 
