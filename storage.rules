@@ -1,0 +1,34 @@
+rules_version = '2';
+
+// Cloud Storage Security Rules for OurCompass.
+//
+// Student ID card verification images are sensitive personal data under
+// Korean PIPA (Personal Information Protection Act). They must never be
+// publicly readable, and per the architecture brief, clients (including the
+// uploading user) must not be able to read them back either - reviewers see
+// them only through the backend (Admin SDK / signed URLs), which keeps a
+// single controlled, auditable access path for sensitive PII.
+
+service firebase.storage {
+  match /b/{bucket}/o {
+
+    // --- student_cards/{uid}/... ---
+    // The owner may upload (write) their own card for review. Nobody can
+    // read via the client SDK, including the owner - only the backend
+    // reviewer flow reads these.
+    match /student_cards/{uid}/{allPaths=**} {
+      allow write: if request.auth != null &&
+        request.auth.uid == uid &&
+        request.resource.size < 10 * 1024 * 1024 &&
+        request.resource.contentType.matches('image/.*');
+
+      allow read: if false;
+    }
+
+    // --- default deny ---
+    // Explicit catch-all: any path not matched above is denied.
+    match /{allPaths=**} {
+      allow read, write: if false;
+    }
+  }
+}

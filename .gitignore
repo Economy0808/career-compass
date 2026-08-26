@@ -60,8 +60,17 @@ backend/var/
 # Docker volumes (host-mounted)
 postgres_data/
 
+# Firebase emulator artifacts (debug logs, local cache, exported data)
+.firebase/
+*-debug.log
+firebase-export-*/
+.runtimeconfig.json
+
 # brainstorming visual companion mockups
 .superpowers/
 
 # editor-local agent config
 frontend/.claude/
+
+# portfolio demo build artifacts (no source, generated output only)
+portfolio-demo/

@@ -1,0 +1,21 @@
+{
+  "indexes": [
+    {
+      "collectionGroup": "constellations",
+      "queryScope": "COLLECTION",
+      "fields": [
+        { "fieldPath": "is_published", "order": "ASCENDING" },
+        { "fieldPath": "created_at", "order": "DESCENDING" }
+      ]
+    },
+    {
+      "collectionGroup": "constellations",
+      "queryScope": "COLLECTION",
+      "fields": [
+        { "fieldPath": "owner_id", "order": "ASCENDING" },
+        { "fieldPath": "updated_at", "order": "DESCENDING" }
+      ]
+    }
+  ],
+  "fieldOverrides": []
+}

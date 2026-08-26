@@ -1,0 +1,132 @@
+rules_version = '2';
+
+// Firestore Security Rules for OurCompass.
+//
+// Threat model: previously the FastAPI backend was the sole authorization
+// enforcement point; the frontend route guards were UX-only. In this
+// Firebase architecture, these rules are a real enforcement boundary that a
+// hostile client can hit directly (no server sits in front of Firestore for
+// direct SDK access). Assume every field in request.resource.data is
+// attacker-controlled unless a rule below constrains it.
+//
+// Field names below are taken from backend/app/domain/constellation.py,
+// the source-of-truth domain model, as of the Firebase migration.
+
+service cloud.firestore {
+  match /databases/{database}/documents {
+
+    function isSignedIn() {
+      return request.auth != null;
+    }
+
+    function isOwner(uid) {
+      return isSignedIn() && request.auth.uid == uid;
+    }
+
+    // --- constellations/{constellationId} ---
+    // Owner can always read/write their own. Everyone else can only read
+    // when is_published == true. owner_id is set on create and frozen
+    // afterwards (no ownership transfer).
+    match /constellations/{constellationId} {
+      allow read: if isSignedIn() && (
+        resource.data.owner_id == request.auth.uid ||
+        resource.data.is_published == true
+      );
+
+      allow create: if isSignedIn() &&
+        request.resource.data.owner_id == request.auth.uid;
+
+      allow update: if isSignedIn() &&
+        resource.data.owner_id == request.auth.uid &&
+        request.resource.data.owner_id == resource.data.owner_id;
+
+      allow delete: if isSignedIn() &&
+        resource.data.owner_id == request.auth.uid;
+    }
+
+    // --- users/{uid} ---
+    // Profiles are social: any signed-in user can read any profile, but
+    // only the owner can write their own doc.
+    match /users/{uid} {
+      allow read: if isSignedIn();
+      allow write: if isOwner(uid);
+    }
+
+    // --- follows/{followId} ---
+    // Doc id format is "{followerId}_{followeeId}" (composite id enforces
+    // one-follow-per-pair, same role the UNIQUE constraint played in
+    // Postgres). We validate ownership against the id itself rather than a
+    // stored field, because no follower_id/followee_id field exists yet in
+    // the domain model (see report: this is a gap if the app later needs to
+    // query "who do I follow" - that requires a real field, ids alone are
+    // not queryable with `where`).
+    //
+    // We use a prefix regex match (uid + "_.*") instead of splitting the id
+    // on "_", because a uid is not guaranteed to be underscore-free for
+    // every auth provider; splitting could misparse an id whose *follower*
+    // uid itself contains an underscore. A prefix match only needs the
+    // follower segment to be an exact, unambiguous prefix.
+    match /follows/{followId} {
+      allow read: if isSignedIn();
+
+      allow create: if isSignedIn() &&
+        followId.matches(request.auth.uid + '_.*');
+
+      allow delete: if isSignedIn() &&
+        followId.matches(request.auth.uid + '_.*');
+
+      allow update: if false; // follows are create/delete only, never edited
+    }
+
+    // --- course_catalog/{deptCode}/courses/{courseCode} ---
+    // Read-mostly reference data ingested by a backend ETL script running
+    // under the Admin SDK, which bypasses these rules entirely. Client
+    // writes must be denied outright.
+    match /course_catalog/{deptCode} {
+      allow read: if isSignedIn();
+      allow write: if false;
+
+      match /courses/{courseCode} {
+        allow read: if isSignedIn();
+        allow write: if false;
+      }
+    }
+
+    // --- organizations/{orgId} ---
+    // Same read-mostly reference-data pattern as course_catalog.
+    match /organizations/{orgId} {
+      allow read: if isSignedIn();
+      allow write: if false;
+    }
+
+    // --- student_card_verifications/{uid} ---
+    // The manual-review workflow doc. The user may check their own review
+    // status, but must never be able to write it - if a client could set
+    // status to "approved" itself, the entire identity-verification layer
+    // would be defeated. Only the backend (Admin SDK) writes here.
+    match /student_card_verifications/{uid} {
+      allow read: if isOwner(uid);
+      allow write: if false;
+    }
+
+    // --- preview_jobs/{jobId} ---
+    // Async LLM job status, written only by the backend. The domain model
+    // for this collection (per brief) has no owner field yet, so we cannot
+    // safely scope client reads to "the job's owner" without inventing one.
+    // Denying client reads entirely for now; see report for the two ways
+    // to unblock frontend polling (add an owner field, or proxy status
+    // through a backend endpoint that checks ownership itself).
+    match /preview_jobs/{jobId} {
+      allow read: if false;
+      allow write: if false;
+    }
+
+    // --- default deny ---
+    // Explicit catch-all so any collection added later without a matching
+    // rule above is denied by default, rather than relying on Firestore's
+    // implicit default-deny behavior.
+    match /{document=**} {
+      allow read, write: if false;
+    }
+  }
+}
