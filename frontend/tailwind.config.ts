@@ -9,26 +9,46 @@ const config: Config = {
   theme: {
     extend: {
       colors: {
-        // --- Surface: altitude-based backgrounds ---
+        // --- OurLab token system (constellation graph, dark-only) ---
+        // Ground is deep ink blue on purpose, not near-black: near-black +
+        // one acid accent is the default AI-design look we're avoiding.
+        ink: { 900: "#0B0E1A", 800: "#131829", 700: "#1C2338" },
+        rule: "#2A3350", // hairlines, chart grid — use rule/NN for opacity steps
+        text: { hi: "#E8EAF2", lo: "#8891AC" },
+        // Stellar spectral classes double as element-type accents.
+        spec: {
+          b: "#9DB4FF", // course        (수업)
+          a: "#E8ECFF", // certification (자격증)
+          g: "#FFD98A", // organization  (학회)
+          k: "#FFA76B", // activity      (대외활동)
+          m: "#FF7B72", // networking    (네트워킹)
+        },
+        lit: "#FFF3C4", // warm starlight — a "lit" edge (never green)
+
+        // --- Legacy beanstalk-era palette ---
+        // Kept byte-for-byte (not part of this pass's scope) because it is
+        // still referenced outside components/shell and components/ui:
+        // app/** pages, ScheduleCalendar.tsx, DayCompleteCelebration.tsx,
+        // ConstellationCanvas.tsx, ElementBinPanel.tsx, profile/_components.
+        // Deleting these would silently drop Tailwind classes (not a tsc
+        // error) across ~20 files this task did not touch. A follow-up pass
+        // should migrate those call sites onto the tokens above and remove
+        // this block.
         sky: { base: "#0B1E3D", mid: "#0E2438" },
         earth: { base: "#06120A", mid: "#0D2119" },
         surface: {
           raised: "rgba(10,28,42,.55)",
           overlay: "rgba(6,16,12,.86)",
         },
-        // --- Content: text ramp that works on both navy and forest ---
         content: {
           primary: "#EAF3EE",
           secondary: "#9FB6AD",
           muted: "#7D968C",
         },
-        // --- Accent: colours that carry meaning ---
-        // growth = where the user is now; goal = where they are heading
         growth: { DEFAULT: "#5DB35B", bright: "#8FDC8A", dim: "#2C5B36" },
         goal: { DEFAULT: "#2F6FBF", bright: "#7CC4F0", dim: "#173A5E" },
         bloom: { DEFAULT: "#E2B94F", bright: "#EFE8BD" },
         wither: { DEFAULT: "#D8B078", dim: "#5A4527" },
-        // --- Line: replaces 91 hand-written rgba borders ---
         line: {
           DEFAULT: "rgba(140,180,220,.17)",
           strong: "rgba(140,180,220,.34)",
@@ -69,8 +89,12 @@ const config: Config = {
       // them those classes silently emit no CSS.
       opacity: { 6: ".06", 8: ".08", 12: ".12", 13: ".13", 18: ".18", 22: ".22" },
       fontFamily: {
+        // Body/UI: handles Korean + Latin with more character than Inter.
         sans: ["var(--font-plex)", "sans-serif"],
+        // Display: 별자리 이름과 페이지 제목 전용. UI chrome에는 쓰지 않는다.
         serif: ["var(--font-gowun)", "serif"],
+        // Data: 학정번호(예: BIZ2101)와 학점 숫자 전용.
+        mono: ["var(--font-plex-mono)", "monospace"],
       },
     },
   },

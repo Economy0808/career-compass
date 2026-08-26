@@ -3,8 +3,24 @@
 @tailwind utilities;
 
 :root {
-  --background: #06120a;
-  --foreground: #eaf3ee;
+  /* --- OurLab design tokens: 별자리 도감 시스템 (dark-only) --- */
+  --ink-900: #0b0e1a; /* page ground */
+  --ink-800: #131829; /* panel / surface */
+  --ink-700: #1c2338; /* raised, hover */
+  --rule: #2a3350; /* hairlines, chart grid */
+  --text-hi: #e8eaf2; /* primary text */
+  --text-lo: #8891ac; /* secondary text */
+
+  /* 항성 분광형 악센트 — 요소 종류를 실제 천문 어휘로 표현 */
+  --spec-b: #9db4ff; /* 수업 (course) */
+  --spec-a: #e8ecff; /* 자격증 (certification) */
+  --spec-g: #ffd98a; /* 학회 (organization) */
+  --spec-k: #ffa76b; /* 대외활동 (activity) */
+  --spec-m: #ff7b72; /* 네트워킹 (networking) */
+  --lit: #fff3c4; /* 이어진 간선 (lit edge) — 별빛, 초록이 아니다 */
+
+  --background: var(--ink-900);
+  --foreground: var(--text-hi);
   /* consumed by AppShell so canvas pages can reserve tab-bar space */
   --tabbar-h: 58px;
   --safe-bottom: env(safe-area-inset-bottom, 0px);
@@ -18,26 +34,48 @@ body {
 
 body {
   color: var(--foreground);
-  font-family: var(--font-plex), sans-serif;
+  font-family: var(--font-plex), "Malgun Gothic", sans-serif;
   font-size: 0.9375rem; /* body token: 15px, was an implicit 12.5px */
   line-height: 1.65;
   word-break: keep-all;
   -webkit-font-smoothing: antialiased;
 }
 
-/* Links inherit the goal accent: blue means "where you are heading". */
+/* Links inherit the course-blue accent. */
 a {
-  color: #7cc4f0;
+  color: var(--spec-b);
 }
 a:hover {
-  color: #a5d8f7;
+  color: var(--spec-a);
 }
 
 /* One visible focus treatment everywhere, keyboard only. */
 :focus-visible {
-  outline: 2px solid #7cc4f0;
+  outline: 2px solid var(--spec-b);
   outline-offset: 2px;
   border-radius: 4px;
+}
+
+/* 적경/적위 좌표 격자 — 캔버스가 "차트 위에 찍는 중"이라는 인상을 주는
+   유일한 장식. 옵시디언의 점 그리드 대신 별자리 지도의 좌표선을 쓴다.
+   3% 미만으로 유지: 노드보다 튀면 실패한 것. 후속 작업(ConstellationCanvas)
+   에서 소비할 수 있도록 토큰/유틸리티만 여기서 준비해 둔다. */
+.bg-radec-grid {
+  background-image:
+    linear-gradient(to right, rgb(232 234 242 / 0.03) 1px, transparent 1px),
+    linear-gradient(to bottom, rgb(232 234 242 / 0.03) 1px, transparent 1px);
+  background-size: 48px 48px;
+}
+
+@media (prefers-reduced-motion: reduce) {
+  *,
+  *::before,
+  *::after {
+    animation-duration: 0.001ms !important;
+    animation-iteration-count: 1 !important;
+    transition-duration: 0.001ms !important;
+    scroll-behavior: auto !important;
+  }
 }
 
 ::-webkit-scrollbar {

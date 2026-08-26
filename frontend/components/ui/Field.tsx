@@ -16,18 +16,18 @@ export type FieldProps =
   | (Common & { multiline: true } & Omit<TextareaHTMLAttributes<HTMLTextAreaElement>, "id" | "className">);
 
 const CONTROL =
-  "w-full rounded-md border bg-black/25 px-3.5 py-2.5 text-body text-content-primary " +
-  "placeholder:text-content-muted transition-colors focus:outline-none " +
-  "focus-visible:border-goal-bright";
+  "w-full rounded-md border bg-ink-900/60 px-3.5 py-2.5 text-body text-text-hi " +
+  "placeholder:text-text-lo transition-colors focus:outline-none " +
+  "focus-visible:border-spec-b";
 
 export function Field(props: FieldProps) {
   const { id, label, error, hint, className, ...rest } = props;
-  const borderTone = error ? "border-wither/60" : "border-line";
+  const borderTone = error ? "border-spec-m/60" : "border-rule";
   const describedBy = error ? `${id}-error` : hint ? `${id}-hint` : undefined;
 
   return (
     <div className={cn("flex flex-col gap-1.5", className)}>
-      <label htmlFor={id} className="text-caption font-semibold text-content-secondary">
+      <label htmlFor={id} className="text-caption font-semibold text-text-lo">
         {label}
       </label>
       {"multiline" in props && props.multiline ? (
@@ -48,9 +48,9 @@ export function Field(props: FieldProps) {
         />
       )}
       {error ? (
-        <p id={`${id}-error`} className="text-caption text-wither">{error}</p>
+        <p id={`${id}-error`} className="text-caption text-spec-m">{error}</p>
       ) : hint ? (
-        <p id={`${id}-hint`} className="text-caption text-content-muted">{hint}</p>
+        <p id={`${id}-hint`} className="text-caption text-text-lo">{hint}</p>
       ) : null}
     </div>
   );

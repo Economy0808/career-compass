@@ -13,7 +13,7 @@ export function Avatar({ emoji, name, size = "sm", onClick }: AvatarProps) {
   const content = (
     <>
       <span className={size === "sm" ? "text-body" : "text-title"}>{emoji}</span>
-      {name && <span className="truncate text-caption text-content-secondary">{name}</span>}
+      {name && <span className="truncate text-caption text-text-lo">{name}</span>}
     </>
   );
   const base = "inline-flex min-w-0 items-center gap-2";
@@ -22,7 +22,7 @@ export function Avatar({ emoji, name, size = "sm", onClick }: AvatarProps) {
     <button
       type="button"
       onClick={onClick}
-      className={cn(base, "rounded-full transition-colors hover:text-content-primary")}
+      className={cn(base, "rounded-full transition-colors hover:text-text-hi")}
     >
       {content}
     </button>

@@ -13,10 +13,10 @@ export interface ButtonProps extends ButtonHTMLAttributes<HTMLButtonElement> {
 }
 
 const VARIANT: Record<Variant, string> = {
-  primary: "bg-goal text-white hover:brightness-110 border border-transparent",
-  secondary: "bg-goal/12 text-goal-bright border border-line-strong hover:bg-goal/20",
-  ghost: "bg-transparent text-content-secondary border border-line hover:bg-goal/10",
-  danger: "bg-transparent text-wither border border-wither/45 hover:bg-wither/12",
+  primary: "bg-spec-b text-ink-900 hover:brightness-110 border border-transparent",
+  secondary: "bg-spec-b/12 text-spec-b border border-rule hover:bg-spec-b/20",
+  ghost: "bg-transparent text-text-lo border border-rule hover:bg-ink-700",
+  danger: "bg-transparent text-spec-m border border-spec-m/45 hover:bg-spec-m/12",
 };
 
 const SIZE: Record<Size, string> = {

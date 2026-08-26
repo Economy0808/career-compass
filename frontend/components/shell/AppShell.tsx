@@ -10,7 +10,7 @@ export interface AppShellProps {
 
 export function AppShell({ children }: AppShellProps) {
   return (
-    <div className="flex min-h-dvh bg-altitude">
+    <div className="flex min-h-dvh bg-ink-900">
       <SideRail />
       <main
         className={

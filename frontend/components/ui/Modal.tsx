@@ -42,18 +42,18 @@ export function Modal({ open, onClose, title, size = "md", children }: ModalProp
       <div
         onClick={(e) => e.stopPropagation()}
         className={cn(
-          "max-h-[90dvh] w-full overflow-y-auto border border-line bg-surface-overlay",
+          "max-h-[90dvh] w-full overflow-y-auto border border-rule bg-ink-800",
           "rounded-t-xl sm:rounded-xl",
           SIZE[size]
         )}
       >
         <div className="flex items-start gap-3 p-5 pb-0">
-          {title && <h2 className="font-serif text-title font-bold text-content-primary">{title}</h2>}
+          {title && <h2 className="font-serif text-title font-bold text-text-hi">{title}</h2>}
           <button
             type="button"
             onClick={onClose}
             aria-label="닫기"
-            className="ml-auto rounded-sm p-1 text-content-muted transition-colors hover:text-content-primary"
+            className="ml-auto rounded-sm p-1 text-text-lo transition-colors hover:text-text-hi"
           >
             <CloseIcon />
           </button>

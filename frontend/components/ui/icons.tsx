@@ -20,31 +20,11 @@ export function SproutIcon({ size = 18, className, style }: IconProps) {
   ));
 }
 
-export function ForestIcon({ size = 18, className, style }: IconProps) {
-  return svg(size, className, style, (
-    <>
-      <path d="M6 21v-7M12 21V8M18 21v-9" stroke="currentColor" strokeWidth="2" strokeLinecap="round" />
-      <circle cx="6" cy="12" r="2" fill="currentColor" />
-      <circle cx="12" cy="6" r="2" fill="currentColor" />
-      <circle cx="18" cy="10" r="2" fill="currentColor" />
-    </>
-  ));
-}
-
 export function SeedIcon({ size = 18, className, style }: IconProps) {
   return svg(size, className, style, (
     <>
       <circle cx="12" cy="12" r="9" stroke="currentColor" strokeWidth="2" />
       <path d="M12 8v8M8 12h8" stroke="currentColor" strokeWidth="2" strokeLinecap="round" />
-    </>
-  ));
-}
-
-export function BeanIcon({ size = 18, className, style }: IconProps) {
-  return svg(size, className, style, (
-    <>
-      <path d="M7 4C4 6 3.5 10.5 6 14c2.6 3.6 7.4 5.4 10.9 4C20 16.8 21 12.5 18.5 9 15.9 5.4 10 2 7 4Z" stroke="currentColor" strokeWidth="2" />
-      <path d="M9 8c1.5 1 4.5 3.5 5.5 6.5" stroke="currentColor" strokeWidth="2" strokeLinecap="round" />
     </>
   ));
 }
@@ -65,17 +45,6 @@ export function TargetIcon({ size = 18, className, style }: IconProps) {
       <circle cx="12" cy="12" r="8.5" stroke="currentColor" strokeWidth="2" />
       <circle cx="12" cy="12" r="4" stroke="currentColor" strokeWidth="2" />
       <circle cx="12" cy="12" r="1.4" fill="currentColor" />
-    </>
-  ));
-}
-
-/** Replaces the wilted-flower emoji used for stalled/inactive items. */
-export function WitherIcon({ size = 18, className, style }: IconProps) {
-  return svg(size, className, style, (
-    <>
-      <path d="M12 21v-7" stroke="currentColor" strokeWidth="2" strokeLinecap="round" />
-      <path d="M12 14c-3.5 0-5.5-2-5.5-5 3 0 5.5 1.5 5.5 5Z" fill="currentColor" opacity=".55" />
-      <path d="M12 12.5c0-2.6 1.8-4.5 4.5-4.5 0 2.6-1.8 4.5-4.5 4.5Z" fill="currentColor" opacity=".35" />
     </>
   ));
 }
