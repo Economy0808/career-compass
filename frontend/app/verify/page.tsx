@@ -102,14 +102,14 @@ export default function VerifyPage() {
         {me.verification_method === "student_card"
           ? "학생증 심사가 승인됐어요."
           : "학교 이메일로 인증됐어요."}{" "}
-        이제 씨앗을 심고 콩나무를 키울 수 있어요.
+        이제 나만의 별자리를 만들 수 있어요.
       </p>
       <div className="mt-6 flex gap-2">
-        <Link href="/new" className={LINK_PRIMARY}>
-          새 씨앗 심기
+        <Link href="/constellation/new" className={LINK_PRIMARY}>
+          별자리 생성하기
         </Link>
         <Link href="/" className={cn(LINK_SECONDARY, "flex-1")}>
-          숲 구경하기
+          둘러보기
         </Link>
       </div>
     </div>
@@ -224,7 +224,7 @@ export default function VerifyPage() {
           <>
             <h1 className="font-serif text-display font-bold text-content-primary">연세대 학부생 인증</h1>
             <p className="mb-6 mt-[7px] text-body-sm leading-relaxed text-content-secondary">
-              콩나무를 심고 키우려면 인증이 필요해요. 둘 중 편한 방법을 골라주세요.
+              별자리를 만들고 키우려면 인증이 필요해요. 둘 중 편한 방법을 골라주세요.
             </p>
           </>
         )}

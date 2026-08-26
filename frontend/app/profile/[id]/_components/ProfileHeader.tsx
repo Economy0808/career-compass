@@ -10,7 +10,6 @@ export interface ProfileHeaderProps {
   canFollow: boolean;
   followPending: boolean;
   onToggleFollow: () => void;
-  onOpenShop: () => void;
   onSaveBio: (bio: string) => Promise<void>;
 }
 
@@ -20,7 +19,6 @@ export function ProfileHeader({
   canFollow,
   followPending,
   onToggleFollow,
-  onOpenShop,
   onSaveBio,
 }: ProfileHeaderProps) {
   const [editing, setEditing] = useState(false);
@@ -71,21 +69,10 @@ export function ProfileHeader({
 
         <div className="mt-3 flex flex-wrap items-center gap-x-5 gap-y-2 text-caption text-content-muted">
           <span>
-            콩나무 <b className="text-content-secondary">{profile.roadmap_count}</b>
-          </span>
-          <span>
             팔로워 <b className="text-content-secondary">{profile.follower_count}</b>
           </span>
           <span>
             팔로잉 <b className="text-content-secondary">{profile.following_count}</b>
-          </span>
-          <span className="flex items-center gap-1.5">
-            콩 <b className="text-bloom">{profile.bean_balance}</b>
-            {isMe && (
-              <Button size="sm" variant="ghost" onClick={onOpenShop}>
-                충전
-              </Button>
-            )}
           </span>
         </div>
 

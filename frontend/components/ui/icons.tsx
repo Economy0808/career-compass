@@ -69,7 +69,7 @@ export function TargetIcon({ size = 18, className, style }: IconProps) {
   ));
 }
 
-/** Replaces the wilted-flower emoji used for withered beanstalks. */
+/** Replaces the wilted-flower emoji used for stalled/inactive items. */
 export function WitherIcon({ size = 18, className, style }: IconProps) {
   return svg(size, className, style, (
     <>

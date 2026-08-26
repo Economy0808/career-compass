@@ -35,7 +35,7 @@ export default function LoginPage() {
       <Card className="p-8">
         <h1 className="font-serif text-display font-bold text-content-primary">로그인</h1>
         <p className="mb-6 mt-[7px] text-body-sm text-content-secondary">
-          연세대 학부생들의 콩나무 숲으로 돌아오세요
+          연세대 학부생들의 별자리 커뮤니티로 돌아오세요
         </p>
         <form onSubmit={submit} className="flex flex-col gap-3">
           <Field
@@ -72,7 +72,7 @@ export default function LoginPage() {
           </Link>
         </p>
         <p className="mt-2 text-center text-body-sm text-content-secondary">
-          아직 씨앗이 없나요?{" "}
+          아직 계정이 없나요?{" "}
           <Link href="/signup" className="font-semibold text-goal-bright">
             회원가입
           </Link>

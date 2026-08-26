@@ -89,9 +89,9 @@ export function DayCompleteCelebration({ onDone }: DayCompleteCelebrationProps) 
           className="mt-5 text-center"
           style={{ animation: "celebrateText .5s .2s ease-out both" }}
         >
-          <div className="font-serif text-title font-bold text-bloom">오늘 콩 6개 완성!</div>
+          <div className="font-serif text-title font-bold text-bloom">오늘 할 일 완성!</div>
           <div className="mt-1.5 text-body-sm text-content-secondary">
-            오늘 할 일을 알차게 채웠어요. 콩나무가 쑥쑥 자라겠네요!
+            오늘 할 일을 알차게 채웠어요. 꾸준히 잘 하고 있어요!
           </div>
         </div>
       </div>

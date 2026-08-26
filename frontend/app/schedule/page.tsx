@@ -2,7 +2,7 @@
 
 import { useRouter } from "next/navigation";
 import { useCallback, useEffect, useId, useMemo, useState } from "react";
-import { BeanCheckbox } from "@/components/BeanCheckbox";
+import { TaskCheckbox } from "@/components/TaskCheckbox";
 import { DayCompleteCelebration } from "@/components/DayCompleteCelebration";
 import { ScheduleCalendar } from "@/components/ScheduleCalendar";
 import { Button, Card, CloseIcon, EmptyState, Field, PlusIcon } from "@/components/ui";
@@ -321,7 +321,7 @@ function CategorySection({
       <div className="flex flex-col">
         {items.map((item) => (
           <div key={item.id} className="group flex items-center gap-2.5 py-1.5">
-            <BeanCheckbox checked={item.is_completed} onToggle={() => onToggleItem(item)} />
+            <TaskCheckbox checked={item.is_completed} onToggle={() => onToggleItem(item)} />
             <span
               className={cn(
                 "min-w-0 flex-1 break-words text-body-sm",

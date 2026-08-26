@@ -12,8 +12,8 @@ const plex = IBM_Plex_Sans_KR({
 });
 
 export const metadata: Metadata = {
-  title: "OurCompass — 콩나무 로드맵",
-  description: "목표를 심으면 콩나무가 자라는 로드맵 SNS",
+  title: "OurLab — 별자리 로드맵",
+  description: "목표를 별자리로 그려나가는 커리어 로드맵 SNS",
 };
 
 export const viewport: Viewport = {

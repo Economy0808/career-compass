@@ -23,8 +23,8 @@ export function SideRail() {
   return (
     <nav className="sticky top-0 hidden h-dvh w-rail shrink-0 flex-col gap-1 border-r border-line bg-surface-overlay p-4 backdrop-blur-md md:flex">
       <div className="mb-4 px-1">
-        <div className="font-serif text-heading font-bold text-content-primary">OurCompass</div>
-        <div className="mt-0.5 text-micro tracking-[.08em] text-content-muted">콩나무 로드맵</div>
+        <div className="font-serif text-heading font-bold text-content-primary">OurLab</div>
+        <div className="mt-0.5 text-micro tracking-[.08em] text-content-muted">별자리 로드맵</div>
       </div>
 
       {NAV_ITEMS.map((item) => (

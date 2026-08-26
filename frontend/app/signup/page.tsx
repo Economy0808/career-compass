@@ -92,7 +92,7 @@ export default function SignupPage() {
     <div className="mx-auto w-full max-w-md">
       <Card className="p-8">
         <h1 className="font-serif text-display font-bold text-content-primary">
-          {step === "account" ? "새 씨앗 계정 만들기" : "이메일 인증"}
+          {step === "account" ? "새 계정 만들기" : "이메일 인증"}
         </h1>
         <p className="mb-6 mt-[7px] text-body-sm leading-relaxed text-content-secondary">
           {step === "account"

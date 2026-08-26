@@ -1,23 +1,6 @@
 import type {
-  BeanPackageId,
-  BeanPurchaseResponse,
-  BeanRankingEntry,
   CalendarDayOut,
-  ChatMessageIn,
-  ChatResponse,
-  CommentOut,
-  FeedCardOut,
-  FeedScope,
-  GoalDetailOut,
   MeOut,
-  MilestonePatchResponse,
-  MilestonePostOut,
-  NcsCategory,
-  PreviewJob,
-  PreviewJobStatus,
-  RoadmapCardOut,
-  RoadmapDetailOut,
-  RoadmapPreviewOut,
   TodoCategoryOut,
   TodoColor,
   TodoDayOut,
@@ -138,126 +121,14 @@ export function postStudentCard(file: File): Promise<{ detail: string }> {
   return request("/api/auth/student-card", { method: "POST", body: form });
 }
 
-// ---------- roadmap ----------
+// ---------- profile / follow ----------
 
-export function getFeed(options: {
-  scope?: FeedScope;
-  limit?: number;
-  offset?: number;
-}): Promise<FeedCardOut[]> {
-  const params = new URLSearchParams();
-  if (options.scope) params.set("scope", options.scope);
-  if (options.limit !== undefined) params.set("limit", String(options.limit));
-  if (options.offset !== undefined) params.set("offset", String(options.offset));
-  const qs = params.toString();
-  return request<FeedCardOut[]>(`/api/roadmap/feed${qs ? `?${qs}` : ""}`);
+export function getUserProfile(userId: number): Promise<UserProfileOut> {
+  return request<UserProfileOut>(`/api/users/${userId}`);
 }
 
-export function getGoal(id: number): Promise<GoalDetailOut> {
-  return request<GoalDetailOut>(`/api/goals/${id}`);
-}
-
-export function patchGoalFeatured(
-  goalId: number,
-  isFeatured: boolean
-): Promise<FeedCardOut> {
-  return request<FeedCardOut>(
-    `/api/goals/${goalId}`,
-    jsonInit("PATCH", { is_featured: isFeatured })
-  );
-}
-
-export function getRoadmap(id: number): Promise<RoadmapDetailOut> {
-  return request<RoadmapDetailOut>(`/api/roadmap/${id}`);
-}
-
-export function postChat(
-  goalRawText: string,
-  messages: ChatMessageIn[]
-): Promise<ChatResponse> {
-  return request<ChatResponse>(
-    "/api/roadmap/chat",
-    jsonInit("POST", { goal_raw_text: goalRawText, messages })
-  );
-}
-
-export function getNcsCategories(): Promise<NcsCategory[]> {
-  return request<NcsCategory[]>("/api/ncs/categories");
-}
-
-export function postPreview(
-  goalRawText: string,
-  messages: ChatMessageIn[],
-  ncsLclasCodes: string[] = []
-): Promise<PreviewJob> {
-  return request<PreviewJob>(
-    "/api/roadmap/preview",
-    jsonInit("POST", {
-      goal_raw_text: goalRawText,
-      messages,
-      ncs_lclas_codes: ncsLclasCodes,
-    })
-  );
-}
-
-export function getPreviewStatus(jobId: string): Promise<PreviewJobStatus> {
-  return request<PreviewJobStatus>(`/api/roadmap/preview/${jobId}`);
-}
-
-/**
- * 프리뷰 생성을 백그라운드로 시작하고 완료까지 폴링해 결과를 돌려준다.
- * 웹서치가 낀 종합은 2분 이상 걸리므로 동기 요청 대신 잡+폴링으로 처리한다.
- * onStatus로 진행 상태를, signal로 중단(페이지 이탈 등)을 받는다.
- */
-export async function generatePreview(
-  goalRawText: string,
-  messages: ChatMessageIn[],
-  ncsLclasCodes: string[] = [],
-  opts: {
-    signal?: AbortSignal;
-    onStatus?: (status: PreviewJobStatus["status"]) => void;
-  } = {}
-): Promise<RoadmapPreviewOut> {
-  const job = await postPreview(goalRawText, messages, ncsLclasCodes);
-  opts.onStatus?.(job.status);
-  // 2.5초 간격으로 최대 ~10분 폴링. 실측상 웹서치 종합이 6분까지 걸려 여유를 둔다
-  // (백엔드 잡은 시간제한 없이 완주하고 결과를 30분 보관).
-  for (let i = 0; i < 240; i++) {
-    if (opts.signal?.aborted) throw new DOMException("aborted", "AbortError");
-    await new Promise((resolve) => setTimeout(resolve, 2500));
-    if (opts.signal?.aborted) throw new DOMException("aborted", "AbortError");
-    const status = await getPreviewStatus(job.job_id);
-    opts.onStatus?.(status.status);
-    if (status.status === "done" && status.result) return status.result;
-    if (status.status === "error") {
-      throw new ApiError(
-        503,
-        status.detail ?? "AI 응답을 받지 못했어요. 잠시 후 다시 시도해주세요."
-      );
-    }
-  }
-  throw new ApiError(504, "생성이 너무 오래 걸려요. 잠시 후 다시 시도해주세요.");
-}
-
-export function postPlant(
-  preview: RoadmapPreviewOut,
-  goalRawText: string,
-  messages: ChatMessageIn[]
-): Promise<RoadmapDetailOut[]> {
-  return request<RoadmapDetailOut[]>(
-    "/api/roadmap/plant",
-    jsonInit("POST", { ...preview, goal_raw_text: goalRawText, messages })
-  );
-}
-
-export function patchMilestone(
-  milestoneId: number,
-  isCompleted: boolean
-): Promise<MilestonePatchResponse> {
-  return request<MilestonePatchResponse>(
-    `/api/roadmap/milestones/${milestoneId}`,
-    jsonInit("PATCH", { is_completed: isCompleted })
-  );
+export function patchMyBio(bio: string): Promise<UserProfileOut> {
+  return request<UserProfileOut>("/api/users/me", jsonInit("PATCH", { bio }));
 }
 
 export function followUser(userId: number): Promise<void> {
@@ -266,99 +137,6 @@ export function followUser(userId: number): Promise<void> {
 
 export function unfollowUser(userId: number): Promise<void> {
   return request<void>(`/api/users/${userId}/follow`, { method: "DELETE" });
-}
-
-// ---------- milestone posts (기록) ----------
-
-export interface MilestonePostInput {
-  caption: string;
-  body: string;
-  file?: File | null;
-  removeImage?: boolean;
-}
-
-export function putMilestonePost(
-  milestoneId: number,
-  input: MilestonePostInput
-): Promise<MilestonePostOut> {
-  const form = new FormData();
-  form.append("caption", input.caption);
-  if (input.body) form.append("body", input.body);
-  if (input.file) form.append("file", input.file);
-  if (input.removeImage) form.append("remove_image", "true");
-  return request<MilestonePostOut>(`/api/roadmap/milestones/${milestoneId}/post`, {
-    method: "PUT",
-    body: form,
-  });
-}
-
-export function deleteMilestonePost(milestoneId: number): Promise<void> {
-  return request<void>(`/api/roadmap/milestones/${milestoneId}/post`, { method: "DELETE" });
-}
-
-export function likePost(milestoneId: number): Promise<void> {
-  return request<void>(`/api/roadmap/milestones/${milestoneId}/post/like`, { method: "POST" });
-}
-
-export function unlikePost(milestoneId: number): Promise<void> {
-  return request<void>(`/api/roadmap/milestones/${milestoneId}/post/like`, { method: "DELETE" });
-}
-
-export function getComments(milestoneId: number): Promise<CommentOut[]> {
-  return request<CommentOut[]>(`/api/roadmap/milestones/${milestoneId}/post/comments`);
-}
-
-export function postComment(milestoneId: number, content: string): Promise<CommentOut> {
-  return request<CommentOut>(
-    `/api/roadmap/milestones/${milestoneId}/post/comments`,
-    jsonInit("POST", { content })
-  );
-}
-
-export function deleteComment(commentId: number): Promise<void> {
-  return request<void>(`/api/roadmap/comments/${commentId}`, { method: "DELETE" });
-}
-
-// ---------- profile ----------
-
-export function getUserProfile(userId: number): Promise<UserProfileOut> {
-  return request<UserProfileOut>(`/api/users/${userId}`);
-}
-
-export function getUserRoadmaps(userId: number): Promise<RoadmapCardOut[]> {
-  return request<RoadmapCardOut[]>(`/api/users/${userId}/roadmaps`);
-}
-
-export function patchMyBio(bio: string): Promise<UserProfileOut> {
-  return request<UserProfileOut>("/api/users/me", jsonInit("PATCH", { bio }));
-}
-
-export function patchRoadmapFeatured(
-  roadmapId: number,
-  isFeatured: boolean
-): Promise<RoadmapCardOut> {
-  return request<RoadmapCardOut>(
-    `/api/roadmap/${roadmapId}`,
-    jsonInit("PATCH", { is_featured: isFeatured })
-  );
-}
-
-// ---------- beans (콩 화폐) ----------
-
-/** 시든 콩나무 정리 (콩 10개 소모) */
-export function deleteRoadmap(roadmapId: number): Promise<void> {
-  return request<void>(`/api/roadmap/${roadmapId}`, { method: "DELETE" });
-}
-
-export function getBeanRanking(): Promise<BeanRankingEntry[]> {
-  return request<BeanRankingEntry[]>("/api/beans/ranking");
-}
-
-export function purchaseBeans(packageId: BeanPackageId): Promise<BeanPurchaseResponse> {
-  return request<BeanPurchaseResponse>(
-    "/api/beans/purchase",
-    jsonInit("POST", { package_id: packageId })
-  );
 }
 
 // ---------- todos (일정) ----------
