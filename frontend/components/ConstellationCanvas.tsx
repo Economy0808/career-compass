@@ -283,6 +283,9 @@ export function ConstellationCanvas({
   // 삭제의 대상. 클릭/Enter는 완료를 즉시 토글하지 않고 선택만 한다(아래
   // activateNode 참고) - 완료 토글은 이제 더블클릭 제스처다.
   const [selectedNodeId, setSelectedNodeId] = useState<string | null>(null);
+  // Delete 키 핸들러(window 리스너)가 최신 선택을 갱신 함수 없이 읽기 위한 미러.
+  const selectedNodeIdRef = useRef<string | null>(null);
+  selectedNodeIdRef.current = selectedNodeId;
 
   const positionOf = useCallback(
     (nodeId: string): CanvasPosition => {
@@ -465,11 +468,13 @@ export function ConstellationCanvas({
         return;
       }
       if ((e.key === "Delete" || e.key === "Backspace") && !isTypingTarget(e.target)) {
-        setSelectedNodeId((cur) => {
-          if (!cur) return cur;
-          if (onNodeDelete) onNodeDelete(cur);
-          return null;
-        });
+        // 갱신 함수 안에서 부모 콜백(onNodeDelete)을 부르면 렌더 중 부모 상태
+        // 갱신이 되어 StrictMode 경고가 난다(closeTab에서 잡았던 것과 동일한
+        // 안티패턴). ref로 현재 선택을 읽어 갱신 함수 밖에서 호출한다.
+        const cur = selectedNodeIdRef.current;
+        if (!cur) return;
+        setSelectedNodeId(null);
+        if (onNodeDelete) onNodeDelete(cur);
       }
     }
     window.addEventListener("keydown", onKeyDown);

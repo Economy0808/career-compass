@@ -335,9 +335,12 @@ export default function NewConstellationPage() {
     });
   }, []);
 
-  // 노드 삭제(툴바 "삭제") - 노드 자체와 그 노드를 참조하는 엣지를 함께
-  // 정리한다. 캔버스는 존재하지 않는 노드의 엣지를 그리지 않도록 방어하지만,
-  // 상태에 고아 엣지를 남겨두는 건 지저분하므로 여기서 바로 없앤다.
+  // 노드 삭제(툴바 "삭제") - 노드 자체, 그 노드를 참조하는 엣지, 그리고 그
+  // 노드에 달린 노트까지 함께 정리한다. 노트를 남겨두면 ElementNotesPanel의
+  // 탭 바에 "고스트 탭"(제목만 남고 다시 열면 아무것도 안 뜨는 죽은 탭)이
+  // 생기고, 그 노트가 물고 있던 첨부 object URL도 회수되지 않아 새는 것과
+  // 같아진다 - handleDeleteNote가 개별 삭제 때 하는 정리를 여기서도 그대로
+  // 반복한다.
   const handleNodeDelete = useCallback((nodeId: string) => {
     setNodes((prev) => {
       if (!prev[nodeId]) return prev;
@@ -354,6 +357,19 @@ export default function NewConstellationPage() {
           continue;
         }
         next[id] = edge;
+      }
+      return changed ? next : prev;
+    });
+    setNotes((prev) => {
+      const next: Record<string, ElementNote> = {};
+      let changed = false;
+      for (const [id, note] of Object.entries(prev)) {
+        if (note.nodeId === nodeId) {
+          changed = true;
+          note.attachments.forEach((att) => URL.revokeObjectURL(att.url));
+          continue;
+        }
+        next[id] = note;
       }
       return changed ? next : prev;
     });

@@ -180,6 +180,11 @@ export function ElementNotesPanel({
   const [noteTabs, setNoteTabs] = useState<NoteTabInfo[]>([]);
   const [activeTabKey, setActiveTabKey] = useState<string | null>(null);
   const [pickerOpen, setPickerOpen] = useState(false);
+  // "+" 피커에서 방금 "새 노트"로 만든 노트의 id - 그 노트의 편집기가 마운트되는
+  // 순간 제목 input에 포커스를 넣기 위한 1회용 신호. 편집기가 그 포커스를
+  // 실제로 넣고 나면 onTitleAutoFocusConsumed로 다시 null로 되돌려, 같은 노트를
+  // 나중에 다시 열어도 제목에 강제로 포커스가 가지 않게 한다.
+  const [autoFocusTitleKey, setAutoFocusTitleKey] = useState<string | null>(null);
 
   const notesById = useMemo(() => {
     const map = new Map<string, ElementNote>();
@@ -187,17 +192,19 @@ export function ElementNotesPanel({
     return map;
   }, [notesByNode]);
 
-  // "+" 피커에 쓸, 노트가 하나라도 있는 원소만 골라 최신순으로 정렬한 목록.
+  const nodeIdSet = useMemo(() => new Set(nodes.map((n) => n.id)), [nodes]);
+
+  // "+" 피커에 쓸 전체 원소 목록 - 노트가 0개인 원소도 포함해야 그 원소 아래에
+  // "새 노트" 행을 보여줄 수 있다(예전엔 노트가 하나도 없는 원소 자체가
+  // 목록에서 빠져 있어 그 원소에 새 노트를 만들 방법이 없었다).
   const pickerSections = useMemo(
     () =>
-      nodes
-        .map((n) => ({
-          nodeId: n.id,
-          label: n.label,
-          code: n.code,
-          notes: [...(notesByNode.get(n.id) ?? [])].sort((a, b) => b.updatedAt - a.updatedAt),
-        }))
-        .filter((s) => s.notes.length > 0),
+      nodes.map((n) => ({
+        nodeId: n.id,
+        label: n.label,
+        code: n.code,
+        notes: [...(notesByNode.get(n.id) ?? [])].sort((a, b) => b.updatedAt - a.updatedAt),
+      })),
     [nodes, notesByNode]
   );
 
@@ -222,6 +229,19 @@ export function ElementNotesPanel({
     setPickerOpen(false);
   }
 
+  // "+" 피커의 "새 노트" 행 - 그 자리에서 바로 노트를 만들고(onCreateNote는
+  // page.tsx의 생성 경로를 그대로 타므로 제목 기본값 "무제"/isPublic:false 등
+  // 규칙이 여기서도 동일하게 적용된다), 새 탭으로 열어 즉시 활성화한다.
+  // 노트가 아직 비어 있으니 제목부터 적을 수 있게 title autofocus 신호도 함께 켠다.
+  function createNoteInTab(nodeId: string) {
+    const newId = onCreateNote(nodeId, { title: "", body: "", isPublic: false, attachments: [] });
+    setNoteTabs((prev) => (prev.some((t) => t.key === newId) ? prev : [...prev, { key: newId, nodeId }]));
+    setActiveTabKey(newId);
+    activateNoteExpanded(nodeId, newId);
+    setAutoFocusTitleKey(newId);
+    setPickerOpen(false);
+  }
+
   function switchTab(key: string) {
     const tab = noteTabs.find((t) => t.key === key);
     if (!tab) return;
@@ -231,24 +251,53 @@ export function ElementNotesPanel({
 
   // 탭 하나를 닫는다. 그게 활성 탭이었으면 이웃 탭을 활성화하고, 마지막 탭이면
   // 확대 자체를 끈다(요청: "닫히면 확대 뷰가 접힌다").
+  // 이웃 활성화(setActiveTabKey/activateNoteExpanded)는 setNoteTabs 업데이터
+  // "안"이 아니라 바깥의 형제 문장으로 둔다 - 업데이터 함수는 순수해야 하는데
+  // 그 안에서 다른 컴포넌트의 setState(onNoteExpandedChange가 부모 state를
+  // 바꾼다)까지 부르면 렌더 중 부모 업데이트("Cannot update a component while
+  // rendering")가 되어 StrictMode에서 경고 + 이중 호출이 난다. noteTabs/
+  // activeTabKey는 클릭 핸들러 시점의 최신 커밋된 값이므로 굳이 함수형
+  // 업데이터가 아니어도 안전하다.
   function closeTab(key: string) {
-    setNoteTabs((prev) => {
-      const idx = prev.findIndex((t) => t.key === key);
-      if (idx === -1) return prev;
-      const next = [...prev.slice(0, idx), ...prev.slice(idx + 1)];
-      if (activeTabKey === key) {
-        const neighbor = next[idx] ?? next[idx - 1];
-        if (neighbor) {
-          setActiveTabKey(neighbor.key);
-          activateNoteExpanded(neighbor.nodeId, neighbor.key);
-        } else {
-          setActiveTabKey(null);
-          onNoteExpandedChange(false);
-        }
+    const idx = noteTabs.findIndex((t) => t.key === key);
+    if (idx === -1) return;
+    const next = [...noteTabs.slice(0, idx), ...noteTabs.slice(idx + 1)];
+    setNoteTabs(next);
+    if (activeTabKey === key) {
+      const neighbor = next[idx] ?? next[idx - 1];
+      if (neighbor) {
+        setActiveTabKey(neighbor.key);
+        activateNoteExpanded(neighbor.nodeId, neighbor.key);
+      } else {
+        setActiveTabKey(null);
+        onNoteExpandedChange(false);
       }
-      return next;
-    });
+    }
   }
+
+  // 고스트 탭 정리: 노트가 (노트 삭제 또는 그 노트가 속한 원소/노드 삭제로)
+  // 더 이상 존재하지 않으면 그 탭도 사라져야 한다 - 안 그러면 탭 칩만 남고
+  // 활성화해도 포탈이 렌더되지 않는 죽은 자리가 된다. 렌더 중이 아니라 커밋 후
+  // effect에서 실행하므로 closeTab과 마찬가지로 이웃 활성화를 형제 문장으로 둘 수
+  // 있다(setState-in-render 문제 없음).
+  useEffect(() => {
+    const stale = noteTabs.filter((t) => !notesById.has(t.key) || !nodeIdSet.has(t.nodeId));
+    if (stale.length === 0) return;
+    const idx = activeTabKey ? noteTabs.findIndex((t) => t.key === activeTabKey) : -1;
+    const next = noteTabs.filter((t) => notesById.has(t.key) && nodeIdSet.has(t.nodeId));
+    setNoteTabs(next);
+    if (activeTabKey && stale.some((t) => t.key === activeTabKey)) {
+      const neighbor = next[idx] ?? next[idx - 1];
+      if (neighbor) {
+        setActiveTabKey(neighbor.key);
+        activateNoteExpanded(neighbor.nodeId, neighbor.key);
+      } else {
+        setActiveTabKey(null);
+        onNoteExpandedChange(false);
+      }
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [noteTabs, notesById, nodeIdSet, activeTabKey]);
 
   // 탭 바 오른쪽 끝의 닫기(축소) 버튼 - "확대"를 끄기만 한다. expandedNodeId/
   // activeNoteKey는 그대로 두므로 활성 탭이었던 노트의 패널 내 인라인 편집기로
@@ -468,6 +517,8 @@ export function ElementNotesPanel({
                                 isExpanded={isNoteExpanded}
                                 onExpandedChange={onNoteExpandedChange}
                                 onPersist={(input) => onUpdateNote(note.id, input)}
+                                autoFocusTitle={autoFocusTitleKey === note.id}
+                                onTitleAutoFocusConsumed={() => setAutoFocusTitleKey(null)}
                                 tabBar={
                                   isNoteExpanded ? (
                                     <NoteTabBar
@@ -483,6 +534,7 @@ export function ElementNotesPanel({
                                       pickerOpen={pickerOpen}
                                       onPickerOpenChange={setPickerOpen}
                                       onPickNote={openTab}
+                                      onCreateNote={createNoteInTab}
                                     />
                                   ) : undefined
                                 }
@@ -530,6 +582,12 @@ interface NoteEditorProps {
    * 완성된 노드를 그대로 받아 상단에 얹기만 한다. 접힌 상태나 "+ 새 노트"
    * 초안 경로에서는 undefined. */
   tabBar?: ReactNode;
+  /** "+" 피커의 "새 노트"로 방금 만들어진 노트가 처음 마운트될 때만 true -
+   * 제목 input에 포커스를 넣어 바로 이름을 지을 수 있게 한다. */
+  autoFocusTitle?: boolean;
+  /** autoFocusTitle을 실제로 소비(포커스 실행)했다는 신호 - 부모가 1회용
+   * 상태를 다시 null로 되돌려 같은 노트를 나중에 재방문해도 재발동하지 않게 한다. */
+  onTitleAutoFocusConsumed?: () => void;
 }
 
 const AUTOSAVE_DEBOUNCE_MS = 800;
@@ -545,9 +603,24 @@ function NoteEditor({
   onExpandedChange,
   isNewNote = false,
   tabBar,
+  autoFocusTitle = false,
+  onTitleAutoFocusConsumed,
 }: NoteEditorProps) {
   const [title, setTitle] = useState(initial.title);
   const [body, setBody] = useState(initial.body);
+  const titleInputRef = useRef<HTMLInputElement>(null);
+
+  // "새 노트" 방금 생성 직후 마운트되는 이 인스턴스에서만 제목에 포커스를
+  // 넣는다 - 마운트 1회만 실행되어야 하므로 deps를 비워 둔다(autoFocusTitle이
+  // 나중에 다시 true가 될 일은 없다: 부모가 소비 즉시 null로 되돌린다).
+  useEffect(() => {
+    if (autoFocusTitle) {
+      titleInputRef.current?.focus();
+      titleInputRef.current?.select();
+      onTitleAutoFocusConsumed?.();
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
   // 옵시디언처럼 모드 버튼이 없다 - 본문에 포커스가 있으면 원문(마크다운)을
   // 편집하고, 포커스를 잃으면 그 자리에서 바로 렌더링된다. 새 노트(본문 없음)는
   // 바로 타이핑할 수 있게 편집 상태로 시작, 기존 노트는 읽는 상태로 시작한다.
@@ -787,6 +860,7 @@ function NoteEditor({
           배경 구분도 없다 - 처음 적는 줄이 곧 제목이다. 확대 버튼과 ⋮ 메뉴는
           더 이상 이 패드 위에 없다 - 행 헤더(부모)로 옮겨졌다. */}
       <input
+        ref={titleInputRef}
         type="text"
         value={title}
         onChange={(e) => setTitle(e.target.value)}
@@ -953,6 +1027,7 @@ interface NoteTabBarProps {
   pickerOpen: boolean;
   onPickerOpenChange: (open: boolean) => void;
   onPickNote: (nodeId: string, noteId: string) => void;
+  onCreateNote: (nodeId: string) => void;
 }
 
 /**
@@ -974,6 +1049,7 @@ function NoteTabBar({
   pickerOpen,
   onPickerOpenChange,
   onPickNote,
+  onCreateNote,
 }: NoteTabBarProps) {
   const tabRefs = useRef<Array<HTMLDivElement | null>>([]);
   const activeNote = activeTabKey ? notesById.get(activeTabKey) : undefined;
@@ -1045,6 +1121,7 @@ function NoteTabBar({
           isOpen={pickerOpen}
           onOpenChange={onPickerOpenChange}
           onPick={onPickNote}
+          onCreateNote={onCreateNote}
         />
       </div>
 
@@ -1078,13 +1155,18 @@ interface NoteTabPickerProps {
   isOpen: boolean;
   onOpenChange: (open: boolean) => void;
   onPick: (nodeId: string, noteId: string) => void;
+  /** 원소별 "＋ 새 노트" 행 - 노트가 0개인 원소에도 항상 나타나므로, 노트가
+   * 하나도 없는 원소에도 이 피커에서 바로 첫 노트를 만들 수 있다. */
+  onCreateNote: (nodeId: string) => void;
 }
 
 /**
  * "+" 버튼 - 원소 -> 그 원소의 노트들을 나열하는 작은 팝업. 이미 탭으로 열려
  * 있는 노트는 흐리게 표시하고 클릭해도 그 탭을 활성화만 한다(중복 탭 없음).
+ * 각 원소 섹션 맨 아래에는 "＋ 새 노트" 행이 항상 있다(노트가 0개인 원소도
+ * 포함) - 여기서 바로 새 노트를 만들어 그 자리에서 탭으로 연다.
  */
-function NoteTabPicker({ sections, openKeys, isOpen, onOpenChange, onPick }: NoteTabPickerProps) {
+function NoteTabPicker({ sections, openKeys, isOpen, onOpenChange, onPick, onCreateNote }: NoteTabPickerProps) {
   const rootRef = useRef<HTMLDivElement>(null);
   const itemRefs = useRef<Array<HTMLButtonElement | null>>([]);
   const flatItems = useMemo(
@@ -1131,14 +1213,17 @@ function NoteTabPicker({ sections, openKeys, isOpen, onOpenChange, onPick }: Not
           }}
           className="absolute left-0 top-full z-10 mt-1 max-h-72 w-56 overflow-y-auto rounded-none border border-rule bg-ink-800 py-1 shadow-lg"
         >
-          {flatItems.length === 0 && (
-            <p className="px-2.5 py-1.5 font-sans text-[11px] text-text-lo">열 수 있는 노트가 없어요.</p>
+          {sections.length === 0 && (
+            <p className="px-2.5 py-1.5 font-sans text-[11px] text-text-lo">캔버스에 원소가 없어요.</p>
           )}
           {sections.map((section) => (
             <div key={section.nodeId}>
               <div className="px-2.5 pt-1.5 font-sans text-[10px] uppercase tracking-wide text-text-lo">
                 {section.label}
               </div>
+              {section.notes.length === 0 && (
+                <p className="px-2.5 py-1 font-sans text-[11px] text-text-lo">노트가 아직 없어요.</p>
+              )}
               {section.notes.map((note) => {
                 const already = openKeys.has(note.id);
                 const flatIndex = flatItems.findIndex((f) => f.noteId === note.id);
@@ -1170,6 +1255,14 @@ function NoteTabPicker({ sections, openKeys, isOpen, onOpenChange, onPick }: Not
                   </button>
                 );
               })}
+              <button
+                type="button"
+                role="menuitem"
+                onClick={() => onCreateNote(section.nodeId)}
+                className="block w-full truncate rounded-none px-2.5 py-1.5 text-left font-sans text-xs text-spec-b hover:bg-ink-700"
+              >
+                {"＋ 새 노트"}
+              </button>
             </div>
           ))}
         </div>
