@@ -93,7 +93,17 @@ export interface ConstellationCanvasProps {
 }
 
 const NODE_RADIUS = 9;
-const HANDLE_RADIUS = 17;
+const HANDLE_RADIUS = 22;
+// 호버 시 노드를 도는 위성(달) 궤도 파라미터. 실제 원 궤도(반지름 a)를 각도 i만큼
+// 기울여 2D에 투영하면 장반경 a, 단반경 b=a·cos(i)인 타원이 된다(케플러 투영과
+// 동일한 원리). φ는 화면상에서 그 타원 자체를 살짝 돌려, "위에서 내려다본 원"이
+// 아니라 "비스듬히 본 기울어진 궤도"로 읽히게 한다.
+const ORBIT_RADIUS = HANDLE_RADIUS; // a - 확대된 핸들 링 위를 대략 따라 돈다
+const ORBIT_INCLINATION = (66 * Math.PI) / 180; // i - 60~70도 권장 범위 중간값
+const ORBIT_SEMI_MINOR = ORBIT_RADIUS * Math.cos(ORBIT_INCLINATION); // b
+const ORBIT_SCREEN_TILT = (16 * Math.PI) / 180; // φ - 살짝만 돌려 "기울어짐"을 읽히게
+const ORBIT_PERIOD_MS = 4200; // 한 바퀴에 걸리는 시간 - 느긋하게
+const SATELLITE_RADIUS = 2.4;
 /** 클릭과 드래그를 구분하는 임계값(px, 화면 좌표 기준). 이보다 적게 움직이면 클릭 = 선택(정보 카드 열기). */
 const CLICK_THRESHOLD = 4;
 const MIN_ZOOM = 0.35;
@@ -112,6 +122,62 @@ const DEFAULT_TYPE_COLOR = "var(--text-lo)"; // 모르는 type도 이 색으로 
 
 function colorForType(type: string): string {
   return TYPE_COLOR[type] ?? DEFAULT_TYPE_COLOR;
+}
+
+/**
+ * 호버/포커스된 노드 주위를 도는 위성 - 파라메트릭 방정식으로 실제 위치를
+ * 계산한다(CSS 스핀 애니메이션으로 흉내내지 않음). cx/cy/r/opacity를 매
+ * 프레임 ref로 직접 DOM에 써서, React state를 프레임마다 갱신하지 않는다 -
+ * 7,109개 과목이 실릴 카탈로그에서 호버마다 리렌더가 도는 건 감당이 안 된다.
+ * 마운트는 부모가 (isHovered || isFocused)로 제어하므로, 호버가 끝나면 이
+ * 컴포넌트가 언마운트되고 아래 useEffect의 cleanup이 rAF 루프를 반드시 끊는다
+ * (노드마다 루프가 누적되는 걸 막는 지점).
+ */
+function OrbitingSatellite({ color }: { color: string }) {
+  const circleRef = useRef<SVGCircleElement>(null);
+
+  useEffect(() => {
+    const el = circleRef.current;
+    if (!el) return;
+
+    const paint = (t: number) => {
+      const cosT = Math.cos(t);
+      const sinT = Math.sin(t);
+      const x =
+        ORBIT_RADIUS * cosT * Math.cos(ORBIT_SCREEN_TILT) -
+        ORBIT_SEMI_MINOR * sinT * Math.sin(ORBIT_SCREEN_TILT);
+      const y =
+        ORBIT_RADIUS * cosT * Math.sin(ORBIT_SCREEN_TILT) +
+        ORBIT_SEMI_MINOR * sinT * Math.cos(ORBIT_SCREEN_TILT);
+      // sin(t)의 부호 = 궤도의 앞/뒤 반구. 뒤로 넘어간 순간엔 살짝 작고
+      // 흐리게 그려 깊이를 값싸게 흉내낸다("행성" 뒤로 숨는 느낌).
+      const isBehind = sinT < 0;
+      el.setAttribute("cx", x.toFixed(2));
+      el.setAttribute("cy", y.toFixed(2));
+      el.setAttribute("r", (isBehind ? SATELLITE_RADIUS * 0.6 : SATELLITE_RADIUS).toFixed(2));
+      el.setAttribute("opacity", isBehind ? "0.45" : "0.95");
+    };
+
+    const reduceMotion = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+    if (reduceMotion) {
+      // 모션 최소화 요청 시: 링은 그대로 커진 채 두되, 위성은 고정된 한 점에만
+      // 세워두고 절대 움직이지 않는다.
+      paint(0);
+      return;
+    }
+
+    let frameId = 0;
+    const start = performance.now();
+    const tick = (now: number) => {
+      const t = ((now - start) / ORBIT_PERIOD_MS) * Math.PI * 2;
+      paint(t);
+      frameId = requestAnimationFrame(tick);
+    };
+    frameId = requestAnimationFrame(tick);
+    return () => cancelAnimationFrame(frameId);
+  }, []);
+
+  return <circle ref={circleRef} r={SATELLITE_RADIUS} fill={color} opacity={0.95} pointerEvents="none" aria-hidden="true" />;
 }
 
 /** 라벨 앞에 학정번호(예: "BIZ2101 경영정보시스템")가 붙어 있으면 분리한다.
@@ -621,6 +687,12 @@ export function ConstellationCanvas({
                     style={{ cursor: "crosshair" }}
                   />
                 )}
+
+                {/* 호버/포커스된 노드에만 뜨는 궤도 위성 - 달처럼 기울어진 궤도를
+                    돈다(파라메트릭 방정식, 아래 OrbitingSatellite 참고). 전체
+                    노드가 아니라 이 노드에서만 마운트되므로 rAF 루프는 항상
+                    최대 1개만 살아있다. */}
+                {(isHovered || isFocused) && <OrbitingSatellite color={color} />}
 
                 {/* 핸들 링 드래그로 연결 중인 출발 노드 표시 - 점선 링. */}
                 {isDragEdgeSource && (
