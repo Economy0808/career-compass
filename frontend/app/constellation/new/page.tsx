@@ -66,8 +66,8 @@ const INITIAL_NODES: Record<string, CanvasNode> = {
     position: { x: -120, y: 90 },
     description: "학회 활동을 통해 실무 감각과 네트워크를 쌓는다.",
   },
-  "course-accounting-1": {
-    id: "course-accounting-1",
+  "element:course-accounting-1": {
+    id: "element:course-accounting-1",
     label: "회계원리(1)",
     type: "course",
     isCompleted: false,
@@ -117,7 +117,7 @@ const SEED_TIME = Date.UTC(2026, 7, 20, 9, 0, 0);
 const INITIAL_NOTES: Record<string, ElementNote> = {
   "note-seed-1": {
     id: "note-seed-1",
-    nodeId: "course-accounting-1",
+    nodeId: "element:course-accounting-1",
     title: "복식부기 핵심",
     body:
       "**차변/대변**은 결국 하나의 거래를 두 번 기록하는 것.\n\n" +
@@ -129,7 +129,7 @@ const INITIAL_NOTES: Record<string, ElementNote> = {
   },
   "note-seed-2": {
     id: "note-seed-2",
-    nodeId: "course-accounting-1",
+    nodeId: "element:course-accounting-1",
     title: "감가상각 정리",
     body:
       "> 정액법: (취득원가 - 잔존가치) / 내용연수\n\n감가상각비는 비용이지만 현금 유출이 없다는 점이 헷갈렸음.",
@@ -139,7 +139,7 @@ const INITIAL_NOTES: Record<string, ElementNote> = {
   },
   "note-seed-3": {
     id: "note-seed-3",
-    nodeId: "course-accounting-1",
+    nodeId: "element:course-accounting-1",
     title: "스터디 공유용 요약",
     body: "1. 거래의 이중성\n2. 계정과목 5대 분류\n3. 시산표 작성 순서\n\n다음 스터디에서 [[투자자산운용사]] 준비랑 연결해서 볼 것.",
     isPublic: true,
