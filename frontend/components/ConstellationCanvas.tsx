@@ -624,9 +624,14 @@ export function ConstellationCanvas({
                 {/* 완료 = 밝은 별(분광형 색 채움 + 발광), 미완료 = 속이 빈 희미한 점.
                     타입 색은 미완료일 때 더 이상 쓰지 않는다 - "밝기"만으로 완료
                     여부가 읽혀야 하고, 색은 완료된 뒤에야 드러나는 보상이어야 한다. */}
+                {/* 미완료 노드의 채움은 "none"이 아니라 "transparent"여야 한다.
+                    둘은 똑같이 투명하게 보이지만 SVG는 fill="none"인 영역을 클릭
+                    판정에서 제외한다. none으로 두면 미완료 노드는 몸통을 눌러도
+                    반응하지 않고, 실제로 "군집에서 끌어온 요소는 연결이 안 된다"는
+                    증상으로 나타났다(시드 노드는 완료 상태라 색이 채워져 멀쩡했다). */}
                 <circle
                   r={r}
-                  fill={node.isCompleted ? color : "none"}
+                  fill={node.isCompleted ? color : "transparent"}
                   stroke={node.isCompleted ? "none" : "var(--rule)"}
                   strokeWidth={node.isCompleted ? 0 : 1}
                   opacity={magOpacity}
