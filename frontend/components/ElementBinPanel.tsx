@@ -182,7 +182,7 @@ function ItemChip({
       onDragStart={handleDragStart}
       onKeyDown={handleKeyDown}
       className={cn(
-        "group flex items-center gap-1.5 rounded-sm border px-2 py-1 text-caption font-semibold",
+        "group flex items-center gap-1.5 rounded-none border px-2 py-1 text-caption font-semibold",
         "transition-colors select-none",
         "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-spec-b/70 focus-visible:ring-offset-2 focus-visible:ring-offset-ink-800",
         placed
@@ -275,7 +275,7 @@ function BinSection({
       >
         <h3 className="text-caption font-bold tracking-[.02em] text-text-hi">{bin.label}</h3>
         {bin.origin === "user" && (
-          <span className="rounded-sm bg-ink-800 px-1.5 py-0.5 text-micro font-semibold text-text-lo">
+          <span className="rounded-none bg-ink-800 px-1.5 py-0.5 text-micro font-semibold text-text-lo">
             내가 만든 보관함
           </span>
         )}
@@ -285,7 +285,7 @@ function BinSection({
               type="button"
               onClick={handlePlaceAll}
               disabled={!canPlaceAll}
-              className="ml-auto shrink-0 rounded-sm px-1.5 py-0.5 text-micro font-semibold text-spec-b transition-colors hover:bg-spec-b/15 disabled:cursor-not-allowed disabled:text-text-lo disabled:opacity-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-spec-b/70"
+              className="ml-auto shrink-0 rounded-none px-1.5 py-0.5 text-micro font-semibold text-spec-b transition-colors hover:bg-spec-b/15 disabled:cursor-not-allowed disabled:text-text-lo disabled:opacity-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-spec-b/70"
             >
               모두 추가
             </button>
@@ -301,7 +301,7 @@ function BinSection({
             <span
               key={i}
               aria-hidden
-              className="h-6 animate-pulse rounded-sm bg-ink-800"
+              className="h-6 animate-pulse rounded-none bg-ink-800"
               style={{ width: 52 + i * 18 }}
             />
           ))}
@@ -356,7 +356,7 @@ function BinSection({
             value={addType}
             onChange={(e) => setAddType(e.target.value)}
             aria-label="새 원소 종류"
-            className="shrink-0 rounded-sm border border-rule bg-ink-800 px-1 py-1 text-micro text-text-hi focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-spec-b/70"
+            className="shrink-0 rounded-none border border-rule bg-ink-800 px-1 py-1 text-micro text-text-hi focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-spec-b/70"
           >
             {ELEMENT_TYPE_OPTIONS.map((opt) => (
               <option key={opt.value} value={opt.value}>
@@ -369,12 +369,12 @@ function BinSection({
             onChange={(e) => setAddLabel(e.target.value)}
             placeholder="요소 이름 직접 추가"
             aria-label="새 원소 이름"
-            className="min-w-0 flex-1 rounded-sm border border-rule bg-transparent px-2 py-1 text-micro text-text-hi placeholder:text-text-lo focus:border-spec-b focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-spec-b/70"
+            className="min-w-0 flex-1 rounded-none border border-rule bg-transparent px-2 py-1 text-micro text-text-hi placeholder:text-text-lo focus:border-spec-b focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-spec-b/70"
           />
           <button
             type="submit"
             disabled={!addLabel.trim()}
-            className="shrink-0 rounded-sm bg-spec-b/18 px-2 py-1 text-micro font-semibold text-spec-b transition-colors hover:bg-spec-b/25 disabled:cursor-not-allowed disabled:opacity-40 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-spec-b/70"
+            className="shrink-0 rounded-none bg-spec-b/18 px-2 py-1 text-micro font-semibold text-spec-b transition-colors hover:bg-spec-b/25 disabled:cursor-not-allowed disabled:opacity-40 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-spec-b/70"
           >
             추가
           </button>
@@ -450,12 +450,12 @@ export function ElementBinPanel({
           onChange={(e) => setNewBinLabel(e.target.value)}
           placeholder="새 보관함 이름"
           aria-label="새 보관함 이름"
-          className="min-w-0 flex-1 rounded-sm border border-rule bg-transparent px-2.5 py-1.5 text-caption text-text-hi placeholder:text-text-lo focus:border-spec-b focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-spec-b/70"
+          className="min-w-0 flex-1 rounded-none border border-rule bg-transparent px-2.5 py-1.5 text-caption text-text-hi placeholder:text-text-lo focus:border-spec-b focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-spec-b/70"
         />
         <button
           type="submit"
           disabled={!newBinLabel.trim()}
-          className="shrink-0 rounded-sm bg-spec-b/18 px-2.5 py-1.5 text-caption font-semibold text-spec-b transition-colors hover:bg-spec-b/25 disabled:cursor-not-allowed disabled:opacity-40 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-spec-b/70"
+          className="shrink-0 rounded-none bg-spec-b/18 px-2.5 py-1.5 text-caption font-semibold text-spec-b transition-colors hover:bg-spec-b/25 disabled:cursor-not-allowed disabled:opacity-40 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-spec-b/70"
         >
           추가
         </button>
