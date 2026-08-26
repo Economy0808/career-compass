@@ -84,6 +84,11 @@ export interface ConstellationCanvasProps {
   onExternalDrop?: (data: string, position: CanvasPosition) => void;
   /** 피드 카드/미리보기용. true면 드래그·토글·엣지 생성이 전부 실제로 막힌다. */
   readOnly?: boolean;
+  /** 밖(노트 패널의 [[위키링크]] 클릭 등)에서 특정 노드를 선택시키는 요청.
+   * selectedNodeId는 이 컴포넌트의 내부 state라 외부에서 직접 제어할 수
+   * 없으므로, "이 노드를 선택하라"는 명령을 token으로 감싸 전달한다 - 같은
+   * nodeId를 연속으로 다시 눌러도(토큰이 매번 바뀌므로) 매번 반응한다. */
+  focusRequest?: { nodeId: string; token: number } | null;
   className?: string;
 }
 
@@ -162,6 +167,7 @@ export function ConstellationCanvas({
   onOpenNotes,
   onExternalDrop,
   readOnly = false,
+  focusRequest,
   className,
 }: ConstellationCanvasProps) {
   const svgRef = useRef<SVGSVGElement>(null);
@@ -367,6 +373,16 @@ export function ConstellationCanvas({
     window.addEventListener("keydown", onKeyDown);
     return () => window.removeEventListener("keydown", onKeyDown);
   }, [readOnly, onNodeDelete]);
+
+  // 외부 선택 요청(노트 패널의 [[위키링크]] 클릭) 처리 - token이 바뀔 때마다
+  // 한 번 실행되어 selectedNodeId를 그 노드로 옮긴다. 존재하지 않는 nodeId는
+  // 조용히 무시한다(방어적 - 위키링크 해석은 호출부에서 이미 검증하지만).
+  useEffect(() => {
+    if (!focusRequest) return;
+    if (!nodes[focusRequest.nodeId]) return;
+    setSelectedNodeId(focusRequest.nodeId);
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [focusRequest?.token]);
 
   // --- 공통 포인터 이동/해제 ------------------------------------------------
 
