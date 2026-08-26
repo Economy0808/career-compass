@@ -346,6 +346,10 @@ export function ConstellationCanvas({
         const worldY = (py - prev.y) / prev.k;
         return { k: nextK, x: px - worldX * nextK, y: py - worldY * nextK };
       });
+      // 휠 줌은 배경에 임펄스를 주지 않는다(브리프상 선택 사항) - 줌은 스크롤할
+      // 때마다 연타되는 제스처라, 편집 중 방해 금지 제약("너무 과하면 안돼")
+      // 아래에서는 계속 자잘하게 흔들리는 배경이 오히려 거슬릴 위험이 더 크다고
+      // 판단해 팬만 임펄스를 준다.
     },
     []
   );
@@ -495,6 +499,14 @@ export function ConstellationCanvas({
           y: drag.startTransform.y + (e.clientY - drag.startClientY),
           k: drag.startTransform.k,
         });
+        // 비문증(eye-floater) 배경 훅: 이 프레임의 팬 델타(movementX/Y)만 window에
+        // 쏜다. SpaceBackdrop을 직접 import하지 않는 이유는 그 파일이 디자인
+        // 외주에서 통째로 스왑될 수 있는 지점이기 때문 - 캔버스는 그 내부를 몰라야
+        // 한다(docs/design-handoff-guide.md). 절대 좌표가 아니라 델타만 넘기므로
+        // 배경 쪽은 스프링 물리에 얹기만 하면 된다.
+        window.dispatchEvent(
+          new CustomEvent("ourlab:canvas-pan", { detail: { dx: e.movementX, dy: e.movementY } })
+        );
       } else if (drag.kind === "node") {
         if (e.pointerId !== drag.pointerId) return;
         const dxScreen = e.clientX - drag.startClientX;
