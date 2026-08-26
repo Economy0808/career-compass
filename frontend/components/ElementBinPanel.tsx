@@ -41,17 +41,24 @@ export interface ElementBinPanelProps {
   className?: string;
 }
 
-// ConstellationCanvas.tsx의 TYPE_COLOR와 시각적으로 맞춘 값. 캔버스 컴포넌트는
-// 이 매핑을 export하지 않으므로(내부 렌더링 전용 상수), 보관함 칩의 점 색이
-// 캔버스에 놓인 뒤의 노드 색과 어긋나지 않도록 여기서 최소한만 복제해 둔다.
+// ConstellationCanvas.tsx의 TYPE_COLOR(항성 분광형 악센트)와 시각적으로 맞춘
+// 값. 캔버스 컴포넌트는 이 매핑을 export하지 않으므로(내부 렌더링 전용 상수),
+// 보관함 칩의 점 색이 캔버스에 놓인 뒤의 노드 색과 어긋나지 않도록 여기서
+// 최소한만 복제해 둔다.
 const TYPE_DOT: Record<string, string> = {
-  course: "#7CC4F0",
-  organization: "#E2B94F",
-  certification: "#5DB35B",
-  activity: "#D8B078",
-  networking: "#8FDC8A",
+  course: "var(--spec-b)",
+  certification: "var(--spec-a)",
+  organization: "var(--spec-g)",
+  activity: "var(--spec-k)",
+  networking: "var(--spec-m)",
 };
-const DEFAULT_DOT = "#9FB6AD";
+const DEFAULT_DOT = "var(--text-lo)";
+
+const COURSE_CODE_RE = /^([A-Z]{2,6}\d{3,5})\s+(.+)$/;
+function splitCourseCode(label: string): { code: string | null; rest: string } {
+  const m = COURSE_CODE_RE.exec(label);
+  return m ? { code: m[1], rest: m[2] } : { code: null, rest: label };
+}
 
 /** 키보드로 놓을 때 쓰는 기본 캔버스 좌표. 매번 조금씩 어긋나게 흩뿌려 겹치지 않게 한다. */
 function defaultDropPosition(seed: number): CanvasPosition {
@@ -90,6 +97,7 @@ function ItemChip({
     }
   }
 
+  const { code, rest } = splitCourseCode(item.label);
   return (
     <div
       role="button"
@@ -101,21 +109,22 @@ function ItemChip({
       onDragStart={handleDragStart}
       onKeyDown={handleKeyDown}
       className={cn(
-        "group flex items-center gap-1.5 rounded-full border px-2.5 py-1 text-caption font-semibold",
+        "group flex items-center gap-1.5 rounded-sm border px-2 py-1 text-caption font-semibold",
         "transition-colors select-none",
         placed
-          ? "cursor-default border-line text-content-muted opacity-45"
-          : "cursor-grab border-line text-content-secondary hover:border-line-strong hover:bg-white/6 active:cursor-grabbing"
+          ? "cursor-default border-rule text-text-lo opacity-45"
+          : "cursor-grab border-rule text-text-hi hover:border-spec-b/60 hover:bg-ink-700 active:cursor-grabbing"
       )}
     >
       <span
         aria-hidden
         className="h-1.5 w-1.5 shrink-0 rounded-full"
-        style={{ background: placed ? "#7D968C" : (TYPE_DOT[item.type] ?? DEFAULT_DOT) }}
+        style={{ background: placed ? "var(--text-lo)" : (TYPE_DOT[item.type] ?? DEFAULT_DOT) }}
       />
-      <span className="truncate">{item.label}</span>
+      {code && <span className="font-mono text-micro text-text-lo">{code}</span>}
+      <span className="truncate">{rest}</span>
       {placed && (
-        <span aria-hidden className="text-growth-bright">
+        <span aria-hidden className="text-lit">
           ✓
         </span>
       )}
@@ -133,16 +142,16 @@ function BinSection({
   onItemDragToCanvas: (item: BinItem, position: CanvasPosition) => void;
 }) {
   return (
-    <section className="border-b border-line/60 px-4 py-3.5 last:border-b-0">
+    <section className="border-b border-rule/60 px-4 py-3 last:border-b-0">
       <header className="mb-2 flex items-center gap-1.5">
-        <h3 className="text-caption font-bold tracking-[.02em] text-content-primary">{bin.label}</h3>
+        <h3 className="text-caption font-bold tracking-[.02em] text-text-hi">{bin.label}</h3>
         {bin.origin === "user" && (
-          <span className="rounded-full bg-white/8 px-1.5 py-0.5 text-micro font-semibold text-content-muted">
+          <span className="rounded-sm bg-ink-700 px-1.5 py-0.5 text-micro font-semibold text-text-lo">
             내가 만든 보관함
           </span>
         )}
         {!bin.isLoading && (
-          <span className="ml-auto text-micro text-content-muted">{bin.items.length}</span>
+          <span className="ml-auto font-mono text-micro text-text-lo">{bin.items.length}</span>
         )}
       </header>
 
@@ -153,13 +162,13 @@ function BinSection({
             <span
               key={i}
               aria-hidden
-              className="h-6 animate-pulse rounded-full bg-white/6"
+              className="h-6 animate-pulse rounded-sm bg-ink-700"
               style={{ width: 52 + i * 18 }}
             />
           ))}
         </div>
       ) : bin.items.length === 0 ? (
-        <p className="text-micro text-content-muted">아직 원소가 없어요.</p>
+        <p className="text-micro text-text-lo">아직 원소가 없어요.</p>
       ) : (
         <div className="flex flex-wrap gap-1.5">
           {bin.items.map((item) => (
@@ -196,21 +205,21 @@ export function ElementBinPanel({
   return (
     <aside
       className={cn(
-        "flex h-full w-72 shrink-0 flex-col border-l border-line bg-surface-overlay backdrop-blur-md",
+        "flex h-full w-72 shrink-0 flex-col border-l border-rule bg-ink-800/95 backdrop-blur-md",
         className
       )}
       aria-label="원소 보관함"
     >
-      <div className="border-b border-line px-4 py-3.5">
-        <div className="text-body-sm font-bold text-content-primary">원소 보관함</div>
-        <p className="mt-0.5 text-micro text-content-muted">
+      <div className="border-b border-rule px-4 py-3.5">
+        <div className="text-body-sm font-bold text-text-hi">원소 보관함</div>
+        <p className="mt-0.5 text-micro text-text-lo">
           칩을 캔버스로 끌어놓거나, 칩에 포커스한 뒤 Enter를 누르세요.
         </p>
       </div>
 
       <div className="canvas-scroll min-h-0 flex-1 overflow-y-auto">
         {bins.length === 0 ? (
-          <p className="px-4 py-6 text-body-sm text-content-muted">아직 보관함이 없어요.</p>
+          <p className="px-4 py-6 text-body-sm text-text-lo">아직 보관함이 없어요.</p>
         ) : (
           bins.map((bin) => (
             <BinSection
@@ -224,7 +233,7 @@ export function ElementBinPanel({
       </div>
 
       <form
-        className="flex items-center gap-1.5 border-t border-line p-3"
+        className="flex items-center gap-1.5 border-t border-rule p-3"
         onSubmit={(e) => {
           e.preventDefault();
           handleCreateBin();
@@ -235,12 +244,12 @@ export function ElementBinPanel({
           onChange={(e) => setNewBinLabel(e.target.value)}
           placeholder="새 보관함 이름"
           aria-label="새 보관함 이름"
-          className="min-w-0 flex-1 rounded-sm border border-line bg-transparent px-2.5 py-1.5 text-caption text-content-primary placeholder:text-content-muted focus:border-line-strong"
+          className="min-w-0 flex-1 rounded-sm border border-rule bg-transparent px-2.5 py-1.5 text-caption text-text-hi placeholder:text-text-lo focus:border-spec-b"
         />
         <button
           type="submit"
           disabled={!newBinLabel.trim()}
-          className="shrink-0 rounded-sm bg-goal/18 px-2.5 py-1.5 text-caption font-semibold text-goal-bright transition-colors hover:bg-goal/25 disabled:cursor-not-allowed disabled:opacity-40"
+          className="shrink-0 rounded-sm bg-spec-b/18 px-2.5 py-1.5 text-caption font-semibold text-spec-b transition-colors hover:bg-spec-b/25 disabled:cursor-not-allowed disabled:opacity-40"
         >
           추가
         </button>

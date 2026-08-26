@@ -91,10 +91,10 @@ export default function SignupPage() {
   return (
     <div className="mx-auto w-full max-w-md">
       <Card className="p-8">
-        <h1 className="font-serif text-display font-bold text-content-primary">
+        <h1 className="font-serif text-display font-bold text-text-hi">
           {step === "account" ? "새 계정 만들기" : "이메일 인증"}
         </h1>
-        <p className="mb-6 mt-[7px] text-body-sm leading-relaxed text-content-secondary">
+        <p className="mb-6 mt-[7px] text-body-sm leading-relaxed text-text-lo">
           {step === "account"
             ? "연세대 학부생 전용 커뮤니티예요. 가입 후 학교 이메일 또는 학생증으로 인증해요."
             : `${email} 로 보낸 6자리 코드를 입력해주세요. (10분 유효)`}
@@ -135,8 +135,8 @@ export default function SignupPage() {
               autoComplete="email"
             />
             {isYonseiEmail && (
-              <p className="text-caption text-growth-bright">
-                🌱 연세대 이메일이네요 — 이메일 인증만으로 학부생 인증까지 한 번에 끝나요.
+              <p className="text-caption text-lit">
+                ✨ 연세대 이메일이네요 — 이메일 인증만으로 학부생 인증까지 한 번에 끝나요.
               </p>
             )}
             <Field
@@ -156,30 +156,30 @@ export default function SignupPage() {
                   className={cn(
                     "flex h-9 w-9 items-center justify-center rounded-md border text-heading transition-colors",
                     emoji === c
-                      ? "border-line-strong bg-goal/15 text-goal-bright"
-                      : "border-line bg-transparent hover:bg-goal/8"
+                      ? "border-spec-b bg-spec-b/15 text-spec-b"
+                      : "border-rule bg-transparent hover:bg-spec-b/8"
                   )}
                 >
                   {c}
                 </button>
               ))}
             </div>
-            <label className="mt-1 flex cursor-pointer items-start gap-2 text-caption leading-relaxed text-content-secondary">
+            <label className="mt-1 flex cursor-pointer items-start gap-2 text-caption leading-relaxed text-text-lo">
               <input
                 type="checkbox"
                 checked={consent}
                 onChange={(e) => setConsent(e.target.checked)}
-                className="mt-0.5 accent-goal"
+                className="mt-0.5 accent-spec-b"
               />
               <span>
                 아이디·이메일·(선택 시) 학생증 이미지를 회원 확인 목적으로 수집·이용하는 데
                 동의합니다. 학생증 이미지는 심사 즉시 파기돼요.{" "}
-                <Link href="/privacy" className="font-semibold text-goal-bright">
+                <Link href="/privacy" className="font-semibold text-spec-b">
                   개인정보 처리방침
                 </Link>
               </span>
             </label>
-            {error && <p className="text-caption text-wither">{error}</p>}
+            {error && <p className="text-caption text-spec-m">{error}</p>}
             <Button type="submit" variant="primary" size="md" fullWidth disabled={pending} className="mt-1">
               {pending ? "심는 중…" : "가입하고 인증 코드 받기"}
             </Button>
@@ -195,16 +195,16 @@ export default function SignupPage() {
               inputMode="numeric"
               className="[&_input]:text-center [&_input]:text-title [&_input]:tracking-[.4em]"
             />
-            {error && <p className="text-caption text-wither">{error}</p>}
+            {error && <p className="text-caption text-spec-m">{error}</p>}
             <Button type="submit" variant="primary" size="md" fullWidth disabled={pending || code.length !== 6}>
               {pending ? "확인 중…" : "인증하기"}
             </Button>
           </form>
         )}
 
-        <p className="mt-5 text-center text-body-sm text-content-secondary">
+        <p className="mt-5 text-center text-body-sm text-text-lo">
           이미 계정이 있나요?{" "}
-          <Link href="/login" className="font-semibold text-goal-bright">
+          <Link href="/login" className="font-semibold text-spec-b">
             로그인
           </Link>
         </p>

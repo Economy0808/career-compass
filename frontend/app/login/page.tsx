@@ -33,8 +33,8 @@ export default function LoginPage() {
   return (
     <div className="mx-auto w-full max-w-md">
       <Card className="p-8">
-        <h1 className="font-serif text-display font-bold text-content-primary">로그인</h1>
-        <p className="mb-6 mt-[7px] text-body-sm text-content-secondary">
+        <h1 className="font-serif text-display font-bold text-text-hi">로그인</h1>
+        <p className="mb-6 mt-[7px] text-body-sm text-text-lo">
           연세대 학부생들의 별자리 커뮤니티로 돌아오세요
         </p>
         <form onSubmit={submit} className="flex flex-col gap-3">
@@ -54,7 +54,7 @@ export default function LoginPage() {
             onChange={(e) => setPassword(e.target.value)}
             autoComplete="current-password"
           />
-          {error && <p className="text-caption text-wither">{error}</p>}
+          {error && <p className="text-caption text-spec-m">{error}</p>}
           <Button
             type="submit"
             variant="primary"
@@ -66,14 +66,14 @@ export default function LoginPage() {
             {pending ? "로그인 중…" : "로그인"}
           </Button>
         </form>
-        <p className="mt-4 text-center text-caption text-content-muted">
-          <Link href="/reset-password" className="font-semibold text-goal-bright">
+        <p className="mt-4 text-center text-caption text-text-lo">
+          <Link href="/reset-password" className="font-semibold text-spec-b">
             비밀번호를 잊으셨나요?
           </Link>
         </p>
-        <p className="mt-2 text-center text-body-sm text-content-secondary">
+        <p className="mt-2 text-center text-body-sm text-text-lo">
           아직 계정이 없나요?{" "}
-          <Link href="/signup" className="font-semibold text-goal-bright">
+          <Link href="/signup" className="font-semibold text-spec-b">
             회원가입
           </Link>
         </p>

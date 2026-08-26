@@ -73,17 +73,27 @@ const CLICK_THRESHOLD = 4;
 const MIN_ZOOM = 0.35;
 const MAX_ZOOM = 2.5;
 
+// 항성 분광형 악센트(globals.css --spec-*)와 1:1로 대응. 새 type이 런타임에
+// 생겨도 하드 실패하지 않도록 DEFAULT_TYPE_COLOR(text-lo)로 안전하게 떨어진다.
 const TYPE_COLOR: Record<string, string> = {
-  course: "#7CC4F0", // goal.bright
-  organization: "#E2B94F", // bloom
-  certification: "#5DB35B", // growth
-  activity: "#D8B078", // wither
-  networking: "#8FDC8A", // growth.bright
+  course: "var(--spec-b)", // 수업
+  certification: "var(--spec-a)", // 자격증
+  organization: "var(--spec-g)", // 학회
+  activity: "var(--spec-k)", // 대외활동
+  networking: "var(--spec-m)", // 네트워킹
 };
-const DEFAULT_TYPE_COLOR = "#9FB6AD"; // content.secondary - 모르는 type도 이 색으로 안전하게 렌더링
+const DEFAULT_TYPE_COLOR = "var(--text-lo)"; // 모르는 type도 이 색으로 안전하게 렌더링
 
 function colorForType(type: string): string {
   return TYPE_COLOR[type] ?? DEFAULT_TYPE_COLOR;
+}
+
+/** 라벨 앞에 학정번호(예: "BIZ2101 경영정보시스템")가 붙어 있으면 분리한다.
+ * 코드는 식별자이므로 font-mono로 작게, 나머지는 본문 폰트로 렌더링한다. */
+const COURSE_CODE_RE = /^([A-Z]{2,6}\d{3,5})\s+(.+)$/;
+function splitCourseCode(label: string): { code: string | null; rest: string } {
+  const m = COURSE_CODE_RE.exec(label);
+  return m ? { code: m[1], rest: m[2] } : { code: null, rest: label };
 }
 
 interface Transform {
@@ -332,7 +342,7 @@ export function ConstellationCanvas({
   const dragEdgeSource = dragRef.current?.kind === "edge" ? dragRef.current.sourceNodeId : null;
 
   return (
-    <div className={cn("relative h-full w-full overflow-hidden bg-earth-base", className)}>
+    <div className={cn("relative h-full w-full overflow-hidden bg-ink-900 bg-radec-grid", className)}>
       <svg
         ref={svgRef}
         className="h-full w-full touch-none select-none"
@@ -356,9 +366,6 @@ export function ConstellationCanvas({
         style={{ cursor: readOnly ? "default" : "grab" }}
       >
         <defs>
-          <pattern id="const-grid" width={28} height={28} patternUnits="userSpaceOnUse">
-            <circle cx={1} cy={1} r={1} fill="rgba(140,180,220,0.16)" />
-          </pattern>
           <filter id="const-glow" x="-200%" y="-200%" width="500%" height="500%">
             <feGaussianBlur stdDeviation="4.2" result="blur" />
             <feMerge>
@@ -367,9 +374,8 @@ export function ConstellationCanvas({
             </feMerge>
           </filter>
         </defs>
-
-        {/* 절제된 배경 - 밤하늘 삽화 대신 옅은 점 격자 하나만 깐다 */}
-        <rect x={-4000} y={-4000} width={8000} height={8000} fill="url(#const-grid)" />
+        {/* 배경 격자는 SVG가 아니라 컨테이너의 .bg-radec-grid(적경/적위 좌표선,
+            globals.css)로 깐다 - "차트 위에 찍는 중"이라는 인상만 아주 옅게. */}
 
         <g transform={`translate(${transform.x} ${transform.y}) scale(${transform.k})`}>
           {/* 엣지 */}
@@ -389,8 +395,9 @@ export function ConstellationCanvas({
                   y1={sp.y}
                   x2={tp.x}
                   y2={tp.y}
-                  stroke={lit ? "#8FDC8A" : "rgba(140,180,220,0.22)"}
+                  stroke={lit ? "var(--lit)" : "var(--rule)"}
                   strokeWidth={lit ? 2 : 1}
+                  opacity={lit ? 1 : 0.8}
                   filter={lit ? "url(#const-glow)" : undefined}
                   style={lit ? { animation: "glowPulse 3.2s ease-in-out infinite" } : undefined}
                   onDoubleClick={
@@ -409,7 +416,7 @@ export function ConstellationCanvas({
               y1={positionOf(dragEdgeSource).y}
               x2={edgeCursor.x}
               y2={edgeCursor.y}
-              stroke="#7CC4F0"
+              stroke="var(--spec-b)"
               strokeWidth={1.5}
               strokeDasharray="4 4"
             />
@@ -421,7 +428,13 @@ export function ConstellationCanvas({
             const color = colorForType(node.type);
             const isHovered = hoveredNodeId === node.id;
             const isFocused = focusedNodeId === node.id;
-            const r = NODE_RADIUS - Math.min(2, ((node.level ?? 2000) - 1000) / 1000 * 0.6);
+            // level(1000~4000)을 겉보기 등급처럼 쓴다: 낮은 학년 과목일수록 더
+            // 밝고 큰 별로 읽히게. level이 없으면 중간값(2000)으로 취급해
+            // 항상 자연스럽게 보이도록 한다. 은은하게만 - magT는 0~1.
+            const magT = Math.min(1, Math.max(0, ((node.level ?? 2000) - 1000) / 3000));
+            const r = NODE_RADIUS - magT * 2.4;
+            const magOpacity = node.isCompleted ? 1 : 1 - magT * 0.22;
+            const { code, rest } = splitCourseCode(node.label);
             return (
               <g
                 key={node.id}
@@ -443,7 +456,8 @@ export function ConstellationCanvas({
                   <circle
                     r={HANDLE_RADIUS}
                     fill="transparent"
-                    stroke={isHovered || isFocused ? "rgba(124,196,240,0.35)" : "transparent"}
+                    stroke={isHovered || isFocused ? "var(--spec-b)" : "transparent"}
+                    strokeOpacity={0.35}
                     strokeWidth={1}
                     strokeDasharray="2 3"
                     onPointerDown={beginEdgeDrag(node.id)}
@@ -454,7 +468,7 @@ export function ConstellationCanvas({
                   <circle
                     r={r + 5}
                     fill="none"
-                    stroke={node.isCompleted ? color : "#7CC4F0"}
+                    stroke={node.isCompleted ? color : "var(--spec-b)"}
                     strokeWidth={isFocused ? 1.5 : 1}
                     opacity={node.isCompleted ? 0.35 : 0.7}
                   />
@@ -462,9 +476,10 @@ export function ConstellationCanvas({
 
                 <circle
                   r={r}
-                  fill={node.isCompleted ? color : "var(--background, #06120a)"}
+                  fill={node.isCompleted ? color : "var(--ink-900)"}
                   stroke={color}
                   strokeWidth={node.isCompleted ? 0 : 1.5}
+                  opacity={magOpacity}
                   filter={node.isCompleted ? "url(#const-glow)" : undefined}
                 />
 
@@ -473,10 +488,16 @@ export function ConstellationCanvas({
                   y={r + 16}
                   textAnchor="middle"
                   fontSize={11.5}
-                  fill={node.isCompleted ? "#EAF3EE" : "#9FB6AD"}
-                  style={{ paintOrder: "stroke", stroke: "rgba(6,18,10,0.75)", strokeWidth: 3 }}
+                  className="font-sans"
+                  fill={node.isCompleted ? "var(--text-hi)" : "var(--text-lo)"}
+                  style={{ paintOrder: "stroke", stroke: "var(--ink-900)", strokeWidth: 3, strokeOpacity: 0.75 }}
                 >
-                  {node.label}
+                  {code && (
+                    <tspan className="font-mono" fontSize={9.5} dx={0}>
+                      {code}{" "}
+                    </tspan>
+                  )}
+                  {rest}
                 </text>
               </g>
             );

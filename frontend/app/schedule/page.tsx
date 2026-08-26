@@ -187,8 +187,8 @@ export default function SchedulePage() {
 
   return (
     <div className="mx-auto w-full max-w-3xl">
-      <h1 className="font-serif text-display font-bold text-content-primary">일정</h1>
-      <p className="mt-2 text-body-sm text-content-muted">
+      <h1 className="font-serif text-display font-bold text-text-hi">일정</h1>
+      <p className="mt-2 text-body-sm text-text-lo">
         하루의 할 일을 콩으로 채워보세요 — 완료할수록 그날의 콩이 진해져요
       </p>
 
@@ -205,7 +205,7 @@ export default function SchedulePage() {
       </div>
 
       <div className="mb-3 mt-8 flex items-center gap-3">
-        <h2 className="font-serif text-heading font-bold text-content-primary">
+        <h2 className="font-serif text-heading font-bold text-text-hi">
           {selectedDate.replace(/-/g, ".")}
         </h2>
         {!addingCategory && (
@@ -230,7 +230,7 @@ export default function SchedulePage() {
           {[0, 1, 2].map((i) => (
             <div
               key={i}
-              className="h-24 animate-pulse rounded-lg border border-line bg-surface-raised"
+              className="h-24 animate-pulse rounded-lg border border-rule bg-ink-800"
             />
           ))}
         </div>
@@ -302,16 +302,16 @@ function CategorySection({
       ) : (
         <div className="mb-2 flex items-center gap-2">
           <span className="h-3 w-3 shrink-0 rounded-full" style={{ background: hex }} />
-          <span className="min-w-0 truncate text-body-sm font-bold text-content-primary">
+          <span className="min-w-0 truncate text-body-sm font-bold text-text-hi">
             {category.name}
           </span>
-          <span className="shrink-0 text-micro text-content-muted">
+          <span className="shrink-0 text-micro text-text-lo">
             {items.filter((i) => i.is_completed).length}/{items.length}
           </span>
           <button
             type="button"
             onClick={() => setEditing(true)}
-            className="ml-auto shrink-0 text-caption text-content-muted transition-colors hover:text-content-secondary"
+            className="ml-auto shrink-0 text-caption text-text-lo transition-colors hover:text-text-hi"
           >
             편집
           </button>
@@ -325,7 +325,7 @@ function CategorySection({
             <span
               className={cn(
                 "min-w-0 flex-1 break-words text-body-sm",
-                item.is_completed ? "text-content-muted line-through" : "text-content-primary"
+                item.is_completed ? "text-text-lo line-through" : "text-text-hi"
               )}
             >
               {item.content}
@@ -334,7 +334,7 @@ function CategorySection({
             <button
               type="button"
               onClick={() => onRemoveItem(item)}
-              className="shrink-0 px-1 text-content-muted transition-opacity hover:text-wither md:opacity-0 md:group-hover:opacity-100"
+              className="shrink-0 px-1 text-text-lo transition-opacity hover:text-spec-m md:opacity-0 md:group-hover:opacity-100"
               aria-label="삭제"
             >
               <CloseIcon size={14} />
@@ -351,7 +351,7 @@ function CategorySection({
           setInput("");
         }}
       >
-        <PlusIcon size={15} className="shrink-0 text-content-muted" />
+        <PlusIcon size={15} className="shrink-0 text-text-lo" />
         <input
           id={`todo-add-${category.id}`}
           name={`todo-add-${category.id}`}
@@ -359,7 +359,7 @@ function CategorySection({
           onChange={(e) => setInput(e.target.value.slice(0, 200))}
           placeholder="할 일 추가 (예: 수학문제 10번까지 풀기)"
           aria-label={`${category.name}에 할 일 추가`}
-          className="min-w-0 flex-1 bg-transparent py-1 text-body-sm text-content-primary outline-none placeholder:text-content-muted"
+          className="min-w-0 flex-1 bg-transparent py-1 text-body-sm text-text-hi outline-none placeholder:text-text-lo"
         />
       </form>
     </Card>
@@ -389,7 +389,7 @@ function CategoryEditor({
   const fieldId = useId();
 
   return (
-    <div className="mb-3 rounded-lg border border-line-strong bg-black/25 p-3.5">
+    <div className="mb-3 rounded-lg border border-rule bg-black/25 p-3.5">
       <div className="flex items-end gap-2">
         <Field
           id={fieldId}
@@ -420,7 +420,7 @@ function CategoryEditor({
             onClick={() => setColor(c)}
             className={cn(
               "h-6 w-6 rounded-full transition-transform hover:scale-110",
-              color === c && "ring-2 ring-white/70 ring-offset-2 ring-offset-earth-base"
+              color === c && "ring-2 ring-white/70 ring-offset-2 ring-offset-ink-900"
             )}
             style={{ background: COLOR_HEX[c] }}
             aria-label={c}
@@ -431,7 +431,7 @@ function CategoryEditor({
           <button
             type="button"
             onClick={onDelete}
-            className="ml-auto text-caption font-semibold text-wither hover:brightness-125"
+            className="ml-auto text-caption font-semibold text-spec-m hover:brightness-125"
           >
             분류 삭제
           </button>

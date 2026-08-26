@@ -175,7 +175,7 @@ export default function NewConstellationPage() {
   }, []);
 
   return (
-    <div className="flex h-dvh w-full overflow-hidden bg-earth-base">
+    <div className="flex h-dvh w-full overflow-hidden bg-ink-900">
       <SideRail />
       <main className="min-w-0 flex-1">
         <ConstellationCanvas
