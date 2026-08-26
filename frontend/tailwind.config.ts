@@ -10,9 +10,15 @@ const config: Config = {
     extend: {
       colors: {
         // --- OurLab token system (constellation graph, dark-only) ---
-        // Ground is deep ink blue on purpose, not near-black: near-black +
-        // one acid accent is the default AI-design look we're avoiding.
-        ink: { 900: "#0B0E1A", 800: "#131829", 700: "#1C2338" },
+        // Ground was originally a deliberately-light ink blue (see prior
+        // comment: "not near-black, avoiding the default AI look"), but
+        // user feedback called it "too light and too blue" and asked for
+        // pitch-black deep space. 900 now sits near-black, hue-matched to
+        // the old value so it still reads as "ink" rather than flat #000
+        // (see globals.css --ink-900 for the full rationale). Must match
+        // globals.css's --ink-900 exactly — this utility does not read the
+        // CSS variable, it's a separate hardcoded value.
+        ink: { 900: "#04060B", 800: "#131829", 700: "#1C2338" },
         rule: "#2A3350", // hairlines, chart grid — use rule/NN for opacity steps
         text: { hi: "#E8EAF2", lo: "#8891AC" },
         // Stellar spectral classes double as element-type accents.

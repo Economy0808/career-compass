@@ -4,7 +4,12 @@
 
 :root {
   /* --- OurLab design tokens: 별자리 도감 시스템 (dark-only) --- */
-  --ink-900: #0b0e1a; /* page ground */
+  /* page ground - "칠흑같이 어두운 우주" 피드백으로 기존 #0b0e1a(밝고 푸른
+     잉크빛)에서 거의 검정으로 낮췄다. 완전한 #000은 그 위에 얹는 성운/은하
+     그라데이션이 눈에 안 띄게 죽어버려서, 원래 색상의 색조(푸른-보라)만
+     그대로 두고 명도만 ~40%로 낮춘 #04060b를 골랐다 - 육안으론 거의 검정인데
+     성운의 아주 옅은 그라데이션 단차는 여전히 보인다. */
+  --ink-900: #04060b; /* page ground */
   --ink-800: #131829; /* panel / surface */
   --ink-700: #1c2338; /* raised, hover */
   --rule: #2a3350; /* hairlines, chart grid */

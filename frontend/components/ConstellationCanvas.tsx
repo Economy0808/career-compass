@@ -25,6 +25,7 @@ import {
   type WheelEvent as ReactWheelEvent,
 } from "react";
 import { cn } from "@/lib/cn";
+import { SpaceBackdrop } from "@/components/SpaceBackdrop";
 
 export interface CanvasPosition {
   x: number;
@@ -99,10 +100,8 @@ const HANDLE_RADIUS = 22;
 // 동일한 원리). φ는 화면상에서 그 타원 자체를 살짝 돌려, "위에서 내려다본 원"이
 // 아니라 "비스듬히 본 기울어진 궤도"로 읽히게 한다.
 const ORBIT_RADIUS = HANDLE_RADIUS; // a - 확대된 핸들 링 위를 대략 따라 돈다
-const ORBIT_INCLINATION = (66 * Math.PI) / 180; // i - 60~70도 권장 범위 중간값
-const ORBIT_SEMI_MINOR = ORBIT_RADIUS * Math.cos(ORBIT_INCLINATION); // b
-const ORBIT_SCREEN_TILT = (16 * Math.PI) / 180; // φ - 살짝만 돌려 "기울어짐"을 읽히게
-const ORBIT_PERIOD_MS = 4200; // 한 바퀴에 걸리는 시간 - 느긋하게
+// i·φ·주기는 더 이상 전역 상수가 아니라 노드마다 다르다 - orbitParamsFor 참고.
+// 반지름 a만 핸들 링에 묶여 공통이고, 나머지 세 값은 노드 id로 결정된다.
 const SATELLITE_RADIUS = 2.4;
 /** 클릭과 드래그를 구분하는 임계값(px, 화면 좌표 기준). 이보다 적게 움직이면 클릭 = 선택(정보 카드 열기). */
 const CLICK_THRESHOLD = 4;
@@ -124,6 +123,36 @@ function colorForType(type: string): string {
   return TYPE_COLOR[type] ?? DEFAULT_TYPE_COLOR;
 }
 
+/** djb2 문자열 해시 - [0,1) 실수로 정규화한다. Math.random 금지: 같은
+ * 노드는 항상 같은 궤도를 그려야 한다(호버할 때마다 궤도가 바뀌면 "변주"가
+ * 아니라 "글리치"로 읽힌다). suffix로 시드를 갈라 i·φ·주기 세 축이 서로
+ * 독립적으로 흩어지게 한다 - 같은 h를 세 축에 그대로 쓰면 서로 상관돼서
+ * 옆 노드끼리도 비슷한 모양으로 뭉쳐 보인다. */
+function hashNodeId(seed: string): number {
+  let h = 5381;
+  for (let i = 0; i < seed.length; i++) {
+    h = (h * 33) ^ seed.charCodeAt(i);
+  }
+  return (h >>> 0) / 4294967295;
+}
+
+interface OrbitParams {
+  inclination: number; // i (라디안) - 50~75도
+  screenTilt: number; // φ (라디안) - 0~180도, 타원은 대칭이라 한 바퀴 다 안 씀
+  periodMs: number; // 3.5~5.5초 - 이웃 노드끼리 박자가 안 맞게(beat 방지)
+}
+
+function orbitParamsFor(nodeId: string): OrbitParams {
+  const inclinationDeg = 50 + hashNodeId(`${nodeId}#i`) * (75 - 50);
+  const screenTiltDeg = hashNodeId(`${nodeId}#phi`) * 180;
+  const periodMs = 3500 + hashNodeId(`${nodeId}#period`) * (5500 - 3500);
+  return {
+    inclination: (inclinationDeg * Math.PI) / 180,
+    screenTilt: (screenTiltDeg * Math.PI) / 180,
+    periodMs,
+  };
+}
+
 /**
  * 호버/포커스된 노드 주위를 도는 위성 - 파라메트릭 방정식으로 실제 위치를
  * 계산한다(CSS 스핀 애니메이션으로 흉내내지 않음). cx/cy/r/opacity를 매
@@ -132,23 +161,26 @@ function colorForType(type: string): string {
  * 마운트는 부모가 (isHovered || isFocused)로 제어하므로, 호버가 끝나면 이
  * 컴포넌트가 언마운트되고 아래 useEffect의 cleanup이 rAF 루프를 반드시 끊는다
  * (노드마다 루프가 누적되는 걸 막는 지점).
+ *
+ * 궤도의 기울기(i)·화면 회전(φ)·주기는 nodeId에서 결정적으로 유도한다(위
+ * orbitParamsFor) - 옆에 나란히 뜬 두 위성이 똑같은 모양으로 돌면 "복사-붙여넣기"
+ * 처럼 보이므로, 반지름(a, 핸들 링 크기)만 공통으로 두고 나머지를 흩뜨린다.
  */
-function OrbitingSatellite({ color }: { color: string }) {
+function OrbitingSatellite({ color, nodeId }: { color: string; nodeId: string }) {
   const circleRef = useRef<SVGCircleElement>(null);
+  const { inclination, screenTilt, periodMs } = useMemo(() => orbitParamsFor(nodeId), [nodeId]);
 
   useEffect(() => {
     const el = circleRef.current;
     if (!el) return;
 
+    const semiMinor = ORBIT_RADIUS * Math.cos(inclination); // b = a·cos(i)
+
     const paint = (t: number) => {
       const cosT = Math.cos(t);
       const sinT = Math.sin(t);
-      const x =
-        ORBIT_RADIUS * cosT * Math.cos(ORBIT_SCREEN_TILT) -
-        ORBIT_SEMI_MINOR * sinT * Math.sin(ORBIT_SCREEN_TILT);
-      const y =
-        ORBIT_RADIUS * cosT * Math.sin(ORBIT_SCREEN_TILT) +
-        ORBIT_SEMI_MINOR * sinT * Math.cos(ORBIT_SCREEN_TILT);
+      const x = ORBIT_RADIUS * cosT * Math.cos(screenTilt) - semiMinor * sinT * Math.sin(screenTilt);
+      const y = ORBIT_RADIUS * cosT * Math.sin(screenTilt) + semiMinor * sinT * Math.cos(screenTilt);
       // sin(t)의 부호 = 궤도의 앞/뒤 반구. 뒤로 넘어간 순간엔 살짝 작고
       // 흐리게 그려 깊이를 값싸게 흉내낸다("행성" 뒤로 숨는 느낌).
       const isBehind = sinT < 0;
@@ -169,13 +201,13 @@ function OrbitingSatellite({ color }: { color: string }) {
     let frameId = 0;
     const start = performance.now();
     const tick = (now: number) => {
-      const t = ((now - start) / ORBIT_PERIOD_MS) * Math.PI * 2;
+      const t = ((now - start) / periodMs) * Math.PI * 2;
       paint(t);
       frameId = requestAnimationFrame(tick);
     };
     frameId = requestAnimationFrame(tick);
     return () => cancelAnimationFrame(frameId);
-  }, []);
+  }, [inclination, screenTilt, periodMs]);
 
   return <circle ref={circleRef} r={SATELLITE_RADIUS} fill={color} opacity={0.95} pointerEvents="none" aria-hidden="true" />;
 }
@@ -530,7 +562,7 @@ export function ConstellationCanvas({
   // 간섭하지 않는다 - 첫 클릭의 pointerup에서 이미 선택 처리가 끝난 뒤에
   // 브라우저가 두 번째 클릭까지 보고 나서야 이 이벤트를 한 번 더 얹어 준다.
   const handleNodeDoubleClick = useCallback(
-    (nodeId: string) => (e: ReactMouseEvent<SVGCircleElement>) => {
+    (nodeId: string) => (e: ReactMouseEvent<Element>) => {
       if (readOnly) return;
       e.stopPropagation();
       onNodeToggleComplete(nodeId);
@@ -551,7 +583,25 @@ export function ConstellationCanvas({
   const dragEdgeSource = dragRef.current?.kind === "edge" ? dragRef.current.sourceNodeId : null;
 
   return (
-    <div className={cn("relative h-full w-full overflow-hidden bg-ink-900 bg-radec-grid", className)}>
+    <div
+      className={cn("relative h-full w-full overflow-hidden", className)}
+      // bg-ink-900 대신 CSS 변수를 직접 쓴다: 이 저장소의 dev 서버가 Windows에서
+      // tailwind.config.ts 변경을 감지 못해(청소커/체크바 이슈로 보임) 캔버스
+      // 바탕색이 유틸리티 클래스로는 재빌드 전까지 옛 값(#0B0E1A)에 고정돼
+      // 버렸다. globals.css의 --ink-900은 즉시 반영되므로 그걸 직접 참조해
+      // Tailwind JIT 캐시 신선도에 기대지 않게 한다. tailwind.config.ts의
+      // ink.900도 값은 맞춰 뒀다(다른 페이지의 bg-ink-900 유틸리티용).
+      style={{ backgroundColor: "var(--ink-900)" }}
+    >
+      {/* 배경 레이어 순서(뒤->앞): 컨테이너 바탕색(ink-900, 위 className) ->
+          심우주 배경(성운/은하/블랙홀, SpaceBackdrop) -> 적경/적위 격자 -> svg(그래프).
+          격자를 컨테이너 자체의 background-image로 두면 항상 자식보다 먼저
+          그려지는 걸 이용했던 예전 방식은 SpaceBackdrop을 그 위에 자식으로
+          끼워 넣는 순간 격자를 가려버린다 - 그래서 격자도 별도 레이어로 뺐다.
+          둘 다 pan/zoom <g> 밖에 있으므로 뷰포트에 고정되고(팬해도 안 움직임),
+          pointer-events: none이라 팬/드래그/엣지 연결을 절대 가로채지 않는다. */}
+      <SpaceBackdrop />
+      <div className="bg-radec-grid pointer-events-none absolute inset-0" aria-hidden="true" />
       <svg
         ref={svgRef}
         className="h-full w-full touch-none select-none"
@@ -667,6 +717,7 @@ export function ConstellationCanvas({
                 onPointerEnter={() => setHoveredNodeId(node.id)}
                 onPointerLeave={() => setHoveredNodeId((cur) => (cur === node.id ? null : cur))}
                 onPointerDown={beginNodeDrag(node.id)}
+                onDoubleClick={!readOnly ? handleNodeDoubleClick(node.id) : undefined}
                 style={{ cursor: readOnly ? "default" : "pointer", outline: "none" }}
               >
                 {/* 엣지 생성용 핸들 링 - 항상 존재하는 히트 영역이지만, 평소에는
@@ -692,7 +743,7 @@ export function ConstellationCanvas({
                     돈다(파라메트릭 방정식, 아래 OrbitingSatellite 참고). 전체
                     노드가 아니라 이 노드에서만 마운트되므로 rAF 루프는 항상
                     최대 1개만 살아있다. */}
-                {(isHovered || isFocused) && <OrbitingSatellite color={color} />}
+                {(isHovered || isFocused) && <OrbitingSatellite color={color} nodeId={node.id} />}
 
                 {/* 핸들 링 드래그로 연결 중인 출발 노드 표시 - 점선 링. */}
                 {isDragEdgeSource && (
@@ -717,6 +768,11 @@ export function ConstellationCanvas({
                     판정에서 제외한다. none으로 두면 미완료 노드는 몸통을 눌러도
                     반응하지 않고, 실제로 "군집에서 끌어온 요소는 연결이 안 된다"는
                     증상으로 나타났다(시드 노드는 완료 상태라 색이 채워져 멀쩡했다). */}
+                {/* onDoubleClick은 여기가 아니라 위 <g>에 달려 있다 - 몸통(r≈8)만
+                    노렸던 예전 방식은 핸들 링(r=22, 위성 작업으로 확대됨)이 대부분의
+                    면적을 덮어버려 살짝만 빗나가도 더블클릭이 엣지 드래그로 새는
+                    버그였다. <g>에 달면 몸통이든 링이든 어디를 더블클릭해도(네이티브
+                    dblclick 이벤트는 버블링된다) 판정 영역이 r=22 전체로 넓어진다. */}
                 <circle
                   r={r}
                   fill={node.isCompleted ? color : "transparent"}
@@ -724,7 +780,6 @@ export function ConstellationCanvas({
                   strokeWidth={node.isCompleted ? 0 : 1}
                   opacity={magOpacity}
                   filter={node.isCompleted ? "url(#const-glow)" : undefined}
-                  onDoubleClick={!readOnly ? handleNodeDoubleClick(node.id) : undefined}
                 />
 
                 <text
