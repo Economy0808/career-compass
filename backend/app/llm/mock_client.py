@@ -16,6 +16,10 @@ from app.llm.base import (
     CareerIntent,
     ChatMessage,
     ChatTurn,
+    ClusteredCourse,
+    CourseCluster,
+    CourseClusterResult,
+    CourseOption,
     GeneratedMilestone,
     GeneratedRoadmapItem,
     GeneratedRoadmapSet,
@@ -24,6 +28,22 @@ from app.llm.base import (
     NcsJobOption,
     RoadmapContext,
 )
+
+# 목표 텍스트의 키워드 -> 관련 단과대/학과 (결정론적 mock 매칭용, 닫힌 집합 아님).
+# 실제 모델은 의미로 판단하지만, mock은 부분일치로 같은 계약(못 찾으면 빈 리스트)을 지킨다.
+_DEPARTMENT_KEYWORDS: dict[str, list[str]] = {
+    "컨설턴트": ["경영대학", "상경대학"],
+    "컨설팅": ["경영대학", "상경대학"],
+    "경영": ["경영대학"],
+    "재무": ["경영대학", "상경대학"],
+    "회계": ["경영대학"],
+    "마케팅": ["경영대학"],
+    "전과": ["문과대학"],
+    "데이터": ["응용통계학과", "공과대학"],
+    "통계": ["응용통계학과"],
+    "개발자": ["공과대학"],
+    "프로그래": ["공과대학"],
+}
 
 MIN_MILESTONES = 6
 MAX_MILESTONES = 12
@@ -269,6 +289,54 @@ class MockClaudeClient:
                 ),
             ],
         )
+
+    async def select_relevant_departments(self, goal_text: str) -> list[str]:
+        """목표 텍스트에 포함된 키워드로 결정론적으로 학과/단과대를 고른다.
+
+        매칭되는 키워드가 없으면 빈 리스트 — 실제 모델의 "확신 없으면 비워둔다"는
+        계약과 같은 모양을 mock에서도 지킨다(억지 매칭 대신 폴백 경로 테스트용).
+        """
+        matched: list[str] = []
+        for keyword, departments in _DEPARTMENT_KEYWORDS.items():
+            if keyword in goal_text:
+                for dept in departments:
+                    if dept not in matched:
+                        matched.append(dept)
+        return matched
+
+    async def cluster_courses(
+        self, goal_text: str, courses: list[CourseOption]
+    ) -> CourseClusterResult:
+        """학과별로 결정론적 군집을 만든다 (실제 모델의 의미 판단 대신 그룹핑).
+
+        5000/6000단위는 방어적으로 한 번 더 걸러낸다 — course_clustering 서비스가
+        이미 걸러 보내지만, 이 메서드를 단독 호출하는 테스트에서도 계약이 지켜지도록.
+        군집 이름은 목표 텍스트에서 파생되므로 고정 목록이 아니다.
+        """
+        stripped = _strip_goal(goal_text)
+        by_department: dict[str, list[CourseOption]] = {}
+        for course in courses:
+            if course.level is not None and course.level >= 5:
+                continue
+            key = course.department or "기타"
+            by_department.setdefault(key, []).append(course)
+
+        clusters = [
+            CourseCluster(
+                name=f"{stripped}: {dept}",
+                courses=[
+                    ClusteredCourse(
+                        code=c.code,
+                        name=c.name,
+                        level=c.level,
+                        reason=f"'{stripped}' 목표와 관련된 {dept} 과목",
+                    )
+                    for c in dept_courses
+                ],
+            )
+            for dept, dept_courses in by_department.items()
+        ]
+        return CourseClusterResult(clusters=clusters)
 
     async def research_job(
         self, job_name: str, ability_units: list[AbilityUnitRef]

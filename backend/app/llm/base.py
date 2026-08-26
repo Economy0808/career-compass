@@ -113,6 +113,42 @@ class NcsJobOption:
 
 
 @dataclass
+class CourseOption:
+    """수업 군집화 판단에 넘기는 후보 과목 (course_catalog에서 학과로 좁힌 결과)."""
+
+    code: str
+    name: str
+    description: str | None
+    level: int | None  # 학정번호 첫 자리 기반 계층(1~4). 100% 커버리지.
+    years: list[int]  # 개설 학년(수강 가능 학년) — level과 다른 개념, 섞지 말 것.
+    kind: str | None  # 전기/전필/전선 등
+    department: str | None
+
+
+@dataclass
+class ClusteredCourse:
+    """군집에 속한 과목 — code는 반드시 후보 목록에 있던 것 그대로(환각 방지)."""
+
+    code: str
+    name: str
+    level: int | None
+    reason: str  # 이 과목이 왜 이 목표에 맞는지 한 줄 근거
+
+
+@dataclass
+class CourseCluster:
+    """LLM이 목표에 맞춰 즉석에서 이름 붙인 군집. 고정 목록이 아니다."""
+
+    name: str
+    courses: list[ClusteredCourse] = field(default_factory=list)
+
+
+@dataclass
+class CourseClusterResult:
+    clusters: list[CourseCluster] = field(default_factory=list)
+
+
+@dataclass
 class JobResearchResult:
     """직종별 웹 리서치 결과 — 요약 + 출처 링크만 (원문 복제 금지)."""
 
@@ -167,6 +203,24 @@ class LLMClient(Protocol):
 
     async def synthesize_roadmap(self, context: RoadmapContext) -> GeneratedRoadmapSet:
         """의중 + NCS 능력단위 + 리서치를 종합해 소분류 로드맵 세트를 생성한다 (강한 모델)."""
+        ...
+
+    async def select_relevant_departments(self, goal_text: str) -> list[str]:
+        """진로 목표와 관련 있는 단과대/학과 이름을 고른다 (수업 후보 좁히기 1단계).
+
+        임베딩 유사도 대신 카테고리로 후보를 좁힌 뒤 LLM이 판단하는 패턴 —
+        select_ncs_job과 동일하게, 확신이 없으면 빈 리스트를 내는 것이 정상이다.
+        """
+        ...
+
+    async def cluster_courses(
+        self, goal_text: str, courses: list[CourseOption]
+    ) -> CourseClusterResult:
+        """좁혀진 후보 과목 중 목표에 실제로 맞는 것을 골라 이름 붙인 군집으로 묶는다.
+
+        군집 이름은 목표별로 모델이 즉석에서 짓는다(고정 목록 아님). 정렬(계층
+        규칙 적용)은 이 메서드의 책임이 아니라 course_clustering 서비스가 한다.
+        """
         ...
 
     async def research_job(

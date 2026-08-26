@@ -31,6 +31,10 @@ from app.llm.base import (
     CareerIntent,
     ChatMessage,
     ChatTurn,
+    ClusteredCourse,
+    CourseCluster,
+    CourseClusterResult,
+    CourseOption,
     GeneratedMilestone,
     GeneratedRoadmapItem,
     GeneratedRoadmapSet,
@@ -119,6 +123,44 @@ _ROADMAP_SCHEMA = {
 }
 
 
+_DEPARTMENT_SCHEMA = {
+    "type": "object",
+    "additionalProperties": False,
+    "properties": {"departments": {"type": "array", "items": {"type": "string"}}},
+    "required": ["departments"],
+}
+_COURSE_CLUSTER_SCHEMA = {
+    "type": "object",
+    "additionalProperties": False,
+    "properties": {
+        "clusters": {
+            "type": "array",
+            "items": {
+                "type": "object",
+                "additionalProperties": False,
+                "properties": {
+                    "name": {"type": "string"},
+                    "courses": {
+                        "type": "array",
+                        "items": {
+                            "type": "object",
+                            "additionalProperties": False,
+                            "properties": {
+                                "code": {"type": "string"},
+                                "reason": {"type": "string"},
+                            },
+                            "required": ["code", "reason"],
+                        },
+                    },
+                },
+                "required": ["name", "courses"],
+            },
+        }
+    },
+    "required": ["clusters"],
+}
+
+
 logger = logging.getLogger(__name__)
 
 
@@ -185,9 +227,7 @@ class AnthropicClaudeClient:
                 socket_options=[(socket.SOL_SOCKET, socket.SO_KEEPALIVE, 1)],
             ),
         )
-        self._client = AsyncAnthropic(
-            api_key=settings.anthropic_api_key, http_client=http_client
-        )
+        self._client = AsyncAnthropic(api_key=settings.anthropic_api_key, http_client=http_client)
         self._extract_model = settings.llm_extract_model
         self._synthesis_model = settings.llm_synthesis_model
         self._synthesis_web_search = settings.llm_synthesis_web_search
@@ -532,6 +572,108 @@ class AnthropicClaudeClient:
             items=items,
             source_urls=_web_search_domains(message),
         )
+
+    async def select_relevant_departments(self, goal_text: str) -> list[str]:
+        """진로 목표를 보고 관련 단과대/학과를 고른다 (수업 후보 좁히기 1단계).
+
+        임베딩 유사도는 쓰지 않는다 — "관련 있어 보임"과 "실제 그 학과 수업이 필요함"을
+        구분 못 해 이전 NCS 매칭에서 폐기된 접근이다. 대신 넓게 카테고리를 좁힌 뒤
+        cluster_courses에서 실제 과목 단위로 다시 판단한다.
+        """
+        system = (
+            "너는 연세대학교 교과과정 전문가다. 학생의 진로 목표를 보고, 관련 수업이"
+            " 있을 만한 단과대학/학과 이름을 한국어로 나열하라 (예: '경영대학',"
+            " '문과대학 사회학과', 'Underwood International College'). 실제로 관련"
+            " 수업이 있을 만한 곳은 폭넓게 포함하되, 명백히 무관한 곳은 넣지 마라."
+            " 목표가 너무 막연하거나 어떤 학과와도 관련짓기 어려우면 빈 배열을"
+            " 반환하라 — 억지로 채우지 마라."
+        )
+        # 가벼운 카테고리 판단이라 thinking 불필요(다른 경량 호출과 동일 이유 — 잘림 방지).
+        resp = await self._client.messages.create(
+            model=self._extract_model,
+            max_tokens=1024,
+            thinking={"type": "disabled"},
+            system=_cached_system(system),
+            messages=[{"role": "user", "content": f"진로 목표: {goal_text}"}],
+            output_config={"format": {"type": "json_schema", "schema": _DEPARTMENT_SCHEMA}},
+        )
+        if _refused(resp):
+            return []
+        try:
+            data = json.loads(_first_text(resp))
+            return [str(d) for d in data.get("departments", [])]
+        except (json.JSONDecodeError, KeyError, TypeError):
+            logger.warning("department selection returned unparsable JSON; returning empty")
+            return []
+
+    async def cluster_courses(
+        self, goal_text: str, courses: list[CourseOption]
+    ) -> CourseClusterResult:
+        """좁혀진 후보 과목 중 목표에 맞는 것을 골라 이름 붙인 군집으로 묶는다."""
+        if not courses:
+            return CourseClusterResult(clusters=[])
+        system = (
+            "너는 연세대학교 커리큘럼 어드바이저다. 학생의 진로 목표와 아래 후보 수업"
+            " 목록을 보고, 목표 달성에 실제로 도움이 되는 수업만 골라 의미 있는 이름의"
+            " 군집(cluster)으로 묶어라.\n\n"
+            "규칙:\n"
+            "- 군집 이름은 목표에 맞춰 즉석에서 지어라(예: '재무·회계 기초', '데이터"
+            " 분석'). 고정된 이름을 쓰지 마라.\n"
+            "- 각 과목의 code는 후보 목록에 있는 그대로 정확히 써라(지어내지 마라).\n"
+            "- '관련 있어 보임'이 아니라 실제로 이 목표에 필요한 수업만 골라라. 정말"
+            " 무관한 후보는 아예 빼도 된다 — 억지로 다 채우지 마라.\n"
+            "- reason은 이 과목이 왜 이 목표에 맞는지 한 줄로.\n"
+            "- level은 과목의 계층(1000~4000)이고 years는 수강 가능 학년이다 — 서로"
+            " 다른 개념이니 혼동하지 마라. 1학년 수준의 목표라면 4000단위 수업으로"
+            " 시작을 이끌지 마라(도약이 너무 크다) — 단, 아예 배제하라는 뜻은 아니다."
+        )
+        catalog = "\n".join(
+            f"{c.code} | {c.name} | level={c.level} | years={c.years} | kind={c.kind}"
+            f" | {c.department or ''} | {(c.description or '')[:200]}"
+            for c in courses
+        )
+        user = f"진로 목표: {goal_text}\n\n후보 수업 목록:\n{catalog}"
+        # 후보가 많을 수 있는 판단이라 출력 예산을 넉넉히 잡는다. thinking은 끈다 —
+        # 이 코드베이스에서 세 번 반복된 함정(작은 max_tokens + thinking = JSON 잘림).
+        resp = await self._client.messages.create(
+            model=self._extract_model,
+            max_tokens=8000,
+            thinking={"type": "disabled"},
+            system=_cached_system(system),
+            messages=[{"role": "user", "content": user}],
+            output_config={"format": {"type": "json_schema", "schema": _COURSE_CLUSTER_SCHEMA}},
+        )
+        if _refused(resp) or getattr(resp, "stop_reason", None) == "max_tokens":
+            logger.warning("course clustering truncated or refused; returning empty")
+            return CourseClusterResult(clusters=[])
+        try:
+            data = json.loads(_first_text(resp))
+        except json.JSONDecodeError:
+            logger.warning("course clustering returned unparsable JSON; returning empty")
+            return CourseClusterResult(clusters=[])
+
+        by_code = {c.code: c for c in courses}
+        clusters: list[CourseCluster] = []
+        for raw_cluster in data.get("clusters", []):
+            clustered: list[ClusteredCourse] = []
+            for raw_course in raw_cluster.get("courses", []):
+                code = raw_course.get("code")
+                course = by_code.get(code)
+                if course is None:
+                    continue  # 환각 방어: 후보에 없는 코드는 버린다.
+                clustered.append(
+                    ClusteredCourse(
+                        code=course.code,
+                        name=course.name,
+                        level=course.level,
+                        reason=str(raw_course.get("reason", "")),
+                    )
+                )
+            if clustered:
+                clusters.append(
+                    CourseCluster(name=str(raw_cluster.get("name", "")), courses=clustered)
+                )
+        return CourseClusterResult(clusters=clusters)
 
     async def research_job(
         self, job_name: str, ability_units: list[AbilityUnitRef]
