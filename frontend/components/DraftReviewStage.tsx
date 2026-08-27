@@ -81,12 +81,24 @@ const BACKGROUND_STARS = [
 ];
 
 function BackgroundStars() {
+  // SVG viewBox를 화면에 늘리면(preserveAspectRatio none) 원이 타원 얼룩이
+  // 된다(실측) - % 좌표의 div 점으로 그려 항상 동그란 별을 유지한다.
   return (
-    <svg className="pointer-events-none absolute inset-0 h-full w-full" viewBox="0 0 100 100" preserveAspectRatio="none" aria-hidden>
+    <div className="pointer-events-none absolute inset-0" aria-hidden>
       {BACKGROUND_STARS.map((s, idx) => (
-        <circle key={idx} cx={s.x} cy={s.y} r={s.r} fill="var(--text-hi)" opacity={s.o} />
+        <span
+          key={idx}
+          className="absolute rounded-full bg-text-hi"
+          style={{
+            left: `${s.x}%`,
+            top: `${s.y}%`,
+            width: s.r * 2,
+            height: s.r * 2,
+            opacity: s.o,
+          }}
+        />
       ))}
-    </svg>
+    </div>
   );
 }
 
@@ -124,9 +136,13 @@ function usePreviewLayout(nodes: CanvasNode[]) {
     const centerY = (minY + maxY) / 2;
     const totalSpanX = spanX * (1 + PREVIEW_PADDING_RATIO * 2);
     const totalSpanY = spanY * (1 + PREVIEW_PADDING_RATIO * 2);
+    // 극단에 있는 노드의 라벨(중앙 정렬이라 좌우로 반씩 뻗음)이 화면 밖으로
+    // 나가지 않게 좌표를 7~93%로 클램프한다. 선과 점이 같은 함수를 쓰므로
+    // 기하가 함께 밀려 어긋나지 않는다(정적 미리보기라 약간의 왜곡은 허용).
+    const clamp = (v: number) => Math.min(Math.max(v, 7), 93);
     return (pos: CanvasPosition) => ({
-      left: ((pos.x - centerX) / totalSpanX + 0.5) * 100,
-      top: ((pos.y - centerY) / totalSpanY + 0.5) * 100,
+      left: clamp(((pos.x - centerX) / totalSpanX + 0.5) * 100),
+      top: clamp(((pos.y - centerY) / totalSpanY + 0.5) * 100),
     });
   }, [nodes]);
 }
@@ -153,22 +169,22 @@ export function DraftReviewStage({
       <div className="bg-radec-grid pointer-events-none absolute inset-0" aria-hidden />
       <BackgroundStars />
 
-      {/* 상단 중앙 배너 - 대화 완료 직후에도 계속 남아 "드래그로 고칠 수
-          있다"는 걸 알려준다(정적 미리보기지만 문구는 그대로 유지 - 실제
-          드래그는 확정 후 메인 캔버스에서 가능). */}
+      {/* 상단 중앙 배너 - 시안의 pill 형태. 이 화면은 정적 미리보기라
+          "끌어서 고친다"는 약속은 하지 않는다(그건 확정 후 캔버스의 일 -
+          여기서 말하면 거짓 어포던스가 된다). */}
       <div
-        className="pointer-events-none fixed left-1/2 top-6 z-10 flex -translate-x-1/2 items-center gap-2 rounded-lg border border-rule bg-ink-800/95 px-4 py-2 shadow-lg backdrop-blur-md"
+        className="pointer-events-none fixed left-1/2 top-6 z-10 flex -translate-x-1/2 items-center gap-2.5 rounded-full border border-rule bg-ink-800/95 px-5 py-2.5 shadow-lg backdrop-blur-md"
         role="status"
       >
         <StarGlyph size={14} />
-        <span className="font-sans text-xs text-text-hi">
-          대화를 바탕으로 별자리 초안을 그렸어요 — 별을 끌어 마음대로 고쳐도 돼요
+        <span className="font-sans text-body-sm text-text-hi">
+          대화를 바탕으로 별자리 초안을 그렸어요 — 마음에 드는 안을 골라 시작하세요
         </span>
       </div>
 
       {/* 중앙-우측 큰 미리보기 - 좌하단 패널 자리를 비워두기 위해 뷰포트의
           오른쪽 55~60%만 쓴다. */}
-      <div className="absolute inset-y-0 right-0 flex w-[58%] items-center justify-center py-28 pl-8 pr-12">
+      <div className="absolute inset-x-0 bottom-[calc(46vh+var(--tabbar-h))] top-20 flex items-center justify-center px-6 md:inset-y-0 md:bottom-0 md:left-auto md:right-0 md:top-0 md:w-[58%] md:py-28 md:pl-8 md:pr-12">
         {toPct ? (
           <div className="relative h-full max-h-[620px] w-full max-w-[760px]">
             <svg className="absolute inset-0 h-full w-full" viewBox="0 0 100 100" preserveAspectRatio="none" aria-hidden>
@@ -182,7 +198,7 @@ export function DraftReviewStage({
                     y1={a.top}
                     x2={b.left}
                     y2={b.top}
-                    stroke="rgb(232 234 242 / 0.22)"
+                    stroke="rgb(255 243 196 / 0.45)"
                     strokeWidth={0.35}
                     vectorEffect="non-scaling-stroke"
                   />
@@ -193,7 +209,10 @@ export function DraftReviewStage({
             {nodeList.map((node) => {
               const pos = toPct(node.position);
               const color = colorForType(node.type);
-              const isCourse = node.type === "course";
+              // 캔버스와 같은 문법: 채움 = "달성"이다(유형이 아니라). 초안의
+              // 별은 대부분 미달성이라 속 빈 링 + 유형색 테두리로 그린다 -
+              // 확정 후 캔버스에서 같은 별이 같은 모습으로 이어져야 한다.
+              const filled = node.isCompleted;
               return (
                 <div
                   key={node.id}
@@ -204,14 +223,19 @@ export function DraftReviewStage({
                     aria-hidden
                     className="block rounded-full"
                     style={
-                      isCourse
-                        ? { width: 18, height: 18, background: color }
-                        : { width: 16, height: 16, background: "transparent", border: `1.5px solid ${color}` }
+                      filled
+                        ? { width: 17, height: 17, background: color, border: `1.5px solid ${color}` }
+                        : { width: 17, height: 17, background: "transparent", border: `1.5px solid ${color}` }
                     }
                   />
-                  <span className="mt-1.5 whitespace-nowrap font-sans text-sm text-text-hi">{node.label}</span>
-                  {isCourse && node.code && (
-                    <span className="whitespace-nowrap font-mono text-[11px] text-text-lo">{node.code}</span>
+                  <span
+                    className="mt-1.5 max-w-[120px] truncate font-sans text-body-sm text-text-hi md:max-w-[200px]"
+                    title={node.label}
+                  >
+                    {node.label}
+                  </span>
+                  {node.code && (
+                    <span className="whitespace-nowrap font-mono text-micro text-text-lo">{node.code}</span>
                   )}
                 </div>
               );
@@ -234,7 +258,8 @@ export function DraftReviewStage({
         )}
       >
         <div className="flex items-baseline justify-between border-b border-rule px-4 py-3">
-          <h2 className="font-sans text-sm font-medium text-text-hi">추천 별자리</h2>
+          {/* 시안: 패널 제목은 별자리 이름과 같은 세리프(디스플레이) 어휘 */}
+          <h2 className="font-serif text-heading font-bold text-text-hi">추천 별자리</h2>
           <span className="font-mono text-micro text-text-lo">{drafts.length}안</span>
         </div>
 
@@ -248,9 +273,10 @@ export function DraftReviewStage({
                 aria-pressed={isSelected}
                 onClick={() => onSelect(index)}
                 className={cn(
-                  "w-full rounded-md border-l px-2.5 py-2 text-left transition-colors",
+                  "w-full rounded-md border-l-2 px-2.5 py-2 text-left transition-colors",
                   "focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-1 focus-visible:outline-spec-b",
-                  isSelected ? "border-l-text-hi/20 bg-ink-700/70" : "border-l-transparent hover:bg-ink-700/60"
+                  // 시안: 선택된 안은 발광선(lit)과 같은 노란 좌측 보더로 표시
+                  isSelected ? "border-l-lit bg-ink-700/70" : "border-l-transparent hover:bg-ink-700/60"
                 )}
               >
                 <div className="font-sans text-sm font-medium text-text-hi">{draft.name}</div>
@@ -264,7 +290,7 @@ export function DraftReviewStage({
           <button
             type="button"
             onClick={onConfirm}
-            className="rounded-md bg-spec-b px-3 py-1.5 font-sans text-sm font-medium text-ink-900 hover:opacity-90 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-1 focus-visible:outline-spec-b"
+            className="rounded-md bg-spec-b px-3 py-1.5 font-sans text-sm font-medium text-ink-900 transition-colors hover:bg-spec-a focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-1 focus-visible:outline-spec-b"
           >
             이 별자리로 시작
           </button>
