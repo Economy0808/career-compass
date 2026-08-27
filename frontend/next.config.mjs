@@ -1,5 +1,10 @@
 /** @type {import('next').NextConfig} */
-const nextConfig = {};
+const nextConfig = {
+  // Two dev servers (ports 3000/3001, separate Claude sessions) sharing one
+  // .next dir corrupt each other's chunks (recurring 500/404 on _next/static).
+  // Give the secondary server its own build dir via NEXT_DIST_DIR.
+  distDir: process.env.NEXT_DIST_DIR || ".next",
+};
 
 export default nextConfig;
 
