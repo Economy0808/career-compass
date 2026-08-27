@@ -20,6 +20,7 @@ from __future__ import annotations
 import os
 from collections.abc import Iterator
 from datetime import UTC, datetime
+from uuid import uuid4
 
 import pytest
 import requests
@@ -286,6 +287,87 @@ def test_add_edge_and_remove_edge(db: Client) -> None:
     fetched_after = repo.get_constellation(db, "c1")
     assert fetched_after is not None
     assert "e1" not in fetched_after.edges
+
+
+# --- 특수 형식 id (dot-notation 이스케이프 회귀 테스트) ---
+#
+# 프론트엔드가 만드는 id는 Firestore 필드 경로 세그먼트 규칙
+# (`[_a-zA-Z][_a-zA-Z0-9]*`)을 어기는 경우가 흔하다 (콜론, 하이픈, 숫자로 시작).
+# FieldPath.to_api_repr()로 이스케이프하지 않으면 update()가 ValueError를 던진다.
+
+
+def test_add_node_and_update_and_toggle_with_colon_id(db: Client) -> None:
+    node_id = "element:phil-101"
+    repo.create_constellation(db, _make_constellation("c1", "owner1"))
+
+    repo.add_node(db, "c1", _make_node(node_id), owner_id="owner1")
+    fetched = repo.get_constellation(db, "c1")
+    assert fetched is not None
+    assert node_id in fetched.nodes
+
+    repo.update_node_position(db, "c1", node_id, Position(x=5.0, y=5.0), owner_id="owner1")
+    fetched = repo.get_constellation(db, "c1")
+    assert fetched is not None
+    assert fetched.nodes[node_id].position == Position(x=5.0, y=5.0)
+
+    updated = repo.toggle_node_completion(db, "c1", node_id, True, owner_id="owner1")
+    assert updated.nodes[node_id].is_completed is True
+
+
+def test_add_edge_and_remove_edge_with_hyphenated_id(db: Client) -> None:
+    edge_id = "edge-local-1"
+    nodes = {"n1": _make_node("n1"), "n2": _make_node("n2")}
+    repo.create_constellation(db, _make_constellation("c1", "owner1", nodes=nodes))
+
+    repo.add_edge(db, "c1", _make_edge(edge_id, "n1", "n2"), owner_id="owner1")
+    fetched = repo.get_constellation(db, "c1")
+    assert fetched is not None
+    assert edge_id in fetched.edges
+
+    repo.remove_edge(db, "c1", edge_id, owner_id="owner1")
+    fetched_after = repo.get_constellation(db, "c1")
+    assert fetched_after is not None
+    assert edge_id not in fetched_after.edges
+
+
+def test_remove_node_with_uuid_id(db: Client) -> None:
+    node_id = str(uuid4())
+    nodes = {node_id: _make_node(node_id), "n2": _make_node("n2")}
+    repo.create_constellation(db, _make_constellation("c1", "owner1", nodes=nodes))
+
+    repo.remove_node(db, "c1", node_id, owner_id="owner1")
+
+    fetched = repo.get_constellation(db, "c1")
+    assert fetched is not None
+    assert node_id not in fetched.nodes
+    assert "n2" in fetched.nodes
+
+
+def test_add_node_with_leading_digit_id(db: Client) -> None:
+    node_id = "7d3fa1e2"
+    repo.create_constellation(db, _make_constellation("c1", "owner1"))
+
+    repo.add_node(db, "c1", _make_node(node_id), owner_id="owner1")
+
+    fetched = repo.get_constellation(db, "c1")
+    assert fetched is not None
+    assert node_id in fetched.nodes
+
+
+def test_update_special_id_node_leaves_sibling_node_intact(db: Client) -> None:
+    special_id = "element:phil-101"
+    sibling = _make_node("n2", x=3.0, y=3.0, is_completed=True)
+    nodes = {special_id: _make_node(special_id), "n2": sibling}
+    repo.create_constellation(db, _make_constellation("c1", "owner1", nodes=nodes))
+
+    repo.update_node_position(db, "c1", special_id, Position(x=9.0, y=9.0), owner_id="owner1")
+
+    fetched = repo.get_constellation(db, "c1")
+    assert fetched is not None
+    assert fetched.nodes[special_id].position == Position(x=9.0, y=9.0)
+    # 형제 노드는 부분 업데이트로부터 완전히 보호되어야 한다
+    assert fetched.nodes["n2"].position == Position(x=3.0, y=3.0)
+    assert fetched.nodes["n2"].is_completed is True
 
 
 # --- delete_constellation ---

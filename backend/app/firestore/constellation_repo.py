@@ -56,6 +56,7 @@ from typing import Any
 from google.cloud import firestore as gcf
 from google.cloud.firestore import Client, DocumentSnapshot, Transaction
 from google.cloud.firestore_v1.base_query import FieldFilter
+from google.cloud.firestore_v1.field_path import FieldPath
 
 from app.domain.constellation import (
     Constellation,
@@ -68,6 +69,27 @@ from app.domain.constellation import (
 )
 
 _COLLECTION = "constellations"
+
+
+def _node_path(node_id: str, *rest: str) -> str:
+    """ "nodes.{node_id}[.rest...]" dot-notation 경로를 안전하게 이스케이프해 만든다.
+
+    프론트엔드가 만드는 node_id는 `element:phil-101`, crypto.randomUUID()의
+    하이픈, 숫자로 시작하는 hex id 등 Firestore 필드 경로 세그먼트 규칙
+    (`[_a-zA-Z][_a-zA-Z0-9]*`)을 어기는 경우가 흔하다. FieldPath.to_api_repr()는
+    필요한 세그먼트를 백틱으로 감싸 이런 id도 안전하게 경로 문자열로 만들어준다.
+    반환값은 str이어야 한다 - transaction.update()/doc_ref.update()의 dict 키로
+    FieldPath 객체를 그대로 넣으면 _helpers.py에서 TypeError가 난다.
+    """
+    return FieldPath("nodes", node_id, *rest).to_api_repr()
+
+
+def _edge_path(edge_id: str, *rest: str) -> str:
+    """ "edges.{edge_id}[.rest...]" dot-notation 경로를 안전하게 이스케이프해 만든다.
+
+    _node_path와 동일한 이유(임의 형식의 id) 때문에 필요하다.
+    """
+    return FieldPath("edges", edge_id, *rest).to_api_repr()
 
 
 class ConstellationRepoError(Exception):
@@ -202,7 +224,7 @@ def update_node_position(
         constellation.nodes[node_id].position = position
         constellation.updated_at = now
         update_data: dict[str, Any] = {
-            f"nodes.{node_id}.position": position.model_dump(),
+            _node_path(node_id, "position"): position.model_dump(),
             "updated_at": now,
         }
         return constellation, update_data
@@ -232,7 +254,7 @@ def toggle_node_completion(
         progress_pct = compute_progress_pct(constellation.nodes)
         constellation.updated_at = now
         update_data: dict[str, Any] = {
-            f"nodes.{node_id}.is_completed": is_completed,
+            _node_path(node_id, "is_completed"): is_completed,
             "completed_node_count": completed,
             "total_node_count": total,
             "progress_pct": progress_pct,
@@ -251,7 +273,7 @@ def add_node(db: Client, constellation_id: str, node: Node, owner_id: str) -> No
         constellation.nodes[node.id] = node
         constellation.updated_at = now
         update_data: dict[str, Any] = {
-            f"nodes.{node.id}": node.model_dump(),
+            _node_path(node.id): node.model_dump(),
             "updated_at": now,
         }
         return constellation, update_data
@@ -278,7 +300,7 @@ def remove_node(db: Client, constellation_id: str, node_id: str, owner_id: str) 
         progress_pct = compute_progress_pct(constellation.nodes)
         constellation.updated_at = now
         update_data: dict[str, Any] = {
-            f"nodes.{node_id}": gcf.DELETE_FIELD,
+            _node_path(node_id): gcf.DELETE_FIELD,
             "edges": {eid: e.model_dump() for eid, e in constellation.edges.items()},
             "completed_node_count": completed,
             "total_node_count": total,
@@ -298,7 +320,7 @@ def add_edge(db: Client, constellation_id: str, edge: Edge, owner_id: str) -> No
         constellation.edges[edge.id] = edge
         constellation.updated_at = now
         update_data: dict[str, Any] = {
-            f"edges.{edge.id}": edge.model_dump(),
+            _edge_path(edge.id): edge.model_dump(),
             "updated_at": now,
         }
         return constellation, update_data
@@ -316,7 +338,7 @@ def remove_edge(db: Client, constellation_id: str, edge_id: str, owner_id: str) 
         del constellation.edges[edge_id]
         constellation.updated_at = now
         update_data: dict[str, Any] = {
-            f"edges.{edge_id}": gcf.DELETE_FIELD,
+            _edge_path(edge_id): gcf.DELETE_FIELD,
             "updated_at": now,
         }
         return constellation, update_data
