@@ -343,6 +343,56 @@ def test_remove_node_with_uuid_id(db: Client) -> None:
     assert "n2" in fetched.nodes
 
 
+def test_set_published_true_persists_and_bumps_updated_at(db: Client) -> None:
+    constellation = _make_constellation("c1", "owner1", is_published=False)
+    repo.create_constellation(db, constellation)
+    original_updated_at = constellation.updated_at
+
+    import time
+
+    time.sleep(0.01)  # Ensure updated_at actually changes
+    updated = repo.set_published(db, "c1", True, owner_id="owner1")
+
+    assert updated.is_published is True
+    assert updated.updated_at > original_updated_at
+
+    fetched = repo.get_constellation(db, "c1")
+    assert fetched is not None
+    assert fetched.is_published is True
+    assert fetched.updated_at > original_updated_at
+
+
+def test_set_published_false_persists_and_bumps_updated_at(db: Client) -> None:
+    constellation = _make_constellation("c1", "owner1", is_published=True)
+    repo.create_constellation(db, constellation)
+    original_updated_at = constellation.updated_at
+
+    import time
+
+    time.sleep(0.01)  # Ensure updated_at actually changes
+    updated = repo.set_published(db, "c1", False, owner_id="owner1")
+
+    assert updated.is_published is False
+    assert updated.updated_at > original_updated_at
+
+    fetched = repo.get_constellation(db, "c1")
+    assert fetched is not None
+    assert fetched.is_published is False
+    assert fetched.updated_at > original_updated_at
+
+
+def test_set_published_wrong_owner_raises(db: Client) -> None:
+    repo.create_constellation(db, _make_constellation("c1", "owner1", is_published=False))
+
+    with pytest.raises(repo.ConstellationPermissionError):
+        repo.set_published(db, "c1", True, owner_id="intruder")
+
+
+def test_set_published_unknown_id_raises(db: Client) -> None:
+    with pytest.raises(repo.ConstellationNotFoundError):
+        repo.set_published(db, "no-such-id", True, owner_id="owner1")
+
+
 def test_add_node_with_leading_digit_id(db: Client) -> None:
     node_id = "7d3fa1e2"
     repo.create_constellation(db, _make_constellation("c1", "owner1"))

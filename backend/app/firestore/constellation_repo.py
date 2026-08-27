@@ -451,6 +451,28 @@ def remove_edge(db: Client, constellation_id: str, edge_id: str, owner_id: str) 
     return _run_owned_transaction(db, constellation_id, owner_id, _mutate)
 
 
+def set_published(
+    db: Client, constellation_id: str, is_published: bool, owner_id: str
+) -> Constellation:
+    """별자리의 공개 여부를 설정한다.
+
+    is_published를 True/False로 설정하고 updated_at을 현재 시각으로 갱신한다.
+    트랜잭션으로 원자성을 보장한다.
+    """
+
+    def _mutate(constellation: Constellation) -> tuple[Constellation, dict[str, Any]]:
+        now = datetime.now(UTC)
+        constellation.is_published = is_published
+        constellation.updated_at = now
+        update_data: dict[str, Any] = {
+            "is_published": is_published,
+            "updated_at": now,
+        }
+        return constellation, update_data
+
+    return _run_owned_transaction(db, constellation_id, owner_id, _mutate)
+
+
 def delete_constellation(db: Client, constellation_id: str, owner_id: str) -> None:
     """별자리 문서와 그 밑의 notes 서브컬렉션 전체를 삭제한다.
 

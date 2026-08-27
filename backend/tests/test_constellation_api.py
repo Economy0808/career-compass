@@ -536,3 +536,72 @@ async def test_create_note_on_someone_elses_constellation_returns_403(
     async with _client() as client:
         resp = await client.post(f"/api/constellations/{cid}/notes", json={"nodeId": "n1"})
         assert resp.status_code == 403
+
+
+# --- 공개 / 비공개 ---
+
+
+@pytest.mark.asyncio
+async def test_publish_by_owner_returns_200_with_is_published_true(
+    authed_as: Callable[[str], None],
+) -> None:
+    authed_as("user-a")
+    async with _client() as client:
+        cid = (
+            await client.post("/api/constellations", json={"title": "공개 전", "goalRawText": "x"})
+        ).json()["id"]
+
+        resp = await client.patch(f"/api/constellations/{cid}/publish", json={"isPublished": True})
+        assert resp.status_code == 200
+        data = resp.json()
+        assert data["isPublished"] is True
+
+
+@pytest.mark.asyncio
+async def test_publish_by_non_owner_returns_403(
+    authed_as: Callable[[str], None],
+) -> None:
+    authed_as("user-a")
+    async with _client() as client:
+        cid = (
+            await client.post("/api/constellations", json={"title": "남의 것", "goalRawText": "x"})
+        ).json()["id"]
+
+    authed_as("user-b")
+    async with _client() as client:
+        resp = await client.patch(f"/api/constellations/{cid}/publish", json={"isPublished": True})
+        assert resp.status_code == 403
+
+
+@pytest.mark.asyncio
+async def test_publish_unknown_id_returns_404(
+    authed_as: Callable[[str], None],
+) -> None:
+    authed_as("user-a")
+    async with _client() as client:
+        resp = await client.patch(
+            "/api/constellations/no-such-id/publish", json={"isPublished": True}
+        )
+        assert resp.status_code == 404
+
+
+@pytest.mark.asyncio
+async def test_after_publish_other_user_can_get(
+    authed_as: Callable[[str], None],
+) -> None:
+    authed_as("user-a")
+    async with _client() as client:
+        cid = (
+            await client.post(
+                "/api/constellations", json={"title": "공개될 것", "goalRawText": "x"}
+            )
+        ).json()["id"]
+
+        await client.patch(f"/api/constellations/{cid}/publish", json={"isPublished": True})
+
+    authed_as("user-b")
+    async with _client() as client:
+        resp = await client.get(f"/api/constellations/{cid}")
+        assert resp.status_code == 200
+        assert resp.json()["isPublished"] is True
+        assert resp.json()["title"] == "공개될 것"

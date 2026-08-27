@@ -278,6 +278,10 @@ class CompletionPatchIn(_CamelModel):
     is_completed: bool
 
 
+class PublishPatchIn(_CamelModel):
+    is_published: bool
+
+
 # --- Note ---
 
 

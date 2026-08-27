@@ -39,6 +39,7 @@ from app.schemas.constellation import (
     NoteOut,
     NotePatchIn,
     PositionPatchIn,
+    PublishPatchIn,
     attachment_from_in,
     constellation_to_out,
     edge_from_create_in,
@@ -147,6 +148,23 @@ async def delete_constellation(
     db: Client = Depends(get_firestore_client),
 ) -> None:
     _translate_repo_errors(constellation_repo.delete_constellation)(db, constellation_id, user.uid)
+
+
+@router.patch(
+    "/{constellation_id}/publish",
+    response_model=ConstellationOut,
+    response_model_exclude_none=True,
+)
+async def set_published(
+    constellation_id: str,
+    payload: PublishPatchIn,
+    user: DecodedToken = Depends(get_current_user),
+    db: Client = Depends(get_firestore_client),
+) -> ConstellationOut:
+    updated = _translate_repo_errors(constellation_repo.set_published)(
+        db, constellation_id, payload.is_published, user.uid
+    )
+    return constellation_to_out(updated)
 
 
 @router.post(
