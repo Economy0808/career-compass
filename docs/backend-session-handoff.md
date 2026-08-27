@@ -1,4 +1,32 @@
-# 백엔드 세션 핸드오프 (2026-08-27 작성)
+# 백엔드 세션 핸드오프 (2026-08-27 작성, 같은 날 백엔드 세션이 갱신)
+
+> **2026-08-27 백엔드 세션 결과 — ① 1~3 "영속화 묶음" 완료** (커밋 `7ff7457`→`c609ac8`,
+> 브랜치 `feature/constellation`, 에뮬레이터 pytest 78개 전부 통과):
+> - **Step 0 (선행 버그픽스)**: 구 `constellation_repo.py`의 dot-notation 경로가 프론트 실제
+>   id(`element:x`, `edge-local-1`, uuid, 숫자 시작)에서 ValueError로 죽던 BLOCKER를
+>   `FieldPath(...).to_api_repr()` 이스케이프로 수정 + 회귀 테스트 5종 (`7ff7457`).
+> - **Node에 `code`/`description`/`level`/`note_count` 추가** + `Note`/`NoteAttachment` 도메인
+>   모델 (`be3fb7c`). 빈 title/body 허용이 모델 docstring·테스트로 고정됨.
+> - **`note_repo.py` 신규** (`f1ede49`): `Note.owner_id` 비정규화로 update/get/list가 부모 문서를
+>   안 읽음(자동저장 쓰기 경합 회피). create/delete만 부모 트랜잭션(note_count 증감, floor 0).
+>   remove_node/delete_constellation이 notes를 ≤500 배치로 연쇄 삭제(노트 먼저→부모 마지막).
+>   읽기는 updated_at을 절대 안 건드림(정렬 키 보호).
+> - **HTTP API 14개** (`c609ac8`): `/api/constellations` + nodes/edges/notes 서브리소스.
+>   인증은 `app.auth.deps.get_current_user`(Firebase Bearer). **와이어 포맷 = 프론트 계약**:
+>   camelCase alias, epoch-ms 정수 타임스탬프, `noteCount` 0이면 생략, 클라이언트 생성 id 수용,
+>   첨부 url은 https/blob만. 에러 매핑 404/403. 별자리 생성은 초기 nodes+edges 동봉 가능.
+> - **다음 세션 최우선 = ④ 인증 배선 + 프론트 전환** (아래 ① 4번). 그 다음 C(advice)·D(진입
+>   플로우). 프론트 `lib/api.ts` 별자리 배선과 `splitCourseCode` fallback 제거는 인증 세션에서
+>   함께(배선 전 제거하면 데모 표기가 깨짐).
+> - ⚠️ 배포 체크리스트: `main.py`의 `enforce_origin` 미들웨어 — 배포 프론트 origin이
+>   `cors_allowed_origins`에 없으면 모든 쓰기 403. 인증 배선 세션에서 확인.
+> - PIPA 메모: 노트는 개인정보 저장소가 됨 — is_public 기본 false, 삭제 연쇄(파기) 구현됨.
+>   Storage 첨부 도입 시(G) 처리방침에 항목 추가 필요.
+> - 환경: Firestore 에뮬레이터는 Java 필요 — Temurin JDK 21이
+>   `C:\Program Files\Eclipse Adoptium\jdk-21.0.12.101-hotspot\bin`에 있음(PATH에 없음, 테스트
+>   실행 시에만 prepend). `firebase emulators:exec`의 스크립트는 `.venv\Scripts\python.exe`
+>   백슬래시 표기 필수(cmd.exe 경유). 구 Postgres 계열 테스트는 도커 미기동 시 ConnectionRefused
+>   (21f+55e) — 코드 문제 아님.
 
 > 이 문서는 지난 세션(프론트 캔버스/노트 + 일부 백엔드) 이후, **다음 세션이 백엔드에 집중**할 때
 > 바로 로드할 컨텍스트다. 각 항목은 실제 리포 상태와 대조해 검증했다. 표시 규칙:
