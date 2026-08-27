@@ -3,45 +3,59 @@
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useEffect, useRef, useState } from "react";
-import { Button, Card, Field } from "@/components/ui";
+import { sendEmailVerification } from "firebase/auth";
+import { Button, Card } from "@/components/ui";
 import { cn } from "@/lib/cn";
-import {
-  ApiError,
-  postSchoolEmailRequest,
-  postSchoolEmailVerify,
-  postStudentCard,
-} from "@/lib/api";
+import { getFirebaseAuth } from "@/lib/firebase";
 import { useAuth } from "@/lib/auth-context";
-
-type Method = "school_email" | "student_card";
 
 const LINK_PRIMARY =
   "flex-1 rounded-md border border-transparent bg-spec-b p-3 text-center text-body-sm font-bold text-ink-900 no-underline transition-[filter] duration-150 hover:brightness-110";
 const LINK_SECONDARY =
   "rounded-md border border-rule bg-spec-b/12 p-3 text-center text-body-sm font-semibold text-spec-b no-underline transition-colors hover:bg-spec-b/20";
 
+const RESEND_COOLDOWN_SECONDS = 30;
+const POLL_INTERVAL_MS = 5000;
+
 export default function VerifyPage() {
   const router = useRouter();
   const { user, loading, refresh } = useAuth();
 
-  // TODO(S4): 이 페이지는 학교 이메일/학생증 인증 흐름 전체를 새 백엔드에 맞춰
-  // 다시 짠다. 그 전까지는 서버 AuthUser에 아직 없는 카드 심사 상태·인증 수단을
-  // 임시로 null 고정해 빌드만 통과시킨다(런타임에서는 "미제출" 화면으로 보임).
-  const cardStatus: "pending" | "rejected" | null = null;
-  const verificationMethod: "school_email" | "student_card" | null = null;
-
-  const [method, setMethod] = useState<Method>("school_email");
-  const [schoolEmail, setSchoolEmail] = useState("");
-  const [codeSent, setCodeSent] = useState(false);
-  const [code, setCode] = useState("");
   const [pending, setPending] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [notice, setNotice] = useState<string | null>(null);
-  const fileRef = useRef<HTMLInputElement>(null);
+  const [resendCooldown, setResendCooldown] = useState(0);
+  const cooldownTimerRef = useRef<ReturnType<typeof setInterval> | null>(null);
 
   useEffect(() => {
     if (!loading && !user) router.push("/login");
   }, [loading, user, router]);
+
+  // 이메일 인증 대기 중에는 5초마다 자동으로 상태를 다시 확인한다 —
+  // 사용자가 메일함에서 링크를 누르고 돌아오면 버튼을 누르지 않아도 화면이 바뀐다.
+  useEffect(() => {
+    if (loading || !user || user.emailVerified) return;
+
+    const interval = setInterval(async () => {
+      try {
+        await getFirebaseAuth().currentUser?.reload();
+        if (getFirebaseAuth().currentUser?.emailVerified) {
+          await getFirebaseAuth().currentUser?.getIdToken(true);
+          await refresh();
+        }
+      } catch {
+        // 폴링 실패는 조용히 무시한다 — 다음 주기에 다시 시도한다.
+      }
+    }, POLL_INTERVAL_MS);
+
+    return () => clearInterval(interval);
+  }, [loading, user, refresh]);
+
+  useEffect(() => {
+    return () => {
+      if (cooldownTimerRef.current) clearInterval(cooldownTimerRef.current);
+    };
+  }, []);
 
   if (loading || !user) {
     return (
@@ -51,64 +65,88 @@ export default function VerifyPage() {
     );
   }
 
-  async function requestCode(e: React.FormEvent) {
-    e.preventDefault();
-    if (pending) return;
+  async function resendEmail() {
+    if (pending || resendCooldown > 0) return;
+    const fbUser = getFirebaseAuth().currentUser;
+    if (!fbUser) return;
     setPending(true);
     setError(null);
     try {
-      await postSchoolEmailRequest(schoolEmail.trim());
-      setCodeSent(true);
-      setNotice("학교 이메일로 인증 코드를 보냈어요.");
-    } catch (err) {
-      setError(err instanceof ApiError ? err.detail : "코드 발송에 실패했어요.");
+      await sendEmailVerification(fbUser);
+      setNotice("인증 메일을 다시 보냈어요. 메일함을 확인해 주세요.");
+      setResendCooldown(RESEND_COOLDOWN_SECONDS);
+      if (cooldownTimerRef.current) clearInterval(cooldownTimerRef.current);
+      cooldownTimerRef.current = setInterval(() => {
+        setResendCooldown((prev) => {
+          if (prev <= 1) {
+            if (cooldownTimerRef.current) clearInterval(cooldownTimerRef.current);
+            return 0;
+          }
+          return prev - 1;
+        });
+      }, 1000);
+    } catch {
+      setError("메일 재발송에 실패했어요. 잠시 후 다시 시도해주세요.");
     } finally {
       setPending(false);
     }
   }
 
-  async function verifyCode(e: React.FormEvent) {
-    e.preventDefault();
+  async function checkVerified() {
     if (pending) return;
     setPending(true);
     setError(null);
     try {
-      await postSchoolEmailVerify(code.trim());
-      await refresh();
-    } catch (err) {
-      setError(err instanceof ApiError ? err.detail : "인증에 실패했어요.");
-      setPending(false);
-    }
-  }
-
-  async function uploadCard(e: React.FormEvent) {
-    e.preventDefault();
-    const file = fileRef.current?.files?.[0];
-    if (!file || pending) return;
-    setPending(true);
-    setError(null);
-    try {
-      const res = await postStudentCard(file);
-      setNotice(res.detail);
-      await refresh();
-    } catch (err) {
-      setError(err instanceof ApiError ? err.detail : "업로드에 실패했어요.");
+      await getFirebaseAuth().currentUser?.reload();
+      if (getFirebaseAuth().currentUser?.emailVerified) {
+        await getFirebaseAuth().currentUser?.getIdToken(true);
+        await refresh();
+      } else {
+        setNotice(null);
+        setError("아직 인증이 확인되지 않았어요. 메일함의 링크를 눌러주세요.");
+      }
+    } catch {
+      setError("확인 중 문제가 발생했어요. 잠시 후 다시 시도해주세요.");
     } finally {
       setPending(false);
     }
   }
 
-  const body = user.yonseiVerified ? (
+  const body = !user.emailVerified ? (
+    <div className="text-center">
+      <div className="text-5xl">📧</div>
+      <h2 className="mt-3 font-serif text-title font-bold text-text-hi">이메일 인증이 필요해요</h2>
+      <p className="mt-2 text-body-sm leading-relaxed text-text-lo">
+        <b className="text-text-hi">{user.email}</b>로 인증 메일을 보냈어요.
+        <br />
+        메일함의 링크를 눌러 인증을 완료해주세요.
+      </p>
+      <div className="mt-6 flex flex-col gap-2">
+        <Button type="button" variant="primary" size="md" fullWidth disabled={pending} onClick={checkVerified}>
+          {pending ? "확인 중…" : "인증 완료했어요"}
+        </Button>
+        <Button
+          type="button"
+          variant="secondary"
+          size="sm"
+          fullWidth
+          disabled={pending || resendCooldown > 0}
+          onClick={resendEmail}
+        >
+          {resendCooldown > 0 ? `재발송 (${resendCooldown}초 후 가능)` : "인증 메일 다시 보내기"}
+        </Button>
+      </div>
+      {notice && !error && <p className="mt-3 text-caption text-lit">{notice}</p>}
+      {error && <p className="mt-3 text-caption text-spec-m">{error}</p>}
+    </div>
+  ) : user.yonseiVerified ? (
     <div className="text-center">
       <div className="text-5xl">✨</div>
       <h2 className="mt-3 font-serif text-title font-bold text-text-hi">
         연세대 학부생 인증 완료!
       </h2>
       <p className="mt-2 text-body-sm text-text-lo">
-        {verificationMethod === "student_card"
-          ? "학생증 심사가 승인됐어요."
-          : "학교 이메일로 인증됐어요."}{" "}
-        이제 나만의 별자리를 만들 수 있어요.
+        학교 이메일로 인증됐어요. 이제 나만의 별자리를 만들 수 있어요.
       </p>
       <div className="mt-6 flex gap-2">
         <Link href="/constellation/new" className={LINK_PRIMARY}>
@@ -119,123 +157,27 @@ export default function VerifyPage() {
         </Link>
       </div>
     </div>
-  ) : cardStatus === "pending" ? (
+  ) : (
     <div className="text-center">
-      <div className="text-5xl">🕰️</div>
-      <h2 className="mt-3 font-serif text-title font-bold text-text-hi">학생증 심사 중</h2>
+      <div className="text-5xl">🎓</div>
+      <h2 className="mt-3 font-serif text-title font-bold text-text-hi">연세대 학부생 인증</h2>
       <p className="mt-2 text-body-sm leading-relaxed text-text-lo">
-        운영자가 확인하는 대로 알려드릴게요 (보통 24시간 이내).
+        학번@yonsei.ac.kr 메일로 가입하면 자동으로 인증돼요.
         <br />
-        심사가 끝나면 이미지는 즉시 파기돼요. 그동안 둘러보는 건 자유예요!
+        학생증 인증은 아직 준비 중이에요.
       </p>
-      <Link href="/" className={cn(LINK_SECONDARY, "mt-6 block w-full")}>
+      <Button type="button" variant="secondary" size="md" fullWidth disabled className="mt-6">
+        학생증 인증 (준비 중)
+      </Button>
+      <Link href="/" className={cn(LINK_SECONDARY, "mt-3 block w-full")}>
         둘러보기
       </Link>
     </div>
-  ) : (
-    <>
-      {cardStatus === "rejected" && (
-        <p className="mb-4 rounded-md border border-spec-m/30 bg-spec-m/12 p-3 text-caption leading-relaxed text-spec-m">
-          이전 학생증 심사가 반려됐어요. 학생증이 선명하게 보이는 사진으로 다시 올리거나, 학교
-          이메일로 인증해주세요.
-        </p>
-      )}
-      <div className="mb-5 flex gap-2">
-        {(
-          [
-            ["school_email", "학교 이메일"],
-            ["student_card", "학생증 사진"],
-          ] as [Method, string][]
-        ).map(([value, label]) => (
-          <Button
-            key={value}
-            type="button"
-            size="sm"
-            variant={method === value ? "secondary" : "ghost"}
-            onClick={() => {
-              setMethod(value);
-              setError(null);
-              setNotice(null);
-            }}
-            className="flex-1 rounded-full"
-          >
-            {label}
-          </Button>
-        ))}
-      </div>
-
-      {method === "school_email" ? (
-        <div className="flex flex-col gap-3">
-          <form onSubmit={requestCode} className="flex items-end gap-2">
-            <Field
-              id="verify-school-email"
-              label="학번@yonsei.ac.kr"
-              type="email"
-              value={schoolEmail}
-              onChange={(e) => setSchoolEmail(e.target.value)}
-              className="flex-1"
-            />
-            <Button
-              type="submit"
-              variant="secondary"
-              size="sm"
-              disabled={pending || !schoolEmail.trim()}
-              className="shrink-0"
-            >
-              {codeSent ? "재발송" : "코드 받기"}
-            </Button>
-          </form>
-          {codeSent && (
-            <form onSubmit={verifyCode} className="flex flex-col gap-3">
-              <Field
-                id="verify-code"
-                label="인증 코드 6자리"
-                value={code}
-                onChange={(e) => setCode(e.target.value.replace(/\D/g, "").slice(0, 6))}
-                inputMode="numeric"
-                className="[&_input]:text-center [&_input]:text-title [&_input]:tracking-[.4em]"
-              />
-              <Button type="submit" variant="primary" size="md" fullWidth disabled={pending || code.length !== 6}>
-                {pending ? "확인 중…" : "인증하기"}
-              </Button>
-            </form>
-          )}
-        </div>
-      ) : (
-        <form onSubmit={uploadCard} className="flex flex-col gap-3">
-          <p className="text-caption leading-relaxed text-text-lo">
-            모바일 학생증 캡처 또는 실물 학생증 사진(JPEG/PNG, 5MB 이하)을 올려주세요. 운영자
-            확인 후 <b className="text-text-hi">이미지는 즉시 파기</b>되고 승인 여부만 남아요.
-          </p>
-          <input
-            ref={fileRef}
-            type="file"
-            accept="image/jpeg,image/png"
-            className="text-caption text-text-lo file:mr-3 file:cursor-pointer file:rounded-full file:border file:border-rule file:bg-spec-b/12 file:px-4 file:py-2 file:text-caption file:font-semibold file:text-spec-b"
-          />
-          <Button type="submit" variant="primary" size="md" fullWidth disabled={pending}>
-            {pending ? "올리는 중…" : "학생증 제출하기"}
-          </Button>
-        </form>
-      )}
-      {notice && !error && <p className="mt-3 text-caption text-lit">{notice}</p>}
-      {error && <p className="mt-3 text-caption text-spec-m">{error}</p>}
-    </>
   );
 
   return (
     <div className="mx-auto w-full max-w-md">
-      <Card className="p-8">
-        {!user.yonseiVerified && cardStatus !== "pending" && (
-          <>
-            <h1 className="font-serif text-display font-bold text-text-hi">연세대 학부생 인증</h1>
-            <p className="mb-6 mt-[7px] text-body-sm leading-relaxed text-text-lo">
-              별자리를 만들고 키우려면 인증이 필요해요. 둘 중 편한 방법을 골라주세요.
-            </p>
-          </>
-        )}
-        {body}
-      </Card>
+      <Card className="p-8">{body}</Card>
     </div>
   );
 }
