@@ -58,7 +58,8 @@ export interface EdgeDto {
 
 /** 백엔드 ConstellationOut과 1:1 대응. nodes/edges는 id를 key로 하는 맵 -
  * Firestore 점 표기 부분 업데이트와 형태를 맞춘 것이므로 배열로 바꾸지 않는다
- * (ConstellationCanvas.tsx의 동일한 관례 참고). */
+ * (ConstellationCanvas.tsx의 동일한 관례 참고).
+ * bins은 intake 플로우 후 추가된다. */
 export interface ConstellationDto {
   id: string;
   ownerId: string;
@@ -69,6 +70,7 @@ export interface ConstellationDto {
   isPublished: boolean;
   createdAt: number;
   updatedAt: number;
+  bins?: BinDto[];
 }
 
 /** 백엔드 NodeCreateIn과 1:1 대응. id는 클라이언트가 생성한다(예: "element:phil-101"). */
@@ -127,6 +129,56 @@ export interface NotePatchInput {
   body: string;
   isPublic: boolean;
   attachments: AttachmentDto[];
+}
+
+// ---------- 별자리 Intake 채팅 및 구간 생성 ----------
+
+/**
+ * 별자리 Intake 플로우에서 쓰인다:
+ *
+ * 사용자가 목표를 설명하면, 서버는 여러 턴에 걸쳐 목표를 다듬기 위해 대화한다.
+ * 각 요청(POST /api/constellation-intake/chat)은 전체 메시지 히스토리를 포함해야 한다.
+ * 중요: 서버의 응답에서 받은 messages 배열은 서버가 이미 갱신한 전체 히스토리다.
+ * 프론트엔드는 그 messages를 다음 요청에 그대로 다시 보내야 한다(무한 질문 루프 방지 +
+ * 서버 state 싱크).
+ */
+export interface ChatMessageDto {
+  role: "user" | "assistant";
+  content: string;
+}
+
+export interface IntakeChatResponse {
+  reply: string | null;
+  done: boolean;
+  messages: ChatMessageDto[];
+}
+
+export interface JobStartResponse {
+  jobId: string;
+  status: string;
+}
+
+export interface BinItemDto {
+  id: string;
+  label: string;
+  type: string;
+  level?: number;
+  subtitle?: string;
+  description?: string;
+}
+
+export interface BinDto {
+  id: string;
+  label: string;
+  origin: "llm" | "user";
+  advice?: string;
+  items: BinItemDto[];
+}
+
+export interface BinJobStatusResponse {
+  status: "pending" | "running" | "done" | "error";
+  result: { bins: BinDto[] } | null;
+  detail: string | null;
 }
 
 // ---------- 별자리 ----------
@@ -242,5 +294,57 @@ export function deleteNote(constellationId: string, noteId: string): Promise<voi
   return request<void>(
     `/api/constellations/${encodeURIComponent(constellationId)}/notes/${encodeURIComponent(noteId)}`,
     { method: "DELETE" }
+  );
+}
+
+// ---------- Intake 채팅 및 구간 생성 ----------
+
+export function intakeChat(input: {
+  goalRawText: string;
+  messages: ChatMessageDto[];
+}): Promise<IntakeChatResponse> {
+  return request<IntakeChatResponse>(
+    "/api/constellation-intake/chat",
+    jsonInit("POST", input)
+  );
+}
+
+export function startBinSuggestJob(goalText: string): Promise<JobStartResponse> {
+  return request<JobStartResponse>(
+    "/api/constellation-intake/bins",
+    jsonInit("POST", { goalText })
+  );
+}
+
+export function startBinFillJob(goalText: string, binLabel: string): Promise<JobStartResponse> {
+  return request<JobStartResponse>(
+    "/api/constellation-intake/bins/fill",
+    jsonInit("POST", { goalText, binLabel })
+  );
+}
+
+export function getBinJob(jobId: string): Promise<BinJobStatusResponse> {
+  return request<BinJobStatusResponse>(
+    `/api/constellation-intake/jobs/${encodeURIComponent(jobId)}`
+  );
+}
+
+export function putBins(
+  constellationId: string,
+  bins: BinDto[]
+): Promise<ConstellationDto> {
+  return request<ConstellationDto>(
+    `/api/constellations/${encodeURIComponent(constellationId)}/bins`,
+    jsonInit("PUT", { bins })
+  );
+}
+
+export function patchPublish(
+  constellationId: string,
+  isPublished: boolean
+): Promise<ConstellationDto> {
+  return request<ConstellationDto>(
+    `/api/constellations/${encodeURIComponent(constellationId)}/publish`,
+    jsonInit("PATCH", { isPublished })
   );
 }
