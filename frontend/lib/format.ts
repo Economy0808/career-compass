@@ -1,4 +1,6 @@
-export function relativeTimeKo(iso: string): string {
+/** iso 문자열 또는 epoch 밀리초(예: ConstellationDto.updatedAt) 둘 다 받는다 -
+ * Date 생성자가 원래 둘 다 지원하므로 오버로드 없이 유니언 인자로 충분하다. */
+export function relativeTimeKo(iso: string | number): string {
   const date = new Date(iso);
   const diffSec = Math.floor((Date.now() - date.getTime()) / 1000);
   if (diffSec < 60) return "방금 전";

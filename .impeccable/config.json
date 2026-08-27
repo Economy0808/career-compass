@@ -50,6 +50,66 @@
         "value": "22px",
         "createdAt": "2026-08-27T17:04:53.114Z",
         "reason": "mobile step-down of the approved 27px Aperture headline"
+      },
+      {
+        "rule": "design-system-radius",
+        "value": "4px",
+        "createdAt": "2026-08-27T17:24:52.978Z",
+        "reason": "incumbent pre-DESIGN.md radius in globals.css (documenter scope gap, not drift)"
+      },
+      {
+        "rule": "design-system-color",
+        "value": "rgb(140 180 220 / 0.22)",
+        "createdAt": "2026-08-27T17:24:53.226Z",
+        "reason": "incumbent scrollbar thumb tint predating DESIGN.md"
+      },
+      {
+        "rule": "design-system-radius",
+        "value": "6px",
+        "createdAt": "2026-08-27T17:24:53.482Z",
+        "reason": "incumbent scrollbar thumb radius predating DESIGN.md"
+      },
+      {
+        "rule": "design-system-color",
+        "value": "#0b1024",
+        "createdAt": "2026-08-27T17:25:08.403Z",
+        "reason": "approved board 88238bcc Aperture cosmos gradient inner"
+      },
+      {
+        "rule": "design-system-color",
+        "value": "#e8eaf2",
+        "createdAt": "2026-08-27T17:25:08.697Z",
+        "reason": "approved board 88238bcc star/copy ink (matches text-hi)"
+      },
+      {
+        "rule": "design-system-color",
+        "value": "#8891ac",
+        "createdAt": "2026-08-27T17:25:08.953Z",
+        "reason": "approved board 88238bcc mono caption ink (matches text-lo)"
+      },
+      {
+        "rule": "design-system-font-size",
+        "value": "40px",
+        "createdAt": "2026-08-27T17:25:46.966Z",
+        "reason": "landing headline from user-pinned mock (artifact 88238bcc board1), finish review shipped"
+      },
+      {
+        "rule": "design-system-font-size",
+        "value": "28px",
+        "createdAt": "2026-08-27T17:25:47.183Z",
+        "reason": "landing mobile headline step, reviewer-approved adaptation of the pinned mock"
+      },
+      {
+        "rule": "design-system-font-size",
+        "value": "16px",
+        "createdAt": "2026-08-27T17:25:47.441Z",
+        "reason": "landing subcopy size from user-pinned mock board1"
+      },
+      {
+        "rule": "design-system-font-size",
+        "value": "11px",
+        "createdAt": "2026-08-27T17:25:47.704Z",
+        "reason": "landing FIG plate label from user-pinned mock board1"
       }
     ]
   }
