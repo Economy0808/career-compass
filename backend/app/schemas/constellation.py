@@ -25,6 +25,9 @@ from pydantic import BaseModel, ConfigDict, Field, field_validator
 from pydantic.alias_generators import to_camel
 
 from app.domain.constellation import (
+    Bin,
+    BinItem,
+    BinOrigin,
     Constellation,
     Edge,
     Node,
@@ -34,6 +37,11 @@ from app.domain.constellation import (
     NoteAttachment,
     Position,
 )
+
+# BinsPutIn 용량 제한 - 보관함이 무한정 커지는 것을 막는다(프론트 UI도 이 정도
+# 규모를 벗어나면 성능이 저하된다).
+_MAX_BINS = 30
+_MAX_ITEMS_PER_BIN = 50
 
 # NoteAttachment.url이 허용하는 스킴. 저장된 노트가 나중에 공개될 수 있으므로
 # javascript: 등 위험한 스킴은 거부한다.
@@ -210,6 +218,98 @@ def edge_from_create_in(payload: EdgeCreateIn) -> Edge:
     )
 
 
+# --- Bin ---
+
+
+class BinItemIn(_CamelModel):
+    """보관함 아이템 (요청). id는 클라이언트 생성(아이템 id 규약은 도메인 모델 docstring 참고)."""
+
+    id: str = Field(min_length=1, max_length=200)
+    label: str
+    type: NodeType
+    level: int | None = None
+    subtitle: str | None = None
+    description: str | None = None
+
+
+class BinItemOut(_CamelModel):
+    """보관함 아이템 (응답)."""
+
+    id: str
+    label: str
+    type: NodeType
+    level: int | None = None
+    subtitle: str | None = None
+    description: str | None = None
+
+
+def bin_item_to_out(item: BinItem) -> BinItemOut:
+    return BinItemOut(
+        id=item.id,
+        label=item.label,
+        type=item.type,
+        level=item.level,
+        subtitle=item.subtitle,
+        description=item.description,
+    )
+
+
+def bin_item_from_in(payload: BinItemIn) -> BinItem:
+    return BinItem(
+        id=payload.id,
+        label=payload.label,
+        type=payload.type,
+        level=payload.level,
+        subtitle=payload.subtitle,
+        description=payload.description,
+    )
+
+
+class BinIn(_CamelModel):
+    """보관함 (요청). id는 클라이언트 생성."""
+
+    id: str = Field(min_length=1, max_length=200)
+    label: str
+    origin: BinOrigin
+    advice: str | None = None
+    items: list[BinItemIn] = Field(default_factory=list, max_length=_MAX_ITEMS_PER_BIN)
+
+
+class BinOut(_CamelModel):
+    """보관함 (응답). advice가 None이어도 그대로 내보낸다 - note_count와 달리
+
+    "advice 없음"과 "advice 빈 문자열"을 구분할 필요가 없고(빈 조언이라는 개념
+    자체가 없음), 라우터의 response_model_exclude_none이 켜져 있으면 advice가
+    None일 때 키 자체가 자동으로 빠진다(NodeOut.note_count와 동일한 방식).
+    """
+
+    id: str
+    label: str
+    origin: BinOrigin
+    advice: str | None = None
+    items: list[BinItemOut] = Field(default_factory=list)
+
+
+def bin_to_out(bin_: Bin) -> BinOut:
+    return BinOut(
+        id=bin_.id,
+        label=bin_.label,
+        origin=bin_.origin,
+        advice=bin_.advice,
+        items=[bin_item_to_out(i) for i in bin_.items],
+    )
+
+
+def bin_from_in(payload: BinIn) -> Bin:
+    return Bin(
+        id=payload.id,
+        label=payload.label,
+        origin=payload.origin,
+        advice=payload.advice,
+        items=[bin_item_from_in(i) for i in payload.items],
+    )
+
+
 # --- Constellation ---
 
 
@@ -225,6 +325,13 @@ class ConstellationCreateIn(_CamelModel):
     goal_raw_text: str
     nodes: list[NodeCreateIn] = Field(default_factory=list)
     edges: list[EdgeCreateIn] = Field(default_factory=list)
+    # CRITICAL: 반드시 edges 다음에 선언한다. _check_edge_endpoints가
+    # info.data["nodes"]를 읽는 field_validator이므로, Pydantic v2는 필드
+    # "선언 순서대로" info.data를 채운다 - bins를 edges보다 앞에 두면
+    # _check_edge_endpoints가 호출되는 시점에 아직 없는 필드라 문제없지만,
+    # 반대로 향후 bins에 nodes/edges를 참조하는 검증기를 추가한다면 반드시
+    # 이 순서(nodes -> edges -> bins) 뒤에 와야 info.data에 잡힌다.
+    bins: list[BinIn] = Field(default_factory=list)
 
     @field_validator("edges")
     @classmethod
@@ -248,6 +355,7 @@ class ConstellationOut(_CamelModel):
     goal_raw_text: str
     nodes: dict[str, NodeOut]
     edges: dict[str, EdgeOut]
+    bins: list[BinOut]
     is_published: bool
     created_at: int
     updated_at: int
@@ -261,6 +369,7 @@ def constellation_to_out(constellation: Constellation) -> ConstellationOut:
         goal_raw_text=constellation.goal_raw_text,
         nodes={nid: node_to_out(n) for nid, n in constellation.nodes.items()},
         edges={eid: edge_to_out(e) for eid, e in constellation.edges.items()},
+        bins=[bin_to_out(b) for b in constellation.bins],
         is_published=constellation.is_published,
         created_at=to_epoch_ms(constellation.created_at),
         updated_at=to_epoch_ms(constellation.updated_at),
@@ -280,6 +389,17 @@ class CompletionPatchIn(_CamelModel):
 
 class PublishPatchIn(_CamelModel):
     is_published: bool
+
+
+class BinsPutIn(_CamelModel):
+    """보관함 전체 교체 요청 (PUT /{constellation_id}/bins).
+
+    부분 갱신이 아니라 배열 전체 교체 의미론이다 - 프론트엔드가 보관함 상태를
+    통째로 들고 있다가 그대로 밀어넣는다(repo.replace_bins 참고). max_length로
+    개수 상한을 걸어 무한정 커지는 것을 막는다.
+    """
+
+    bins: list[BinIn] = Field(default_factory=list, max_length=_MAX_BINS)
 
 
 # --- Note ---

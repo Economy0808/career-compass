@@ -538,6 +538,119 @@ async def test_create_note_on_someone_elses_constellation_returns_403(
         assert resp.status_code == 403
 
 
+# --- 보관함(bins) ---
+
+
+@pytest.mark.asyncio
+async def test_create_with_bins_returns_201_and_get_round_trips_camel_case(
+    authed_as: Callable[[str], None],
+) -> None:
+    authed_as("user-a")
+    async with _client() as client:
+        resp = await client.post(
+            "/api/constellations",
+            json={
+                "title": "보관함 있는 목표",
+                "goalRawText": "목표 원문",
+                "bins": [
+                    {
+                        "id": "bin1",
+                        "label": "군집 1",
+                        "origin": "llm",
+                        "advice": "이것부터 채워보세요",
+                        "items": [
+                            {
+                                "id": "course:PHI1001",
+                                "label": "철학개론",
+                                "type": "course",
+                                "subtitle": "3학점",
+                            }
+                        ],
+                    }
+                ],
+            },
+        )
+        assert resp.status_code == 201
+        cid = resp.json()["id"]
+        assert resp.json()["bins"][0]["advice"] == "이것부터 채워보세요"
+
+        resp = await client.get(f"/api/constellations/{cid}")
+        assert resp.status_code == 200
+        data = resp.json()
+        assert len(data["bins"]) == 1
+        bin0 = data["bins"][0]
+        assert bin0["id"] == "bin1"
+        assert bin0["origin"] == "llm"
+        assert bin0["advice"] == "이것부터 채워보세요"
+        assert bin0["items"][0]["subtitle"] == "3학점"
+
+
+@pytest.mark.asyncio
+async def test_put_bins_replaces_old_bins(authed_as: Callable[[str], None]) -> None:
+    authed_as("user-a")
+    async with _client() as client:
+        cid = (
+            await client.post(
+                "/api/constellations",
+                json={
+                    "title": "보관함 교체",
+                    "goalRawText": "x",
+                    "bins": [{"id": "old1", "label": "옛 군집", "origin": "user"}],
+                },
+            )
+        ).json()["id"]
+
+        resp = await client.put(
+            f"/api/constellations/{cid}/bins",
+            json={"bins": [{"id": "new1", "label": "새 군집", "origin": "llm", "items": []}]},
+        )
+        assert resp.status_code == 200
+        data = resp.json()
+        assert [b["id"] for b in data["bins"]] == ["new1"]
+
+        resp = await client.get(f"/api/constellations/{cid}")
+        assert [b["id"] for b in resp.json()["bins"]] == ["new1"]
+
+
+@pytest.mark.asyncio
+async def test_put_bins_by_non_owner_returns_403(authed_as: Callable[[str], None]) -> None:
+    authed_as("user-a")
+    async with _client() as client:
+        cid = (
+            await client.post(
+                "/api/constellations", json={"title": "남의 보관함", "goalRawText": "x"}
+            )
+        ).json()["id"]
+
+    authed_as("user-b")
+    async with _client() as client:
+        resp = await client.put(
+            f"/api/constellations/{cid}/bins",
+            json={"bins": [{"id": "b1", "label": "b1", "origin": "user"}]},
+        )
+        assert resp.status_code == 403
+
+
+@pytest.mark.asyncio
+async def test_put_bins_exceeding_cap_returns_422(authed_as: Callable[[str], None]) -> None:
+    authed_as("user-a")
+    async with _client() as client:
+        cid = (
+            await client.post(
+                "/api/constellations", json={"title": "보관함 상한", "goalRawText": "x"}
+            )
+        ).json()["id"]
+
+        too_many_bins = [
+            {"id": f"bin{i}", "label": f"군집{i}", "origin": "user"} for i in range(31)
+        ]
+        resp = await client.put(
+            f"/api/constellations/{cid}/bins",
+            json={"bins": too_many_bins},
+        )
+        assert resp.status_code == 422
+
+
 # --- 공개 / 비공개 ---
 
 

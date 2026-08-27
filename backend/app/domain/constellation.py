@@ -33,6 +33,12 @@ class NodeTypes:
 
 NodeOrigin = Literal["llm_suggested", "user_added"]
 
+# 군집(bin)의 출처. NodeOrigin("llm_suggested"/"user_added")과는 값 집합이 다르다 -
+# 프론트엔드 Bin.origin 계약("llm"|"user")을 그대로 따른다. 두 Literal을 하나로
+# 합치면 안 된다: 노드와 빈은 서로 다른 프론트엔드 타입이고, 값 문자열 자체가
+# 다르므로(예: "llm" vs "llm_suggested") 혼용하면 와이어 포맷이 깨진다.
+BinOrigin = Literal["llm", "user"]
+
 
 class Position(BaseModel):
     """캔버스 위의 좌표."""
@@ -80,6 +86,39 @@ class Edge(BaseModel):
     target_node_id: str
 
 
+class BinItem(BaseModel):
+    """군집(bin) 안에 담긴 아이템 한 건.
+
+    아이템 id 규약: 수업은 "course:{학정번호}", 비수업(자격증/대외활동 등 유저가
+    직접 추가하거나 LLM이 제안한 항목)은 "support:{uuid}". 이 규약은 프론트엔드와
+    합의된 것으로, 백엔드는 값을 그대로 통과시킬 뿐 강제 검증하지 않는다(형식이
+    바뀌어도 이 스키마가 깨지지 않도록 str로만 취급).
+    """
+
+    id: str
+    label: str
+    type: NodeType
+    level: int | None = None
+    subtitle: str | None = None
+    description: str | None = None
+
+
+class Bin(BaseModel):
+    """우측 패널 보관함(bin) 한 칸.
+
+    LLM이 목표 분석 시 제안하거나("llm") 유저가 직접 만든("user") 군집이다.
+    캔버스에 아직 배치하지 않은 후보 아이템들을 여기 모아두었다가, 유저가
+    끌어다 놓으면 실제 Node로 승격된다(그 변환 로직은 이 모듈이 아니라 API
+    레이어의 책임).
+    """
+
+    id: str
+    label: str
+    origin: BinOrigin
+    advice: str | None = None
+    items: list[BinItem] = Field(default_factory=list)
+
+
 class Constellation(BaseModel):
     """별자리 전체."""
 
@@ -92,6 +131,14 @@ class Constellation(BaseModel):
     # 그래프 전체 배열을 다시 쓰지 않고 해당 노드 하나만 갱신할 수 있다.
     nodes: dict[str, Node] = Field(default_factory=dict)
     edges: dict[str, Edge] = Field(default_factory=dict)
+    # 우측 패널 보관함 영속화. list인 이유: 프론트엔드가 순서를 의미 있게 다루고
+    # (드래그로 재배열), bin 자체의 개수도 nodes/edges에 비해 훨씬 적어(<=30)
+    # dict의 부분 업데이트 이점이 크지 않다 - 그래서 nodes/edges와 달리 항상
+    # 배열 전체를 교체하는 의미론을 쓴다(app/firestore/constellation_repo.py의
+    # replace_bins 참고). 기본값을 Field(default_factory=list)로 둔 이유: 이
+    # 필드 도입 이전에 저장된 구 문서는 bins 키 자체가 없으므로, 역직렬화 시
+    # Pydantic 기본값으로 빈 리스트가 채워져야 한다(회귀 방지 - CRITICAL).
+    bins: list[Bin] = Field(default_factory=list)
     is_published: bool = False
     created_at: datetime
     updated_at: datetime

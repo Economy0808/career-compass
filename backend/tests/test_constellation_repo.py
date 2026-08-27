@@ -27,6 +27,8 @@ import requests
 from google.cloud.firestore import Client
 
 from app.domain.constellation import (
+    Bin,
+    BinItem,
     Constellation,
     Edge,
     Node,
@@ -418,6 +420,97 @@ def test_update_special_id_node_leaves_sibling_node_intact(db: Client) -> None:
     # 형제 노드는 부분 업데이트로부터 완전히 보호되어야 한다
     assert fetched.nodes["n2"].position == Position(x=3.0, y=3.0)
     assert fetched.nodes["n2"].is_completed is True
+
+
+# --- replace_bins ---
+
+
+def _make_bin(bin_id: str, *, advice: str | None = None, items: list[BinItem] | None = None) -> Bin:
+    return Bin(id=bin_id, label=f"군집 {bin_id}", origin="llm", advice=advice, items=items or [])
+
+
+def test_replace_bins_round_trip_preserves_advice_items_order(db: Client) -> None:
+    repo.create_constellation(db, _make_constellation("c1", "owner1"))
+
+    item1 = BinItem(id="course:PHI1001", label="철학개론", type=NodeTypes.COURSE)
+    item2 = BinItem(id="support:abc", label="자격증 A", type=NodeTypes.CERTIFICATION, level=1)
+    bins = [
+        _make_bin("bin1", advice="이 군집을 먼저 채워보세요", items=[item1, item2]),
+        _make_bin("bin2", items=[]),
+    ]
+
+    updated = repo.replace_bins(db, "c1", bins, owner_id="owner1")
+
+    assert [b.id for b in updated.bins] == ["bin1", "bin2"]
+    assert updated.bins[0].advice == "이 군집을 먼저 채워보세요"
+    assert [i.id for i in updated.bins[0].items] == ["course:PHI1001", "support:abc"]
+
+    fetched = repo.get_constellation(db, "c1")
+    assert fetched is not None
+    assert [b.id for b in fetched.bins] == ["bin1", "bin2"]
+    assert fetched.bins[0].advice == "이 군집을 먼저 채워보세요"
+    assert fetched.bins[0].items[1].level == 1
+
+
+def test_replace_bins_bumps_updated_at(db: Client) -> None:
+    constellation = _make_constellation("c1", "owner1")
+    repo.create_constellation(db, constellation)
+    original_updated_at = constellation.updated_at
+
+    import time
+
+    time.sleep(0.01)
+    updated = repo.replace_bins(db, "c1", [_make_bin("bin1")], owner_id="owner1")
+
+    assert updated.updated_at > original_updated_at
+
+
+def test_replace_bins_replaces_old_bins_entirely(db: Client) -> None:
+    repo.create_constellation(db, _make_constellation("c1", "owner1"))
+    repo.replace_bins(db, "c1", [_make_bin("old1"), _make_bin("old2")], owner_id="owner1")
+
+    updated = repo.replace_bins(db, "c1", [_make_bin("new1")], owner_id="owner1")
+
+    assert [b.id for b in updated.bins] == ["new1"]
+    fetched = repo.get_constellation(db, "c1")
+    assert fetched is not None
+    assert [b.id for b in fetched.bins] == ["new1"]
+
+
+def test_replace_bins_wrong_owner_raises(db: Client) -> None:
+    repo.create_constellation(db, _make_constellation("c1", "owner1"))
+
+    with pytest.raises(repo.ConstellationPermissionError):
+        repo.replace_bins(db, "c1", [_make_bin("bin1")], owner_id="intruder")
+
+
+def test_replace_bins_unknown_id_raises(db: Client) -> None:
+    with pytest.raises(repo.ConstellationNotFoundError):
+        repo.replace_bins(db, "no-such-id", [_make_bin("bin1")], owner_id="owner1")
+
+
+def test_get_constellation_backward_compat_raw_doc_without_bins_field(db: Client) -> None:
+    """bins 필드가 아예 없는 구 문서(이 기능 도입 이전에 저장됨)도 여전히
+    파싱되어야 하고, bins는 빈 리스트여야 한다 (회귀 방지 - CRITICAL)."""
+    now = datetime(2026, 1, 1, tzinfo=UTC)
+    raw_doc = {
+        "id": "old-doc",
+        "owner_id": "owner1",
+        "title": "구버전 별자리",
+        "goal_raw_text": "목표 원문",
+        "nodes": {},
+        "edges": {},
+        # bins 키 자체가 없음 - 의도적
+        "is_published": False,
+        "created_at": now,
+        "updated_at": now,
+    }
+    db.collection("constellations").document("old-doc").set(raw_doc)
+
+    fetched = repo.get_constellation(db, "old-doc")
+
+    assert fetched is not None
+    assert fetched.bins == []
 
 
 # --- delete_constellation ---

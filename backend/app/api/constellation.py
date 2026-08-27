@@ -30,6 +30,7 @@ from app.firestore.constellation_repo import (
 )
 from app.firestore.note_repo import NoteNotFoundError
 from app.schemas.constellation import (
+    BinsPutIn,
     CompletionPatchIn,
     ConstellationCreateIn,
     ConstellationOut,
@@ -41,6 +42,7 @@ from app.schemas.constellation import (
     PositionPatchIn,
     PublishPatchIn,
     attachment_from_in,
+    bin_from_in,
     constellation_to_out,
     edge_from_create_in,
     node_from_create_in,
@@ -104,6 +106,7 @@ async def create_constellation(
     now = datetime.now(UTC)
     nodes = {n.id: node_from_create_in(n, created_at=now) for n in payload.nodes}
     edges = {e.id: edge_from_create_in(e) for e in payload.edges}
+    bins = [bin_from_in(b) for b in payload.bins]
     constellation = Constellation(
         id=str(uuid.uuid4()),
         owner_id=user.uid,
@@ -111,6 +114,7 @@ async def create_constellation(
         goal_raw_text=payload.goal_raw_text,
         nodes=nodes,
         edges=edges,
+        bins=bins,
         is_published=False,
         created_at=now,
         updated_at=now,
@@ -163,6 +167,25 @@ async def set_published(
 ) -> ConstellationOut:
     updated = _translate_repo_errors(constellation_repo.set_published)(
         db, constellation_id, payload.is_published, user.uid
+    )
+    return constellation_to_out(updated)
+
+
+@router.put(
+    "/{constellation_id}/bins",
+    response_model=ConstellationOut,
+    response_model_exclude_none=True,
+)
+async def replace_bins(
+    constellation_id: str,
+    payload: BinsPutIn,
+    user: DecodedToken = Depends(get_current_user),
+    db: Client = Depends(get_firestore_client),
+) -> ConstellationOut:
+    """우측 패널 보관함을 통째로 교체한다. 요청에 없는 기존 bin은 사라진다."""
+    bins = [bin_from_in(b) for b in payload.bins]
+    updated = _translate_repo_errors(constellation_repo.replace_bins)(
+        db, constellation_id, bins, user.uid
     )
     return constellation_to_out(updated)
 

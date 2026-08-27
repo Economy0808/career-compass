@@ -66,6 +66,7 @@ from google.cloud.firestore_v1.base_query import FieldFilter
 from google.cloud.firestore_v1.field_path import FieldPath
 
 from app.domain.constellation import (
+    Bin,
     Constellation,
     Edge,
     Node,
@@ -466,6 +467,31 @@ def set_published(
         constellation.updated_at = now
         update_data: dict[str, Any] = {
             "is_published": is_published,
+            "updated_at": now,
+        }
+        return constellation, update_data
+
+    return _run_owned_transaction(db, constellation_id, owner_id, _mutate)
+
+
+def replace_bins(
+    db: Client, constellation_id: str, bins: list[Bin], owner_id: str
+) -> Constellation:
+    """우측 패널 보관함(bins)을 통째로 교체한다.
+
+    nodes/edges와 달리 dot-notation 부분 업데이트를 쓰지 않는다 - 프론트엔드가
+    보관함 배열 전체를 항상 자신의 상태로 들고 있다가 그대로 밀어넣는 "전체
+    교체" 의미론이기 때문이다(bin 개별 추가/삭제 API는 없음, YAGNI). 즉 이
+    호출 이전에 있던 bins는 이번 요청에 없으면 전부 사라진다 - 부분적으로
+    합쳐지지 않는다.
+    """
+
+    def _mutate(constellation: Constellation) -> tuple[Constellation, dict[str, Any]]:
+        now = datetime.now(UTC)
+        constellation.bins = bins
+        constellation.updated_at = now
+        update_data: dict[str, Any] = {
+            "bins": [b.model_dump() for b in bins],
             "updated_at": now,
         }
         return constellation, update_data
