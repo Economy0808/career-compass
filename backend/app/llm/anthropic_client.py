@@ -78,8 +78,12 @@ _CHAT_SCHEMA = {
     "properties": {
         "done": {"type": "boolean"},
         "question": {"type": ["string", "null"]},
+        # 입력 보조 힌트 한 줄 - done=true면 null.
+        "hint": {"type": ["string", "null"]},
+        # 입력 보조 칩 2~4개(짧은 명사구) - done=true면 [].
+        "options": {"type": "array", "items": {"type": "string"}},
     },
-    "required": ["done", "question"],
+    "required": ["done", "question", "hint", "options"],
 }
 _MILESTONE_SCHEMA = {
     "type": "object",
@@ -321,6 +325,10 @@ class AnthropicClaudeClient:
             " 마라 — 정보가 얕은 채 끝내는 것보다 한두 개 더 묻는 게 낫다.\n"
             "- 유저가 '모르겠다/상관없다'고 하면 그 항목은 파악된 것으로 간주하고 다음으로"
             " 넘어가라 (억지로 캐묻지 말 것).\n"
+            "- 각 질문에 선택지 칩 2~4개(짧은 명사구, 마지막에 '잘 모르겠어요' 허용)와 필요"
+            " 시 한 줄 힌트를 함께 제안하라 - 칩은 입력 보조일 뿐 유저는 자유롭게 타이핑해도"
+            " 된다는 걸 유념하고, 질문의 답을 미리 좁히는 칩을 만들어라. done=true인 턴에서는"
+            " hint를 null, options를 빈 배열로 둬라.\n"
             "- 로드맵을 짜기에 정말 충분히 구체적으로 파악됐다고 판단되면 done=true로 종료하라.\n"
             "- '이미 파악된 유저 정보' 블록이 주어지면 그 항목들은 아는 것으로 간주하고 절대"
             " 다시 묻지 마라. 이번 목표에 특화된 질문(세부 분야, 목표 시점 등)만 물어라."
@@ -341,7 +349,9 @@ class AnthropicClaudeClient:
         # 가고 더 빠르다.
         resp = await self._client.messages.create(
             model=self._extract_model,
-            max_tokens=1024,
+            # 칩/힌트 필드가 늘어난 만큼 출력 예산을 살짝 올린다(1024 -> 1536) -
+            # thinking은 여전히 꺼서 예산 전부가 구조화 출력에 가게 한다.
+            max_tokens=1536,
             thinking={"type": "disabled"},
             system=_cached_system(system),
             messages=[{"role": "user", "content": transcript}],
@@ -351,7 +361,15 @@ class AnthropicClaudeClient:
             return ChatTurn(done=True, question=None)
         try:
             data = json.loads(_first_text(resp))
-            return ChatTurn(done=bool(data["done"]), question=data.get("question") or None)
+            if bool(data["done"]):
+                # done 턴은 프롬프트가 null/[]를 요구하지만, 모델이 안 지켜도 방어적으로 강제.
+                return ChatTurn(done=True, question=None, hint=None, options=[])
+            return ChatTurn(
+                done=False,
+                question=data.get("question") or None,
+                hint=data.get("hint") or None,
+                options=[str(o) for o in data.get("options", [])],
+            )
         except (json.JSONDecodeError, KeyError, TypeError):
             # 응답이 잘리거나 비면 503 대신 질답을 종료해 프리뷰로 넘긴다.
             logger.warning("chat returned unparsable JSON; ending intake")

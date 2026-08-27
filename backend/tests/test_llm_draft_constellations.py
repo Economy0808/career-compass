@@ -13,11 +13,37 @@ _GOAL = "데이터 분석가가 되고 싶다"
 
 
 def _bins(item_count: int) -> list[dict]:
-    """item_count개의 항목을 담은 bin 하나짜리 wire-ready bins_payload를 만든다."""
+    """item_count개의 항목을 담은 bin 하나짜리 wire-ready bins_payload를 만든다(전부 수업)."""
     items = [
         {"id": f"course:C{i:03d}", "label": f"과목{i}", "type": "course"} for i in range(item_count)
     ]
     return [{"id": "bin-1", "label": "테스트 보관함", "items": items}]
+
+
+def _mixed_bins() -> list[dict]:
+    """수업 6개 + 비교과 타입별 2개씩(자격증/학회/활동/네트워킹) 담은 bins_payload.
+
+    board 4(수업3 자격증1 학회1 활동1)처럼 실제로 섞여 나오는지 검증하기 위한 픽스처.
+    """
+    course_items = [
+        {"id": f"course:C{i:03d}", "label": f"과목{i}", "type": "course"} for i in range(6)
+    ]
+    support_items = (
+        [
+            {"id": f"support:cert{i}", "label": f"자격증{i}", "type": "certification"}
+            for i in range(2)
+        ]
+        + [{"id": f"support:org{i}", "label": f"학회{i}", "type": "organization"} for i in range(2)]
+        + [{"id": f"support:act{i}", "label": f"활동{i}", "type": "activity"} for i in range(2)]
+        + [
+            {"id": f"support:net{i}", "label": f"네트워킹{i}", "type": "networking"}
+            for i in range(2)
+        ]
+    )
+    return [
+        {"id": "bin-course", "label": "수업 보관함", "items": course_items},
+        {"id": "bin-support", "label": "비교과 보관함", "items": support_items},
+    ]
 
 
 @pytest.mark.asyncio
@@ -76,6 +102,23 @@ async def test_suggest_draft_constellations_item_ids_are_subset_of_bins() -> Non
         for a, b in draft.edges:
             assert a in item_id_set
             assert b in item_id_set
+
+
+@pytest.mark.asyncio
+async def test_suggest_draft_constellations_mixes_course_and_support_types() -> None:
+    """수업만 몰아 담지 않고 타입별로 섞여야 한다(board 4: 수업3 자격증1 학회1 활동1 등)."""
+    llm = MockClaudeClient()
+
+    result = await llm.suggest_draft_constellations(_GOAL, _mixed_bins())
+
+    assert result.drafts
+    for draft in result.drafts:
+        types = {item_id.split(":", 1)[0] for item_id in draft.item_ids}
+        # course id는 "course:C000" 형태라 위 split은 접두어만 남긴다 - 실제 타입
+        # 구분을 위해선 원본 매핑이 필요하므로, 여기서는 수업/비교과가 함께
+        # 섞여 있는지만 간단히 확인한다(수업 접두어 "course"와 그 외 "support").
+        assert "course" in types  # 수업이 최소 1개는 포함
+        assert types - {"course"}, "비교과 타입도 최소 1개는 섞여야 한다"
 
 
 @pytest.mark.asyncio

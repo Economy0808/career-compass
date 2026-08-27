@@ -24,7 +24,7 @@ import pytest
 import requests
 from httpx import ASGITransport, AsyncClient
 
-from app.auth.deps import get_current_user
+from app.auth.deps import get_current_user_optional
 from app.auth.firebase_auth import DecodedToken
 from app.etl.yonsei_courses import MergedCourse
 from app.firestore.client import get_firestore_client
@@ -74,14 +74,14 @@ def _reset_bin_jobs() -> Iterator[None]:
 
 @pytest.fixture
 def authed_as() -> Callable[[str], None]:
-    """주어진 uid로 get_current_user override를 세팅하는 함수를 돌려준다.
+    """주어진 uid로 get_current_user_optional override를 세팅하는 함수를 돌려준다.
 
-    test_constellation_api.py와 동일한 이유로 app.auth.deps.get_current_user 객체를
-    그대로 키로 써야 override가 먹는다.
+    이 라우터의 네 엔드포인트 모두 get_current_user_optional을 직접 의존하므로
+    (인증 불필요 - 모듈 docstring 참고) 그 객체를 그대로 키로 override해야 먹는다.
     """
 
     def _set(uid: str) -> None:
-        app.dependency_overrides[get_current_user] = lambda: DecodedToken(uid=uid)
+        app.dependency_overrides[get_current_user_optional] = lambda: DecodedToken(uid=uid)
 
     return _set
 
@@ -137,17 +137,54 @@ async def _poll_job(client: AsyncClient, job_id: str, *, timeout: float = 10.0) 
     raise AssertionError(f"job {job_id} did not finish within {timeout}s")
 
 
-# --- 인증 ---
+# --- 인증 (인증 불필요 - 모듈 docstring 참고) ---
 
 
 @pytest.mark.asyncio
-async def test_chat_without_auth_header_returns_401() -> None:
+async def test_chat_without_auth_header_succeeds_for_anonymous_visitor() -> None:
+    """렌즈->대화->초안 체인은 로그인 전 방문자도 끝까지 돌려볼 수 있어야 한다."""
     async with _client() as client:
         resp = await client.post(
             "/api/constellation-intake/chat",
             json={"goalRawText": "데이터 분석가가 되고 싶어", "messages": []},
         )
-        assert resp.status_code == 401
+        assert resp.status_code == 200
+        data = resp.json()
+        assert data["done"] is False
+        assert data["reply"] is not None
+
+
+@pytest.mark.asyncio
+async def test_anon_bins_job_completes_and_is_pollable_without_auth(
+    authed_as: Callable[[str], None],
+) -> None:
+    """비로그인으로 시작한 /bins 잡을 비로그인 그대로 폴링해 결과를 받을 수 있어야 한다."""
+    _seed_business_courses()
+    async with _client() as client:
+        resp = await client.post(
+            "/api/constellation-intake/bins", json={"goalText": _BUSINESS_GOAL}
+        )
+        assert resp.status_code == 202
+        job_id = resp.json()["jobId"]
+
+        data = await _poll_job(client, job_id)  # 인증 헤더 없이 폴링
+        assert data["status"] == "done"
+        assert data["result"]["bins"]
+
+
+@pytest.mark.asyncio
+async def test_authed_user_cannot_read_anon_job(authed_as: Callable[[str], None]) -> None:
+    """익명 잡(uid="anon")은 로그인한 유저의 uid로는 조회되지 않는다(404)."""
+    async with _client() as client:
+        resp = await client.post(
+            "/api/constellation-intake/bins", json={"goalText": _BUSINESS_GOAL}
+        )
+        job_id = resp.json()["jobId"]
+
+    authed_as("user-a")
+    async with _client() as client:
+        resp = await client.get(f"/api/constellation-intake/jobs/{job_id}")
+        assert resp.status_code == 404
 
 
 # --- 질답 (/chat) ---
@@ -173,6 +210,44 @@ async def test_chat_turn_one_returns_question_and_appended_messages(
 
 
 @pytest.mark.asyncio
+async def test_chat_turn_includes_hint_and_options(authed_as: Callable[[str], None]) -> None:
+    """질답 응답 하나하나가 입력 보조 칩(camelCase options)을 들고 와야 한다(board 3)."""
+    authed_as("user-a")
+    async with _client() as client:
+        resp = await client.post(
+            "/api/constellation-intake/chat",
+            json={"goalRawText": "데이터 분석가가 되고 싶어", "messages": []},
+        )
+        assert resp.status_code == 200
+        data = resp.json()
+        assert "hint" in data  # 키 존재(값은 null일 수 있음)
+        assert data["options"], "mock은 매 질문마다 칩을 준다"
+        assert all(isinstance(o, str) for o in data["options"])
+
+
+@pytest.mark.asyncio
+async def test_chat_done_turn_has_empty_options(authed_as: Callable[[str], None]) -> None:
+    authed_as("user-a")
+    goal = "데이터 분석가가 되고 싶어"
+    messages: list[dict] = []
+    async with _client() as client:
+        for _ in range(10):  # mock은 질문 6개 - 넉넉한 상한
+            resp = await client.post(
+                "/api/constellation-intake/chat",
+                json={"goalRawText": goal, "messages": messages},
+            )
+            assert resp.status_code == 200
+            data = resp.json()
+            messages = data["messages"]
+            if data["done"]:
+                assert data["options"] == []
+                assert data["hint"] is None
+                return
+            messages.append({"role": "user", "content": "네, 그래요"})
+        pytest.fail("6문항 안에 done=True에 도달해야 한다")
+
+
+@pytest.mark.asyncio
 async def test_chat_loop_reaches_done_within_mock_question_budget(
     authed_as: Callable[[str], None],
 ) -> None:
@@ -181,7 +256,7 @@ async def test_chat_loop_reaches_done_within_mock_question_budget(
     messages: list[dict] = []
     async with _client() as client:
         done = False
-        for _ in range(10):  # mock은 질문 5개 - 넉넉한 상한
+        for _ in range(10):  # mock은 질문 6개 - 넉넉한 상한
             resp = await client.post(
                 "/api/constellation-intake/chat",
                 json={"goalRawText": goal, "messages": messages},
@@ -193,7 +268,7 @@ async def test_chat_loop_reaches_done_within_mock_question_budget(
                 done = True
                 break
             messages.append({"role": "user", "content": "네, 그래요"})
-        assert done, "5문항 안에 done=True에 도달해야 한다"
+        assert done, "6문항 안에 done=True에 도달해야 한다"
 
 
 @pytest.mark.asyncio

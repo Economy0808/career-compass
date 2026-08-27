@@ -58,6 +58,9 @@ class IntakeChatOut(_CamelModel):
     reply: str | None
     done: bool
     messages: list[ChatMessageOut]
+    # 입력 보조 힌트/칩 (board 3) - done=true면 각각 None/[].
+    hint: str | None = None
+    options: list[str] = Field(default_factory=list)
 
 
 class BinSuggestIn(_CamelModel):

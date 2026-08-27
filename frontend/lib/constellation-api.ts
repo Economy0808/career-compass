@@ -151,6 +151,10 @@ export interface IntakeChatResponse {
   reply: string | null;
   done: boolean;
   messages: ChatMessageDto[];
+  /** 지금 질문 아래 뜨는 한 줄 힌트(board 3) - done이면 null. */
+  hint: string | null;
+  /** 입력 보조 칩 2~4개 - 클릭하면 그 텍스트로 그대로 제출된다. done이면 []. */
+  options: string[];
 }
 
 export interface JobStartResponse {

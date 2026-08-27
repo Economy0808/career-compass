@@ -110,6 +110,12 @@
         "value": "11px",
         "createdAt": "2026-08-27T17:25:47.704Z",
         "reason": "landing FIG plate label from user-pinned mock board1"
+      },
+      {
+        "rule": "design-system-font-size",
+        "value": "13.5px",
+        "createdAt": "2026-08-27T18:03:53.811Z",
+        "reason": "approved board 88238bcc Dialogue hint/chip size (verbatim from the design canvas source)"
       }
     ]
   }

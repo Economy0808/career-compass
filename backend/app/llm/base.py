@@ -29,6 +29,8 @@ class ChatMessage:
 class ChatTurn:
     done: bool
     question: str | None  # done=True이면 None
+    hint: str | None = None  # 질문 아래 뜨는 한 줄 힌트 (board 3) - done이면 None
+    options: list[str] = field(default_factory=list)  # 입력 보조 칩 2~4개 - done이면 []
 
 
 @dataclass

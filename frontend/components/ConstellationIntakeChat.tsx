@@ -100,6 +100,9 @@ export function ConstellationIntakeChat({
   const [pending, setPending] = useState(false);
   const [chatError, setChatError] = useState<string | null>(null);
   const [lastFailedText, setLastFailedText] = useState<string | null>(null);
+  // 지금 질문에 딸린 입력 보조 힌트/칩 - 서버 응답 밖(messages와 별개)이라 따로 든다.
+  const [hint, setHint] = useState<string | null>(null);
+  const [options, setOptions] = useState<string[]>([]);
 
   // --- 구간 생성 잡 상태 ------------------------------------------------------
   const [jobError, setJobError] = useState<string | null>(null);
@@ -203,10 +206,16 @@ export function ConstellationIntakeChat({
     setMessages(nextMessages);
     setDraft("");
     setPending(true);
+    // 다음 질문이 올 때까지는 지금 칩/힌트를 지운다 - 이전 질문 것이 남아있으면
+    // 아직 답 안 한 다음 질문에 엉뚱한 칩이 붙어 보인다.
+    setHint(null);
+    setOptions([]);
 
     try {
       const res = await intakeChat({ goalRawText: goal, messages: nextMessages });
       setMessages(res.messages);
+      setHint(res.done ? null : res.hint);
+      setOptions(res.done ? [] : res.options);
       setPending(false);
       if (res.done || res.messages.length >= MAX_MESSAGES) {
         beginGenerating(goal);
@@ -287,11 +296,35 @@ export function ConstellationIntakeChat({
               ))}
 
               {openTurn ? (
-                <div className="flex items-start gap-3">
-                  <StarGlyph size={18} className="mt-1 shrink-0" />
-                  <p className="whitespace-pre-wrap font-serif text-[22px] leading-[1.65] text-text-hi">
-                    {openTurn.question}
-                  </p>
+                <div className="flex flex-col gap-3">
+                  <div className="flex items-start gap-3">
+                    <StarGlyph size={18} className="mt-1 shrink-0" />
+                    <p className="whitespace-pre-wrap font-serif text-[22px] leading-[1.65] text-text-hi">
+                      {openTurn.question}
+                    </p>
+                  </div>
+                  {(hint || options.length > 0) && (
+                    <div className="flex flex-col gap-2.5 pl-[30px]">
+                      {hint && (
+                        <p className="whitespace-pre-wrap text-[13.5px] text-text-lo">{hint}</p>
+                      )}
+                      {options.length > 0 && (
+                        <div className="flex flex-wrap gap-2.5">
+                          {options.map((opt) => (
+                            <button
+                              key={opt}
+                              type="button"
+                              disabled={inputDisabled}
+                              onClick={() => void sendMessage(opt)}
+                              className="rounded-full border border-rule px-4 py-2 text-[13.5px] text-text-lo transition-colors hover:border-text-hi/30 hover:text-text-hi disabled:pointer-events-none disabled:opacity-50"
+                            >
+                              {opt}
+                            </button>
+                          ))}
+                        </div>
+                      )}
+                    </div>
+                  )}
                 </div>
               ) : (
                 <TypingDots />

@@ -72,8 +72,11 @@ _DRAFT_SPECS: list[tuple[str, str]] = [
     ("기록하는 사람", "글과 미디어로 잇는 길"),
     ("연결하는 사람", "현장과 조직을 잇는 길"),
 ]
-_DRAFT_CHUNK_SIZE = 7  # 초안 하나에 담을 항목 상한 (시안: 4~7개)
+_DRAFT_COURSE_TAKE = 4  # 초안 하나당 기본으로 담는 수업 항목 개수 (시안: 3~4개)
+_DRAFT_MAX_ITEMS = 7  # 초안 하나에 담을 항목 상한 (시안: 4~7개)
 _DRAFT_MIN_ITEMS = 3  # 이보다 적게 남으면 초안으로 의미가 없어 버린다
+# 비교과 요소 타입 - 이 순서대로 각 최대 1개씩 초안에 섞는다 (board 4: 수업3 자격증1 학회1 활동1).
+_SUPPORT_TYPES_ORDER = ["certification", "organization", "activity", "networking"]
 
 MIN_MILESTONES = 6
 MAX_MILESTONES = 12
@@ -84,11 +87,52 @@ FIXED_QUESTIONS = [
     "일주일에 이 목표를 위해 쓸 수 있는 시간은 대략 어느 정도인가요?",
     "특별히 끌리는 세부 분야나 역할이 있나요? (아직 몰라도 괜찮아요)",
     "혼자 파고드는 것과 사람들과 함께하는 것 중 어느 쪽이 더 잘 맞나요?",
+    "목표로 삼는 회사나 직무, 준비 중인 시험이 있나요? (없어도 괜찮아요)",
 ]
 
 # known_profile이 있으면(대목표 컨텍스트 재사용) 이미 아는 경험·시간 질문은 생략하고
 # 이번 목표에 특화된 질문만 남긴다.
 FOLLOWUP_QUESTIONS = [FIXED_QUESTIONS[0], FIXED_QUESTIONS[3], FIXED_QUESTIONS[4]]
+
+# 질문별 입력 보조 칩/힌트 (board 3 시안) - {질문 텍스트: (힌트 or None, 칩 목록)}.
+# FOLLOWUP_QUESTIONS도 FIXED_QUESTIONS의 문자열을 그대로 재사용하므로 키 하나로 양쪽을 다 커버한다.
+_QUESTION_CHIPS: dict[str, tuple[str | None, list[str]]] = {
+    FIXED_QUESTIONS[0]: (
+        None,
+        ["3개월 안에", "6개월 안에", "1년 안에", "아직 못 정했어요"],
+    ),
+    FIXED_QUESTIONS[1]: (
+        None,
+        [
+            "관련 수업을 들어봤어요",
+            "독학으로 조금 해봤어요",
+            "동아리·활동 경험이 있어요",
+            "전혀 없어요",
+        ],
+    ),
+    FIXED_QUESTIONS[2]: (
+        "주당 평균으로 편하게 답해주세요.",
+        ["3시간 이하", "5~10시간", "10시간 이상", "그때그때 달라요"],
+    ),
+    # 시안 보드 3의 예시 문구 그대로 - "미래의 하루" 스타일 질문.
+    FIXED_QUESTIONS[3]: (
+        "직업 이름이 아니어도 괜찮아요. 장면으로 말해줘도 좋아요.",
+        ["데이터를 다루는 하루", "사람을 만나는 하루", "글을 쓰는 하루", "잘 모르겠어요"],
+    ),
+    FIXED_QUESTIONS[4]: (
+        None,
+        ["혼자 파고드는 게 좋아요", "사람들과 함께가 좋아요", "둘 다 괜찮아요", "잘 모르겠어요"],
+    ),
+    FIXED_QUESTIONS[5]: (
+        None,
+        [
+            "염두에 둔 회사가 있어요",
+            "준비 중인 시험·자격증이 있어요",
+            "막연한 이미지만 있어요",
+            "잘 모르겠어요",
+        ],
+    ),
+}
 
 _GOAL_SUFFIXES = ("이 되고 싶어", "가 되고 싶어", "하고 싶어", "하고싶어", "되고 싶어")
 
@@ -184,6 +228,31 @@ _EXTRA_STEPS: list[_Step] = [
 ]
 
 
+def _interleave_by_level(items: list[dict]) -> list[dict]:
+    """레벨(학년대)별로 묶은 뒤 라운드로빈으로 재배열한다.
+
+    suggest_draft_constellations가 앞에서부터 순서대로 수업을 집어가므로, 그냥
+    두면 한 군집(=한 학년대)이 통째로 한 초안에 쏠릴 수 있다 - "다른 레벨을
+    섞어서" 요구사항을 만족시키기 위해 원본 순서를 보존한 채 레벨끼리만 교차시킨다.
+    level 키가 없는 항목(예: 테스트 fixture)은 전부 같은 버킷(None)에 묶여
+    사실상 원래 순서 그대로 나온다 - 기존 결정론 테스트와 호환된다.
+    """
+    buckets: dict[object, list[dict]] = {}
+    order: list[object] = []
+    for item in items:
+        key = item.get("level")
+        if key not in buckets:
+            buckets[key] = []
+            order.append(key)
+        buckets[key].append(item)
+    result: list[dict] = []
+    while any(buckets[k] for k in order):
+        for k in order:
+            if buckets[k]:
+                result.append(buckets[k].pop(0))
+    return result
+
+
 def _strip_goal(goal_raw_text: str) -> str:
     text = goal_raw_text.strip()
     for suffix in _GOAL_SUFFIXES:
@@ -199,7 +268,7 @@ def _milestone_count(goal_raw_text: str) -> int:
 
 
 class MockClaudeClient:
-    """네트워크 없는 결정론적 시나리오. 질답은 고정 5문항, 종합은 6~12단계 템플릿."""
+    """네트워크 없는 결정론적 시나리오. 질답은 고정 6문항, 종합은 6~12단계 템플릿."""
 
     async def chat(
         self,
@@ -211,7 +280,9 @@ class MockClaudeClient:
         asked = sum(1 for m in messages if m.role == "assistant")
         if asked >= len(questions):
             return ChatTurn(done=True, question=None)
-        return ChatTurn(done=False, question=questions[asked])
+        question = questions[asked]
+        hint, options = _QUESTION_CHIPS.get(question, (None, []))
+        return ChatTurn(done=False, question=question, hint=hint, options=list(options))
 
     async def extract_intent(self, goal_raw_text: str, messages: list[ChatMessage]) -> CareerIntent:
         goal = goal_raw_text.strip()
@@ -438,23 +509,51 @@ class MockClaudeClient:
     async def suggest_draft_constellations(
         self, goal_text: str, bins_payload: list[dict]
     ) -> DraftResult:
-        """결정론적 mock: bins의 항목을 순서대로 최대 7개씩 잘라 초안 최대 3개를 만든다.
+        """결정론적 mock: 초안마다 수업 3~4개 + 비교과 타입별 최대 1개씩 섞는다.
 
-        실제 모델처럼 의미로 갈라 담지 않고 그냥 순차 슬라이스를 쓰되, 계약(항목은
-        전부 bins에 있는 id, 각 초안은 3개 이상)은 동일하게 지킨다. bins가 작으면
-        자연히 초안이 줄어들거나(슬라이스 하나가 3개 미만이면 중단) 아예 없어진다 -
-        cluster_courses/suggest_support_elements와 같은 "확신 없으면 적게/비움" 결.
+        예전엔 bins 항목을 그냥 순서대로 7개씩 잘랐는데, 그러면 수업 군집이 크고
+        비교과 군집이 작을 때 초안이 전부 수업으로만 채워지는 문제가 있었다(시안
+        보드 4는 수업3+자격증1+학회1+활동1처럼 섞여야 함). 그래서 타입별로 커서를
+        따로 두고 라운드로빈으로 섞는다. 순수 수업뿐인 bins(비교과 없음)에서는
+        수업으로 상한(_DRAFT_MAX_ITEMS)까지 채워 예전과 동일한 크기를 유지한다.
+
+        실제 모델처럼 의미로 판단하지 않지만, 계약(항목은 전부 bins에 있는 id,
+        각 초안은 3개 이상)은 동일하게 지킨다. bins가 작으면 자연히 초안이
+        줄어들거나(3개 미만이면 중단) 아예 없어진다 - cluster_courses/
+        suggest_support_elements와 같은 "확신 없으면 적게/비움" 결.
         """
         del goal_text  # mock은 목표 텍스트로 갈래를 나누지 않는다 - bins만으로 결정.
         all_items = [item for b in bins_payload for item in b.get("items", [])]
+        course_items = _interleave_by_level([i for i in all_items if i.get("type") == "course"])
+        support_by_type: dict[str, list[dict]] = {}
+        for item in all_items:
+            item_type = item.get("type")
+            if item_type and item_type != "course":
+                support_by_type.setdefault(item_type, []).append(item)
+
+        course_idx = 0
+        support_idx = dict.fromkeys(support_by_type, 0)
 
         drafts: list[DraftConstellation] = []
-        start = 0
         for name, tagline in _DRAFT_SPECS:
-            chunk = all_items[start : start + _DRAFT_CHUNK_SIZE]
+            chunk: list[dict] = []
+            take = min(_DRAFT_COURSE_TAKE, len(course_items) - course_idx)
+            chunk.extend(course_items[course_idx : course_idx + take])
+            course_idx += take
+            for support_type in _SUPPORT_TYPES_ORDER:
+                bucket = support_by_type.get(support_type)
+                idx = support_idx.get(support_type, 0)
+                if not bucket or idx >= len(bucket):
+                    continue
+                chunk.append(bucket[idx])
+                support_idx[support_type] = idx + 1
+            # 비교과가 부족해(또는 아예 없어) 상한에 못 미치면 수업으로 마저 채운다 -
+            # 수업뿐인 목표에서도 초안 크기가 예전처럼 4~7개를 유지하게 하기 위함.
+            while len(chunk) < _DRAFT_MAX_ITEMS and course_idx < len(course_items):
+                chunk.append(course_items[course_idx])
+                course_idx += 1
             if len(chunk) < _DRAFT_MIN_ITEMS:
                 break
-            start += _DRAFT_CHUNK_SIZE
             item_ids = [item["id"] for item in chunk]
             edges = [(item_ids[i], item_ids[i + 1]) for i in range(len(item_ids) - 1)]
             drafts.append(
