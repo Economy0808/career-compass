@@ -1,4 +1,20 @@
-# 프론트엔드 세션 핸드오프 (2026-08-27 저녁 갱신)
+# 프론트엔드 세션 핸드오프 (2026-08-27 심야 갱신 — 같은 세션 2차)
+
+> **2026-08-27 심야: 진입 연출 + 디자인 패스 완료** (`56b2ad1`·`43fd474`·`cb1db83`):
+> - **망원경 랜딩**: 비로그인 `/` = 밝은 종이 성도(`TelescopeLanding.tsx`). ⚠️ 색은 전부
+>   `--paper-*` **인라인 var()** — Tailwind 신규 토큰은 dev 서버 재시작 전 미컴파일이라
+>   흰 랜딩이 어둡게 뚫리는 실사고가 있었음. 이 파일은 인라인 유지가 규칙.
+>   CTA → `apertureOpen`(650ms 1회성) 명→암 전환 → `/constellation/new`.
+>   impeccable 마감 리뷰 5건 수정 후 ship 판정.
+> - **AI티 제거 스타일 패스**(로직 불변, 인테이크 계약 20d393f 유지): 인테이크 관측기록 톤·
+>   별빛 로더, 탄성 이징 제거, 인증 4페이지 수직 센터링, ::selection·caret 테마.
+> - **디자인 문서 체계 신설**: `PRODUCT.md`(제품 사실) + `DESIGN.md`(+`.impeccable/design.json`)
+>   — 이후 디자인 작업은 impeccable 스킬이 이 파일들을 자동 로드. 격자 배경 검출 예외는
+>   `.impeccable/config.json`에 기록됨. `docs/design-handoff-guide.md`는 여전히 기능 규칙의 권위.
+> - **잔여 정리 후보**: tailwind의 콩나무 시대 잔재 `shadow-glow`/`shadow-glow-strong`(초록)·
+>   `bg-altitude` — "lit은 초록 금지" 원칙과 모순, 구 일정 화면이 쓰는지 확인 후 제거.
+>   랜딩 kicker(FOR UNDECLARED 줄)는 리뷰어가 삭제 권고(시안 고정이라 유지 중, 다음 결정 때 재론).
+> - dev 검증 팁: 포트 3000을 다른 세션이 물고 있으면 `launch.json`의 `frontend-alt`(3001)로.
 
 > **운영 규칙**: 이 문서는 매 프론트엔드 세션이 끝날 때 **같은 파일에 덮어쓰기로 갱신**한다
 > (백엔드는 `docs/backend-session-handoff.md`, 동일 규칙). 새 파일을 만들지 말 것.
