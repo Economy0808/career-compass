@@ -1,0 +1,331 @@
+"""별자리(constellation) API 요청/응답 스키마.
+
+## 와이어 포맷 규약 (프론트엔드 계약 - 반드시 고정)
+
+프론트엔드는 이미 구현되어 있고 아래 두 규약을 그대로 기대한다:
+
+1. JSON 키는 camelCase다. 모든 요청/응답 모델에 `alias_generator=to_camel` +
+   `populate_by_name=True`를 건다 - 파이썬 쪽 필드명은 snake_case로 그대로
+   유지하면서 와이어 포맷만 camelCase로 바뀐다.
+2. 시간은 epoch 밀리초 정수다. 프론트엔드가 `b.updatedAt - a.updatedAt`처럼
+   산술 비교로 정렬하므로 ISO 문자열을 절대 내보내면 안 된다. `to_epoch_ms`
+   헬퍼로 변환한다.
+
+`note_count`는 0이면 응답에서 아예 빼야 한다(프론트엔드가 "undefined = 노트
+없음(빈 상태 UI)"과 "0 = 노트 0개"를 구분한다) - NodeOut.note_count를
+`int | None`로 두고 변환 헬퍼에서 0을 None으로 바꾼 뒤, 라우터가
+`response_model_exclude_none=True`를 켜서 None 필드를 통째로 지운다.
+"""
+
+from __future__ import annotations
+
+from datetime import datetime
+
+from pydantic import BaseModel, ConfigDict, Field, field_validator
+from pydantic.alias_generators import to_camel
+
+from app.domain.constellation import (
+    Constellation,
+    Edge,
+    Node,
+    NodeOrigin,
+    NodeType,
+    Note,
+    NoteAttachment,
+    Position,
+)
+
+# NoteAttachment.url이 허용하는 스킴. 저장된 노트가 나중에 공개될 수 있으므로
+# javascript: 등 위험한 스킴은 거부한다.
+_ALLOWED_URL_SCHEMES = ("https:", "blob:")
+
+
+def to_epoch_ms(dt: datetime) -> int:
+    """datetime을 epoch 밀리초 정수로 변환한다 (와이어 포맷 규약)."""
+    return int(dt.timestamp() * 1000)
+
+
+class _CamelModel(BaseModel):
+    """camelCase 와이어 포맷 + snake_case 파이썬 필드명을 함께 쓰는 기본 모델."""
+
+    model_config = ConfigDict(alias_generator=to_camel, populate_by_name=True)
+
+
+# --- Position ---
+
+
+class PositionIn(_CamelModel):
+    """캔버스 좌표 (요청)."""
+
+    x: float
+    y: float
+
+
+class PositionOut(_CamelModel):
+    """캔버스 좌표 (응답)."""
+
+    x: float
+    y: float
+
+
+def position_to_out(position: Position) -> PositionOut:
+    return PositionOut(x=position.x, y=position.y)
+
+
+# --- Attachment ---
+
+
+class AttachmentIn(_CamelModel):
+    """노트 첨부파일 (요청). id는 클라이언트 생성."""
+
+    id: str = Field(min_length=1, max_length=200)
+    name: str = Field(max_length=300)
+    mime_type: str = Field(max_length=200)
+    url: str = Field(max_length=2000)
+
+    @field_validator("url")
+    @classmethod
+    def _check_url_scheme(cls, v: str) -> str:
+        if not v.lower().startswith(_ALLOWED_URL_SCHEMES):
+            raise ValueError(f"url scheme must be one of {_ALLOWED_URL_SCHEMES}")
+        return v
+
+
+class AttachmentOut(_CamelModel):
+    """노트 첨부파일 (응답)."""
+
+    id: str
+    name: str
+    mime_type: str
+    url: str
+
+
+def attachment_to_out(attachment: NoteAttachment) -> AttachmentOut:
+    return AttachmentOut(
+        id=attachment.id, name=attachment.name, mime_type=attachment.mime_type, url=attachment.url
+    )
+
+
+def attachment_from_in(attachment: AttachmentIn) -> NoteAttachment:
+    return NoteAttachment(
+        id=attachment.id, name=attachment.name, mime_type=attachment.mime_type, url=attachment.url
+    )
+
+
+# --- Node ---
+
+
+class NodeCreateIn(_CamelModel):
+    """노드 생성 요청. id는 클라이언트 생성(예: "element:phil-101")."""
+
+    id: str = Field(min_length=1, max_length=200)
+    label: str
+    type: NodeType
+    code: str | None = None
+    description: str | None = None
+    level: int | None = None
+    source_ref: str | None = None
+    position: PositionIn
+
+
+class NodeOut(_CamelModel):
+    """노드 응답. note_count가 0이면 라우터가 response_model_exclude_none으로 뺀다."""
+
+    id: str
+    label: str
+    type: NodeType
+    code: str | None = None
+    description: str | None = None
+    level: int | None = None
+    source_ref: str | None = None
+    is_completed: bool
+    position: PositionOut
+    origin: NodeOrigin
+    created_at: int
+    note_count: int | None = None
+
+
+def node_to_out(node: Node) -> NodeOut:
+    return NodeOut(
+        id=node.id,
+        label=node.label,
+        type=node.type,
+        code=node.code,
+        description=node.description,
+        level=node.level,
+        source_ref=node.source_ref,
+        is_completed=node.is_completed,
+        position=position_to_out(node.position),
+        origin=node.origin,
+        created_at=to_epoch_ms(node.created_at),
+        # 0이면 응답에서 아예 빼야 하므로 None으로 치환한다 (모듈 docstring 참고).
+        note_count=node.note_count or None,
+    )
+
+
+def node_from_create_in(payload: NodeCreateIn, *, created_at: datetime) -> Node:
+    """origin은 항상 서버가 "user_added"로 정한다 (LLM 제안 노드는 별도 경로)."""
+    return Node(
+        id=payload.id,
+        label=payload.label,
+        type=payload.type,
+        code=payload.code,
+        description=payload.description,
+        level=payload.level,
+        source_ref=payload.source_ref,
+        is_completed=False,
+        position=Position(x=payload.position.x, y=payload.position.y),
+        origin="user_added",
+        created_at=created_at,
+        note_count=0,
+    )
+
+
+# --- Edge ---
+
+
+class EdgeCreateIn(_CamelModel):
+    """엣지 생성 요청. id는 클라이언트 생성."""
+
+    id: str = Field(min_length=1, max_length=200)
+    source_node_id: str = Field(min_length=1, max_length=200)
+    target_node_id: str = Field(min_length=1, max_length=200)
+
+
+class EdgeOut(_CamelModel):
+    id: str
+    source_node_id: str
+    target_node_id: str
+
+
+def edge_to_out(edge: Edge) -> EdgeOut:
+    return EdgeOut(
+        id=edge.id, source_node_id=edge.source_node_id, target_node_id=edge.target_node_id
+    )
+
+
+def edge_from_create_in(payload: EdgeCreateIn) -> Edge:
+    return Edge(
+        id=payload.id, source_node_id=payload.source_node_id, target_node_id=payload.target_node_id
+    )
+
+
+# --- Constellation ---
+
+
+class ConstellationCreateIn(_CamelModel):
+    """별자리 생성 요청.
+
+    프론트엔드가 이미 완성된 로컬 그래프를 갖고 있는 첫 저장 시나리오를 위해
+    초기 nodes/edges를 한 번에 함께 받을 수 있다. edges의 source/target은 같은
+    요청 안의 nodes id를 참조해야 한다(모델 검증기가 확인).
+    """
+
+    title: str
+    goal_raw_text: str
+    nodes: list[NodeCreateIn] = Field(default_factory=list)
+    edges: list[EdgeCreateIn] = Field(default_factory=list)
+
+    @field_validator("edges")
+    @classmethod
+    def _check_edge_endpoints(cls, edges: list[EdgeCreateIn], info: object) -> list[EdgeCreateIn]:
+        # Pydantic v2에서 다른 필드(nodes) 값을 함께 봐야 하므로 model_validator가
+        # 아니라 field_validator + info.data를 쓴다. info는 ValidationInfo.
+        data = getattr(info, "data", {})
+        node_ids = {n.id for n in data.get("nodes", [])}
+        for edge in edges:
+            if edge.source_node_id not in node_ids or edge.target_node_id not in node_ids:
+                raise ValueError(
+                    f"edge {edge.id}의 endpoint는 같은 요청의 nodes id를 참조해야 합니다."
+                )
+        return edges
+
+
+class ConstellationOut(_CamelModel):
+    id: str
+    owner_id: str
+    title: str
+    goal_raw_text: str
+    nodes: dict[str, NodeOut]
+    edges: dict[str, EdgeOut]
+    is_published: bool
+    created_at: int
+    updated_at: int
+
+
+def constellation_to_out(constellation: Constellation) -> ConstellationOut:
+    return ConstellationOut(
+        id=constellation.id,
+        owner_id=constellation.owner_id,
+        title=constellation.title,
+        goal_raw_text=constellation.goal_raw_text,
+        nodes={nid: node_to_out(n) for nid, n in constellation.nodes.items()},
+        edges={eid: edge_to_out(e) for eid, e in constellation.edges.items()},
+        is_published=constellation.is_published,
+        created_at=to_epoch_ms(constellation.created_at),
+        updated_at=to_epoch_ms(constellation.updated_at),
+    )
+
+
+# --- 부분 갱신 요청 ---
+
+
+class PositionPatchIn(_CamelModel):
+    position: PositionIn
+
+
+class CompletionPatchIn(_CamelModel):
+    is_completed: bool
+
+
+# --- Note ---
+
+
+class NoteCreateIn(_CamelModel):
+    """노트 생성 요청. id는 선택 - 없으면 서버가 uuid4를 생성한다.
+
+    title/body는 빈 문자열을 허용해야 한다("빈 노트" 제품 기능) - min_length를
+    걸면 안 된다.
+    """
+
+    id: str | None = Field(default=None, min_length=1, max_length=200)
+    node_id: str = Field(min_length=1, max_length=200)
+    title: str = ""
+    body: str = ""
+    is_public: bool = False
+    attachments: list[AttachmentIn] = Field(default_factory=list, max_length=20)
+
+
+class NotePatchIn(_CamelModel):
+    """노트 갱신 요청 (자동저장 hot path). title/body 빈 문자열 허용."""
+
+    title: str = ""
+    body: str = ""
+    is_public: bool = False
+    attachments: list[AttachmentIn] = Field(default_factory=list, max_length=20)
+
+
+class NoteOut(_CamelModel):
+    id: str
+    node_id: str
+    owner_id: str
+    title: str
+    body: str
+    is_public: bool
+    attachments: list[AttachmentOut]
+    created_at: int
+    updated_at: int
+
+
+def note_to_out(note: Note) -> NoteOut:
+    return NoteOut(
+        id=note.id,
+        node_id=note.node_id,
+        owner_id=note.owner_id,
+        title=note.title,
+        body=note.body,
+        is_public=note.is_public,
+        attachments=[attachment_to_out(a) for a in note.attachments],
+        created_at=to_epoch_ms(note.created_at),
+        updated_at=to_epoch_ms(note.updated_at),
+    )
