@@ -25,6 +25,7 @@
 
 from __future__ import annotations
 
+import asyncio
 from dataclasses import dataclass, field
 
 from google.cloud.firestore import Client
@@ -170,10 +171,16 @@ async def suggest_course_bin(
     for name in departments:
         # LLM이 반환하는 이름이 학과명인지 단과대명인지 보장되지 않으므로 두 필드
         # 모두로 조회해본다(course_catalog에는 department/college가 별도 필드).
-        for fetched in (
-            list_by_department(db, name, limit=fetch_limit),
-            search_by_college(db, name, limit=fetch_limit),
-        ):
+        # list_by_department/search_by_college는 동기(sync) Firestore 호출이다 —
+        # 이 함수(suggest_course_bin) 자체는 백그라운드 asyncio 태스크(다른 코루틴과
+        # 동시에 asyncio.gather로 묶여) 안에서 돌 수 있으므로, 그대로 부르면 이벤트
+        # 루프를 블로킹해 같은 프로세스의 다른 API 요청까지 멈춰버린다. asyncio.to_thread로
+        # 스레드풀에 위임해 이벤트 루프 블로킹을 막는다(반환값·순서·필터링 동작은 동일).
+        fetched_lists = await asyncio.gather(
+            asyncio.to_thread(list_by_department, db, name, limit=fetch_limit),
+            asyncio.to_thread(search_by_college, db, name, limit=fetch_limit),
+        )
+        for fetched in fetched_lists:
             for course in fetched:
                 if course.code not in seen_codes:
                     seen_codes.add(course.code)
