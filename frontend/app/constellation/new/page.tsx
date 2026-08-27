@@ -45,6 +45,7 @@ import {
   startBinFillJob,
   type BinDto,
   type BinItemDto,
+  type DraftDto,
   type EdgeCreateInput,
   type NodeCreateInput,
 } from "@/lib/constellation-api";
@@ -191,6 +192,90 @@ function deriveNodeCodeAndLabel(item: BinItem): { code?: string; label: string }
   return { label: item.label };
 }
 
+// bins 전체를 뒤져 원소 하나를 id로 찾는다 - 초안(draft)의 itemIds는 어느
+// 보관함 소속인지 모르는 상태로 온다.
+function findBinItemAcrossBins(bins: Bin[], itemId: string): BinItem | undefined {
+  for (const bin of bins) {
+    const item = bin.items.find((i) => i.id === itemId);
+    if (item) return item;
+  }
+  return undefined;
+}
+
+// 원소 유형 -> 한글 라벨 + 브레이크다운 문구에서의 표시 순서. ElementBinPanel의
+// ELEMENT_TYPE_OPTIONS와 값은 같지만 그쪽이 export되어 있지 않아 그대로
+// 재사용할 수 없다 - 라벨 문구만 이 화면 전용으로 별도 상수를 둔다.
+const DRAFT_TYPE_LABEL_ORDER: [string, string][] = [
+  ["course", "수업"],
+  ["certification", "자격증"],
+  ["organization", "학회"],
+  ["activity", "활동"],
+  ["networking", "네트워킹"],
+];
+
+// "{tagline} · 요소 N · 수업 3 자격증 1 ..." 한 줄 브레이크다운. 카운트가
+// 0인 유형은 생략하고, 매핑에 없는 낯선 유형이 와도 원문 그대로 뒤에 붙여
+// 조용히 누락되지 않게 한다.
+function formatDraftBreakdown(draft: DraftDto, bins: Bin[]): string {
+  const counts = new Map<string, number>();
+  for (const itemId of draft.itemIds) {
+    const item = findBinItemAcrossBins(bins, itemId);
+    if (!item) continue;
+    counts.set(item.type, (counts.get(item.type) ?? 0) + 1);
+  }
+  const parts: string[] = [];
+  for (const [type, label] of DRAFT_TYPE_LABEL_ORDER) {
+    const n = counts.get(type);
+    if (n) parts.push(`${label} ${n}`);
+  }
+  for (const [type, n] of Array.from(counts.entries())) {
+    if (!DRAFT_TYPE_LABEL_ORDER.some(([t]) => t === type)) parts.push(`${type} ${n}`);
+  }
+  return `${draft.tagline} · 요소 ${draft.itemIds.length}${parts.length ? " · " + parts.join(" ") : ""}`;
+}
+
+// 초안 하나를 캔버스 그래프로 편다 - 지그재그 배치는 요구사항의 "단순하지만
+// 보기 좋은 흩뿌림"을 만족하는 가장 짧은 공식일 뿐이라 다른 의미는 없다
+// (사용자가 어차피 드래그로 다시 배치한다).
+function draftItemPosition(index: number): CanvasPosition {
+  return {
+    x: 220 + index * 170 + (index % 2) * 40,
+    y: 420 + (index % 2 ? 130 : -60) + ((index * 53) % 3) * 35,
+  };
+}
+
+function buildDraftGraph(
+  draft: DraftDto,
+  bins: Bin[]
+): { nodes: Record<string, CanvasNode>; edges: Record<string, CanvasEdge> } {
+  const nodes: Record<string, CanvasNode> = {};
+  draft.itemIds.forEach((itemId, index) => {
+    const item = findBinItemAcrossBins(bins, itemId);
+    if (!item) return; // 보관함에서 사라진 항목 - 조용히 건너뛴다.
+    const nodeId = nodeIdForItem(itemId);
+    const { code, label } = deriveNodeCodeAndLabel(item);
+    nodes[nodeId] = {
+      id: nodeId,
+      label,
+      type: item.type,
+      isCompleted: false,
+      position: draftItemPosition(index),
+      level: item.level ?? null,
+      code,
+      description: item.description,
+    };
+  });
+  const edges: Record<string, CanvasEdge> = {};
+  draft.edges.forEach(([fromId, toId], index) => {
+    const sourceNodeId = nodeIdForItem(fromId);
+    const targetNodeId = nodeIdForItem(toId);
+    if (!nodes[sourceNodeId] || !nodes[targetNodeId]) return; // 끝점이 없는 엣지는 버린다.
+    const id = `edge-draft-${index}`;
+    edges[id] = { id, sourceNodeId, targetNodeId };
+  });
+  return { nodes, edges };
+}
+
 // 회계원리(1)에 미리 채워 둔 데모 노트 - 시드 노드가 이미 "노트 3개"라고
 // 주장하므로(INITIAL_NODES 참고) 실제로 3개를 만들어 패널이 바로 시연 가능하게
 // 한다. 하나는 비공개, 하나는 공개로 섞어 배지 차이도 눈에 보이게 했다.
@@ -262,6 +347,10 @@ export default function NewConstellationPage() {
   const [bootState, setBootState] = useState<"loading" | "empty" | "loaded">("loading");
   const [intakeOpen, setIntakeOpen] = useState(false);
   const [isPublished, setIsPublished] = useState(false);
+  // Intake가 초안(draft)까지 함께 돌려준 경우 - 사용자가 셋 중 하나를 고르거나
+  // "직접 그릴래요"로 빠져나갈 때까지 캔버스는 이 상태가 가리키는 초안의
+  // 미리보기만 보여준다(로컬 전용 - 서버 뮤테이션 없음, 아래 handleIntakeComplete 참고).
+  const [draftOffer, setDraftOffer] = useState<{ drafts: DraftDto[]; selected: number } | null>(null);
   // Intake 대화가 다듬어 준 목표 원문 - "보관함 채우기" 잡을 새로 돌릴 때(예:
   // 사용자가 직접 보관함을 하나 더 만들 때) 매번 다시 물어보지 않고 재사용한다.
   // 기존 별자리를 불러온 경우엔 대화를 거치지 않았으므로 그 별자리의 제목으로
@@ -543,6 +632,7 @@ export default function NewConstellationPage() {
     setEdges({});
     setNotes({});
     setBins([]);
+    setDraftOffer(null);
     setSaveState("unsaved");
     setPanelMode("bins");
     setNotesNodeId(null);
@@ -559,15 +649,55 @@ export default function NewConstellationPage() {
   // 별자리가 없으면(cid 없음) persistBins가 조용히 아무 것도 안 하고, 첫
   // 저장(handleConfirmTitle) payload에 함께 실려 나간다.
   const handleIntakeComplete = useCallback(
-    (dtoBins: BinDto[], goalText: string) => {
+    (dtoBins: BinDto[], goalText: string, drafts?: DraftDto[]) => {
       goalTextRef.current = goalText;
       const mapped = dtoBins.map(mapBinDtoToBin);
       setBins(mapped);
       persistBins(mapped);
       setIntakeOpen(false);
+      if (drafts && drafts.length > 0) {
+        // 초안 미리보기 단계로 진입 - 첫 안을 캔버스에 그려 보여준다. 아직
+        // constellationId가 없으므로(첫 저장 전) 아래 setNodes/setEdges는
+        // placeItem 등을 거치지 않아 서버 뮤테이션을 하나도 만들지 않는다.
+        const { nodes: draftNodes, edges: draftEdges } = buildDraftGraph(drafts[0], mapped);
+        setNodes(draftNodes);
+        setEdges(draftEdges);
+        setDraftOffer({ drafts, selected: 0 });
+      }
     },
     [persistBins]
   );
+
+  // "추천 별자리" 패널에서 다른 안을 고르면 캔버스 전체를 그 안의 그래프로
+  // 교체한다(현재 작업 그래프를 대체 - 초안 미리보기 단계에선 nodes/edges가
+  // 곧 "지금 보여줄 안"이라는 뜻이므로 별도 프리뷰 state를 두지 않는다).
+  const handleSelectDraft = useCallback(
+    (index: number) => {
+      setDraftOffer((prev) => {
+        if (!prev || !prev.drafts[index]) return prev;
+        const { nodes: draftNodes, edges: draftEdges } = buildDraftGraph(prev.drafts[index], binsRef.current);
+        setNodes(draftNodes);
+        setEdges(draftEdges);
+        return { ...prev, selected: index };
+      });
+    },
+    []
+  );
+
+  // "이 별자리로 시작" - 지금 캔버스에 그려진 선택된 안을 그대로 작업 그래프로
+  // 확정한다(nodes/edges는 이미 그 안이므로 딱히 손댈 게 없다). 저장은 여전히
+  // 사용자가 저장 버튼을 눌러야 일어난다(기존 흐름 그대로).
+  const handleAcceptDraft = useCallback(() => {
+    setDraftOffer(null);
+  }, []);
+
+  // "직접 그릴래요" - 초안 미리보기를 버리고 완전히 빈 캔버스로 돌아간다.
+  // 보관함(bins)은 그대로 남아 있어 사용자가 거기서부터 손으로 채울 수 있다.
+  const handleRejectDrafts = useCallback(() => {
+    setNodes({});
+    setEdges({});
+    setDraftOffer(null);
+  }, []);
 
   // 노트를 nodeId별로 묶는다. 이 그룹의 length가 카드의 "노트 N개"를 결정하는
   // 유일한 진실 - INITIAL_NODES에 박아 둔 정적 noteCount는 초기 렌더 한 번을
@@ -1065,6 +1195,29 @@ export default function NewConstellationPage() {
         <ConstellationIntakeChat onComplete={handleIntakeComplete} onDismiss={() => setIntakeOpen(false)} />
       )}
 
+      {draftOffer && !intakeOpen && (
+        <>
+          <div
+            className="pointer-events-none fixed left-1/2 top-3 z-10 flex -translate-x-1/2 items-center gap-2 rounded-lg border border-rule bg-ink-800/95 px-4 py-2 shadow-lg backdrop-blur-md"
+            role="status"
+          >
+            <DraftStarGlyph size={14} />
+            <span className="font-sans text-xs text-text-hi">
+              대화를 바탕으로 별자리 초안을 그렸어요 — 별을 끌어 마음대로 고쳐도 돼요
+            </span>
+          </div>
+
+          <DraftOfferPanel
+            drafts={draftOffer.drafts}
+            selected={draftOffer.selected}
+            bins={bins}
+            onSelect={handleSelectDraft}
+            onAccept={handleAcceptDraft}
+            onReject={handleRejectDrafts}
+          />
+        </>
+      )}
+
       <Modal open={titleModalOpen} onClose={() => setTitleModalOpen(false)} title="별자리 이름" size="sm">
         <div className="space-y-3">
           <input
@@ -1196,5 +1349,105 @@ function PanelTabs({ mode, onChange }: { mode: PanelMode; onChange: (mode: Panel
         })}
       </div>
     </div>
+  );
+}
+
+/** 8-point 별빛 글리프 - ConstellationIntakeChat의 StarGlyph와 같은 path.
+ * 그쪽 컴포넌트가 export되어 있지 않아 그대로 import할 수 없으므로, 이
+ * 화면 전용으로 path만 그대로 옮겨왔다. */
+function DraftStarGlyph({ size, className }: { size: number; className?: string }) {
+  return (
+    <svg
+      width={size}
+      height={size}
+      viewBox="0 0 16 16"
+      fill="none"
+      stroke="var(--lit)"
+      strokeWidth="1.2"
+      strokeLinecap="round"
+      aria-hidden
+      className={className}
+    >
+      <path d="M8 1.5 L8 14.5 M1.5 8 L14.5 8 M3.7 3.7 L12.3 12.3 M12.3 3.7 L3.7 12.3" />
+    </svg>
+  );
+}
+
+/** 좌하단 "추천 별자리" 패널 - Intake 대화가 초안을 함께 돌려줬을 때만 뜬다.
+ * 3안(또는 그보다 적을 수 있음) 중 하나를 고르면 캔버스가 즉시 그 안으로
+ * 바뀐다(page.tsx의 handleSelectDraft). */
+function DraftOfferPanel({
+  drafts,
+  selected,
+  bins,
+  onSelect,
+  onAccept,
+  onReject,
+}: {
+  drafts: DraftDto[];
+  selected: number;
+  bins: Bin[];
+  onSelect: (index: number) => void;
+  onAccept: () => void;
+  onReject: () => void;
+}) {
+  return (
+    <aside
+      role="region"
+      aria-label="추천 별자리"
+      className={cn(
+        "fixed z-20 flex flex-col overflow-hidden rounded-xl border border-rule bg-ink-800/95 shadow-lg backdrop-blur-md",
+        "inset-x-3 bottom-[calc(var(--tabbar-h)+var(--safe-bottom)+12px)] max-h-[46vh]",
+        "md:inset-x-auto md:bottom-6 md:left-4 md:top-auto md:h-auto md:max-h-none md:w-[300px]"
+      )}
+    >
+      <div className="flex items-baseline justify-between border-b border-rule px-4 py-3">
+        <h2 className="font-sans text-sm font-medium text-text-hi">추천 별자리</h2>
+        <span className="font-mono text-micro text-text-lo">{drafts.length}안</span>
+      </div>
+
+      <div className="canvas-scroll min-h-0 flex-1 space-y-1 overflow-y-auto p-2">
+        {drafts.map((draft, index) => {
+          const isSelected = index === selected;
+          return (
+            <button
+              key={index}
+              type="button"
+              aria-pressed={isSelected}
+              onClick={() => onSelect(index)}
+              className={cn(
+                "w-full rounded-md border-l px-2.5 py-2 text-left transition-colors",
+                "focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-1 focus-visible:outline-spec-b",
+                isSelected
+                  ? "border-l-text-hi/20 bg-ink-700/70"
+                  : "border-l-transparent hover:bg-ink-700/60"
+              )}
+            >
+              <div className="font-sans text-sm font-medium text-text-hi">{draft.name}</div>
+              <div className="mt-0.5 text-micro leading-relaxed text-text-lo">
+                {formatDraftBreakdown(draft, bins)}
+              </div>
+            </button>
+          );
+        })}
+      </div>
+
+      <div className="flex flex-col gap-1.5 border-t border-rule p-3">
+        <button
+          type="button"
+          onClick={onAccept}
+          className="rounded-md bg-spec-b px-3 py-1.5 font-sans text-sm font-medium text-ink-900 hover:opacity-90 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-1 focus-visible:outline-spec-b"
+        >
+          이 별자리로 시작
+        </button>
+        <button
+          type="button"
+          onClick={onReject}
+          className="rounded-md border border-rule px-3 py-1.5 font-sans text-sm text-text-hi transition-colors hover:bg-ink-700 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-1 focus-visible:outline-spec-b"
+        >
+          직접 그릴래요
+        </button>
+      </div>
+    </aside>
   );
 }

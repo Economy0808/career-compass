@@ -175,9 +175,19 @@ export interface BinDto {
   items: BinItemDto[];
 }
 
+/** LLM이 대화 내용을 바탕으로 미리 짜 준 별자리 초안 하나. itemIds/edges는
+ * bins의 원소 id(`course:{CODE}` 또는 `support:{uuid}`)를 참조한다 - 아직
+ * 캔버스 노드가 아니므로 이 시점엔 `element:` 접두어가 붙어 있지 않다. */
+export interface DraftDto {
+  name: string;
+  tagline: string;
+  itemIds: string[];
+  edges: [string, string][];
+}
+
 export interface BinJobStatusResponse {
   status: "pending" | "running" | "done" | "error";
-  result: { bins: BinDto[] } | null;
+  result: { bins: BinDto[]; drafts?: DraftDto[] } | null;
   detail: string | null;
 }
 

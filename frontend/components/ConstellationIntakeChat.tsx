@@ -29,11 +29,14 @@ import {
   startBinSuggestJob,
   type BinDto,
   type ChatMessageDto,
+  type DraftDto,
 } from "@/lib/constellation-api";
 
 export interface ConstellationIntakeChatProps {
-  /** 구간 생성 잡이 끝나면 호출된다 - 부모가 이 결과로 캔버스를 채운다. */
-  onComplete: (bins: BinDto[], goalText: string) => void;
+  /** 구간 생성 잡이 끝나면 호출된다 - 부모가 이 결과로 캔버스를 채운다.
+   * drafts는 있을 수도(0~3개) 없을 수도 있다 - 없으면 부모는 기존처럼 빈
+   * 캔버스에 보관함만 채운다. */
+  onComplete: (bins: BinDto[], goalText: string, drafts?: DraftDto[]) => void;
   /** 옵션: 오버레이를 닫는다. 기존 별자리가 있어 새로 만들지 않을 때만 부모가
    * 이 prop을 넘겨 닫기 링크를 노출한다. */
   onDismiss?: () => void;
@@ -143,7 +146,7 @@ export function ConstellationIntakeChat({
         .then((status) => {
           if (status.status === "done") {
             stopPolling();
-            onComplete(status.result?.bins ?? [], goal);
+            onComplete(status.result?.bins ?? [], goal, status.result?.drafts);
             return;
           }
           if (status.status === "error") {
