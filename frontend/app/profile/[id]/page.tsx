@@ -10,23 +10,26 @@ import { DangerZone } from "./_components/DangerZone";
 import { ProfileHeader } from "./_components/ProfileHeader";
 
 export default function ProfilePage({ params }: { params: { id: string } }) {
-  const userId = Number(params.id);
+  // NOTE: 레거시 백엔드(/api/users/{id})는 여전히 숫자 PK를 쓴다. Firebase uid로
+  // 완전히 옮겨가기 전까지는 이 페이지가 숫자 id로만 프로필을 가져올 수 있어,
+  // 레거시 API 호출은 그대로 두되(런타임 저하 허용) "내 프로필인지"만 uid로 비교한다.
+  const legacyUserId = Number(params.id);
   const router = useRouter();
-  const { me, loading: authLoading } = useAuth();
+  const { user, loading: authLoading } = useAuth();
 
   const [profile, setProfile] = useState<UserProfileOut | null>(null);
   const [loading, setLoading] = useState(true);
   const [error, setError] = useState<string | null>(null);
   const [followPending, setFollowPending] = useState(false);
 
-  const isOwn = me?.id === userId;
+  const isOwn = user?.uid === params.id;
 
   useEffect(() => {
     if (authLoading) return;
     let cancelled = false;
     setLoading(true);
     setError(null);
-    getUserProfile(userId)
+    getUserProfile(legacyUserId)
       .then((p) => {
         if (cancelled) return;
         setProfile(p);
@@ -40,10 +43,10 @@ export default function ProfilePage({ params }: { params: { id: string } }) {
     return () => {
       cancelled = true;
     };
-  }, [userId, me?.id, authLoading]);
+  }, [legacyUserId, user?.uid, authLoading]);
 
   async function toggleFollow() {
-    if (!profile || !me?.yonsei_verified || followPending) return;
+    if (!profile || !user?.yonseiVerified || followPending) return;
     setFollowPending(true);
     const next = !profile.is_following;
     try {
@@ -89,7 +92,7 @@ export default function ProfilePage({ params }: { params: { id: string } }) {
       <ProfileHeader
         profile={profile}
         isMe={isOwn}
-        canFollow={!isOwn && !!me?.yonsei_verified}
+        canFollow={!isOwn && !!user?.yonseiVerified}
         followPending={followPending}
         onToggleFollow={toggleFollow}
         onSaveBio={saveBio}

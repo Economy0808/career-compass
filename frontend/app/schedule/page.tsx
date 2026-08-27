@@ -35,7 +35,7 @@ const COLORS = Object.keys(COLOR_HEX) as TodoColor[];
 
 export default function SchedulePage() {
   const router = useRouter();
-  const { me, loading: authLoading } = useAuth();
+  const { user, loading: authLoading } = useAuth();
 
   const initial = todayISODate();
   const [selectedDate, setSelectedDate] = useState(initial);
@@ -53,12 +53,12 @@ export default function SchedulePage() {
   const DAY_GOAL = 6;
 
   useEffect(() => {
-    if (!authLoading && !me) router.push("/login");
-  }, [authLoading, me, router]);
+    if (!authLoading && !user) router.push("/login");
+  }, [authLoading, user, router]);
 
   // 선택일의 할 일 + 분류 로드
   useEffect(() => {
-    if (!me) return;
+    if (!user) return;
     let cancelled = false;
     setLoading(true);
     getTodoDay(selectedDate)
@@ -73,15 +73,15 @@ export default function SchedulePage() {
     return () => {
       cancelled = true;
     };
-  }, [selectedDate, me]);
+  }, [selectedDate, user]);
 
   // 보이는 달의 캘린더 집계 로드
   const reloadCalendar = useCallback(() => {
-    if (!me) return;
+    if (!user) return;
     getTodoCalendar(viewYear, viewMonth).then((cells) => {
       setCalendar(Object.fromEntries(cells.map((c) => [c.date, c])));
     });
-  }, [me, viewYear, viewMonth]);
+  }, [user, viewYear, viewMonth]);
 
   useEffect(() => {
     reloadCalendar();
@@ -177,7 +177,7 @@ export default function SchedulePage() {
     setViewMonth(m);
   }
 
-  if (authLoading || !me) {
+  if (authLoading || !user) {
     return (
       <div className="mx-auto max-w-sm animate-pulse">
         <EmptyState title="불러오는 중…" />

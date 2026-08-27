@@ -1,6 +1,6 @@
 import type { ComponentType } from "react";
 import { CalendarIcon, EagleIcon, SeedIcon, SproutIcon } from "@/components/ui/icons";
-import type { MeOut } from "@/lib/types";
+import type { AuthUser } from "@/lib/types";
 
 export interface NavItem {
   key: string;
@@ -33,17 +33,17 @@ export const NAV_ITEMS: readonly NavItem[] = [
 export const TAB_ORDER: readonly string[] = ["feed", "schedule", "new", "mine"];
 
 /** Resolves where a nav item should navigate to for the current user. */
-export function navTarget(item: NavItem, me: MeOut | null): string {
-  if (item.requiresAuth && !me) return "/login";
+export function navTarget(item: NavItem, user: AuthUser | null): string {
+  if (item.requiresAuth && !user) return "/login";
   if (item.href) return item.href;
   // "내 별자리": 개인 프로필로 이동.
-  return me ? `/profile/${me.id}` : "/login";
+  return user ? `/profile/${user.uid}` : "/login";
 }
 
 /** Whether a nav item should be highlighted as active for the current route. */
-export function isNavActive(item: NavItem, pathname: string, me: MeOut | null): boolean {
+export function isNavActive(item: NavItem, pathname: string, user: AuthUser | null): boolean {
   if (item.key === "mine") {
-    return me !== null && pathname === `/profile/${me.id}`;
+    return user !== null && pathname === `/profile/${user.uid}`;
   }
   return pathname === item.href;
 }

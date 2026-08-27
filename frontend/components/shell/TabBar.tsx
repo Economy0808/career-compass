@@ -8,7 +8,7 @@ import { NAV_ITEMS, TAB_ORDER, navTarget, isNavActive, type NavItem } from "./na
 export function TabBar() {
   const pathname = usePathname();
   const router = useRouter();
-  const { me } = useAuth();
+  const { user } = useAuth();
 
   const ordered = TAB_ORDER.map((k) => NAV_ITEMS.find((i) => i.key === k)).filter(
     (i): i is NavItem => Boolean(i)
@@ -23,7 +23,7 @@ export function TabBar() {
       }}
     >
       {ordered.map((item) => {
-        const target = navTarget(item, me);
+        const target = navTarget(item, user);
 
         if (item.primary) {
           return (
@@ -46,7 +46,7 @@ export function TabBar() {
             onClick={() => router.push(target)}
             className={cn(
               "flex min-w-[56px] flex-col items-center gap-1 py-1.5 text-micro font-semibold transition-colors",
-              isNavActive(item, pathname, me) ? "text-spec-b" : "text-text-lo"
+              isNavActive(item, pathname, user) ? "text-spec-b" : "text-text-lo"
             )}
           >
             <item.Icon size={20} />

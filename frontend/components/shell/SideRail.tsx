@@ -13,7 +13,7 @@ const ITEM =
 export function SideRail() {
   const pathname = usePathname();
   const router = useRouter();
-  const { me, loading, logout } = useAuth();
+  const { user, loading, logout } = useAuth();
 
   async function handleLogout() {
     await logout();
@@ -31,10 +31,10 @@ export function SideRail() {
         <button
           key={item.key}
           type="button"
-          onClick={() => router.push(navTarget(item, me))}
+          onClick={() => router.push(navTarget(item, user))}
           className={cn(
             ITEM,
-            isNavActive(item, pathname, me)
+            isNavActive(item, pathname, user)
               ? "bg-spec-b/18 text-spec-b"
               : "text-text-lo hover:bg-ink-700"
           )}
@@ -47,15 +47,15 @@ export function SideRail() {
       <div className="mt-3 border-t border-rule pt-3">
         {loading ? (
           <div className="h-9 w-full animate-pulse rounded-sm bg-ink-700" />
-        ) : me ? (
+        ) : user ? (
           <div className="flex flex-col gap-1">
             <Link
-              href={me.yonsei_verified ? `/profile/${me.id}` : "/verify"}
+              href={user.yonseiVerified ? `/profile/${user.uid}` : "/verify"}
               className="flex items-center gap-2 rounded-sm px-3 py-2 text-body-sm font-semibold !text-text-lo no-underline transition-colors hover:bg-ink-700"
             >
-              <span className="text-body">{me.avatar_emoji}</span>
-              <span className="truncate">{me.display_name}</span>
-              {!me.yonsei_verified && (
+              <span className="text-body">{user.avatarEmoji ?? "🙂"}</span>
+              <span className="truncate">{user.displayName ?? "사용자"}</span>
+              {!user.yonseiVerified && (
                 <span className="ml-auto shrink-0 rounded-full bg-spec-m/18 px-1.5 py-0.5 text-micro font-semibold text-spec-m">
                   인증 전
                 </span>

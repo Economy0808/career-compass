@@ -1,4 +1,5 @@
 import type {
+  AuthUser,
   CalendarDayOut,
   MeOut,
   TodoCategoryOut,
@@ -26,7 +27,7 @@ export class ApiError extends Error {
   }
 }
 
-async function request<T>(path: string, init?: RequestInit): Promise<T> {
+export async function request<T>(path: string, init?: RequestInit): Promise<T> {
   // Headers로 병합해야 jsonInit의 Content-Type이나 FormData(브라우저가 알아서
   // multipart Content-Type을 세팅) 케이스를 모두 안전하게 다룰 수 있다.
   const headers = new Headers(init?.headers);
@@ -64,7 +65,7 @@ async function request<T>(path: string, init?: RequestInit): Promise<T> {
   return res.json() as Promise<T>;
 }
 
-function jsonInit(method: string, body: unknown): RequestInit {
+export function jsonInit(method: string, body: unknown): RequestInit {
   return {
     method,
     headers: { "Content-Type": "application/json" },
@@ -120,6 +121,15 @@ export function deleteAccount(password: string): Promise<void> {
 
 export function getMe(): Promise<MeOut> {
   return request("/api/auth/me");
+}
+
+/** Firebase 로그인 직후 서버와 동기화하고, 서버가 판단한 최신 인증 상태를 받는다. */
+export function postAuthSync(input?: {
+  displayName?: string;
+  avatarEmoji?: string;
+  consent?: boolean;
+}): Promise<AuthUser> {
+  return request("/api/auth/sync", jsonInit("POST", input ?? {}));
 }
 
 export function postSchoolEmailRequest(email: string): Promise<{ detail: string }> {

@@ -4,6 +4,16 @@ export interface UserOut {
   avatar_emoji: string;
 }
 
+/** Firebase 인증 + /api/auth/sync 응답을 합친 클라이언트 인증 상태. */
+export interface AuthUser {
+  uid: string;
+  email: string | null;
+  emailVerified: boolean;
+  yonseiVerified: boolean;
+  displayName: string | null;
+  avatarEmoji: string | null;
+}
+
 export type CardStatus = "pending" | "approved" | "rejected";
 
 export interface MeOut {

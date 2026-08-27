@@ -4,13 +4,31 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useState } from "react";
 import { Button, Card, Field } from "@/components/ui";
-import { ApiError, postLogin } from "@/lib/api";
 import { useAuth } from "@/lib/auth-context";
+
+/** Firebase Auth 에러 코드를 한국어 문구로 변환한다. */
+function toKoreanError(err: unknown): string {
+  const code = typeof err === "object" && err && "code" in err ? String(err.code) : "";
+  switch (code) {
+    case "auth/invalid-credential":
+    case "auth/wrong-password":
+    case "auth/user-not-found":
+      return "이메일 또는 비밀번호가 올바르지 않습니다.";
+    case "auth/invalid-email":
+      return "이메일 형식이 올바르지 않아요.";
+    case "auth/too-many-requests":
+      return "시도가 너무 많아요. 잠시 후 다시 시도해주세요.";
+    case "auth/user-disabled":
+      return "비활성화된 계정이에요.";
+    default:
+      return "로그인에 실패했어요. 다시 시도해주세요.";
+  }
+}
 
 export default function LoginPage() {
   const router = useRouter();
-  const { refresh } = useAuth();
-  const [username, setUsername] = useState("");
+  const { login } = useAuth();
+  const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [pending, setPending] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -21,11 +39,10 @@ export default function LoginPage() {
     setPending(true);
     setError(null);
     try {
-      const me = await postLogin(username.trim(), password);
-      await refresh();
-      router.push(me.yonsei_verified ? "/" : "/verify");
+      const u = await login(email.trim(), password);
+      router.push(u.yonseiVerified ? "/" : "/verify");
     } catch (err) {
-      setError(err instanceof ApiError ? err.detail : "로그인에 실패했어요. 다시 시도해주세요.");
+      setError(toKoreanError(err));
       setPending(false);
     }
   }
@@ -39,12 +56,13 @@ export default function LoginPage() {
         </p>
         <form onSubmit={submit} className="flex flex-col gap-3">
           <Field
-            id="login-username"
-            label="아이디"
+            id="login-email"
+            label="이메일"
+            type="email"
             autoFocus
-            value={username}
-            onChange={(e) => setUsername(e.target.value)}
-            autoComplete="username"
+            value={email}
+            onChange={(e) => setEmail(e.target.value)}
+            autoComplete="email"
           />
           <Field
             id="login-password"
@@ -60,7 +78,7 @@ export default function LoginPage() {
             variant="primary"
             size="md"
             fullWidth
-            disabled={pending || !username.trim() || !password}
+            disabled={pending || !email.trim() || !password}
             className="mt-1"
           >
             {pending ? "로그인 중…" : "로그인"}

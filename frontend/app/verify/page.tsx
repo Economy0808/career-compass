@@ -22,7 +22,13 @@ const LINK_SECONDARY =
 
 export default function VerifyPage() {
   const router = useRouter();
-  const { me, loading, refresh } = useAuth();
+  const { user, loading, refresh } = useAuth();
+
+  // TODO(S4): 이 페이지는 학교 이메일/학생증 인증 흐름 전체를 새 백엔드에 맞춰
+  // 다시 짠다. 그 전까지는 서버 AuthUser에 아직 없는 카드 심사 상태·인증 수단을
+  // 임시로 null 고정해 빌드만 통과시킨다(런타임에서는 "미제출" 화면으로 보임).
+  const cardStatus: "pending" | "rejected" | null = null;
+  const verificationMethod: "school_email" | "student_card" | null = null;
 
   const [method, setMethod] = useState<Method>("school_email");
   const [schoolEmail, setSchoolEmail] = useState("");
@@ -34,10 +40,10 @@ export default function VerifyPage() {
   const fileRef = useRef<HTMLInputElement>(null);
 
   useEffect(() => {
-    if (!loading && !me) router.push("/login");
-  }, [loading, me, router]);
+    if (!loading && !user) router.push("/login");
+  }, [loading, user, router]);
 
-  if (loading || !me) {
+  if (loading || !user) {
     return (
       <div className="mx-auto w-full max-w-md py-16 text-center">
         <p className="animate-pulse text-body-sm text-text-lo">확인 중…</p>
@@ -92,14 +98,14 @@ export default function VerifyPage() {
     }
   }
 
-  const body = me.yonsei_verified ? (
+  const body = user.yonseiVerified ? (
     <div className="text-center">
       <div className="text-5xl">✨</div>
       <h2 className="mt-3 font-serif text-title font-bold text-text-hi">
         연세대 학부생 인증 완료!
       </h2>
       <p className="mt-2 text-body-sm text-text-lo">
-        {me.verification_method === "student_card"
+        {verificationMethod === "student_card"
           ? "학생증 심사가 승인됐어요."
           : "학교 이메일로 인증됐어요."}{" "}
         이제 나만의 별자리를 만들 수 있어요.
@@ -113,7 +119,7 @@ export default function VerifyPage() {
         </Link>
       </div>
     </div>
-  ) : me.card_status === "pending" ? (
+  ) : cardStatus === "pending" ? (
     <div className="text-center">
       <div className="text-5xl">🕰️</div>
       <h2 className="mt-3 font-serif text-title font-bold text-text-hi">학생증 심사 중</h2>
@@ -128,7 +134,7 @@ export default function VerifyPage() {
     </div>
   ) : (
     <>
-      {me.card_status === "rejected" && (
+      {cardStatus === "rejected" && (
         <p className="mb-4 rounded-md border border-spec-m/30 bg-spec-m/12 p-3 text-caption leading-relaxed text-spec-m">
           이전 학생증 심사가 반려됐어요. 학생증이 선명하게 보이는 사진으로 다시 올리거나, 학교
           이메일로 인증해주세요.
@@ -220,7 +226,7 @@ export default function VerifyPage() {
   return (
     <div className="mx-auto w-full max-w-md">
       <Card className="p-8">
-        {!me.yonsei_verified && me.card_status !== "pending" && (
+        {!user.yonseiVerified && cardStatus !== "pending" && (
           <>
             <h1 className="font-serif text-display font-bold text-text-hi">연세대 학부생 인증</h1>
             <p className="mb-6 mt-[7px] text-body-sm leading-relaxed text-text-lo">
