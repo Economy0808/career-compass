@@ -648,6 +648,9 @@ export default function NewConstellationPage() {
   // 선택된 적이 없으면 패널이 알아서 빈 상태를 보여준다).
   const handleTabChange = useCallback((mode: PanelMode) => {
     setPanelMode(mode);
+    // 노트 패널을 벗어나면 확대 오버레이(body 포털)도 함께 닫는다 - 안 그러면
+    // 세그먼트를 「군집」으로 바꿔도 확대된 편집기가 화면에 그대로 남는다.
+    if (mode !== "notes") setIsNoteExpanded(false);
   }, []);
 
   const handleCreateNote = useCallback(
