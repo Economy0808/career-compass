@@ -55,16 +55,12 @@ const config: Config = {
       // so the few shadows the design uses live here instead of raw rgba()
       // scattered across call sites.
       boxShadow: {
-        glow: "0 0 34px rgb(63 143 71 / .28)",
-        "glow-strong": "0 0 44px rgb(63 143 71 / .45)",
+        // Beansprout-era green glow tokens removed 2026-08-27 — the lit edge
+        // is never green (see DESIGN.md); warm gold bloom is the only glow.
         "glow-bloom": "0 0 44px rgb(226 185 79 / .4)",
         fab: "0 5px 18px rgb(47 111 191 / .45)",
         panel: "0 8px 26px rgb(0 0 0 / .38)",
         overlay: "0 14px 40px rgb(0 0 0 / .55)",
-      },
-      backgroundImage: {
-        altitude:
-          "linear-gradient(180deg,#0B1E3D 0%,#0E2438 30%,#0D2119 68%,#06120A 100%)",
       },
       spacing: {
         tabbar: "58px",

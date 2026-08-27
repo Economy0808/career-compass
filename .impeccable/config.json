@@ -11,6 +11,33 @@
         ],
         "createdAt": "2026-08-27T12:30:02.492Z",
         "reason": "finish reviewer verdict: graticule IS the subject (star-chart canvas + printed-chart landing), the detector's stated exception"
+      },
+      {
+        "rule": "design-system-radius",
+        "value": "4px",
+        "files": [
+          "frontend/app/globals.css"
+        ],
+        "createdAt": "2026-08-27T12:35:55.817Z",
+        "reason": "incumbent focus-ring rounding, predates DESIGN.md; documented in-file"
+      },
+      {
+        "rule": "design-system-color",
+        "value": "rgb(140 180 220 / 0.22)",
+        "files": [
+          "frontend/app/globals.css"
+        ],
+        "createdAt": "2026-08-27T12:35:56.086Z",
+        "reason": "incumbent scrollbar thumb = line-strong token equivalent; pseudo-element cannot use Tailwind class, in-file comment records it"
+      },
+      {
+        "rule": "design-system-radius",
+        "value": "6px",
+        "files": [
+          "frontend/app/globals.css"
+        ],
+        "createdAt": "2026-08-27T12:35:56.357Z",
+        "reason": "incumbent scrollbar thumb radius, predates DESIGN.md"
       }
     ]
   }

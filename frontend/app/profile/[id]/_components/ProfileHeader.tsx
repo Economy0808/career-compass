@@ -40,7 +40,7 @@ export function ProfileHeader({
   return (
     <Card className="flex flex-col gap-5 p-6 sm:flex-row sm:items-start sm:gap-6">
       {/* 아바타 이모지는 사용자 콘텐츠라 아이콘으로 바꾸지 않는다. */}
-      <div className="flex h-20 w-20 shrink-0 items-center justify-center rounded-full border-2 border-lit/45 bg-ink-900 text-display shadow-glow">
+      <div className="flex h-20 w-20 shrink-0 items-center justify-center rounded-full border-2 border-lit/45 bg-ink-900 text-display shadow-glow-bloom">
         {profile.avatar_emoji}
       </div>
 
