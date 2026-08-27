@@ -35,6 +35,8 @@ from app.llm.base import (
     CourseCluster,
     CourseClusterResult,
     CourseOption,
+    DraftConstellation,
+    DraftResult,
     GeneratedMilestone,
     GeneratedRoadmapItem,
     GeneratedRoadmapSet,
@@ -193,6 +195,27 @@ _SUPPORT_ELEMENTS_SCHEMA = {
     "additionalProperties": False,
     "properties": {"bins": {"type": "array", "items": _SUPPORT_BIN_SCHEMA}},
     "required": ["bins"],
+}
+_DRAFT_SCHEMA = {
+    "type": "object",
+    "additionalProperties": False,
+    "properties": {
+        "name": {"type": "string"},
+        "tagline": {"type": "string"},
+        # 개수 제약(minItems)은 프롬프트로만 요구한다 - _ROADMAP_SCHEMA 주석 참고:
+        # 이 API의 structured outputs는 minItems가 0/1만 허용되고 2 이상을 넣으면
+        # 요청 자체가 400으로 거부된다. edges 쌍의 길이(=2)도 같은 이유로 스키마가
+        # 아니라 파싱 후 코드에서 검증한다.
+        "item_ids": {"type": "array", "items": {"type": "string"}},
+        "edges": {"type": "array", "items": {"type": "array", "items": {"type": "string"}}},
+    },
+    "required": ["name", "tagline", "item_ids", "edges"],
+}
+_DRAFTS_SCHEMA = {
+    "type": "object",
+    "additionalProperties": False,
+    "properties": {"drafts": {"type": "array", "items": _DRAFT_SCHEMA}},
+    "required": ["drafts"],
 }
 
 
@@ -810,6 +833,80 @@ class AnthropicClaudeClient:
                     )
                 )
         return SupportBinResult(bins=bins)
+
+    async def suggest_draft_constellations(
+        self, goal_text: str, bins_payload: list[dict]
+    ) -> DraftResult:
+        """bins의 실제 item id로만 별자리 초안 3개를 구성한다.
+
+        cluster_courses의 by_code 검증과 동일한 이유로 여기서도 파싱 후 한 번 더
+        검증한다: bins에 없는 item_id는 버리고, 버려진 id를 참조하는 edge도 함께
+        버린다. 방어 후 항목이 3개 미만으로 줄어든 초안은 아예 버린다(호출자인
+        bin_suggestion이 wire dict로 바꾸기도 전에 여기서 먼저 걸러 둔다).
+        """
+        all_ids = {item["id"] for b in bins_payload for item in b.get("items", [])}
+        if not all_ids:
+            return DraftResult(drafts=[])
+        system = (
+            "너는 진로 탐색 별자리 설계자다. 아래 '원소 보관함(bins)' 안의 항목들로"
+            " 사용자가 고를 수 있는 별자리 초안 3개를 구성하라.\n\n"
+            "규칙:\n"
+            "- 각 초안 = name(짧은 은유형 이름, 예: '관찰하는 사람'), tagline(한 줄"
+            " 설명), item_ids(제공된 bins의 item id 중 4~7개), edges(그 item_ids"
+            " 사이의 연결 4~7쌍, 대체로 하나로 이어진 경로 형태).\n"
+            "- item_ids는 반드시 아래 카탈로그에 있는 id를 정확히 그대로 써라 - 절대"
+            " 지어내지 마라.\n"
+            "- edges의 각 쌍은 반드시 그 초안의 item_ids 안에 있는 두 id로만"
+            " 구성하라.\n"
+            "- 세 초안은 서로 다른 강조점을 가져야 한다(예: 데이터 중심 / 사람·"
+            "커뮤니케이션 중심 / 현장·조직 경험 중심 등, 실제 목표에 맞게 갈라라)."
+        )
+        catalog = "\n".join(
+            f"[보관함: {b.get('label', '')}] "
+            + ", ".join(f"{item['id']}={item['label']}" for item in b.get("items", []))
+            for b in bins_payload
+        )
+        user = f"진로 목표: {goal_text}\n\n원소 보관함:\n{catalog}"
+        # 가벼운 구성 판단이라 다른 경량 호출과 동일하게 thinking 비활성(JSON 잘림 방지).
+        resp = await self._client.messages.create(
+            model=self._extract_model,
+            max_tokens=3000,
+            thinking={"type": "disabled"},
+            system=_cached_system(system),
+            messages=[{"role": "user", "content": user}],
+            output_config={"format": {"type": "json_schema", "schema": _DRAFTS_SCHEMA}},
+        )
+        if _refused(resp) or getattr(resp, "stop_reason", None) == "max_tokens":
+            logger.warning("draft constellation suggestion truncated or refused; returning empty")
+            return DraftResult(drafts=[])
+        try:
+            data = json.loads(_first_text(resp))
+        except json.JSONDecodeError:
+            logger.warning(
+                "draft constellation suggestion returned unparsable JSON; returning empty"
+            )
+            return DraftResult(drafts=[])
+
+        drafts: list[DraftConstellation] = []
+        for raw in data.get("drafts", []):
+            item_ids = [i for i in raw.get("item_ids", []) if i in all_ids]  # 환각 방어
+            item_id_set = set(item_ids)
+            edges = [
+                (pair[0], pair[1])
+                for pair in raw.get("edges", [])
+                if len(pair) == 2 and pair[0] in item_id_set and pair[1] in item_id_set
+            ]
+            if len(item_ids) < 3:
+                continue
+            drafts.append(
+                DraftConstellation(
+                    name=str(raw.get("name", "")),
+                    tagline=str(raw.get("tagline", "")),
+                    item_ids=item_ids,
+                    edges=edges,
+                )
+            )
+        return DraftResult(drafts=drafts)
 
     async def research_job(
         self, job_name: str, ability_units: list[AbilityUnitRef]

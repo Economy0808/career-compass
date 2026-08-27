@@ -150,6 +150,39 @@ async def test_suggest_all_bins_unmatched_goal_has_no_course_bins(db: Client) ->
 
 
 @pytest.mark.asyncio
+async def test_suggest_all_bins_drafts_reference_only_bin_items(db: Client) -> None:
+    """drafts는 최대 3개, 모든 itemId/edge 끝점이 실제 bins의 item id 안에 있어야 한다."""
+    _seed_business_courses(db)
+    llm = MockClaudeClient()
+
+    result = await suggest_all_bins(db, llm, _BUSINESS_GOAL)
+
+    assert len(result["drafts"]) <= 3
+    known_ids = {item["id"] for b in result["bins"] for item in b["items"]}
+    for draft in result["drafts"]:
+        assert draft["name"]
+        assert draft["itemIds"]
+        item_id_set = set(draft["itemIds"])
+        assert item_id_set <= known_ids
+        for a, b in draft["edges"]:
+            assert a in item_id_set
+            assert b in item_id_set
+
+
+@pytest.mark.asyncio
+async def test_suggest_all_bins_empty_bins_has_no_drafts(db: Client) -> None:
+    """bins가 아예 비면(학과 매칭도, 비교과 제안도 없는 극단적 상황) drafts도 빈 리스트."""
+    llm = MockClaudeClient()
+
+    # unmatched 목표 + 미시딩 상태에서도 mock의 suggest_support_elements는 뭔가를
+    # 내므로(모듈 docstring 참고), bins를 확실히 비우려면 목표 자체를 공백으로 준다.
+    result = await suggest_all_bins(db, llm, "   ")
+
+    assert result["bins"] == []
+    assert result["drafts"] == []
+
+
+@pytest.mark.asyncio
 async def test_fill_single_bin_returns_one_user_bin_with_requested_label(db: Client) -> None:
     llm = MockClaudeClient()
     bin_label = "네트워킹"

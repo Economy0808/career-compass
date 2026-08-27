@@ -20,6 +20,8 @@ from app.llm.base import (
     CourseCluster,
     CourseClusterResult,
     CourseOption,
+    DraftConstellation,
+    DraftResult,
     GeneratedMilestone,
     GeneratedRoadmapItem,
     GeneratedRoadmapSet,
@@ -63,6 +65,15 @@ _SUPPORT_CERT_KEYWORDS: dict[str, str] = {
     "프로그래": "정보처리기사",
 }
 _SUPPORT_CERT_DEFAULT = "관련 분야 입문 자격증"
+
+# 별자리 초안 3개의 결정론적 이름/한줄소개 (시안 "우주 확대" 보드 4 문구 그대로).
+_DRAFT_SPECS: list[tuple[str, str]] = [
+    ("관찰하는 사람", "데이터로 사람을 읽는 길"),
+    ("기록하는 사람", "글과 미디어로 잇는 길"),
+    ("연결하는 사람", "현장과 조직을 잇는 길"),
+]
+_DRAFT_CHUNK_SIZE = 7  # 초안 하나에 담을 항목 상한 (시안: 4~7개)
+_DRAFT_MIN_ITEMS = 3  # 이보다 적게 남으면 초안으로 의미가 없어 버린다
 
 MIN_MILESTONES = 6
 MAX_MILESTONES = 12
@@ -423,6 +434,33 @@ class MockClaudeClient:
                 ),
             ]
         )
+
+    async def suggest_draft_constellations(
+        self, goal_text: str, bins_payload: list[dict]
+    ) -> DraftResult:
+        """결정론적 mock: bins의 항목을 순서대로 최대 7개씩 잘라 초안 최대 3개를 만든다.
+
+        실제 모델처럼 의미로 갈라 담지 않고 그냥 순차 슬라이스를 쓰되, 계약(항목은
+        전부 bins에 있는 id, 각 초안은 3개 이상)은 동일하게 지킨다. bins가 작으면
+        자연히 초안이 줄어들거나(슬라이스 하나가 3개 미만이면 중단) 아예 없어진다 -
+        cluster_courses/suggest_support_elements와 같은 "확신 없으면 적게/비움" 결.
+        """
+        del goal_text  # mock은 목표 텍스트로 갈래를 나누지 않는다 - bins만으로 결정.
+        all_items = [item for b in bins_payload for item in b.get("items", [])]
+
+        drafts: list[DraftConstellation] = []
+        start = 0
+        for name, tagline in _DRAFT_SPECS:
+            chunk = all_items[start : start + _DRAFT_CHUNK_SIZE]
+            if len(chunk) < _DRAFT_MIN_ITEMS:
+                break
+            start += _DRAFT_CHUNK_SIZE
+            item_ids = [item["id"] for item in chunk]
+            edges = [(item_ids[i], item_ids[i + 1]) for i in range(len(item_ids) - 1)]
+            drafts.append(
+                DraftConstellation(name=name, tagline=tagline, item_ids=item_ids, edges=edges)
+            )
+        return DraftResult(drafts=drafts)
 
     async def research_job(
         self, job_name: str, ability_units: list[AbilityUnitRef]

@@ -180,6 +180,26 @@ class SupportBinResult:
 
 
 @dataclass
+class DraftConstellation:
+    """LLM이 구성한 별자리 초안 하나 - 유저가 고를 3개 중 하나.
+
+    item_ids는 반드시 suggest_all_bins가 만든 bins의 item id 중에서만 골라야
+    한다(환각 방지 - 구현체가 파싱 후 검증/제거한다). edges는 그 item_ids 사이의
+    연결 쌍이다.
+    """
+
+    name: str  # 짧은 은유형 이름 (예: "관찰하는 사람")
+    tagline: str  # 한 줄 설명
+    item_ids: list[str]
+    edges: list[tuple[str, str]] = field(default_factory=list)
+
+
+@dataclass
+class DraftResult:
+    drafts: list[DraftConstellation] = field(default_factory=list)
+
+
+@dataclass
 class JobResearchResult:
     """직종별 웹 리서치 결과 — 요약 + 출처 링크만 (원문 복제 금지)."""
 
@@ -275,4 +295,17 @@ class LLMClient(Protocol):
         self, job_name: str, ability_units: list[AbilityUnitRef]
     ) -> JobResearchResult:
         """웹 검색으로 직종별 학회·대외활동·전문가 인사이트를 조사한다 (월간 배치 전용)."""
+        ...
+
+    async def suggest_draft_constellations(
+        self, goal_text: str, bins_payload: list[dict]
+    ) -> DraftResult:
+        """유저가 고를 별자리 초안 3개를 bins의 실제 item id로 구성한다.
+
+        bins_payload는 bin_suggestion.suggest_all_bins가 이미 만든 wire-ready
+        bins 리스트(id/label/items, items는 id/label/type)다 - 새로 항목을
+        지어내지 않고 여기서 고른 id만 쓰도록 그라운딩한다. cluster_courses의
+        by_code 검증과 같은 이유로, 구현체는 파싱 후 목록에 없는 id/edge를
+        직접 제거해야 한다(환각 방어).
+        """
         ...
