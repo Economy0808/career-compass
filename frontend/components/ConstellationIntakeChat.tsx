@@ -5,8 +5,8 @@
  * 여러 턴에 걸쳐 대화하며 목표를 다듬고, 다듬기가 끝나면(done===true) 그
  * 목표로 구간(bin) 제안 잡을 돌려 결과를 부모에게 넘긴다.
  *
- * 이 컴포넌트는 페이지에 아직 연결되지 않는다(다음 단계에서 배선) - 여기서는
- * 오버레이 자체와 상태 머신만 완성한다.
+ * 시각 디자인은 승인된 시안 보드 3("대화") - 전체 화면을 덮는 어두운 관측
+ * 화면에, 지나간 질문/답은 흐리게, 지금 답할 질문만 또렷하게 보여준다.
  *
  * 서버 계약(lib/constellation-api.ts의 IntakeChatResponse 문서 참고): 매 응답의
  * messages 배열은 서버가 이미 갱신한 "전체" 히스토리다. 다음 요청에는 그 배열을
@@ -22,8 +22,6 @@ import {
   type KeyboardEvent as ReactKeyboardEvent,
 } from "react";
 import { cn } from "@/lib/cn";
-import { Button } from "@/components/ui/Button";
-import { CloseIcon } from "@/components/ui";
 import { ApiError } from "@/lib/api";
 import {
   getBinJob,
@@ -37,7 +35,7 @@ export interface ConstellationIntakeChatProps {
   /** 구간 생성 잡이 끝나면 호출된다 - 부모가 이 결과로 캔버스를 채운다. */
   onComplete: (bins: BinDto[], goalText: string) => void;
   /** 옵션: 오버레이를 닫는다. 기존 별자리가 있어 새로 만들지 않을 때만 부모가
-   * 이 prop을 넘겨 닫기 버튼/Esc를 노출한다. */
+   * 이 prop을 넘겨 닫기 링크를 노출한다. */
   onDismiss?: () => void;
   className?: string;
 }
@@ -53,11 +51,33 @@ const MAX_INPUT_LENGTH = 2000;
 /** 잡 폴링 주기(ms)와 최대 시도 횟수 - 120회 * 1.5초 = 3분. */
 const POLL_INTERVAL_MS = 1500;
 const MAX_POLL_ATTEMPTS = 120;
+/** 진행 표시가 채울 총 질문 칸 수(시안 보드 3: "Q n / 6"). */
+const TOTAL_QUESTION_SLOTS = 6;
 
 type Phase = "chat" | "generating";
 
+/** 질문 하나 + (있다면) 그에 대한 답. 인트로 문구도 첫 "질문"으로 취급한다. */
+interface Turn {
+  question: string;
+  answer?: string;
+}
+
 function detailOf(err: unknown, fallback: string): string {
   return err instanceof ApiError ? err.detail : fallback;
+}
+
+/** messages(서버가 돌려준 전체 히스토리)를 질문/답 쌍으로 엮는다.
+ * user 메시지는 직전 질문의 답으로, assistant 메시지는 새 질문으로 취급한다. */
+function buildTurns(messages: ChatMessageDto[]): Turn[] {
+  const turns: Turn[] = [{ question: INTRO_GREETING }];
+  for (const m of messages) {
+    if (m.role === "user") {
+      turns[turns.length - 1].answer = m.content;
+    } else {
+      turns.push({ question: m.content });
+    }
+  }
+  return turns;
 }
 
 export function ConstellationIntakeChat({
@@ -218,52 +238,67 @@ export function ConstellationIntakeChat({
 
   const inputDisabled = pending || messages.length >= MAX_MESSAGES;
 
+  // 질문/답 쌍으로 재구성 - 마지막 턴에 아직 답이 없으면 그게 "지금" 질문,
+  // 있으면(=답변 전송 후 서버 응답 대기 중) 지금 칸엔 타이핑 표시가 대신 뜬다.
+  const turns = buildTurns(messages);
+  const lastTurn = turns[turns.length - 1];
+  const openTurn = lastTurn.answer === undefined ? lastTurn : null;
+  const pastTurns = openTurn ? turns.slice(0, -1) : turns;
+  const qDisplay = Math.min(turns.length, TOTAL_QUESTION_SLOTS);
+
   return (
     <div
       role="dialog"
       aria-modal="true"
       aria-label="별자리 목표 대화"
       onKeyDown={handleKeyDown}
-      className={cn(
-        "absolute inset-0 z-30 flex items-center justify-center bg-ink-900/80 p-4 backdrop-blur-sm",
-        className
-      )}
+      className={cn("fixed inset-0 z-30 overflow-hidden bg-ink-900", className)}
     >
-      <div className="flex max-h-[85dvh] w-full max-w-xl flex-col overflow-hidden rounded-lg border border-rule bg-ink-800/95 shadow-2xl backdrop-blur-md">
-        <div className="flex items-center gap-3 border-b border-rule px-4 py-3">
-          <h2 className="font-serif text-base font-bold text-text-hi">
-            {phase === "chat" ? "목표 이야기하기" : "별자리 만드는 중"}
-          </h2>
-          {onDismiss && (
-            <button
-              type="button"
-              onClick={onDismiss}
-              aria-label="닫기"
-              className="ml-auto rounded-sm px-1.5 py-1 text-text-lo transition-colors hover:text-text-hi focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-1 focus-visible:outline-spec-b"
-            >
-              <CloseIcon />
-            </button>
-          )}
-        </div>
+      <div className="bg-radec-grid pointer-events-none absolute inset-0" aria-hidden />
+      <BackgroundStars />
 
-        {phase === "chat" ? (
-          <>
-            <div
-              role="log"
-              aria-live="polite"
-              className="canvas-scroll min-h-0 flex-1 space-y-2.5 overflow-y-auto px-4 py-3.5"
-            >
-              <ChatBubble role="assistant">{INTRO_GREETING}</ChatBubble>
-              {messages.map((m, idx) => (
-                <ChatBubble key={idx} role={m.role}>
-                  {m.content}
-                </ChatBubble>
+      <ProgressHeader current={qDisplay} total={TOTAL_QUESTION_SLOTS} />
+
+      {phase === "chat" ? (
+        <>
+          <div
+            role="log"
+            aria-live="polite"
+            className="canvas-scroll fixed left-1/2 top-[150px] bottom-[150px] w-[min(720px,92vw)] -translate-x-1/2 overflow-y-auto"
+          >
+            <div className="flex flex-col gap-[34px] pb-2">
+              {pastTurns.map((t, idx) => (
+                <div key={idx} className="flex flex-col gap-3 opacity-[0.45]">
+                  <div className="flex items-start gap-3">
+                    <StarGlyph size={16} className="mt-1 shrink-0" />
+                    <p className="whitespace-pre-wrap text-base leading-[1.7] text-text-hi">
+                      {t.question}
+                    </p>
+                  </div>
+                  {t.answer && (
+                    <p className="max-w-[480px] self-end whitespace-pre-wrap rounded-md border border-rule bg-ink-800 px-[18px] py-3 text-[15px] leading-[1.65] text-text-hi">
+                      {t.answer}
+                    </p>
+                  )}
+                </div>
               ))}
-              {pending && <TypingIndicator />}
+
+              {openTurn ? (
+                <div className="flex items-start gap-3">
+                  <StarGlyph size={18} className="mt-1 shrink-0" />
+                  <p className="whitespace-pre-wrap font-serif text-[22px] leading-[1.65] text-text-hi">
+                    {openTurn.question}
+                  </p>
+                </div>
+              ) : (
+                <TypingDots />
+              )}
               <div ref={messagesEndRef} />
             </div>
+          </div>
 
-            <form onSubmit={handleSubmit} className="border-t border-rule px-4 py-3">
+          <div className="fixed inset-x-0 bottom-[72px] z-10 flex justify-center px-4">
+            <div className="w-[min(720px,92vw)]">
               {chatError && (
                 <div className="mb-2 flex items-center gap-2 rounded-md border border-spec-m/45 bg-spec-m/10 px-3 py-2 font-sans text-xs text-spec-m">
                   <span className="flex-1">{chatError}</span>
@@ -278,7 +313,7 @@ export function ConstellationIntakeChat({
                   )}
                 </div>
               )}
-              <div className="flex items-center gap-2">
+              <form onSubmit={handleSubmit} className="flex items-center gap-2.5">
                 <input
                   ref={inputRef}
                   type="text"
@@ -286,84 +321,145 @@ export function ConstellationIntakeChat({
                   onChange={(e) => setDraft(e.target.value)}
                   maxLength={MAX_INPUT_LENGTH}
                   disabled={inputDisabled}
-                  placeholder="여기에 입력해 주세요..."
+                  placeholder="답을 입력하세요…"
                   aria-label="메시지 입력"
-                  className="min-w-0 flex-1 rounded-md border border-rule bg-ink-900/70 px-3 py-2 font-sans text-sm text-text-hi placeholder:text-text-lo focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-1 focus-visible:outline-spec-b disabled:opacity-50"
+                  className="min-w-0 flex-1 rounded-full border border-rule bg-ink-800 px-[22px] py-[15px] font-sans text-[15px] text-text-hi placeholder:text-text-lo focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-spec-b disabled:opacity-50"
                 />
-                <Button type="submit" size="md" disabled={inputDisabled || !draft.trim()}>
-                  보내기
-                </Button>
-              </div>
-            </form>
-          </>
-        ) : (
-          <GeneratingPanel error={jobError} expired={jobExpired} onRetry={retryGenerating} />
-        )}
-      </div>
+                <button
+                  type="submit"
+                  disabled={inputDisabled || !draft.trim()}
+                  aria-label="보내기"
+                  className="flex h-12 w-12 shrink-0 items-center justify-center rounded-full border border-rule bg-ink-700 text-text-hi transition-colors hover:border-lit focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-spec-b disabled:opacity-50 disabled:pointer-events-none"
+                >
+                  <ArrowUpIcon />
+                </button>
+              </form>
+            </div>
+          </div>
+        </>
+      ) : (
+        <GeneratingStage error={jobError} expired={jobExpired} onRetry={retryGenerating} />
+      )}
+
+      {onDismiss && (
+        <button
+          type="button"
+          onClick={onDismiss}
+          className="fixed bottom-[52px] left-[60px] z-10 font-sans text-xs text-text-lo transition-colors hover:text-text-hi"
+        >
+          저장하고 그만두기
+        </button>
+      )}
     </div>
   );
 }
 
-function ChatBubble({ role, children }: { role: "user" | "assistant"; children: string }) {
-  const isUser = role === "user";
-  if (isUser) {
-    return (
-      <div className="flex justify-end">
-        <p className="max-w-[85%] whitespace-pre-wrap rounded-lg bg-spec-b/16 px-3.5 py-2 font-sans text-sm leading-relaxed text-text-hi">
-          {children}
-        </p>
-      </div>
-    );
-  }
-  // 관측 기록 톤(시안 보드 3): AI 질문은 말풍선 상자 없이, 별빛 글리프를 앞세운
-  // 본문으로 - "챗봇"이 아니라 관측 일지에 적히는 질문처럼 읽히게 한다.
+/** 8-point 별빛 글리프 - 관측 기록 톤의 질문 표식. */
+function StarGlyph({ size, className }: { size: number; className?: string }) {
   return (
-    <div className="flex items-start gap-2.5 pr-6">
-      <svg
-        width="14"
-        height="14"
-        viewBox="0 0 16 16"
-        fill="transparent"
-        stroke="var(--lit)"
-        strokeWidth="1.2"
-        strokeLinecap="round"
-        aria-hidden
-        className="mt-1 shrink-0"
-      >
-        <path d="M8 1.5 L8 14.5 M1.5 8 L14.5 8 M3.7 3.7 L12.3 12.3 M12.3 3.7 L3.7 12.3" />
-      </svg>
-      <p className="max-w-[85%] whitespace-pre-wrap font-sans text-sm leading-relaxed text-text-hi">
-        {children}
-      </p>
-    </div>
+    <svg
+      width={size}
+      height={size}
+      viewBox="0 0 16 16"
+      fill="none"
+      stroke="var(--lit)"
+      strokeWidth="1.2"
+      strokeLinecap="round"
+      aria-hidden
+      className={className}
+    >
+      <path d="M8 1.5 L8 14.5 M1.5 8 L14.5 8 M3.7 3.7 L12.3 12.3 M12.3 3.7 L3.7 12.3" />
+    </svg>
   );
 }
 
-function TypingIndicator() {
-  // 챗봇식 점 3개 대신 별빛 글리프가 깜빡인다 - 관측 기록 톤 유지.
+function ArrowUpIcon() {
   return (
-    <div className="flex items-start gap-2.5 pr-6">
-      <svg
-        width="14"
-        height="14"
-        viewBox="0 0 16 16"
-        fill="transparent"
-        stroke="var(--lit)"
-        strokeWidth="1.2"
-        strokeLinecap="round"
-        aria-hidden
-        className="mt-1 shrink-0 motion-safe:animate-pulse"
-      >
-        <path d="M8 1.5 L8 14.5 M1.5 8 L14.5 8 M3.7 3.7 L12.3 12.3 M12.3 3.7 L3.7 12.3" />
-      </svg>
-      <span className="font-sans text-sm text-text-lo" role="status">
-        다음 질문을 고르는 중…
+    <svg
+      width="18"
+      height="18"
+      viewBox="0 0 24 24"
+      fill="none"
+      stroke="currentColor"
+      strokeWidth="2"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+      aria-hidden
+    >
+      <path d="M12 19V5M5 12l7-7 7 7" />
+    </svg>
+  );
+}
+
+/** 화면 곳곳에 흩뿌린 희미한 별 8개 - 순전히 장식. */
+const BACKGROUND_STARS = [
+  { x: 8, y: 12, r: 1.4, o: 0.4 },
+  { x: 22, y: 68, r: 1, o: 0.32 },
+  { x: 40, y: 22, r: 1.6, o: 0.5 },
+  { x: 63, y: 14, r: 1, o: 0.35 },
+  { x: 78, y: 55, r: 1.3, o: 0.45 },
+  { x: 90, y: 30, r: 1, o: 0.3 },
+  { x: 15, y: 85, r: 1.5, o: 0.55 },
+  { x: 55, y: 90, r: 1, o: 0.38 },
+];
+
+function BackgroundStars() {
+  return (
+    <svg
+      className="pointer-events-none absolute inset-0 h-full w-full"
+      viewBox="0 0 100 100"
+      preserveAspectRatio="none"
+      aria-hidden
+    >
+      {BACKGROUND_STARS.map((s, idx) => (
+        <circle key={idx} cx={s.x} cy={s.y} r={s.r} fill="var(--text-hi)" opacity={s.o} />
+      ))}
+    </svg>
+  );
+}
+
+/** 상단 중앙 "Q n / 6" + 진행 점 6개. chat/generating 두 단계 모두에서 보인다. */
+function ProgressHeader({ current, total }: { current: number; total: number }) {
+  return (
+    <div className="pointer-events-none fixed inset-x-0 top-0 z-10 flex flex-col items-center gap-[10px] pt-10">
+      <span className="font-mono text-xs tracking-[0.12em] text-text-lo">
+        Q {current} / {total}
       </span>
+      <div className="flex items-center gap-3">
+        {Array.from({ length: total }, (_, i) => i + 1).map((n) => (
+          <span
+            key={n}
+            className={cn(
+              "h-[7px] w-[7px] rounded-full",
+              n === current
+                ? "bg-lit shadow-[0_0_10px_rgba(255,243,196,0.6)]"
+                : n < current
+                  ? "bg-lit"
+                  : "border border-rule bg-transparent"
+            )}
+          />
+        ))}
+      </div>
     </div>
   );
 }
 
-function GeneratingPanel({
+/** 다음 질문을 기다리는 동안 지금 질문 자리에 대신 뜨는 펄스 점 3개. */
+function TypingDots() {
+  return (
+    <div className="flex items-center gap-1.5 py-1" role="status" aria-label="다음 질문을 준비하는 중">
+      {[0, 1, 2].map((i) => (
+        <span
+          key={i}
+          className="h-2 w-2 rounded-full bg-lit motion-safe:animate-pulse"
+          style={{ animationDelay: `${i * 0.15}s` }}
+        />
+      ))}
+    </div>
+  );
+}
+
+function GeneratingStage({
   error,
   expired,
   onRetry,
@@ -372,41 +468,28 @@ function GeneratingPanel({
   expired: boolean;
   onRetry: () => void;
 }) {
-  if (expired) {
+  if (expired || error) {
     return (
-      <div className="flex flex-1 flex-col items-center justify-center gap-3 px-6 py-10 text-center">
-        <p className="font-sans text-sm text-text-hi">작업이 만료됐어요. 다시 시도해 주세요.</p>
-        <Button onClick={onRetry}>다시 시도</Button>
-      </div>
-    );
-  }
-  if (error) {
-    return (
-      <div className="flex flex-1 flex-col items-center justify-center gap-3 px-6 py-10 text-center">
-        <p className="font-sans text-sm text-spec-m">{error}</p>
-        <Button onClick={onRetry}>다시 시도</Button>
+      <div className="fixed inset-0 flex flex-col items-center justify-center gap-4 px-6 text-center">
+        <p className="font-sans text-sm text-spec-m">
+          {expired ? "작업이 만료됐어요. 다시 시도해 주세요." : error}
+        </p>
+        <button
+          type="button"
+          onClick={onRetry}
+          className="rounded-full border border-rule px-5 py-2.5 font-sans text-sm text-text-hi transition-colors hover:border-lit focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-spec-b"
+        >
+          다시 시도
+        </button>
       </div>
     );
   }
   return (
-    <div className="flex flex-1 flex-col items-center justify-center gap-3 px-6 py-10 text-center">
-      <svg
-        width="26"
-        height="26"
-        viewBox="0 0 16 16"
-        fill="transparent"
-        stroke="var(--lit)"
-        strokeWidth="1.1"
-        strokeLinecap="round"
-        aria-hidden
-        className="motion-safe:animate-pulse"
-      >
-        <path d="M8 1.5 L8 14.5 M1.5 8 L14.5 8 M3.7 3.7 L12.3 12.3 M12.3 3.7 L3.7 12.3" />
-      </svg>
-      <p className="font-sans text-sm text-text-hi" role="status" aria-live="polite">
-        군집을 만드는 중…
+    <div className="fixed inset-0 flex flex-col items-center justify-center gap-4 px-6 text-center">
+      <p className="font-serif text-xl text-text-hi" role="status" aria-live="polite">
+        별자리 초안을 그리는 중…
       </p>
-      <p className="font-sans text-xs text-text-lo">잠시만 기다려 주세요. 시간이 조금 걸릴 수 있어요.</p>
+      <TypingDots />
     </div>
   );
 }
