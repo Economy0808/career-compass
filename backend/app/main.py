@@ -9,6 +9,7 @@ from app.api.auth import router as auth_router
 from app.api.auth_sync import router as auth_sync_router
 from app.api.beans import router as beans_router
 from app.api.constellation import router as constellation_router
+from app.api.constellation_intake import router as constellation_intake_router
 from app.api.goals import router as goals_router
 from app.api.health import router as health_router
 from app.api.ncs import router as ncs_router
@@ -66,6 +67,7 @@ def create_app() -> FastAPI:
     app.include_router(roadmap_router)
     app.include_router(todos_router)
     app.include_router(constellation_router)
+    app.include_router(constellation_intake_router)
     return app
 
 
