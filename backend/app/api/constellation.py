@@ -20,7 +20,7 @@ from google.cloud.firestore import Client
 from app.auth.deps import get_current_user
 from app.auth.firebase_auth import DecodedToken
 from app.domain.constellation import Constellation, Note, Position
-from app.firestore import constellation_repo, note_repo
+from app.firestore import constellation_repo, note_repo, user_repo
 from app.firestore.client import get_firestore_client
 from app.firestore.constellation_repo import (
     ConstellationNotFoundError,
@@ -35,6 +35,8 @@ from app.schemas.constellation import (
     ConstellationCreateIn,
     ConstellationOut,
     EdgeCreateIn,
+    FeedAuthorOut,
+    FeedItemOut,
     NodeCreateIn,
     NoteCreateIn,
     NoteOut,
@@ -131,6 +133,32 @@ async def list_my_constellations(
     """내가 소유한 모든 별자리 목록 (마이페이지용)."""
     constellations = constellation_repo.list_by_owner(db, user.uid)
     return [constellation_to_out(c) for c in constellations]
+
+
+@router.get("/feed", response_model=list[FeedItemOut], response_model_exclude_none=True)
+async def get_feed(
+    user: DecodedToken = Depends(get_current_user),
+    db: Client = Depends(get_firestore_client),
+) -> list[FeedItemOut]:
+    """공개된 별자리 피드 (최신 수정순, 최대 20개).
+
+    ROUTE ORDER: 반드시 GET /{constellation_id}보다 먼저 선언해야 한다 -
+    그렇지 않으면 FastAPI가 "feed"를 constellation_id 경로 파라미터로 매칭한다.
+
+    항목마다 작성자 프로필을 추가로 조회한다(N+1) - limit 20 상한이 있어
+    허용되는 수준이다. 피드 규모가 커지면 배치 조회로 바꿔야 한다.
+    """
+    constellations = constellation_repo.list_published(db, limit=20)
+    constellations.sort(key=lambda c: c.updated_at, reverse=True)
+    items = []
+    for c in constellations:
+        profile = user_repo.get_user_profile(db, c.owner_id)
+        author = FeedAuthorOut(
+            display_name=profile.get("display_name") if profile else None,
+            avatar_emoji=profile.get("avatar_emoji") if profile else None,
+        )
+        items.append(FeedItemOut(constellation=constellation_to_out(c), author=author))
+    return items
 
 
 @router.get(

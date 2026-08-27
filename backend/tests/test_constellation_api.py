@@ -27,6 +27,7 @@ from httpx import ASGITransport, AsyncClient
 
 from app.auth.deps import get_current_user
 from app.auth.firebase_auth import DecodedToken
+from app.firestore import user_repo
 from app.firestore.client import get_firestore_client
 from app.main import app
 
@@ -718,3 +719,76 @@ async def test_after_publish_other_user_can_get(
         assert resp.status_code == 200
         assert resp.json()["isPublished"] is True
         assert resp.json()["title"] == "공개될 것"
+
+
+# --- 피드 (공개 별자리 목록) ---
+
+
+@pytest.mark.asyncio
+async def test_feed_returns_published_with_author_and_camel_case(
+    authed_as: Callable[[str], None],
+) -> None:
+    authed_as("user-a")
+    async with _client() as client:
+        cid = (
+            await client.post(
+                "/api/constellations",
+                json={
+                    "title": "피드 대상",
+                    "goalRawText": "x",
+                    "nodes": [
+                        {
+                            "id": "n1",
+                            "label": "n1",
+                            "type": "course",
+                            "position": {"x": 0, "y": 0},
+                        }
+                    ],
+                    "edges": [],
+                },
+            )
+        ).json()["id"]
+        await client.put(
+            f"/api/constellations/{cid}/bins",
+            json={"bins": [{"id": "b1", "label": "b1", "origin": "user", "items": []}]},
+        )
+        await client.patch(f"/api/constellations/{cid}/publish", json={"isPublished": True})
+    db = get_firestore_client()
+    user_repo.upsert_user_profile(db, "user-a", display_name="관측자", avatar_emoji="🔭")
+
+    authed_as("user-b")
+    async with _client() as client:
+        resp = await client.get("/api/constellations/feed")
+        assert resp.status_code == 200
+        items = resp.json()
+        match = next(item for item in items if item["constellation"]["id"] == cid)
+        assert match["author"]["displayName"] == "관측자"
+        assert match["author"]["avatarEmoji"] == "🔭"
+        # round-trip: nodes/edges/bins가 그대로 담겨 있어야 한다.
+        assert "n1" in match["constellation"]["nodes"]
+        assert match["constellation"]["bins"][0]["id"] == "b1"
+
+
+@pytest.mark.asyncio
+async def test_feed_excludes_unpublished(authed_as: Callable[[str], None]) -> None:
+    authed_as("user-a")
+    async with _client() as client:
+        cid = (
+            await client.post(
+                "/api/constellations", json={"title": "비공개 피드 제외", "goalRawText": "x"}
+            )
+        ).json()["id"]
+
+    authed_as("user-b")
+    async with _client() as client:
+        resp = await client.get("/api/constellations/feed")
+        assert resp.status_code == 200
+        ids = {item["constellation"]["id"] for item in resp.json()}
+        assert cid not in ids
+
+
+@pytest.mark.asyncio
+async def test_feed_requires_auth() -> None:
+    async with _client() as client:
+        resp = await client.get("/api/constellations/feed")
+        assert resp.status_code == 401
