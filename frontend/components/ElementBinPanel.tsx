@@ -12,7 +12,9 @@
 
 import { useMemo, useState, type DragEvent, type FormEvent, type KeyboardEvent } from "react";
 import { cn } from "@/lib/cn";
+import { TYPE_COLOR, DEFAULT_TYPE_COLOR } from "@/lib/element-colors";
 import type { CanvasPosition } from "@/components/ConstellationCanvas";
+import { InfoIcon, SeedIcon } from "@/components/ui/icons";
 
 export interface BinItem {
   id: string;
@@ -20,6 +22,7 @@ export interface BinItem {
   type: string;
   level?: number | null;
   subtitle?: string;
+  description?: string;
 }
 
 export interface Bin {
@@ -29,6 +32,8 @@ export interface Bin {
   items: BinItem[];
   /** 방금 사용자가 만든 보관함이라 LLM이 아직 채우는 중일 때. */
   isLoading?: boolean;
+  /** LLM이 이 보관함을 왜 이렇게 구성했는지 짧게 설명하는 조언 - ⓘ로 펼쳐 본다. */
+  advice?: string;
 }
 
 export interface ElementBinPanelProps {
@@ -40,21 +45,13 @@ export interface ElementBinPanelProps {
   onAddItem: (binId: string, item: Omit<BinItem, "id">) => void;
   /** 이미 캔버스에 배치된 원소는 흐리게 + 체크 표시로 구분한다. */
   placedItemIds?: Set<string>;
+  /** 있으면 패널 하단에 "새 별자리 만들기" 버튼을 보여준다. */
+  onStartNewConstellation?: () => void;
   className?: string;
 }
 
-// ConstellationCanvas.tsx의 TYPE_COLOR(항성 분광형 악센트)와 시각적으로 맞춘
-// 값. 캔버스 컴포넌트는 이 매핑을 export하지 않으므로(내부 렌더링 전용 상수),
-// 보관함 칩의 점 색이 캔버스에 놓인 뒤의 노드 색과 어긋나지 않도록 여기서
-// 최소한만 복제해 둔다.
-const TYPE_DOT: Record<string, string> = {
-  course: "var(--spec-b)",
-  certification: "var(--spec-a)",
-  organization: "var(--spec-g)",
-  activity: "var(--spec-k)",
-  networking: "var(--spec-m)",
-};
-const DEFAULT_DOT = "var(--text-lo)";
+// 유형→색 매핑은 lib/element-colors.ts에서 단일 진실 공급원으로 관리된다.
+// 보관함 칩의 점 색이 캔버스에 놓인 뒤의 노드 색과 항상 일치한다.
 
 /** 사용자가 직접 원소를 추가할 때 고를 수 있는 종류 - type이 노드 색(분광형
  * 악센트)을 결정하므로 추측하지 않고 항상 명시적으로 고르게 한다. */
@@ -193,7 +190,7 @@ function ItemChip({
       <span
         aria-hidden
         className="h-1.5 w-1.5 shrink-0 rounded-full"
-        style={{ background: placed ? "var(--text-lo)" : (TYPE_DOT[item.type] ?? DEFAULT_DOT) }}
+        style={{ background: placed ? "var(--text-lo)" : (TYPE_COLOR[item.type] ?? DEFAULT_TYPE_COLOR) }}
       />
       {code && <span className="font-mono text-micro text-text-lo">{code}</span>}
       <span className="truncate">{rest}</span>
@@ -230,9 +227,17 @@ function BinSection({
   const groups = useMemo(() => groupByLevel(bin.items), [bin.items]);
   const [addLabel, setAddLabel] = useState("");
   const [addType, setAddType] = useState(ELEMENT_TYPE_OPTIONS[0].value);
+  const [adviceOpen, setAdviceOpen] = useState(false);
 
   const allPlaced = bin.items.length > 0 && bin.items.every((item) => placedItemIds.has(item.id));
   const canPlaceAll = !bin.isLoading && bin.items.length > 0 && !allPlaced;
+  const hasAdvice = !!bin.advice && bin.advice.trim().length > 0;
+  // "AI 제안" 배지 - LLM이 채운 보관함인데 카탈로그 검증되는 "수업"이 하나도
+  // 없으면(전부 course가 아니면), 사용자가 카탈로그 항목으로 오해하지 않도록
+  // 정직하게 표시한다.
+  const isAiSuggested =
+    bin.origin === "llm" && bin.items.length > 0 && bin.items.every((item) => item.type !== "course");
+  const adviceId = `bin-advice-${bin.id}`;
 
   function handleAddItem(e: FormEvent<HTMLFormElement>) {
     e.preventDefault();
@@ -279,6 +284,34 @@ function BinSection({
             내가 만든 보관함
           </span>
         )}
+        {isAiSuggested && (
+          <span
+            title="카탈로그 검증 없이 AI가 제안한 항목이에요"
+            className="rounded-none bg-ink-800 px-1.5 py-0.5 text-micro font-semibold text-text-lo"
+          >
+            AI 제안
+          </span>
+        )}
+        {hasAdvice && (
+          <button
+            type="button"
+            draggable={false}
+            onDragStart={(e) => {
+              e.preventDefault();
+              e.stopPropagation();
+            }}
+            onClick={(e) => {
+              e.stopPropagation();
+              setAdviceOpen((v) => !v);
+            }}
+            aria-expanded={adviceOpen}
+            aria-controls={adviceId}
+            aria-label={`${bin.label} 조언 보기`}
+            className="shrink-0 rounded-full p-0.5 text-text-lo transition-colors hover:bg-ink-800 hover:text-text-hi focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-spec-b/70"
+          >
+            <InfoIcon size={14} />
+          </button>
+        )}
         {!bin.isLoading && (
           <>
             <button
@@ -293,6 +326,15 @@ function BinSection({
           </>
         )}
       </header>
+
+      {hasAdvice && adviceOpen && (
+        <p
+          id={adviceId}
+          className="mt-1 mb-2 rounded-md border border-rule bg-ink-900/60 px-2.5 py-2 text-caption leading-relaxed text-text-lo"
+        >
+          {bin.advice}
+        </p>
+      )}
 
       {bin.isLoading ? (
         <div className="flex flex-wrap gap-1.5" aria-live="polite" aria-busy="true">
@@ -390,6 +432,7 @@ export function ElementBinPanel({
   onCreateBin,
   onAddItem,
   placedItemIds,
+  onStartNewConstellation,
   className,
 }: ElementBinPanelProps) {
   const [newBinLabel, setNewBinLabel] = useState("");
@@ -460,6 +503,19 @@ export function ElementBinPanel({
           추가
         </button>
       </form>
+
+      {onStartNewConstellation && (
+        <div className="border-t border-rule px-3 pb-3 pt-2">
+          <button
+            type="button"
+            onClick={onStartNewConstellation}
+            className="flex w-full items-center justify-center gap-1.5 rounded-lg border border-rule bg-ink-700/60 py-1.5 text-caption font-semibold text-text-hi transition-colors hover:bg-ink-700 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-spec-b/70 md:py-2 md:text-sm"
+          >
+            <SeedIcon size={14} />
+            새 별자리 만들기
+          </button>
+        </div>
+      )}
     </div>
   );
 }

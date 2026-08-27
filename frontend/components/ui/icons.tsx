@@ -74,6 +74,16 @@ export function PlusIcon({ size = 18, className, style }: IconProps) {
   return svg(size, className, style, <path d="M12 5.5v13M5.5 12h13" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" />);
 }
 
+export function InfoIcon({ size = 18, className, style }: IconProps) {
+  return svg(size, className, style, (
+    <>
+      <circle cx="12" cy="12" r="8.5" stroke="currentColor" strokeWidth="2" />
+      <path d="M12 11v5.5" stroke="currentColor" strokeWidth="2" strokeLinecap="round" />
+      <circle cx="12" cy="7.75" r="1.1" fill="currentColor" />
+    </>
+  ));
+}
+
 /**
  * Eagle silhouette. A motif nod to the university symbol, deliberately
  * generic: never the official crest or wordmark (trademark).
