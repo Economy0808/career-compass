@@ -191,7 +191,7 @@ export function TelescopeLanding() {
           className="fixed left-1/2 top-1/2 z-[70] h-[250vmax] w-[250vmax] rounded-full"
           style={{
             background: "radial-gradient(circle at 50% 46%, #0b1024 0%, var(--ink-900) 60%)",
-            animation: "apertureOpen 650ms cubic-bezier(0.4, 0, 0.2, 1) forwards",
+            animation: "apertureOpen 1600ms cubic-bezier(0.4, 0, 0.2, 1) forwards",
           }}
         />
       )}
