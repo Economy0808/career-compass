@@ -1,0 +1,17 @@
+{
+  "detector": {
+    "ignoreRules": [],
+    "ignoreFiles": [],
+    "ignoreValues": [
+      {
+        "rule": "codex-grid-background",
+        "value": "*",
+        "files": [
+          "frontend/app/globals.css"
+        ],
+        "createdAt": "2026-08-27T12:30:02.492Z",
+        "reason": "finish reviewer verdict: graticule IS the subject (star-chart canvas + printed-chart landing), the detector's stated exception"
+      }
+    ]
+  }
+}

@@ -1,0 +1,123 @@
+{
+  "schemaVersion": 2,
+  "generatedAt": "2026-08-27T00:00:00+09:00",
+  "title": "Design System: OurLab",
+  "extensions": {
+    "colorMeta": {
+      "spec-b": { "role": "primary", "displayName": "Stellar Blue (spec-b / course)", "canonical": "#9DB4FF", "tonalRamp": ["#10182e", "#1e2c55", "#31477f", "#4a63a8", "#6a84cf", "#9DB4FF", "#c3d1ff", "#e6ecff"] },
+      "spec-a": { "role": "secondary", "displayName": "White Star (certification)", "canonical": "#E8ECFF" },
+      "spec-g": { "role": "secondary", "displayName": "Gold Star (organization)", "canonical": "#FFD98A" },
+      "spec-k": { "role": "secondary", "displayName": "Orange Star (activity)", "canonical": "#FFA76B" },
+      "spec-m": { "role": "secondary", "displayName": "Red Star (networking / danger)", "canonical": "#FF7B72" },
+      "lit": { "role": "tertiary", "displayName": "Warm Starlight (lit edge, never green)", "canonical": "#FFF3C4", "tonalRamp": ["#2e2a14", "#554d24", "#7f743a", "#a89a54", "#cfc077", "#FFF3C4", "#fff8d9", "#fffcef"] },
+      "ink-900": { "role": "neutral", "displayName": "Deep Space Ink (page ground)", "canonical": "#04060B", "tonalRamp": ["#04060B", "#131829", "#1C2338", "#2A3350", "#46527a", "#8891AC", "#c3c9da", "#E8EAF2"] },
+      "ink-800": { "role": "neutral", "displayName": "Panel Ink", "canonical": "#131829" },
+      "ink-700": { "role": "neutral", "displayName": "Raised / Hover Ink", "canonical": "#1C2338" },
+      "rule": { "role": "neutral", "displayName": "Hairline / Chart Grid", "canonical": "#2A3350" },
+      "text-hi": { "role": "neutral", "displayName": "Primary Text", "canonical": "#E8EAF2" },
+      "text-lo": { "role": "neutral", "displayName": "Secondary Text", "canonical": "#8891AC" },
+      "paper": { "role": "neutral", "displayName": "Star-Chart Paper (landing only)", "canonical": "#F6F7FA", "tonalRamp": ["#10141F", "#2b3147", "#5C6480", "#8890a8", "#AFB6CC", "#C9CEE0", "#E3E6F0", "#F6F7FA"] },
+      "paper-ink": { "role": "neutral", "displayName": "Paper Ink (landing text)", "canonical": "#10141F" },
+      "paper-line": { "role": "neutral", "displayName": "Chart Frame Line", "canonical": "#C9CEE0" },
+      "paper-faint": { "role": "neutral", "displayName": "Faint Decorative Line (never body text, 1.9:1)", "canonical": "#AFB6CC" }
+    },
+    "typographyMeta": {
+      "display": { "displayName": "Display (Gowun Batang)", "purpose": "Constellation names and page titles only. Never UI chrome." },
+      "body": { "displayName": "Body (IBM Plex Sans KR)", "purpose": "All Korean UI text. word-break: keep-all." },
+      "label": { "displayName": "Label (IBM Plex Mono)", "purpose": "Course codes and numerals ONLY. No Korean glyphs exist in this font." }
+    },
+    "shadows": [
+      { "name": "panel", "value": "0 8px 26px rgb(0 0 0 / .38)", "purpose": "Floating panels and popovers." },
+      { "name": "overlay", "value": "0 14px 40px rgb(0 0 0 / .55)", "purpose": "Modal-grade overlays." },
+      { "name": "glow-bloom", "value": "0 0 44px rgb(226 185 79 / .4)", "purpose": "Starlight bloom on achievement moments." },
+      { "name": "fab", "value": "0 5px 18px rgb(47 111 191 / .45)", "purpose": "Tab-bar center FAB." }
+    ],
+    "motion": [
+      { "name": "ease-standard", "value": "cubic-bezier(.22, 1, .36, 1)", "purpose": "Default easing for entrance/state pops (sprout, celebratePop). Elastic easings were removed." },
+      { "name": "ease-aperture", "value": "cubic-bezier(0.4, 0, 0.2, 1)", "purpose": "One-shot aperture (light-to-dark) landing transition, 650ms." },
+      { "name": "edge-glow", "value": "edgeGlowPulse: opacity 0.6 to 1", "purpose": "Lit constellation edges. Opacity only - never transform on SVG lines (real bug)." },
+      { "name": "reduced-motion", "value": "global kill switch in globals.css", "purpose": "All animation/transition durations forced to ~0; onAnimationEnd routing still fires." }
+    ],
+    "breakpoints": []
+  },
+  "components": [
+    {
+      "name": "Primary Button",
+      "kind": "button",
+      "refersTo": "button-primary",
+      "description": "The single action color (spec-b) on dark ink; hover dims slightly.",
+      "html": "<button class=\"ds-btn-primary\">저장</button>",
+      "css": ".ds-btn-primary { background: var(--spec-b, #9DB4FF); color: var(--ink-900, #04060B); font-family: 'IBM Plex Sans KR', sans-serif; font-size: 14px; font-weight: 500; padding: 6px 12px; border: none; border-radius: 12px; cursor: pointer; transition: opacity .15s; } .ds-btn-primary:hover { opacity: .9; } .ds-btn-primary:focus-visible { outline: 2px solid var(--spec-b, #9DB4FF); outline-offset: 2px; }"
+    },
+    {
+      "name": "Ghost Button",
+      "kind": "button",
+      "refersTo": "button-ghost",
+      "description": "Hairline-bordered secondary action; hover raises to ink-700.",
+      "html": "<button class=\"ds-btn-ghost\">취소</button>",
+      "css": ".ds-btn-ghost { background: transparent; color: var(--text-hi, #E8EAF2); font-family: 'IBM Plex Sans KR', sans-serif; font-size: 14px; font-weight: 500; padding: 6px 12px; border: 1px solid var(--rule, #2A3350); border-radius: 12px; cursor: pointer; transition: background-color .15s; } .ds-btn-ghost:hover { background: var(--ink-700, #1C2338); } .ds-btn-ghost:focus-visible { outline: 2px solid var(--spec-b, #9DB4FF); outline-offset: 2px; }"
+    },
+    {
+      "name": "Input",
+      "kind": "input",
+      "refersTo": "input",
+      "description": "Dark well input with rule hairline; spec-b caret and focus outline.",
+      "html": "<input class=\"ds-input\" placeholder=\"별자리 이름\" />",
+      "css": ".ds-input { background: rgb(4 6 11 / 0.6); color: var(--text-hi, #E8EAF2); caret-color: var(--spec-b, #9DB4FF); font-family: 'IBM Plex Sans KR', sans-serif; font-size: 14px; padding: 10px 14px; border: 1px solid var(--rule, #2A3350); border-radius: 12px; width: 240px; } .ds-input::placeholder { color: var(--text-lo, #8891AC); } .ds-input:focus-visible { outline: 2px solid var(--spec-b, #9DB4FF); outline-offset: 1px; }"
+    },
+    {
+      "name": "Floating Panel",
+      "kind": "card",
+      "refersTo": "card",
+      "description": "Overlay panel material: translucent ink-800 + backdrop blur over the fullscreen canvas.",
+      "html": "<div class=\"ds-panel\"><div class=\"ds-panel-tabs\"><button class=\"ds-tab ds-tab-on\">군집</button><button class=\"ds-tab\">노트</button></div><p class=\"ds-panel-body\">패널은 캔버스 위에 떠 있는 오버레이다.</p></div>",
+      "css": ".ds-panel { background: rgb(19 24 41 / 0.95); backdrop-filter: blur(12px); border: 1px solid var(--rule, #2A3350); border-radius: 20px; padding: 12px; width: 260px; box-shadow: 0 8px 26px rgb(0 0 0 / .38); font-family: 'IBM Plex Sans KR', sans-serif; } .ds-panel-tabs { display: flex; gap: 4px; background: rgb(4 6 11 / 0.6); padding: 4px; border-radius: 12px; } .ds-tab { flex: 1; padding: 6px 10px; font-size: 12px; font-weight: 500; color: var(--text-lo, #8891AC); background: transparent; border: none; border-radius: 8px; cursor: pointer; transition: color .15s, background-color .15s; } .ds-tab:hover { color: var(--text-hi, #E8EAF2); } .ds-tab-on { background: var(--ink-700, #1C2338); color: var(--text-hi, #E8EAF2); } .ds-panel-body { color: var(--text-lo, #8891AC); font-size: 13.5px; line-height: 1.6; margin: 10px 4px 2px; word-break: keep-all; }"
+    },
+    {
+      "name": "Element Chip",
+      "kind": "chip",
+      "refersTo": "card",
+      "description": "Bin item chip: spectral-type color dot + label; mono is reserved for course codes.",
+      "html": "<div class=\"ds-chip\"><span class=\"ds-chip-dot\"></span><span class=\"ds-chip-code\">BIZ2101</span><span class=\"ds-chip-label\">경영학입문</span></div>",
+      "css": ".ds-chip { display: inline-flex; align-items: center; gap: 8px; background: rgb(28 35 56 / 0.5); border: 1px solid var(--rule, #2A3350); border-radius: 16px; padding: 8px 12px; font-family: 'IBM Plex Sans KR', sans-serif; } .ds-chip-dot { width: 8px; height: 8px; border-radius: 50%; background: var(--spec-b, #9DB4FF); } .ds-chip-code { font-family: 'IBM Plex Mono', monospace; font-size: 11px; color: var(--text-lo, #8891AC); letter-spacing: .05em; } .ds-chip-label { font-size: 13.5px; color: var(--text-hi, #E8EAF2); } .ds-chip:hover { background: var(--ink-700, #1C2338); }"
+    },
+    {
+      "name": "Landing CTA (paper world)",
+      "kind": "button",
+      "refersTo": "button-primary",
+      "description": "Bright star-chart landing only: ink-filled CTA; hover presses the ink darker, active nudges down 1px.",
+      "html": "<button class=\"ds-cta-ink\">망원경 들여다보기</button>",
+      "css": ".ds-cta-ink { background: var(--paper-ink, #10141F); color: var(--paper, #F6F7FA); font-family: 'IBM Plex Sans KR', sans-serif; font-size: 15px; font-weight: 600; padding: 12px 28px; border: none; border-radius: 12px; cursor: pointer; transition: background-color .2s ease-out; } .ds-cta-ink:hover { background: #05070d; } .ds-cta-ink:active { transform: translateY(1px); } .ds-cta-ink:focus-visible { outline: 2px solid var(--paper-ink, #10141F); outline-offset: 2px; }"
+    }
+  ],
+  "narrative": {
+    "northStar": "Printed star chart and the observation sky (jong-i seongdo / gwancheuk uju)",
+    "overview": "One system, two worlds. The logged-out landing is a bright paper star chart printed in blue-violet ink (--paper-*, .bg-paper-grid); every logged-in surface is a near-black observation sky (--ink-*, .bg-radec-grid). Both share the same blue-violet hue; the bridge is the one-shot aperture (light-to-dark) transition. The student is a cartographer, not a game player: decoration is limited to coordinate grids, hairline frames, tick marks, and line-art SVG. Functional absolute rules (SVG fill=transparent, no ambient background animation, panels are overlays) are owned by docs/design-handoff-guide.md; that document wins on conflict.",
+    "keyCharacteristics": [
+      "Dark-only app with exactly one bright exception: the landing",
+      "Astronomical vocabulary as token names (spectral classes spec-b/a/g/k/m, lit, RA/Dec grid)",
+      "Motion only at meaningful moments; no ambient background animation",
+      "Decoration via 1px hairlines and 3-4.5% opacity coordinate grids"
+    ],
+    "rules": [
+      { "name": "The Two-File Sync Rule", "body": "Color values are duplicated in app/globals.css (CSS vars) and tailwind.config.ts (hex). Always change both; see docs/design-handoff-guide.md section 1.", "section": "colors" },
+      { "name": "The Landing-Scope Rule", "body": "--paper-* tokens and their focus/scrollbar/CTA rules live only inside the .telescope-landing scope and must not leak into app surfaces.", "section": "colors" },
+      { "name": "The No-Korean-Mono Rule", "body": "IBM Plex Mono has no Korean glyphs. font-mono is for course codes and numerals only.", "section": "typography" },
+      { "name": "The Starlight-Only Glow Rule", "body": "Glow appears only for starlight (lit) moments; no ambient glow decoration on dark ground.", "section": "elevation" }
+    ],
+    "dos": [
+      "Do change colors in both globals.css and tailwind.config.ts together.",
+      "Do import type-to-color mapping only from lib/element-colors.ts.",
+      "Do keep the spec-b focus ring (paper-ink on the landing) on every new interactive element.",
+      "Do keep decorative layers pointer-events: none and behind the graph."
+    ],
+    "donts": [
+      "Don't use font-mono for Korean text - the glyphs don't exist.",
+      "Don't add ambient background animation (sole exception: pan-triggered drift).",
+      "Don't use mascots, illustration, game-like decoration, or gradient text.",
+      "Don't use --paper-* tokens on logged-in app surfaces.",
+      "Don't make lit edges green - starlight is warm yellow.",
+      "Don't use fill=\"none\" for transparent SVG fills (docs/design-handoff-guide.md 3-1)."
+    ]
+  }
+}
