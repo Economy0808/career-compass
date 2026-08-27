@@ -300,7 +300,11 @@ export function TelescopeLanding() {
           {stage === "zoom" && (
             <div
               aria-hidden
-              onAnimationEnd={() => router.push("/constellation/new")}
+              onAnimationEnd={() =>
+                // 이 랜딩은 비로그인 전용 화면이다. 대화(인테이크)는 인증이 필요하므로
+                // 로그인으로 이어 붙여야 렌즈->대화->추천 시안 체인이 끊기지 않는다.
+                router.push("/login?next=/constellation/new")
+              }
               className="fixed left-1/2 top-1/2 z-[70] h-[250vmax] w-[250vmax] rounded-full"
               style={{
                 background: "radial-gradient(circle at 50% 46%, #0b1024 0%, var(--ink-900) 60%)",
