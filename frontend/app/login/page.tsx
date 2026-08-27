@@ -1,8 +1,8 @@
 "use client";
 
 import Link from "next/link";
-import { useRouter } from "next/navigation";
-import { useState } from "react";
+import { useRouter, useSearchParams } from "next/navigation";
+import { Suspense, useState } from "react";
 import { Button, Card, Field } from "@/components/ui";
 import { useAuth } from "@/lib/auth-context";
 
@@ -25,13 +25,29 @@ function toKoreanError(err: unknown): string {
   }
 }
 
-export default function LoginPage() {
+/**
+ * next 파라미터가 안전한 내부 경로일 때만 리다이렉트에 사용한다.
+ * "/"로 시작하지 않거나 "//"로 시작(프로토콜 상대 URL)하거나
+ * /login·/signup으로 시작하면 open redirect 위험이 있어 무시한다.
+ */
+function isSafeNextPath(next: string | null): next is string {
+  if (!next) return false;
+  if (!next.startsWith("/")) return false;
+  if (next.startsWith("//")) return false;
+  if (next.startsWith("/login") || next.startsWith("/signup")) return false;
+  return true;
+}
+
+function LoginForm() {
   const router = useRouter();
+  const searchParams = useSearchParams();
   const { login } = useAuth();
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [pending, setPending] = useState(false);
   const [error, setError] = useState<string | null>(null);
+
+  const nextParam = searchParams.get("next");
 
   async function submit(e: React.FormEvent) {
     e.preventDefault();
@@ -40,7 +56,11 @@ export default function LoginPage() {
     setError(null);
     try {
       const u = await login(email.trim(), password);
-      router.push(u.yonseiVerified ? "/" : "/verify");
+      if (!u.yonseiVerified) {
+        router.push("/verify");
+      } else {
+        router.push(isSafeNextPath(nextParam) ? nextParam : "/");
+      }
     } catch (err) {
       setError(toKoreanError(err));
       setPending(false);
@@ -95,7 +115,22 @@ export default function LoginPage() {
             회원가입
           </Link>
         </p>
+        <p className="mt-2 text-center text-body-sm text-text-lo">
+          <Link href="/constellation/new" className="font-semibold text-spec-b">
+            로그인 없이 둘러보기
+          </Link>
+        </p>
       </Card>
     </div>
+  );
+}
+
+export default function LoginPage() {
+  // useSearchParams는 클라이언트에서 요청 시점 값을 읽으므로
+  // App Router 관례에 따라 Suspense 경계로 감싼다.
+  return (
+    <Suspense fallback={null}>
+      <LoginForm />
+    </Suspense>
   );
 }

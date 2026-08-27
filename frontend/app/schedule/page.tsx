@@ -53,7 +53,8 @@ export default function SchedulePage() {
   const DAY_GOAL = 6;
 
   useEffect(() => {
-    if (!authLoading && !user) router.push("/login");
+    // 로그인 후 이 화면으로 복귀할 수 있게 목적지를 next로 넘긴다.
+    if (!authLoading && !user) router.push("/login?next=" + encodeURIComponent("/schedule"));
   }, [authLoading, user, router]);
 
   // 선택일의 할 일 + 분류 로드
