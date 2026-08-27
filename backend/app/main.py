@@ -6,6 +6,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
 
 from app.api.auth import router as auth_router
+from app.api.auth_sync import router as auth_sync_router
 from app.api.beans import router as beans_router
 from app.api.constellation import router as constellation_router
 from app.api.goals import router as goals_router
@@ -57,6 +58,7 @@ def create_app() -> FastAPI:
 
     app.include_router(health_router)
     app.include_router(auth_router)
+    app.include_router(auth_sync_router)
     app.include_router(beans_router)
     app.include_router(goals_router)
     app.include_router(users_router)
