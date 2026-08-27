@@ -116,6 +116,15 @@
         "value": "13.5px",
         "createdAt": "2026-08-27T18:03:53.811Z",
         "reason": "approved board 88238bcc Dialogue hint/chip size (verbatim from the design canvas source)"
+      },
+      {
+        "rule": "side-tab",
+        "value": "*",
+        "files": [
+          "frontend/components/DraftReviewStage.tsx"
+        ],
+        "createdAt": "2026-08-27T19:10:35.700Z",
+        "reason": "selected-draft state marker from user-pinned Cosmos board (artifact 88238bcc board4: border-left 2px lit), not a decorative card accent"
       }
     ]
   }
