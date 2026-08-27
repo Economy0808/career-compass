@@ -19,6 +19,7 @@ import {
 import { ElementBinPanel, type Bin, type BinItem, type BinDropPayload } from "@/components/ElementBinPanel";
 import { ElementNotesPanel, type ElementNote } from "@/components/ElementNotesPanel";
 import { ConstellationIntakeChat } from "@/components/ConstellationIntakeChat";
+import { DraftReviewStage } from "@/components/DraftReviewStage";
 import { Modal } from "@/components/ui/Modal";
 import type { ResolveWikiLink } from "@/lib/markdown";
 import { cn } from "@/lib/cn";
@@ -200,38 +201,6 @@ function findBinItemAcrossBins(bins: Bin[], itemId: string): BinItem | undefined
     if (item) return item;
   }
   return undefined;
-}
-
-// 원소 유형 -> 한글 라벨 + 브레이크다운 문구에서의 표시 순서. ElementBinPanel의
-// ELEMENT_TYPE_OPTIONS와 값은 같지만 그쪽이 export되어 있지 않아 그대로
-// 재사용할 수 없다 - 라벨 문구만 이 화면 전용으로 별도 상수를 둔다.
-const DRAFT_TYPE_LABEL_ORDER: [string, string][] = [
-  ["course", "수업"],
-  ["certification", "자격증"],
-  ["organization", "학회"],
-  ["activity", "활동"],
-  ["networking", "네트워킹"],
-];
-
-// "{tagline} · 요소 N · 수업 3 자격증 1 ..." 한 줄 브레이크다운. 카운트가
-// 0인 유형은 생략하고, 매핑에 없는 낯선 유형이 와도 원문 그대로 뒤에 붙여
-// 조용히 누락되지 않게 한다.
-function formatDraftBreakdown(draft: DraftDto, bins: Bin[]): string {
-  const counts = new Map<string, number>();
-  for (const itemId of draft.itemIds) {
-    const item = findBinItemAcrossBins(bins, itemId);
-    if (!item) continue;
-    counts.set(item.type, (counts.get(item.type) ?? 0) + 1);
-  }
-  const parts: string[] = [];
-  for (const [type, label] of DRAFT_TYPE_LABEL_ORDER) {
-    const n = counts.get(type);
-    if (n) parts.push(`${label} ${n}`);
-  }
-  for (const [type, n] of Array.from(counts.entries())) {
-    if (!DRAFT_TYPE_LABEL_ORDER.some(([t]) => t === type)) parts.push(`${type} ${n}`);
-  }
-  return `${draft.tagline} · 요소 ${draft.itemIds.length}${parts.length ? " · " + parts.join(" ") : ""}`;
 }
 
 // 초안 하나를 캔버스 그래프로 편다 - 지그재그 배치는 요구사항의 "단순하지만
@@ -520,11 +489,15 @@ export default function NewConstellationPage() {
     };
   }, [authLoading, user]);
 
-  // "empty" - 로그인했는데 별자리가 하나도 없는 첫 방문. Intake 대화 오버레이로
-  // 목표부터 물어본다.
+  // 부팅이 끝나면(empty든 loaded든) Intake 대화 오버레이를 먼저 연다 - 이미
+  // 저장된 별자리가 있어도 예외 없다(사용자 지시: "/constellation/new은 항상
+  // 대화부터"). 기존 별자리가 있으면 대화 화면 우상단에 안내 배지가 뜨고,
+  // 그걸 눌러 닫으면(onDismiss) 불러온 별자리가 그대로 드러난다. deps를
+  // [bootState] 하나로만 둔 건 사용자가 대화를 닫은 뒤(intakeOpen=false) 다른
+  // 값이 바뀌었다고 이 effect가 다시 열어버리면 안 되기 때문이다.
   useEffect(() => {
-    if (bootState === "empty" && user) setIntakeOpen(true);
-  }, [bootState, user]);
+    if (bootState !== "loading") setIntakeOpen(true);
+  }, [bootState]);
 
   function nodeToCreateInput(node: CanvasNode): NodeCreateInput {
     return {
@@ -651,19 +624,48 @@ export default function NewConstellationPage() {
   // 저장(handleConfirmTitle) payload에 함께 실려 나간다.
   const handleIntakeComplete = useCallback(
     (dtoBins: BinDto[], goalText: string, drafts?: DraftDto[]) => {
+      // 대화 완료는 항상 "새 별자리 시작"이다 - 로그인 유저가 기존 별자리를
+      // 불러온 채로(우상단 "별자리가 이미 있어요" 배지를 무시하고) 대화까지
+      // 끝냈다면, 그 초안이 기존 별자리를 덮어쓰면 안 되므로 여기서
+      // handleStartNewConstellation과 같은 리셋을 먼저 수행한다(첨부 URL 회수
+      // 포함). constellationIdRef는 setConstellationId(null)이 반영되기 전에
+      // 바로 아래 persistBins가 읽으므로, state와 별개로 동기적으로도 지운다.
+      Object.values(notesRef.current).forEach((note) => {
+        note.attachments.forEach((att) => URL.revokeObjectURL(att.url));
+      });
+      fillPollsRef.current.forEach((interval) => clearInterval(interval));
+      fillPollsRef.current.clear();
+      constellationIdRef.current = null;
+      setConstellationId(null);
+      setNotes({});
+      setSaveState("unsaved");
+      setIsPublished(false);
+      pendingMutationsRef.current = 0;
+      constellationTitleRef.current = null;
+
       goalTextRef.current = goalText;
       const mapped = dtoBins.map(mapBinDtoToBin);
       setBins(mapped);
+      // cid가 이제 없으므로 조용히 no-op - bins는 첫 저장(handleConfirmTitle)
+      // payload에 함께 실려 나간다. 그래도 호출은 그대로 둔다 - 이 화면이
+      // 나중에 로그인 유저의 "빈 별자리를 먼저 만들어 두고 시작" 흐름으로
+      // 바뀌면 이 한 줄만으로 다시 살아난다.
       persistBins(mapped);
       setIntakeOpen(false);
       if (drafts && drafts.length > 0) {
-        // 초안 미리보기 단계로 진입 - 첫 안을 캔버스에 그려 보여준다. 아직
-        // constellationId가 없으므로(첫 저장 전) 아래 setNodes/setEdges는
-        // placeItem 등을 거치지 않아 서버 뮤테이션을 하나도 만들지 않는다.
+        // 초안 미리보기 단계로 진입 - 첫 안을 캔버스 그래프 state에 그려 둔다.
+        // 실제 화면 표시는 DraftReviewStage 전용 무대가 맡고, 확정 전까지는
+        // 메인 캔버스에 노출되지 않는다.
         const { nodes: draftNodes, edges: draftEdges } = buildDraftGraph(drafts[0], mapped);
         setNodes(draftNodes);
         setEdges(draftEdges);
         setDraftOffer({ drafts, selected: 0 });
+      } else {
+        // 초안이 없어도 "새 별자리 시작"이라는 원칙은 같다 - 이전 그래프를
+        // 캔버스에 남겨두지 않는다.
+        setNodes({});
+        setEdges({});
+        setDraftOffer(null);
       }
     },
     [persistBins]
@@ -1193,30 +1195,33 @@ export default function NewConstellationPage() {
       </div>
 
       {intakeOpen && (
-        <ConstellationIntakeChat onComplete={handleIntakeComplete} onDismiss={() => setIntakeOpen(false)} />
+        <ConstellationIntakeChat
+          onComplete={handleIntakeComplete}
+          onDismiss={() => setIntakeOpen(false)}
+          // 이 시점에 constellationId가 있으면(로그인 유저가 이미 별자리를 저장해
+          // 둔 상태) 대화를 열기 전부터 있던 별자리라는 뜻이다 - 대화 완료 시엔
+          // handleIntakeComplete가 이 값을 null로 리셋하므로, 대화 도중에는 이
+          // 배지가 계속 "기존 별자리로 돌아갈 수 있다"는 뜻으로만 유효하다.
+          existingNotice={constellationId ? "별자리가 이미 있어요" : undefined}
+        />
       )}
 
+      {/* 초안 검토 - 확정("이 별자리로 시작")/거절("직접 그릴래요") 전까지는
+          메인 캔버스가 아니라 이 전용 무대만 보여준다(사용자 지시). 확정되면
+          onConfirm이 draftOffer를 지워 이 무대가 닫히고, 이미 그려둔
+          nodes/edges(handleAcceptDraft는 손대지 않음)가 그대로 메인 캔버스에
+          드러난다 - 그게 곧 "메인 페이지로 이관"이다. */}
       {draftOffer && !intakeOpen && (
-        <>
-          <div
-            className="pointer-events-none fixed left-1/2 top-3 z-10 flex -translate-x-1/2 items-center gap-2 rounded-lg border border-rule bg-ink-800/95 px-4 py-2 shadow-lg backdrop-blur-md"
-            role="status"
-          >
-            <DraftStarGlyph size={14} />
-            <span className="font-sans text-xs text-text-hi">
-              대화를 바탕으로 별자리 초안을 그렸어요 — 별을 끌어 마음대로 고쳐도 돼요
-            </span>
-          </div>
-
-          <DraftOfferPanel
-            drafts={draftOffer.drafts}
-            selected={draftOffer.selected}
-            bins={bins}
-            onSelect={handleSelectDraft}
-            onAccept={handleAcceptDraft}
-            onReject={handleRejectDrafts}
-          />
-        </>
+        <DraftReviewStage
+          drafts={draftOffer.drafts}
+          selected={draftOffer.selected}
+          bins={bins}
+          nodes={nodes}
+          edges={edges}
+          onSelect={handleSelectDraft}
+          onConfirm={handleAcceptDraft}
+          onReject={handleRejectDrafts}
+        />
       )}
 
       <Modal open={titleModalOpen} onClose={() => setTitleModalOpen(false)} title="별자리 이름" size="sm">
@@ -1353,102 +1358,6 @@ function PanelTabs({ mode, onChange }: { mode: PanelMode; onChange: (mode: Panel
   );
 }
 
-/** 8-point 별빛 글리프 - ConstellationIntakeChat의 StarGlyph와 같은 path.
- * 그쪽 컴포넌트가 export되어 있지 않아 그대로 import할 수 없으므로, 이
- * 화면 전용으로 path만 그대로 옮겨왔다. */
-function DraftStarGlyph({ size, className }: { size: number; className?: string }) {
-  return (
-    <svg
-      width={size}
-      height={size}
-      viewBox="0 0 16 16"
-      fill="none"
-      stroke="var(--lit)"
-      strokeWidth="1.2"
-      strokeLinecap="round"
-      aria-hidden
-      className={className}
-    >
-      <path d="M8 1.5 L8 14.5 M1.5 8 L14.5 8 M3.7 3.7 L12.3 12.3 M12.3 3.7 L3.7 12.3" />
-    </svg>
-  );
-}
-
-/** 좌하단 "추천 별자리" 패널 - Intake 대화가 초안을 함께 돌려줬을 때만 뜬다.
- * 3안(또는 그보다 적을 수 있음) 중 하나를 고르면 캔버스가 즉시 그 안으로
- * 바뀐다(page.tsx의 handleSelectDraft). */
-function DraftOfferPanel({
-  drafts,
-  selected,
-  bins,
-  onSelect,
-  onAccept,
-  onReject,
-}: {
-  drafts: DraftDto[];
-  selected: number;
-  bins: Bin[];
-  onSelect: (index: number) => void;
-  onAccept: () => void;
-  onReject: () => void;
-}) {
-  return (
-    <aside
-      role="region"
-      aria-label="추천 별자리"
-      className={cn(
-        "fixed z-20 flex flex-col overflow-hidden rounded-xl border border-rule bg-ink-800/95 shadow-lg backdrop-blur-md",
-        "inset-x-3 bottom-[calc(var(--tabbar-h)+var(--safe-bottom)+12px)] max-h-[46vh]",
-        "md:inset-x-auto md:bottom-6 md:left-4 md:top-auto md:h-auto md:max-h-none md:w-[300px]"
-      )}
-    >
-      <div className="flex items-baseline justify-between border-b border-rule px-4 py-3">
-        <h2 className="font-sans text-sm font-medium text-text-hi">추천 별자리</h2>
-        <span className="font-mono text-micro text-text-lo">{drafts.length}안</span>
-      </div>
-
-      <div className="canvas-scroll min-h-0 flex-1 space-y-1 overflow-y-auto p-2">
-        {drafts.map((draft, index) => {
-          const isSelected = index === selected;
-          return (
-            <button
-              key={index}
-              type="button"
-              aria-pressed={isSelected}
-              onClick={() => onSelect(index)}
-              className={cn(
-                "w-full rounded-md border-l px-2.5 py-2 text-left transition-colors",
-                "focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-1 focus-visible:outline-spec-b",
-                isSelected
-                  ? "border-l-text-hi/20 bg-ink-700/70"
-                  : "border-l-transparent hover:bg-ink-700/60"
-              )}
-            >
-              <div className="font-sans text-sm font-medium text-text-hi">{draft.name}</div>
-              <div className="mt-0.5 text-micro leading-relaxed text-text-lo">
-                {formatDraftBreakdown(draft, bins)}
-              </div>
-            </button>
-          );
-        })}
-      </div>
-
-      <div className="flex flex-col gap-1.5 border-t border-rule p-3">
-        <button
-          type="button"
-          onClick={onAccept}
-          className="rounded-md bg-spec-b px-3 py-1.5 font-sans text-sm font-medium text-ink-900 hover:opacity-90 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-1 focus-visible:outline-spec-b"
-        >
-          이 별자리로 시작
-        </button>
-        <button
-          type="button"
-          onClick={onReject}
-          className="rounded-md border border-rule px-3 py-1.5 font-sans text-sm text-text-hi transition-colors hover:bg-ink-700 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-1 focus-visible:outline-spec-b"
-        >
-          직접 그릴래요
-        </button>
-      </div>
-    </aside>
-  );
-}
+// 초안 검토 무대(배너 + "추천 별자리" 패널)는 이제 components/DraftReviewStage.tsx로
+// 옮겼다 - 확정 전까지 메인 캔버스에 아무 것도 그리지 않기 위해 전용 풀스크린
+// 컴포넌트로 분리했다(위 draftOffer 렌더 분기 참고).

@@ -40,6 +40,10 @@ export interface ConstellationIntakeChatProps {
   /** 옵션: 오버레이를 닫는다. 기존 별자리가 있어 새로 만들지 않을 때만 부모가
    * 이 prop을 넘겨 닫기 링크를 노출한다. */
   onDismiss?: () => void;
+  /** 옵션: 이미 저장된 별자리가 있을 때만 부모가 채워 준다("별자리가
+   * 이미 있어요"). 우상단에 작은 배지로 떠서 onDismiss로 바로 빠져나갈 수
+   * 있게 한다 - onDismiss가 없으면(빠져나갈 곳이 없으면) 값이 있어도 렌더링하지 않는다. */
+  existingNotice?: string;
   className?: string;
 }
 
@@ -86,6 +90,7 @@ function buildTurns(messages: ChatMessageDto[]): Turn[] {
 export function ConstellationIntakeChat({
   onComplete,
   onDismiss,
+  existingNotice,
   className,
 }: ConstellationIntakeChatProps) {
   const [phase, setPhase] = useState<Phase>("chat");
@@ -269,6 +274,19 @@ export function ConstellationIntakeChat({
     >
       <div className="bg-radec-grid pointer-events-none absolute inset-0" aria-hidden />
       <BackgroundStars />
+
+      {/* 우상단 "기존 별자리가 있어요" 배지 - 빠져나갈 곳(onDismiss)이 있을
+          때만 뜬다. 대화는 그대로 진행 중일 수 있으므로 대화 UI 위(z-20)에
+          겹쳐도 방해되지 않게 작고 조용하게 둔다. */}
+      {existingNotice && onDismiss && (
+        <button
+          type="button"
+          onClick={onDismiss}
+          className="fixed right-6 top-6 z-20 rounded-full border border-rule bg-ink-800/90 px-3.5 py-2 font-sans text-caption text-text-lo transition-colors hover:text-text-hi"
+        >
+          {existingNotice} · 이어서 편집
+        </button>
+      )}
 
       <ProgressHeader current={qDisplay} total={TOTAL_QUESTION_SLOTS} />
 
