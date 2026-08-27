@@ -16,7 +16,7 @@ firestore.rules를 완전히 우회한다 (rules는 브라우저/모바일 SDK�
 다른 유저 문서를 조작할 수 있는 구멍이 뚫린다. 대신 이 모듈은 기존 문서를
 변경하는 모든 함수 시그니처에 owner_id: str을 필수로 박아 넣었다 - API 핸들러는
 반드시 (검증된 Firebase ID 토큰에서 뽑은) 호출자 uid를 이 인자로 넘겨야 하고,
-함수 내부(_run_owned_transaction)가 Firestore에 저장된 실제 owner_id와 비교해
+함수 내부(load_owned_in_transaction)가 Firestore에 저장된 실제 owner_id와 비교해
 다르면 ConstellationPermissionError를 던진다. 타입 시그니처가 강제하는 체크이므로
 인자 누락은 즉시 TypeError로 드러나고, 리뷰어도 diff만 보고 검증 여부를 알 수 있다.
 
@@ -34,6 +34,13 @@ create_constellation은 owner_id 인자가 없다 - 비교할 기존 문서가 �
 때문이다. 대신 constellation.owner_id 필드값을 그대로 신뢰한다: 이 필드에
 클라이언트가 보낸 임의의 값이 아니라 반드시 검증된 ID 토큰의 uid가 들어있어야
 한다는 책임은 API 핸들러에게 있다 (아래 함수 docstring에도 명시).
+
+소유권 검증 로직 자체는 공개 함수 load_owned_in_transaction() 하나에만 존재한다
+(_run_owned_transaction과 delete_constellation이 둘 다 이 함수를 호출해 존재/
+소유권을 확인한다) - app/firestore/note_repo.py도 별자리 문서 자체를 변경할 때
+(create_note, 노트 생성 시 부모의 note_count 갱신) 이 함수를 그대로 재사용해,
+"소유권 검증 로직은 이 함수 하나뿐"이라는 불변식이 리포지토리 모듈 경계를 넘어도
+깨지지 않는다.
 
 ## 비정규화(denormalized) 진행률 필드
 
@@ -70,6 +77,14 @@ from app.domain.constellation import (
 
 _COLLECTION = "constellations"
 
+# constellations/{id}/notes/{note_id} 서브컬렉션 이름. note_repo.py가 이 상수를
+# 그대로 재사용해, "notes"라는 문자열 리터럴이 두 모듈에 중복되지 않게 한다.
+NOTES_SUBCOLLECTION = "notes"
+
+# Firestore가 한 배치(WriteBatch)에 허용하는 최대 오퍼레이션 수
+# (course_repo.py의 upsert_courses와 동일한 500 관례).
+_BATCH_LIMIT = 500
+
 
 def _node_path(node_id: str, *rest: str) -> str:
     """ "nodes.{node_id}[.rest...]" dot-notation 경로를 안전하게 이스케이프해 만든다.
@@ -90,6 +105,17 @@ def _edge_path(edge_id: str, *rest: str) -> str:
     _node_path와 동일한 이유(임의 형식의 id) 때문에 필요하다.
     """
     return FieldPath("edges", edge_id, *rest).to_api_repr()
+
+
+def node_note_count_path(node_id: str) -> str:
+    """공개 버전: "nodes.{node_id}.note_count" dot-notation 경로.
+
+    note_repo.py가 노트 생성/삭제 트랜잭션 안에서 부모 별자리 문서의 note_count
+    캐시를 원자적으로 갱신할 때 쓴다. _node_path 자체는 이 모듈 전용 관례(private)로
+    남겨두고, note_repo가 실제로 필요로 하는 이 한 가지 용도만 공개 API로 좁혀
+    노출한다.
+    """
+    return _node_path(node_id, "note_count")
 
 
 class ConstellationRepoError(Exception):
@@ -114,6 +140,52 @@ class EdgeNotFoundError(ConstellationRepoError):
 
 def _doc_ref(db: Client, constellation_id: str) -> Any:
     return db.collection(_COLLECTION).document(constellation_id)
+
+
+def get_doc_ref(db: Client, constellation_id: str) -> Any:
+    """공개 버전의 _doc_ref.
+
+    note_repo.py는 노트 서브컬렉션(constellations/{id}/notes)의 부모이자, 노트
+    생성 시 소유권 확인 트랜잭션의 대상이기도 한 이 문서 참조가 필요하다. 컬렉션
+    이름 상수(_COLLECTION)를 note_repo에 노출하는 대신, 이 접근자 하나만 공개
+    API로 좁혀 노출한다.
+    """
+    return _doc_ref(db, constellation_id)
+
+
+def _notes_collection_ref(db: Client, constellation_id: str) -> Any:
+    return _doc_ref(db, constellation_id).collection(NOTES_SUBCOLLECTION)
+
+
+def _batch_delete_docs(db: Client, doc_refs: list[Any]) -> None:
+    """문서 참조 리스트를 500개 단위로 잘라 배치 삭제한다.
+
+    course_repo.py의 upsert_courses와 동일한 500-청크 관례를 재사용한다. 노트
+    서브컬렉션을 통째로 지우는 두 경로(remove_node의 특정 노드 노트 정리,
+    delete_constellation의 전체 노트 정리) 모두 이 헬퍼 하나를 거치므로 배치
+    한도 처리 로직이 중복되지 않는다.
+    """
+    for start in range(0, len(doc_refs), _BATCH_LIMIT):
+        chunk = doc_refs[start : start + _BATCH_LIMIT]
+        batch = db.batch()
+        for ref in chunk:
+            batch.delete(ref)
+        batch.commit()
+
+
+def _delete_all_notes(db: Client, constellation_id: str) -> None:
+    """별자리 밑 notes 서브컬렉션 문서를 전부 삭제한다 (delete_constellation 전용)."""
+    doc_refs = [doc.reference for doc in _notes_collection_ref(db, constellation_id).stream()]
+    _batch_delete_docs(db, doc_refs)
+
+
+def _delete_notes_for_node(db: Client, constellation_id: str, node_id: str) -> None:
+    """특정 node_id에 달린 노트만 삭제한다 (remove_node의 노트 cascade 전용)."""
+    query = _notes_collection_ref(db, constellation_id).where(
+        filter=FieldFilter("node_id", "==", node_id)
+    )
+    doc_refs = [doc.reference for doc in query.stream()]
+    _batch_delete_docs(db, doc_refs)
 
 
 def _snapshot_to_constellation(snapshot: DocumentSnapshot) -> Constellation:
@@ -172,6 +244,35 @@ def list_published(db: Client, limit: int = 20) -> list[Constellation]:
     return [_snapshot_to_constellation(doc) for doc in query.stream()]
 
 
+def load_owned_in_transaction(
+    transaction: Transaction,
+    doc_ref: Any,
+    constellation_id: str,
+    owner_id: str,
+) -> Constellation:
+    """트랜잭션 안에서 별자리 문서를 읽고 존재/소유권을 확인하는 유일한 정본 로직.
+
+    이 모듈의 모든 변경 함수(_run_owned_transaction 경유)와 delete_constellation,
+    그리고 app/firestore/note_repo.py(부모 문서를 함께 건드리는 create_note)가
+    전부 이 함수 하나만 호출해 "존재 확인 -> 소유권 확인" 순서를 수행한다. 검증
+    로직을 여기 하나로 모아두어야 소유권 체크를 빼먹는 새 호출부가 생길 수 없다
+    (모듈 docstring의 소유권 검증 설계 결정 참고).
+
+    호출부 책임: transaction.get()이 아니라 이 함수 안에서 doc_ref.get(transaction=...)을
+    수행하므로, Firestore 트랜잭션 규칙("모든 읽기가 모든 쓰기보다 먼저")을 지키려면
+    이 함수는 반드시 해당 트랜잭션의 다른 모든 쓰기보다 먼저 호출해야 한다.
+    """
+    snapshot = doc_ref.get(transaction=transaction)
+    if not snapshot.exists:
+        raise ConstellationNotFoundError(constellation_id)
+    constellation = _snapshot_to_constellation(snapshot)
+    if constellation.owner_id != owner_id:
+        raise ConstellationPermissionError(
+            f"{owner_id}는 별자리 {constellation_id}의 소유자가 아닙니다."
+        )
+    return constellation
+
+
 def _run_owned_transaction(
     db: Client,
     constellation_id: str,
@@ -183,20 +284,14 @@ def _run_owned_transaction(
     mutate는 트랜잭션 안에서 읽어온 Constellation을 받아 (반환할 Constellation,
     Firestore에 쓸 dot-notation 업데이트 dict)를 돌려줘야 한다. 모든 변경 함수가
     이 헬퍼 하나를 거치므로, 소유권 검사를 빼먹는 것이 구조적으로 불가능하다.
+    존재/소유권 확인 자체는 load_owned_in_transaction()에 위임한다(정본 하나).
     """
     doc_ref = _doc_ref(db, constellation_id)
     transaction = db.transaction()
 
     @gcf.transactional
     def _run(transaction: Transaction) -> Constellation:
-        snapshot = doc_ref.get(transaction=transaction)
-        if not snapshot.exists:
-            raise ConstellationNotFoundError(constellation_id)
-        constellation = _snapshot_to_constellation(snapshot)
-        if constellation.owner_id != owner_id:
-            raise ConstellationPermissionError(
-                f"{owner_id}는 별자리 {constellation_id}의 소유자가 아닙니다."
-            )
+        constellation = load_owned_in_transaction(transaction, doc_ref, constellation_id, owner_id)
         updated, update_data = mutate(constellation)
         transaction.update(doc_ref, update_data)
         return updated
@@ -210,11 +305,12 @@ def update_node_position(
     node_id: str,
     position: Position,
     owner_id: str,
-) -> None:
+) -> Constellation:
     """노드 위치만 dot-notation 부분 업데이트로 갱신한다 (드래그 앤 드롭 hot path).
 
     그래프 전체를 다시 쓰지 않고 "nodes.{node_id}.position" 한 필드만 갱신하므로
-    같은 별자리의 다른 노드/엣지는 전혀 건드리지 않는다.
+    같은 별자리의 다른 노드/엣지는 전혀 건드리지 않는다. 갱신된 Constellation을
+    반환하므로 HTTP 라우터가 응답을 위해 별도로 다시 읽을 필요가 없다.
     """
 
     def _mutate(constellation: Constellation) -> tuple[Constellation, dict[str, Any]]:
@@ -229,7 +325,7 @@ def update_node_position(
         }
         return constellation, update_data
 
-    _run_owned_transaction(db, constellation_id, owner_id, _mutate)
+    return _run_owned_transaction(db, constellation_id, owner_id, _mutate)
 
 
 def toggle_node_completion(
@@ -265,7 +361,7 @@ def toggle_node_completion(
     return _run_owned_transaction(db, constellation_id, owner_id, _mutate)
 
 
-def add_node(db: Client, constellation_id: str, node: Node, owner_id: str) -> None:
+def add_node(db: Client, constellation_id: str, node: Node, owner_id: str) -> Constellation:
     """새 노드를 추가한다 (dot-notation 부분 업데이트 - 기존 노드/엣지는 건드리지 않음)."""
 
     def _mutate(constellation: Constellation) -> tuple[Constellation, dict[str, Any]]:
@@ -278,16 +374,23 @@ def add_node(db: Client, constellation_id: str, node: Node, owner_id: str) -> No
         }
         return constellation, update_data
 
-    _run_owned_transaction(db, constellation_id, owner_id, _mutate)
+    return _run_owned_transaction(db, constellation_id, owner_id, _mutate)
 
 
-def remove_node(db: Client, constellation_id: str, node_id: str, owner_id: str) -> None:
-    """노드를 삭제하고, 그 노드를 참조하던 엣지도 함께 정리한다.
+def remove_node(db: Client, constellation_id: str, node_id: str, owner_id: str) -> Constellation:
+    """노드를 삭제하고, 그 노드를 참조하던 엣지와 노트도 함께 정리한다.
 
     엣지 정리는 기존 순수 함수 prune_orphan_edges를 그대로 재사용한다 (재구현
     금지 - 규칙의 정본을 도메인 계층 하나로 유지하기 위함). 여러 엣지가 한꺼번에
     사라질 수 있어 엣지는 dot-notation이 아니라 edges 필드 전체를 교체하고,
     노드 자신은 dot-notation으로 그 키만 삭제한다.
+
+    노트 cascade는 트랜잭션 커밋 "이후" 트랜잭션 밖에서 수행한다 - 노트가 몇 개든
+    될 수 있어 배치 삭제가 500개 단위로 여러 커밋이 필요할 수 있는데, Firestore
+    트랜잭션 자체의 쓰기 한도도 500이라 트랜잭션 안에 넣을 수 없다. 중간에 죽으면
+    (노드는 이미 지워졌는데 노트만 남는 경우) 그 노트들은 어차피 부모 노드가 없는
+    고아이므로 화면에 다시 노출될 일이 없고, 재시도 시 다시 지워질 수 있어
+    안전하다 - note_count 보정도 필요 없다(노드 자체가 사라졌으므로).
     """
 
     def _mutate(constellation: Constellation) -> tuple[Constellation, dict[str, Any]]:
@@ -309,10 +412,12 @@ def remove_node(db: Client, constellation_id: str, node_id: str, owner_id: str) 
         }
         return constellation, update_data
 
-    _run_owned_transaction(db, constellation_id, owner_id, _mutate)
+    updated = _run_owned_transaction(db, constellation_id, owner_id, _mutate)
+    _delete_notes_for_node(db, constellation_id, node_id)
+    return updated
 
 
-def add_edge(db: Client, constellation_id: str, edge: Edge, owner_id: str) -> None:
+def add_edge(db: Client, constellation_id: str, edge: Edge, owner_id: str) -> Constellation:
     """새 엣지를 추가한다 (dot-notation 부분 업데이트)."""
 
     def _mutate(constellation: Constellation) -> tuple[Constellation, dict[str, Any]]:
@@ -325,10 +430,10 @@ def add_edge(db: Client, constellation_id: str, edge: Edge, owner_id: str) -> No
         }
         return constellation, update_data
 
-    _run_owned_transaction(db, constellation_id, owner_id, _mutate)
+    return _run_owned_transaction(db, constellation_id, owner_id, _mutate)
 
 
-def remove_edge(db: Client, constellation_id: str, edge_id: str, owner_id: str) -> None:
+def remove_edge(db: Client, constellation_id: str, edge_id: str, owner_id: str) -> Constellation:
     """엣지를 삭제한다 (dot-notation 부분 업데이트, 노드에는 영향 없음)."""
 
     def _mutate(constellation: Constellation) -> tuple[Constellation, dict[str, Any]]:
@@ -343,29 +448,33 @@ def remove_edge(db: Client, constellation_id: str, edge_id: str, owner_id: str) 
         }
         return constellation, update_data
 
-    _run_owned_transaction(db, constellation_id, owner_id, _mutate)
+    return _run_owned_transaction(db, constellation_id, owner_id, _mutate)
 
 
 def delete_constellation(db: Client, constellation_id: str, owner_id: str) -> None:
-    """별자리 문서를 통째로 삭제한다.
+    """별자리 문서와 그 밑의 notes 서브컬렉션 전체를 삭제한다.
 
-    부분 업데이트가 아니라 문서 삭제 자체이므로 _run_owned_transaction의
-    "update_data dict를 만든다"는 계약과 맞지 않아, 존재/소유권 확인 후
-    transaction.delete를 직접 호출하는 전용 트랜잭션을 쓴다.
+    Firestore는 문서를 지워도 서브컬렉션을 자동으로 지우지 않는다 - 부모 문서만
+    지우면 notes/* 문서들이 도달 불가능한 고아로 영구히 남는다(부모가 없으니
+    쿼리 진입점도 사라져 UI/배치 정리 어느 쪽으로도 다시 찾을 수 없다). 그래서
+    반드시 노트를 먼저 전부 지우고 부모 문서를 마지막에 지운다: 순서를 반대로
+    하면(부모 먼저) 삭제 도중 프로세스가 죽었을 때 get_constellation은 이미
+    None을 반환해 API 상으로는 "삭제 완료"로 보이지만 실제로는 notes 서브컬렉션이
+    그대로 남아있는, 더 이상 발견도 삭제도 할 수 없는 상태가 될 수 있다.
+
+    존재/소유권 확인은 트랜잭션(load_owned_in_transaction)으로 한 번만 하고, 그
+    결과를 신뢰해 노트 배치 삭제와 부모 문서 삭제를 순서대로 수행한다. 노트 배치
+    삭제 자체를 이 트랜잭션 안에 넣을 수 없다 - 500개 넘는 노트는 여러 커밋이
+    필요한데, 트랜잭션 자체의 쓰기 한도도 500이기 때문이다(remove_node와 동일한
+    제약).
     """
     doc_ref = _doc_ref(db, constellation_id)
     transaction = db.transaction()
 
     @gcf.transactional
-    def _run(transaction: Transaction) -> None:
-        snapshot = doc_ref.get(transaction=transaction)
-        if not snapshot.exists:
-            raise ConstellationNotFoundError(constellation_id)
-        constellation = _snapshot_to_constellation(snapshot)
-        if constellation.owner_id != owner_id:
-            raise ConstellationPermissionError(
-                f"{owner_id}는 별자리 {constellation_id}의 소유자가 아닙니다."
-            )
-        transaction.delete(doc_ref)
+    def _check(transaction: Transaction) -> None:
+        load_owned_in_transaction(transaction, doc_ref, constellation_id, owner_id)
 
-    _run(transaction)
+    _check(transaction)
+    _delete_all_notes(db, constellation_id)
+    doc_ref.delete()
