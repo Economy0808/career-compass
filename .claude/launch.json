@@ -24,6 +24,17 @@
       "autoPort": false
     },
     {
+      "name": "frontend-alt",
+      "runtimeExecutable": "powershell",
+      "runtimeArgs": [
+        "-NoProfile",
+        "-Command",
+        "Set-Location frontend; $env:PORT='3001'; npm run dev"
+      ],
+      "port": 3001,
+      "autoPort": false
+    },
+    {
       "name": "frontend",
       "runtimeExecutable": "powershell",
       "runtimeArgs": [

@@ -24,6 +24,16 @@
   --spec-m: #ff7b72; /* 네트워킹 (networking) */
   --lit: #fff3c4; /* 이어진 간선 (lit edge) — 별빛, 초록이 아니다 */
 
+  /* 종이 성도(밝은 랜딩 전용) 팔레트 - 다크 토큰과 같은 청보라 색조의 밝은
+     지면. 랜딩(망원경 진입) 화면만 쓴다. tailwind.config.ts의 paper.*와
+     hex 이중화 - 두 곳을 반드시 같이 고칠 것. */
+  --paper: #f6f7fa; /* 밝은 지면 */
+  --paper-line: #c9cee0; /* 계선(프레임·눈금) */
+  --paper-soft: #e3e6f0; /* 옅은 계선 */
+  --paper-ink: #10141f; /* 지면 위 본문 */
+  --paper-lo: #5c6480; /* 지면 위 보조 텍스트 */
+  --paper-faint: #afb6cc; /* 지면 위 흐린 라벨 */
+
   --background: var(--ink-900);
   --foreground: var(--text-hi);
   /* consumed by AppShell so canvas pages can reserve tab-bar space */
@@ -72,6 +82,47 @@ a:hover {
   background-size: 48px 48px;
 }
 
+/* 밝은 종이 지면 위에서는 전역 포커스 링(spec-b, 연청)이 안 보인다(~1.6:1) -
+   랜딩 스코프에서만 잉크색으로 바꾼다. CTA 호버도 투명도 페이드 대신
+   "잉크가 더 눌린" 상태로. */
+.telescope-landing :focus-visible {
+  outline-color: var(--paper-ink);
+}
+/* 랜딩이 스크롤될 때 다크월드용 스크롤바가 종이 위에 비치지 않게 잉크 톤으로. */
+.telescope-landing::-webkit-scrollbar-thumb {
+  background: rgb(16 20 31 / 0.18);
+}
+.telescope-landing .cta-ink {
+  transition: background-color 0.2s ease-out;
+}
+.telescope-landing .cta-ink:hover {
+  background-color: #05070d !important;
+}
+.telescope-landing .cta-ink:active {
+  transform: translateY(1px);
+}
+
+/* 종이 성도용 좌표 격자 - bg-radec-grid의 밝은 지면 버전(잉크색 헤어라인). */
+.bg-paper-grid {
+  background-image:
+    linear-gradient(to right, rgb(16 20 31 / 0.045) 1px, transparent 1px),
+    linear-gradient(to bottom, rgb(16 20 31 / 0.045) 1px, transparent 1px);
+  background-size: 48px 48px;
+}
+
+/* 망원경 진입 전환 - 랜딩 CTA를 누르면 접안렌즈 원이 화면을 덮으며 명->암.
+   1회성 연출(상시 애니메이션 금지 규칙의 예외 아님 - 제스처 유발 단발).
+   prefers-reduced-motion이면 위 전역 규칙이 duration을 0으로 줄여 즉시
+   끝나고, onAnimationEnd 라우팅은 그대로 동작한다. */
+@keyframes apertureOpen {
+  0% {
+    transform: translate(-50%, -50%) scale(0);
+  }
+  100% {
+    transform: translate(-50%, -50%) scale(1);
+  }
+}
+
 @media (prefers-reduced-motion: reduce) {
   *,
   *::before,
@@ -81,6 +132,17 @@ a:hover {
     transition-duration: 0.001ms !important;
     scroll-behavior: auto !important;
   }
+}
+
+/* 브라우저 기본 서피스도 팔레트를 따른다 - 조립품이 아니라 만든 물건이라는
+   가장 싼 신호(선택 영역·캐럿). */
+::selection {
+  background: rgb(157 180 255 / 0.28);
+}
+input,
+textarea,
+[contenteditable] {
+  caret-color: var(--spec-b);
 }
 
 ::-webkit-scrollbar {

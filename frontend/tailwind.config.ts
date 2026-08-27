@@ -30,6 +30,16 @@ const config: Config = {
           m: "#FF7B72", // networking    (네트워킹)
         },
         lit: "#FFF3C4", // warm starlight — a "lit" edge (never green)
+        // Paper star-chart palette (bright landing surface only). Duplicated
+        // as CSS variables in globals.css --paper-* — keep both in sync.
+        paper: {
+          DEFAULT: "#F6F7FA",
+          line: "#C9CEE0",
+          soft: "#E3E6F0",
+          ink: "#10141F",
+          lo: "#5C6480",
+          faint: "#AFB6CC",
+        },
       },
       fontSize: {
         display: ["1.875rem", { lineHeight: "1.3" }],      // 30px
