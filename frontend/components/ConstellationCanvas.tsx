@@ -25,6 +25,7 @@ import {
   type WheelEvent as ReactWheelEvent,
 } from "react";
 import { cn } from "@/lib/cn";
+import { colorForType } from "@/lib/element-colors";
 import { SpaceBackdrop } from "@/components/SpaceBackdrop";
 
 export interface CanvasPosition {
@@ -108,20 +109,6 @@ const CLICK_THRESHOLD = 4;
 const MIN_ZOOM = 0.35;
 const MAX_ZOOM = 2.5;
 
-// 항성 분광형 악센트(globals.css --spec-*)와 1:1로 대응. 새 type이 런타임에
-// 생겨도 하드 실패하지 않도록 DEFAULT_TYPE_COLOR(text-lo)로 안전하게 떨어진다.
-const TYPE_COLOR: Record<string, string> = {
-  course: "var(--spec-b)", // 수업
-  certification: "var(--spec-a)", // 자격증
-  organization: "var(--spec-g)", // 학회
-  activity: "var(--spec-k)", // 대외활동
-  networking: "var(--spec-m)", // 네트워킹
-};
-const DEFAULT_TYPE_COLOR = "var(--text-lo)"; // 모르는 type도 이 색으로 안전하게 렌더링
-
-function colorForType(type: string): string {
-  return TYPE_COLOR[type] ?? DEFAULT_TYPE_COLOR;
-}
 
 /** djb2 문자열 해시 - [0,1) 실수로 정규화한다. Math.random 금지: 같은
  * 노드는 항상 같은 궤도를 그려야 한다(호버할 때마다 궤도가 바뀌면 "변주"가

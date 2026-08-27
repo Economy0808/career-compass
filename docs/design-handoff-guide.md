@@ -10,6 +10,7 @@
 | `frontend/app/globals.css` | 모든 색 토큰(CSS 변수 `--ink-*`, `--spec-*`, `--lit`, `--rule`, `--text-*`), 키프레임, 배경 격자 유틸리티 | |
 | `frontend/tailwind.config.ts` | 같은 토큰의 Tailwind 노출 | ⚠️ **hex가 CSS 변수와 별개로 하드코딩돼 있다. 두 파일을 반드시 같이 고칠 것.** 여기만 고치면 `bg-ink-900`류가 옛 색으로 남는다. Tailwind 설정 변경은 dev 서버 재시작 필요 |
 | `frontend/app/layout.tsx` | 서체 로딩 (`next/font/google`) | Google Fonts만 사용 가능 |
+| `frontend/lib/element-colors.ts` | 요소 유형→색 매핑 (캔버스 노드·군집 칩·노트 패널 공용) | 값은 CSS 변수 참조 — 실값 변경은 globals.css + tailwind.config.ts에서 |
 | `frontend/components/SpaceBackdrop.tsx` | 캔버스 배경 장식(별밭) + 팬 시 비문증(eye-floater) 관성 드리프트 | **props 없는 순수 장식 컴포넌트 — 통째로 교체 가능한 스왑 포인트.** 그래픽 자체에는 로직이 없지만, `window`의 `"ourlab:canvas-pan"` CustomEvent(`{dx, dy}`, `ConstellationCanvas.tsx`의 팬 핸들러가 쏨)를 구독해 감쇠 스프링으로 아주 살짝 흔들리다 멎는 효과를 낸다. 캔버스는 이 파일의 내부를 몰라도 되고(디커플링), 통째로 교체할 때 이 이벤트 구독을 유지하면 드리프트 효과도 함께 유지된다 — 굳이 유지할 필요는 없고, 정적인 배경으로 되돌려도 무방(swap 자유) |
 
 ## 2. 컴포넌트 지도 — 장식 vs 로직
@@ -42,9 +43,9 @@
 
 ## 4. 알려진 부채 (외주 전에 정리 권장)
 
-- **유형→색 매핑이 3곳에 복사돼 있다**: `ConstellationCanvas.tsx`의 `TYPE_COLOR`,
-  `ElementBinPanel.tsx`·`ElementNotesPanel.tsx`의 `TYPE_DOT`. 색을 바꾸려면 셋 다 고쳐야 한다.
-  → 공용 모듈(`lib/element-colors.ts`)로 추출한 뒤 외주를 맡기는 것이 안전하다. **(TODO)**
+- ~~유형→색 매핑이 3곳에 복사돼 있다~~ → **해소됨(2026-08-27)**: `frontend/lib/element-colors.ts`가
+  단일 진실 공급원. 세 컴포넌트 모두 여기서 import한다. 유형 색을 바꿀 땐 이 파일(+ §1의
+  globals.css/tailwind hex)만 보면 된다.
 - `tailwind.config.ts`와 `globals.css`의 hex 이중화(§1 참고)도 같은 성격의 함정.
 
 ## 5. 참고 자료
