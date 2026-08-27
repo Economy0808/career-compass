@@ -342,8 +342,8 @@ export default function NewConstellationPage() {
   // --- 부팅 상태 + Intake 오버레이 ---------------------------------------
   // "loading"(인증 확인 중) -> "empty"(로그인했는데 별자리가 하나도 없음, 대화
   // 오버레이를 띄운다) 또는 "loaded"(데모 시드 또는 실제 별자리를 보여줄 준비
-  // 완료) 중 하나로만 정착한다. 비로그인 유저는 대화를 거칠 이유가 없으므로
-  // (서버에 저장할 곳이 없다) 곧장 "loaded"로 떨어져 데모 시드를 그대로 본다.
+  // 완료) 중 하나로만 정착한다. 비로그인도 "empty"로 정착해 대화 오버레이를 탄다
+  // (렌즈->대화->추천 체인은 인증과 무관 - 제한은 저장 시점).
   const [bootState, setBootState] = useState<"loading" | "empty" | "loaded">("loading");
   const [intakeOpen, setIntakeOpen] = useState(false);
   const [isPublished, setIsPublished] = useState(false);
@@ -450,8 +450,9 @@ export default function NewConstellationPage() {
   useEffect(() => {
     if (authLoading) return; // 로딩 중엔 아무 것도 정착시키지 않는다.
     if (!user) {
-      // 비로그인 - 오버레이를 볼 이유가 없다. 데모 시드 그대로 보여준다.
-      setBootState("loaded");
+      // 비로그인도 렌즈->대화->추천 시안 체인을 그대로 탄다(사용자 결정 - 제한은
+      // 저장 시점에 건다). 대화를 닫으면 데모 시드가 남는다.
+      setBootState("empty");
       return;
     }
     let cancelled = false;
