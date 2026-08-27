@@ -24,10 +24,12 @@ import {
   useRef,
   useState,
   type ClipboardEvent as ReactClipboardEvent,
+  type KeyboardEvent as ReactKeyboardEvent,
   type ReactNode,
 } from "react";
 import { createPortal } from "react-dom";
 import { cn } from "@/lib/cn";
+import { colorForType } from "@/lib/element-colors";
 import type { CanvasNode } from "@/components/ConstellationCanvas";
 import { Markdown, type ResolveWikiLink } from "@/lib/markdown";
 
@@ -59,6 +61,11 @@ export interface ElementNote {
 }
 
 const MAX_ATTACHMENT_BYTES = 10 * 1024 * 1024;
+
+/** 확대 오버레이 포커스 트랩이 순회할 포커스 가능 요소 선택자 - 라이브러리 없이
+ * 경량으로 충분한 수준. */
+const FOCUSABLE_SELECTOR =
+  'a[href], button, input, textarea, select, [tabindex]:not([tabindex="-1"])';
 
 /**
  * 타이포 스케일 두 개를 상수로 못박아 둔다(fluid clamp() 금지) - COLLAPSED는
@@ -130,18 +137,8 @@ export interface ElementNotesPanelProps {
   className?: string;
 }
 
-// ConstellationCanvas.tsx의 TYPE_COLOR(항성 분광형 악센트)와 시각적으로 맞춘
-// 값. 캔버스 컴포넌트는 이 매핑을 export하지 않으므로(내부 렌더링 전용 상수),
-// ElementBinPanel.tsx가 이미 하듯 여기서도 최소한만 복제해 둔다 - 세 곳(캔버스
-// 노드/보관함 칩/이 패널의 원소 바)의 점 색이 어긋나면 안 되므로.
-const TYPE_DOT: Record<string, string> = {
-  course: "var(--spec-b)",
-  certification: "var(--spec-a)",
-  organization: "var(--spec-g)",
-  activity: "var(--spec-k)",
-  networking: "var(--spec-m)",
-};
-const DEFAULT_DOT = "var(--text-lo)";
+// 유형→색 매핑은 lib/element-colors.ts에서 단일 진실 공급원으로 관리된다 -
+// 캔버스 노드/보관함 칩/이 패널의 원소 바가 항상 같은 색을 쓴다.
 
 function formatUpdatedAt(ts: number): string {
   const d = new Date(ts);
@@ -220,11 +217,37 @@ export function ElementNotesPanel({
   // 조작(열기/전환/이웃 활성화)이 아래쪽 "확장 상태 리셋" effect(활성 노트가
   // 바뀌면 기본적으로 축소로 되돌리는 effect)에 걸려 방금 켠 확대를 도로
   // 꺼버리지 않도록 하기 위해서다.
+  // isNoteExpanded는 항상 이 함수를 거쳐서만 바꾼다 - false로 끌 때
+  // internalCollapseRef를 세워 둬서, 아래쪽 정리 effect가 "이 컴포넌트 스스로
+  // 끈 것"(closeOverlay/closeTab/Esc - 아코디언 위치를 보존한 채 인라인으로
+  // 돌아가는 기존 설계)과 "부모가 패널 세그먼트 전환으로 강제로 끈 것"(완전히
+  // 정리해야 함)을 구분한다. true로 켤 때는 지난 플래그를 리셋한다.
+  function setExpanded(expanded: boolean) {
+    internalCollapseRef.current = !expanded;
+    onNoteExpandedChange(expanded);
+  }
+
   function activateNoteExpanded(nodeId: string, noteId: string) {
     expandIntentRef.current = noteId;
     setExpandedNodeId(nodeId);
     setActiveNoteKey(noteId);
-    onNoteExpandedChange(true);
+    setExpanded(true);
+  }
+
+  // 확대 상태에서 노트 본문 위키링크를 클릭했을 때 - 부모 경로(캔버스 포커스 +
+  // 패널 전환, 옛 단일확장 경로) 대신 탭으로 연다. 대상 원소에 노트가 없으면
+  // 열 탭이 없으므로 부모 경로로 폴백한다(새 노트를 자동으로 만들지 않는다).
+  // 접힌 상태에서는 이 래핑을 타지 않고 부모 경로를 그대로 쓴다.
+  function handleWikiLinkClick(nodeId: string) {
+    if (isNoteExpanded) {
+      const targetNotes = notesByNode.get(nodeId) ?? [];
+      if (targetNotes.length > 0) {
+        const latest = targetNotes.reduce((a, b) => (b.updatedAt > a.updatedAt ? b : a));
+        openTab(nodeId, latest.id);
+        return;
+      }
+    }
+    onLinkClick(nodeId);
   }
 
   // 탭 바의 원래 취지: "그 원소의 노트들 사이를 편하게 오가기". 그런데 지금까지는
@@ -298,7 +321,7 @@ export function ElementNotesPanel({
         activateNoteExpanded(neighbor.nodeId, neighbor.key);
       } else {
         setActiveTabKey(null);
-        onNoteExpandedChange(false);
+        setExpanded(false);
       }
     }
   }
@@ -321,7 +344,7 @@ export function ElementNotesPanel({
         activateNoteExpanded(neighbor.nodeId, neighbor.key);
       } else {
         setActiveTabKey(null);
-        onNoteExpandedChange(false);
+        setExpanded(false);
       }
     }
     // eslint-disable-next-line react-hooks/exhaustive-deps
@@ -331,12 +354,15 @@ export function ElementNotesPanel({
   // activeNoteKey는 그대로 두므로 활성 탭이었던 노트의 패널 내 인라인 편집기로
   // 자연스레 돌아간다(그 노트의 아코디언 행이 이미 열려 있는 상태이므로).
   function closeOverlay() {
-    onNoteExpandedChange(false);
+    setExpanded(false);
   }
   // "확대 버튼으로 노트를 연 것"이라는 의도를 activeNoteKey가 바뀐 뒤(커밋 후)
   // 실행되는 아래 리셋 effect에 전달하기 위한 값 - 없으면 그 effect가 매번
   // false로 덮어써서 확대 버튼이 두 번 클릭해야 먹는 버그가 생긴다.
   const expandIntentRef = useRef<string | null>(null);
+  // setExpanded(false)가 "이 컴포넌트 스스로 끈 것"인지 표시하는 플래그 - 아래
+  // "부모가 강제로 끈 경우만 정리" effect가 읽는다.
+  const internalCollapseRef = useRef(false);
 
   // 외부 요청(카드의 「노트 N개 ›」, 노트 속 [[위키링크]] 클릭) - 그 원소만
   // 펼치고 다른 건 다 접은 뒤, 시야 밖에 있으면 스크롤해서 보여준다. 노트
@@ -365,13 +391,31 @@ export function ElementNotesPanel({
   useEffect(() => {
     if (expandIntentRef.current !== null && expandIntentRef.current === activeNoteKey) {
       expandIntentRef.current = null;
-      onNoteExpandedChange(true);
+      setExpanded(true);
       return;
     }
     expandIntentRef.current = null;
-    onNoteExpandedChange(false);
+    setExpanded(false);
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [activeNoteKey]);
+
+  // 부모(page.tsx)가 패널 세그먼트를 「군집」 등으로 전환하면서 isNoteExpanded를
+  // 직접 false로 떨어뜨리는 경우에만(internalCollapseRef가 안 서 있을 때만)
+  // 아코디언 확대 대상을 완전히 정리한다 - closeOverlay/closeTab/Esc처럼 이
+  // 컴포넌트 스스로 끈 경우는 "인라인 편집기로 자연스레 돌아간다"는 기존
+  // 설계를 그대로 둔다. noteTabs(탭 목록)는 두 경우 모두 절대 비우지 않는다.
+  const prevIsNoteExpandedRef = useRef(isNoteExpanded);
+  useEffect(() => {
+    if (prevIsNoteExpandedRef.current && !isNoteExpanded) {
+      if (internalCollapseRef.current) {
+        internalCollapseRef.current = false;
+      } else {
+        setExpandedNodeId(null);
+        setActiveNoteKey(null);
+      }
+    }
+    prevIsNoteExpandedRef.current = isNoteExpanded;
+  }, [isNoteExpanded]);
 
   // 캔버스에 원소가 하나도 없을 때만 빈 상태를 보여준다 - "원소를 선택 안 함"
   // 빈 상태는 이제 존재하지 않는다(탭은 항상 내용을 갖는다).
@@ -430,7 +474,7 @@ export function ElementNotesPanel({
                 <span
                   aria-hidden
                   className="h-1.5 w-1.5 shrink-0 rounded-full"
-                  style={{ background: TYPE_DOT[node.type] ?? DEFAULT_DOT }}
+                  style={{ background: colorForType(node.type) }}
                 />
                 <span className="min-w-0 flex-1 truncate font-sans text-sm font-medium text-text-hi">
                   {node.label}
@@ -462,9 +506,9 @@ export function ElementNotesPanel({
                       onUpdateNote={onUpdateNote}
                       onClose={() => setActiveNoteKey(null)}
                       resolveLink={resolveLink}
-                      onLinkClick={onLinkClick}
+                      onLinkClick={handleWikiLinkClick}
                       isExpanded={isNoteExpanded}
-                      onExpandedChange={onNoteExpandedChange}
+                      onExpandedChange={setExpanded}
                     />
                   )}
 
@@ -541,9 +585,9 @@ export function ElementNotesPanel({
                                 isPublic={note.isPublic}
                                 onClose={() => setActiveNoteKey(null)}
                                 resolveLink={resolveLink}
-                                onLinkClick={onLinkClick}
+                                onLinkClick={handleWikiLinkClick}
                                 isExpanded={isNoteExpanded}
-                                onExpandedChange={onNoteExpandedChange}
+                                onExpandedChange={setExpanded}
                                 onPersist={(input) => onUpdateNote(note.id, input)}
                                 autoFocusTitle={autoFocusTitleKey === note.id}
                                 onTitleAutoFocusConsumed={() => setAutoFocusTitleKey(null)}
@@ -693,6 +737,24 @@ function NoteEditor({
   const [title, setTitle] = useState(initial.title);
   const [body, setBody] = useState(initial.body);
   const titleInputRef = useRef<HTMLInputElement>(null);
+  const overlayContainerRef = useRef<HTMLDivElement>(null);
+  const previousFocusRef = useRef<HTMLElement | null>(null);
+
+  // 확대 오버레이 포커스 격리: isExpanded가 켜지면 이전 포커스를 기억해 두고
+  // 컨테이너 안 첫 포커스 가능한 요소로 옮긴다(브랜드 뉴 노트라면 바로 아래
+  // autoFocusTitle effect가 이 직후 실행되어 제목으로 다시 옮기므로 최종
+  // 포커스는 그쪽이 이긴다 - effect 선언 순서가 곧 실행 순서). 꺼지면(또는
+  // 언마운트되면) 이전 포커스를 복원한다.
+  useEffect(() => {
+    if (!isExpanded) return;
+    previousFocusRef.current = document.activeElement instanceof HTMLElement ? document.activeElement : null;
+    const first = overlayContainerRef.current?.querySelector<HTMLElement>(FOCUSABLE_SELECTOR);
+    first?.focus();
+    return () => {
+      previousFocusRef.current?.focus();
+    };
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [isExpanded]);
 
   // "새 노트" 방금 생성 직후 마운트되는 이 인스턴스에서만 제목에 포커스를
   // 넣는다 - 마운트 1회만 실행되어야 하므로 deps를 비워 둔다(autoFocusTitle이
@@ -917,6 +979,44 @@ function NoteEditor({
     setMode("edit");
   }
 
+  // 편집기 컨테이너 스코프 keydown - 두 가지 역할:
+  // (1) Escape: 읽기 모드 본문 래퍼가 예전엔 role="button"+tabIndex로 직접
+  //     Escape를 받았지만(ARIA 중첩 문제로 제거), 제목 input/textarea는 이미
+  //     각자 자기 onKeyDown에서 handleEscape를 부르므로 여기서는 그 두
+  //     요소가 아닐 때만(예: 첨부 삭제 버튼 등에 포커스가 있을 때) 처리해
+  //     중복 호출을 피한다.
+  // (2) Tab/Shift+Tab: isExpanded일 때만 컨테이너 안의 포커스 가능한 요소
+  //     사이에서 순환시켜(포커스 트랩) 뒤 패널로 Tab이 새지 않게 한다.
+  //     전역 window 리스너가 아니라 이 컨테이너 스코프에서만 가로챈다.
+  function handleOverlayKeyDown(e: ReactKeyboardEvent<HTMLDivElement>) {
+    if (e.key === "Escape") {
+      const target = e.target;
+      if (!(target instanceof HTMLInputElement) && !(target instanceof HTMLTextAreaElement)) {
+        handleEscape();
+      }
+      return;
+    }
+    if (!isExpanded || e.key !== "Tab") return;
+    const container = overlayContainerRef.current;
+    if (!container) return;
+    const focusables = Array.from(container.querySelectorAll<HTMLElement>(FOCUSABLE_SELECTOR)).filter(
+      (el) => !el.hasAttribute("disabled")
+    );
+    if (focusables.length === 0) return;
+    const first = focusables[0];
+    const last = focusables[focusables.length - 1];
+    const active = document.activeElement;
+    if (e.shiftKey) {
+      if (active === first || !container.contains(active)) {
+        e.preventDefault();
+        last.focus();
+      }
+    } else if (active === last || !container.contains(active)) {
+      e.preventDefault();
+      first.focus();
+    }
+  }
+
   // 토글 버튼 - "지금 이 아이콘이 곧 눌렀을 때 들어갈 모드"(옵시디언 관례).
   // edit -> read 전환은 blur와 마찬가지로 최신 초안을 바로 커밋한다(디바운스가
   // 아직 안 돌았을 수도 있는 텍스트가 렌더링 없이 그대로 남는 걸 막기 위해).
@@ -1023,14 +1123,7 @@ function NoteEditor({
         />
       ) : (
         <div
-          role="button"
-          tabIndex={0}
-          aria-label="노트 본문 - 클릭하면 편집"
           onClick={enterEditMode}
-          onKeyDown={(e) => {
-            if (e.key === "Enter") enterEditMode();
-            if (e.key === "Escape") handleEscape();
-          }}
           style={{ fontSize: typeScale.bodyFontSize, lineHeight: typeScale.bodyLineHeight }}
           className={cn(
             "min-h-[120px] cursor-text border-0 bg-transparent px-0 py-1 font-sans text-text-hi focus-visible:outline-none",
@@ -1090,7 +1183,7 @@ function NoteEditor({
   );
 
   const editorNode = (
-    <div className={editorWrapperClass}>
+    <div ref={overlayContainerRef} className={editorWrapperClass} onKeyDown={handleOverlayKeyDown}>
       {isExpanded && tabBar?.({ mode, onToggleMode: toggleMode })}
       {isExpanded ? (
         <div className="mx-auto flex w-full max-w-[720px] flex-1 flex-col gap-2.5 pt-2">{contentColumn}</div>
