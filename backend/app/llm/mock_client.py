@@ -8,6 +8,7 @@ ANTHROPIC_API_KEY가 설정되면 app/llm/__init__.py의 get_llm_client()가 실
 AnthropicClaudeClient로 교체한다 (config.use_real_llm).
 """
 
+import re
 import zlib
 from datetime import date, timedelta
 
@@ -254,11 +255,20 @@ def _interleave_by_level(items: list[dict]) -> list[dict]:
 
 
 def _strip_goal(goal_raw_text: str) -> str:
-    text = goal_raw_text.strip()
-    for suffix in _GOAL_SUFFIXES:
-        if text.endswith(suffix):
-            return text[: -len(suffix)].strip()
-    return text
+    """목표 문장에서 핵심 명사구만 남긴다 - "…가 되고 싶어요" 같은 어미 변형이
+    라벨/이름에 통째로 박히는 것을 막는다(예: "경영 컨설턴트가 되고 싶어요 학회").
+    """
+    text = goal_raw_text.strip().rstrip(".!?~ ")
+    # "…(이/가) 되고 싶어(요/다/습니다)", "…(을/를) 하고 싶어(요/다)" 계열 어미 제거.
+    text = re.sub(
+        r"[이가]?\s*되고\s*싶(?:어요|어|다|습니다)?$|[을를]?\s*하고\s*싶(?:어요|어|다|습니다)?$",
+        "",
+        text,
+    ).strip()
+    # 그래도 문장형으로 길게 남으면 첫 어절들만 취해 라벨답게 자른다.
+    if len(text) > 20:
+        text = " ".join(text.split()[:3])[:20].strip()
+    return text or goal_raw_text.strip()
 
 
 def _milestone_count(goal_raw_text: str) -> int:

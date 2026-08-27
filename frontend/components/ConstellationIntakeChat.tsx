@@ -270,7 +270,7 @@ export function ConstellationIntakeChat({
       aria-modal="true"
       aria-label="별자리 목표 대화"
       onKeyDown={handleKeyDown}
-      className={cn("fixed inset-0 z-30 overflow-hidden bg-ink-900", className)}
+      className={cn("fixed inset-0 z-40 overflow-hidden bg-ink-900", className)}
     >
       <div className="bg-radec-grid pointer-events-none absolute inset-0" aria-hidden />
       <BackgroundStars />
@@ -459,17 +459,24 @@ const BACKGROUND_STARS = [
 ];
 
 function BackgroundStars() {
+  // SVG viewBox를 화면에 늘리면(preserveAspectRatio none) 원이 타원 얼룩이 된다
+  // (DraftReviewStage에서 실측) - % 좌표의 div 점으로 그려 항상 동그란 별을 유지한다.
   return (
-    <svg
-      className="pointer-events-none absolute inset-0 h-full w-full"
-      viewBox="0 0 100 100"
-      preserveAspectRatio="none"
-      aria-hidden
-    >
+    <div className="pointer-events-none absolute inset-0" aria-hidden>
       {BACKGROUND_STARS.map((s, idx) => (
-        <circle key={idx} cx={s.x} cy={s.y} r={s.r} fill="var(--text-hi)" opacity={s.o} />
+        <span
+          key={idx}
+          className="absolute rounded-full bg-text-hi"
+          style={{
+            left: `${s.x}%`,
+            top: `${s.y}%`,
+            width: s.r * 2,
+            height: s.r * 2,
+            opacity: s.o,
+          }}
+        />
       ))}
-    </svg>
+    </div>
   );
 }
 
