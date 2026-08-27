@@ -69,7 +69,9 @@ function ReticleFigure({ width }: { width: number }) {
  * 레일/탭바 구조를 건드리지 않는다(패널은 캔버스 위에 뜬다는 §설계 원칙과 동일). */
 export function TelescopeLanding() {
   const router = useRouter();
-  const [entering, setEntering] = useState(false);
+  // 시안 보드 2(망원경 진입): CTA -> 접안렌즈 원이 종이 가운데 떠서 대기(aperture),
+  // 원을 클릭해야 확대 전환(zoom) 후 대화로 넘어간다. 전환 애니메이션은 1회뿐.
+  const [stage, setStage] = useState<"idle" | "aperture" | "zoom">("idle");
 
   // CTA를 누르기 전에 목적지를 미리 받아 전환 직후 빈 화면이 없게 한다.
   useEffect(() => {
@@ -132,8 +134,8 @@ export function TelescopeLanding() {
             <div className="mt-2 flex flex-wrap items-center gap-5">
               <button
                 type="button"
-                onClick={() => setEntering(true)}
-                disabled={entering}
+                onClick={() => setStage("aperture")}
+                disabled={stage !== "idle"}
                 className="cta-ink flex items-center gap-2.5 rounded-full px-7 py-[15px] text-body font-medium leading-none disabled:opacity-70"
                 style={{ backgroundColor: "var(--paper-ink)", color: "var(--paper)" }}
               >
@@ -183,17 +185,130 @@ export function TelescopeLanding() {
         연세대학교 재학생 인증 기반 · OurLab
       </p>
 
-      {/* 접안렌즈 전환: 어두운 원이 화면을 덮으면 캔버스로 이동한다 */}
-      {entering && (
+      {/* 망원경 진입(시안 보드 2): 종이 한가운데 접안렌즈 원이 떠서 대기하고,
+          원을 클릭해야 화면을 덮으며 대화로 넘어간다. */}
+      {stage !== "idle" && (
         <div
-          aria-hidden
-          onAnimationEnd={() => router.push("/constellation/new")}
-          className="fixed left-1/2 top-1/2 z-[70] h-[250vmax] w-[250vmax] rounded-full"
-          style={{
-            background: "radial-gradient(circle at 50% 46%, #0b1024 0%, var(--ink-900) 60%)",
-            animation: "apertureOpen 1600ms cubic-bezier(0.4, 0, 0.2, 1) forwards",
-          }}
-        />
+          className="fixed inset-0 z-[65] overflow-hidden"
+          style={{ backgroundColor: "var(--paper)" }}
+        >
+          {/* 가장자리 비네트: 명->암 전환의 중간 순간 */}
+          <div
+            aria-hidden
+            className="pointer-events-none absolute inset-0"
+            style={{
+              background:
+                "radial-gradient(ellipse 900px 640px at 50% 50%, rgba(4, 6, 11, 0) 55%, rgba(4, 6, 11, 0.12) 100%)",
+            }}
+          />
+
+          <button
+            type="button"
+            onClick={() => setStage("idle")}
+            className="absolute left-8 top-9 flex items-center gap-2 text-body-sm md:left-14"
+            style={{ color: "var(--paper-lo)" }}
+          >
+            <svg
+              width="14"
+              height="14"
+              viewBox="0 0 16 16"
+              fill="transparent"
+              stroke="currentColor"
+              strokeWidth="1.5"
+              strokeLinecap="round"
+              strokeLinejoin="round"
+              aria-hidden
+            >
+              <path d="M10 3 L5 8 L10 13" />
+            </svg>
+            돌아가기
+          </button>
+
+          {/* 접안렌즈: 종이 한가운데 뚫린 우주. 클릭이 유일한 다음 행동. */}
+          <button
+            type="button"
+            onClick={() => setStage("zoom")}
+            disabled={stage === "zoom"}
+            aria-label="망원경 들여다보기 시작"
+            className="absolute left-1/2 top-1/2 block -translate-x-1/2 -translate-y-1/2 cursor-pointer rounded-full focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-8 focus-visible:outline-spec-b"
+            style={{
+              width: "min(640px, 86vmin)",
+              height: "min(640px, 86vmin)",
+              animation: "apertureReveal 500ms cubic-bezier(0.4, 0, 0.2, 1) both",
+            }}
+          >
+            {/* 바깥 링 + 눈금 */}
+            <svg
+              viewBox="0 0 640 640"
+              fill="transparent"
+              className="absolute inset-0 h-full w-full"
+              aria-hidden
+            >
+              <circle cx="320" cy="320" r="316" stroke="var(--paper-line)" strokeWidth="1" fill="transparent" />
+              <circle cx="320" cy="320" r="300" stroke="var(--paper-soft)" strokeWidth="1.5" fill="transparent" />
+              <g stroke="var(--paper-soft)" strokeWidth="1.5">
+                <line x1="320" y1="6" x2="320" y2="20" />
+                <line x1="320" y1="620" x2="320" y2="634" />
+                <line x1="6" y1="320" x2="20" y2="320" />
+                <line x1="620" y1="320" x2="634" y2="320" />
+              </g>
+            </svg>
+            {/* 시야: 어두운 우주 + 별 + 첫 질문 예고 */}
+            <div
+              className="absolute overflow-hidden rounded-full"
+              style={{
+                inset: "3.75%",
+                background: "radial-gradient(circle at 46% 42%, #0b1024 0%, var(--ink-900) 70%)",
+              }}
+            >
+              <svg viewBox="0 0 592 592" className="absolute inset-0 h-full w-full" aria-hidden>
+                <g fill="#E8EAF2">
+                  <circle cx="168" cy="204" r="1.6" opacity="0.9" />
+                  <circle cx="352" cy="140" r="1.2" opacity="0.6" />
+                  <circle cx="452" cy="300" r="1.8" opacity="0.85" />
+                  <circle cx="240" cy="392" r="1.2" opacity="0.55" />
+                  <circle cx="388" cy="452" r="1.4" opacity="0.7" />
+                  <circle cx="120" cy="330" r="1" opacity="0.45" />
+                  <circle cx="300" cy="256" r="2.2" opacity="1" />
+                  <circle cx="500" cy="180" r="1" opacity="0.5" />
+                </g>
+              </svg>
+              <div className="absolute inset-0 flex flex-col items-center justify-center gap-4 text-center">
+                <span
+                  className="font-serif text-[22px] leading-[1.55] md:text-[27px]"
+                  style={{ color: "#E8EAF2", wordBreak: "keep-all" }}
+                >
+                  무엇을 좋아하는지부터
+                  <br />
+                  들여다볼게요
+                </span>
+                <span className="font-mono text-caption tracking-[0.12em]" style={{ color: "#8891AC" }}>
+                  Q 1 / 6
+                </span>
+              </div>
+            </div>
+          </button>
+
+          <p
+            className="absolute bottom-12 left-1/2 -translate-x-1/2 text-body-sm"
+            style={{ color: "var(--paper-lo)" }}
+          >
+            망원경에 눈을 대는 중&hellip;
+          </p>
+
+          {/* 확대 전환: 접안렌즈 크기에서 시작해 화면을 덮으면 대화로 이동 (1회성) */}
+          {stage === "zoom" && (
+            <div
+              aria-hidden
+              onAnimationEnd={() => router.push("/constellation/new")}
+              className="fixed left-1/2 top-1/2 z-[70] h-[250vmax] w-[250vmax] rounded-full"
+              style={{
+                background: "radial-gradient(circle at 50% 46%, #0b1024 0%, var(--ink-900) 60%)",
+                animation: "apertureOpen 700ms cubic-bezier(0.4, 0, 0.2, 1) forwards",
+              }}
+            />
+          )}
+        </div>
       )}
     </div>
   );

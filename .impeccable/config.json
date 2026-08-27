@@ -38,6 +38,18 @@
         ],
         "createdAt": "2026-08-27T12:35:56.357Z",
         "reason": "incumbent scrollbar thumb radius, predates DESIGN.md"
+      },
+      {
+        "rule": "design-system-font-size",
+        "value": "27px",
+        "createdAt": "2026-08-27T17:04:52.916Z",
+        "reason": "approved design board 88238bcc Aperture headline size (user-provided 시안)"
+      },
+      {
+        "rule": "design-system-font-size",
+        "value": "22px",
+        "createdAt": "2026-08-27T17:04:53.114Z",
+        "reason": "mobile step-down of the approved 27px Aperture headline"
       }
     ]
   }

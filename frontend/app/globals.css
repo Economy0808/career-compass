@@ -115,19 +115,24 @@ a:hover {
    prefers-reduced-motion이면 위 전역 규칙이 duration을 0으로 줄여 즉시
    끝나고, onAnimationEnd 라우팅은 그대로 동작한다. */
 @keyframes apertureOpen {
-  /* 2단계: 접안렌즈 원이 화면 가운데 떠서 잠깐 머문 뒤(28~62%) 화면을 덮는다.
-     한 번에 0->1로 키우면 250vmax 원에서는 "원이 떠 있는" 순간이 체감상
-     사라진다(실사용 지적). scale 0.13 = 뷰포트 기준 약 400px 접안렌즈. */
+  /* 접안렌즈 대기 화면(시안 보드 2)이 별도 스테이지가 됐으므로, 확대는
+     현재 접안렌즈 크기(≈scale 0.18)에서 화면을 덮는 단일 단계만 남는다. */
   0% {
-    transform: translate(-50%, -50%) scale(0);
-  }
-  28% {
-    transform: translate(-50%, -50%) scale(0.13);
-  }
-  62% {
-    transform: translate(-50%, -50%) scale(0.13);
+    transform: translate(-50%, -50%) scale(0.18);
   }
   100% {
+    transform: translate(-50%, -50%) scale(1);
+  }
+}
+
+@keyframes apertureReveal {
+  /* 접안렌즈 원의 등장: 살짝 작게서 제자리로 (1회성) */
+  0% {
+    opacity: 0;
+    transform: translate(-50%, -50%) scale(0.92);
+  }
+  100% {
+    opacity: 1;
     transform: translate(-50%, -50%) scale(1);
   }
 }
