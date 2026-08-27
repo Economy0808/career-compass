@@ -1,9 +1,14 @@
 from datetime import datetime
 
+import pytest
+from pydantic import ValidationError
+
 from app.domain.constellation import (
     Edge,
     Node,
     NodeTypes,
+    Note,
+    NoteAttachment,
     Position,
     compute_node_counts,
     compute_progress_pct,
@@ -160,3 +165,74 @@ def test_node_default_is_completed_false() -> None:
     )
     assert node.is_completed is False
     assert node.source_ref is None
+
+
+def test_node_backward_compat_old_document_missing_new_fields() -> None:
+    """새 필드(code/description/level/note_count) 도입 이전의 구 Firestore 문서도
+    여전히 검증을 통과하고, 새 필드는 기본값으로 채워져야 한다."""
+    old_doc = {
+        "id": "a",
+        "label": "구버전 노드",
+        "type": NodeTypes.COURSE,
+        "is_completed": True,
+        "position": {"x": 0.0, "y": 0.0},
+        "origin": "user_added",
+        "created_at": datetime(2026, 1, 1),
+    }
+    node = Node.model_validate(old_doc)
+    assert node.code is None
+    assert node.description is None
+    assert node.level is None
+    assert node.note_count == 0
+
+
+# --- Note / NoteAttachment ---
+
+
+def _make_note(**overrides: object) -> Note:
+    defaults: dict[str, object] = {
+        "id": "n1",
+        "node_id": "a",
+        "owner_id": "user-1",
+        "created_at": datetime(2026, 1, 1),
+        "updated_at": datetime(2026, 1, 1),
+    }
+    defaults.update(overrides)
+    return Note(**defaults)
+
+
+def test_note_allows_empty_title_and_body() -> None:
+    """빈 제목/본문은 의도적으로 지원하는 제품 기능이다 (회귀 방지)."""
+    note = _make_note(title="", body="")
+    assert note.title == ""
+    assert note.body == ""
+
+
+def test_note_defaults_is_public_false_and_no_attachments() -> None:
+    note = _make_note()
+    assert note.is_public is False
+    assert note.attachments == []
+
+
+def test_note_attachment_requires_all_fields() -> None:
+    with pytest.raises(ValidationError):
+        NoteAttachment(id="att1", name="파일.pdf", mime_type="application/pdf")
+
+
+def test_note_round_trips_through_model_dump() -> None:
+    note = _make_note(
+        title="제목",
+        body="본문",
+        is_public=True,
+        attachments=[
+            NoteAttachment(
+                id="att1",
+                name="파일.pdf",
+                mime_type="application/pdf",
+                url="https://example.com/att1.pdf",
+            )
+        ],
+    )
+    dumped = note.model_dump()
+    rebuilt = Note.model_validate(dumped)
+    assert rebuilt == note

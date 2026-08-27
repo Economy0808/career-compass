@@ -48,11 +48,23 @@ class Node(BaseModel):
     label: str
     type: NodeType
     # 참고 자료(예: 강의 코드) 문서 참조. 유저가 자유 입력한 노드는 None.
+    # code와 구분할 것: source_ref는 출처(provenance) - 이 노드 정보가 어디서
+    # 왔는지 가리키는 외부 자료 링크이고, code는 그 노드 자체를 UI에 표시할 때
+    # 라벨 옆에 보여주는 화면용 학정번호/코드다.
     source_ref: str | None = None
+    # 표시용 학정번호/코드 (예: "PHI1001"). UI가 라벨 옆에 그대로 노출한다.
+    code: str | None = None
+    # 팝오버에 2~3줄로 보여줄 설명문.
+    description: str | None = None
+    # 학년/난이도. 프론트엔드 CanvasNode.level에 대응한다.
+    level: int | None = None
     is_completed: bool = False
     position: Position
     origin: NodeOrigin
     created_at: datetime
+    # notes 서브컬렉션 문서 수의 비정규화 캐시. note_repo가 노트 생성/삭제
+    # 트랜잭션 안에서 함께 갱신해 정합성을 유지한다.
+    note_count: int = 0
 
 
 class Edge(BaseModel):
@@ -81,6 +93,42 @@ class Constellation(BaseModel):
     nodes: dict[str, Node] = Field(default_factory=dict)
     edges: dict[str, Edge] = Field(default_factory=dict)
     is_published: bool = False
+    created_at: datetime
+    updated_at: datetime
+
+
+class NoteAttachment(BaseModel):
+    """노트에 첨부된 파일 한 건."""
+
+    id: str
+    name: str
+    mime_type: str
+    url: str
+
+
+class Note(BaseModel):
+    """노드에 달리는 메모.
+
+    Firestore 서브컬렉션 constellations/{constellation_id}/notes/{note_id}에
+    저장한다.
+
+    CRITICAL: title과 body가 빈 문자열인 것은 의도적으로 허용되는 상태다
+    ("빈 노트"도 지원 대상 제품 기능) - min_length 등으로 빈 문자열을 거부하는
+    검증기를 추가하지 말 것.
+    """
+
+    id: str
+    node_id: str
+    # 부모 별자리의 owner_id를 비정규화해 그대로 복사해둔 값. update/delete/list가
+    # 매번 부모 별자리 문서를 읽지 않고도 소유권을 검증할 수 있게 한다.
+    # 소유권은 노트 생성 이후 바뀌지 않으므로(불변) stale해질 위험이 없다.
+    owner_id: str
+    title: str = ""
+    body: str = ""
+    # 기본값 False: 실수로 공개되는 쪽이 실수로 비공개되는 쪽보다 더 해로우므로
+    # 기본은 비공개.
+    is_public: bool = False
+    attachments: list[NoteAttachment] = Field(default_factory=list)
     created_at: datetime
     updated_at: datetime
 
