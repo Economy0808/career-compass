@@ -1,4 +1,29 @@
-# 백엔드 세션 핸드오프 (2026-08-27 작성, 같은 날 백엔드 세션이 2회 갱신)
+# 백엔드 세션 핸드오프 (2026-08-27 작성, 같은 날 3회 갱신)
+
+> **2026-08-27 세 번째 세션 — C(군집 어드바이스) + D(진입 플로우) + 발행 완료**
+> (커밋 `1a4fd85`~`20d393f` 13개, mock+에뮬레이터 브라우저 E2E 전 항목 통과):
+> - **학칙 다이제스트**: `app/llm/academic_rules.py` 상수(27섹션 11.7K자, 수치 원문 보존) —
+>   data/가 gitignore+Docker 미포함이라 파일 읽기 대신 상수 커밋.
+> - **LLM 레이어**: `CourseCluster.advice`(+서비스 그림자 타입 양쪽), `rules_context` 주입,
+>   max_tokens 12000(잘리면 전멸), thinking off 유지. 비수업 요소는 신규
+>   `suggest_support_elements`(환각 필터가 비수업을 구조적으로 걸러 별도 호출) — UI에
+>   "AI 제안" 배지로 정직하게 구분.
+> - **인테이크**: `/api/constellation-intake` — chat 프록시(서버가 messages 갱신 반환 —
+>   mock의 assistant 카운트 무한루프 방지), bins/fill 백그라운드 job(uid 스코프 `bin_jobs.py`,
+>   폴링 계약 `{bins:[...]}` 단일 형태), rate limit. 동기 Firestore는 to_thread 래핑.
+> - **발행**: `PATCH /{cid}/publish` + 프론트 토글·상태 칩(새로고침 유지 확인).
+> - **bins 영속화**: `Constellation.bins`(생성 동봉 + PUT 전체교체, 30/50 캡, 구 문서 역호환).
+> - **프론트**: 챗 오버레이(빈 상태 자동, bootState 4경로), ⓘ 인라인 디스클로저(클리핑·
+>   드래그 함정 회피), 새 별자리 리셋(objectURL revoke 포함), 900ms 데모 타이머 → 실제 fill job,
+>   course 칩 code/label 분리(캔버스 이중 표기 방지), description이 노드·서버까지 전달되도록 수정.
+> - **QA 도구**: `scripts/seed_emulator_courses.py`(22과목, mock 학과 맵 정합),
+>   launch.json `backend-mock`(APP_ENV=test — dev .env가 실키라 mock 강제용).
+> - **다음 후보**: S7 정리(splitCourseCode fallback 제거+BinItem.code — 보류됨), 실 LLM
+>   스모크 테스트(키는 .env에 있음), 소셜 피드(발행물 렌더), 구 기능 Firebase 마이그레이션,
+>   Storage 첨부(Blaze). 참조데이터: organizations 시드는 여전히 없음(지원 요소는 LLM 창작).
+> - 함정 메모: 강제종료로 고아 프로세스(java 8080, node 3000)가 포트를 물면 preview/에뮬레이터
+>   기동 실패 — netstat로 확인 후 정리. 에이전트 emulators:exec와 장기 실행 에뮬레이터는
+>   포트 충돌하므로 동시 사용 금지.
 
 > **2026-08-27 인증 배선 세션 결과 — ① 4번 "인증 배선 + 프론트 전환" 완료** (커밋
 > `2ec49ef`·`3ae907c`·`ee16faf`·`92e4cf5`·`54132a1`·`750d10e`, 에뮬레이터 E2E 실검증 통과):
