@@ -10,8 +10,10 @@
 > - **"수업이 안 나와요" 재발 방지**: 공유 에뮬레이터에 pytest 돌리면 conftest autouse가
 >   DB 전체 삭제 → 시드 소멸. 복구=scripts/seed_emulator_courses.py 재실행. mock 학과 맵은
 >   "데이터"도 커버함(응용통계·공대) — 시드만 있으면 수업 군집 정상.
-> - `.next` 캐시 손상(Cannot find module './NNN.js') 이 날만 3회 — 500 뜨면 .next 삭제 후
->   재기동이 표준 대응.
+> - `.next` 캐시 손상(Cannot find module './NNN.js') **근본 원인 규명·해결**: 두 세션의
+>   dev 서버(3000/3001)가 같은 frontend/.next를 공유하며 청크를 상호 덮어씀. 프론트 세션이
+>   `84fc57b`로 NEXT_DIST_DIR 분리(frontend-alt=.next-alt) — 이후 재발 없어야 정상.
+>   그래도 500 뜨면 .next 삭제 후 재기동.
 > - 야간 이관: 프론트 세션(03-code-7e)이 63226b4 기준 스테이지 **디자인 검수** 수행 예정
 >   (기능 계약 불변 약속). 미검증 엣지 1건: 기존 별자리 보유 시 우상단 배지 시각 확인.
 > - 실 LLM 전환은 launch.json `backend` 구성(실키 .env에 있음) — mock 정형 질문/이름이
