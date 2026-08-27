@@ -27,6 +27,9 @@ from app.llm.base import (
     MajorGoalDecision,
     NcsJobOption,
     RoadmapContext,
+    SupportBin,
+    SupportBinResult,
+    SupportElement,
 )
 
 # 목표 텍스트의 키워드 -> 관련 단과대/학과 (결정론적 mock 매칭용, 닫힌 집합 아님).
@@ -44,6 +47,22 @@ _DEPARTMENT_KEYWORDS: dict[str, list[str]] = {
     "개발자": ["공과대학"],
     "프로그래": ["공과대학"],
 }
+
+# 목표 텍스트의 키워드 -> 관련 자격증 (결정론적 mock, suggest_support_elements용).
+# 마찬가지로 닫힌 집합이 아니고, 매칭 안 되면 기본값으로 폴백한다.
+_SUPPORT_CERT_KEYWORDS: dict[str, str] = {
+    "컨설턴트": "PMP",
+    "컨설팅": "PMP",
+    "경영": "재경관리사",
+    "재무": "AFPK",
+    "회계": "전산회계",
+    "마케팅": "GTQ",
+    "데이터": "ADsP",
+    "통계": "사회조사분석사",
+    "개발자": "정보처리기사",
+    "프로그래": "정보처리기사",
+}
+_SUPPORT_CERT_DEFAULT = "관련 분야 입문 자격증"
 
 MIN_MILESTONES = 6
 MAX_MILESTONES = 12
@@ -305,13 +324,18 @@ class MockClaudeClient:
         return matched
 
     async def cluster_courses(
-        self, goal_text: str, courses: list[CourseOption]
+        self,
+        goal_text: str,
+        courses: list[CourseOption],
+        rules_context: str | None = None,
     ) -> CourseClusterResult:
         """학과별로 결정론적 군집을 만든다 (실제 모델의 의미 판단 대신 그룹핑).
 
         5000/6000단위는 방어적으로 한 번 더 걸러낸다 — course_clustering 서비스가
         이미 걸러 보내지만, 이 메서드를 단독 호출하는 테스트에서도 계약이 지켜지도록.
         군집 이름은 목표 텍스트에서 파생되므로 고정 목록이 아니다.
+
+        rules_context: mock은 실제로 근거 삼지 않는다(파라미터는 계약 유지용).
         """
         stripped = _strip_goal(goal_text)
         by_department: dict[str, list[CourseOption]] = {}
@@ -333,10 +357,72 @@ class MockClaudeClient:
                     )
                     for c in dept_courses
                 ],
+                advice=f"'{stripped}' 목표에는 {dept} 과목이 기초가 돼요. (mock advice)",
             )
             for dept, dept_courses in by_department.items()
         ]
         return CourseClusterResult(clusters=clusters)
+
+    async def suggest_support_elements(
+        self, goal_text: str, rules_context: str | None = None
+    ) -> SupportBinResult:
+        """결정론적 mock: 자격증/대외활동 2개 군집을 목표 키워드로 고정 생성한다.
+
+        cluster_courses와 달리 카탈로그 그라운딩 계약 자체가 없으므로(실제 모델도
+        AI 제안일 뿐) mock도 파생 문자열을 그대로 쓴다. 빈/공백 목표는 빈 결과로
+        degrade한다 — course_clustering 쪽 "확신 없으면 빈 리스트" 계약과 동일한 모양.
+        """
+        stripped = _strip_goal(goal_text)
+        if not stripped:
+            return SupportBinResult(bins=[])
+
+        cert_name = _SUPPORT_CERT_DEFAULT
+        for keyword, cert in _SUPPORT_CERT_KEYWORDS.items():
+            if keyword in goal_text:
+                cert_name = cert
+                break
+
+        return SupportBinResult(
+            bins=[
+                SupportBin(
+                    name=f"{stripped} 자격증",
+                    advice=f"'{stripped}' 목표에는 자격증으로 역량을 증명해두면 도움이 돼요. (mock)",
+                    elements=[
+                        SupportElement(
+                            label=cert_name,
+                            type="certification",
+                            subtitle=f"{stripped} 입문 수준 (mock)",
+                            description=f"'{stripped}' 목표와 관련해 널리 쓰이는 자격증(mock). "
+                            "시험 일정과 난이도를 확인하고 단계적으로 준비하세요.",
+                        ),
+                        SupportElement(
+                            label=f"{stripped} 심화 자격증",
+                            type="certification",
+                            subtitle="다음 단계 (mock)",
+                            description=f"'{stripped}' 기초를 다진 뒤 도전할 심화 자격증(mock).",
+                        ),
+                    ],
+                ),
+                SupportBin(
+                    name=f"{stripped} 대외활동",
+                    advice=f"'{stripped}' 목표에는 실전 대외활동으로 경험을 쌓는 게 도움이 돼요. (mock)",
+                    elements=[
+                        SupportElement(
+                            label=f"{stripped} 공모전",
+                            type="activity",
+                            subtitle="실전 경험 (mock)",
+                            description=f"'{stripped}' 분야의 공모전에 지원해 실전 감각을 키우세요(mock).",
+                        ),
+                        SupportElement(
+                            label=f"{stripped} 학회",
+                            type="organization",
+                            subtitle="교내/연합 학회 (mock)",
+                            description=f"'{stripped}' 관련 학회에 참여해 스터디·네트워킹을 함께 하세요(mock).",
+                        ),
+                    ],
+                ),
+            ]
+        )
 
     async def research_job(
         self, job_name: str, ability_units: list[AbilityUnitRef]

@@ -60,6 +60,8 @@ class CourseClusterView:
 
     name: str
     courses: list[ClusteredCourseView] = field(default_factory=list)
+    # 이 군집이 왜 목표에 필요한지에 대한 코치 코멘트 (base.CourseCluster.advice 그대로).
+    advice: str | None = None
 
 
 @dataclass
@@ -86,11 +88,17 @@ async def select_relevant_departments(llm: LLMClient, goal_text: str) -> list[st
 
 
 async def cluster_courses(
-    llm: LLMClient, goal_text: str, courses: list[MergedCourse]
+    llm: LLMClient,
+    goal_text: str,
+    courses: list[MergedCourse],
+    rules_context: str | None = None,
 ) -> CourseClusterResult:
     """후보 과목 중 목표에 맞는 것을 골라 군집으로 묶고, 군집 내부를 계층 규칙으로 정렬한다.
 
     5000/6000단위는 LLM에 넘기기 전에 이미 걸러낸다 — 결과에 나타날 수 없다.
+
+    rules_context: 학사 규정 발췌 — 주어지면 그대로 llm.cluster_courses에 넘겨
+    군집별 advice의 근거로 쓰이게 한다. None이면 규정 근거 없이 생성한다.
     """
     undergrad_courses = [c for c in courses if _is_undergraduate(c)]
     if not undergrad_courses:
@@ -108,7 +116,7 @@ async def cluster_courses(
         )
         for c in undergrad_courses
     ]
-    raw = await llm.cluster_courses(goal_text, options)
+    raw = await llm.cluster_courses(goal_text, options, rules_context=rules_context)
     by_code = {c.code: c for c in undergrad_courses}
 
     clusters: list[CourseClusterView] = []
@@ -133,18 +141,25 @@ async def cluster_courses(
                     )
                     for rc in ordered
                 ],
+                advice=raw_cluster.advice,
             )
         )
     return CourseClusterResult(clusters=clusters)
 
 
 async def suggest_course_bin(
-    db: Client, llm: LLMClient, goal_text: str, fetch_limit: int = 100
+    db: Client,
+    llm: LLMClient,
+    goal_text: str,
+    fetch_limit: int = 100,
+    rules_context: str | None = None,
 ) -> CourseClusterResult:
     """전체 파이프라인: 학과 선택 -> Firestore 좁혀 조회 -> 군집화.
 
     관련 학과가 하나도 없으면(목표가 애매하거나 이 학교 학과와 무관) 빈 결과를
     반환한다 — 예외를 던지지 않는다. 호출자는 이를 "제안할 수업 없음"으로 취급한다.
+
+    rules_context: 학사 규정 발췌 — cluster_courses로 그대로 전달한다.
     """
     departments = await select_relevant_departments(llm, goal_text)
     if not departments:
@@ -167,4 +182,4 @@ async def suggest_course_bin(
     if not candidates:
         return CourseClusterResult(clusters=[])
 
-    return await cluster_courses(llm, goal_text, candidates)
+    return await cluster_courses(llm, goal_text, candidates, rules_context=rules_context)

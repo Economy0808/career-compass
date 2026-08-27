@@ -109,3 +109,32 @@ async def test_cluster_courses_no_undergrad_candidates_returns_empty() -> None:
     courses = [_course("BIZ6001", "박사 세미나", level=6)]
     result = await cluster_courses(llm, "전략 컨설턴트가 되고 싶다", courses)
     assert result.clusters == []
+
+
+@pytest.mark.asyncio
+async def test_cluster_courses_advice_propagates_from_base_to_view() -> None:
+    """base.CourseCluster.advice가 서비스 CourseClusterView.advice까지 그대로 흘러야 한다
+    (A1 회귀 가드 — 섀도 타입이 조용히 필드를 떨어뜨리는 걸 방지)."""
+    llm = MockClaudeClient()
+    goal = "전략 컨설턴트가 되고 싶다"
+    courses = [_course("BIZ1001", "경영학 원론", level=1, department="경영대학")]
+    result = await cluster_courses(llm, goal, courses)
+
+    assert result.clusters
+    for cluster in result.clusters:
+        assert cluster.advice is not None
+        assert "(mock advice)" in cluster.advice
+
+
+@pytest.mark.asyncio
+async def test_cluster_courses_rules_context_none_still_works() -> None:
+    """rules_context를 안 넘겨도(기본값 None) 기존 호출부는 그대로 동작해야 한다."""
+    llm = MockClaudeClient()
+    goal = "전략 컨설턴트가 되고 싶다"
+    courses = [_course("BIZ1001", "경영학 원론", level=1, department="경영대학")]
+    result = await cluster_courses(llm, goal, courses, rules_context=None)
+    assert result.clusters
+
+    # 키워드 인자 없이 호출하는 기존 경로도 여전히 동작해야 한다.
+    result_default = await cluster_courses(llm, goal, courses)
+    assert result_default.clusters

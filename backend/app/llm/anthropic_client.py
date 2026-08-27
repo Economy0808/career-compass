@@ -42,6 +42,9 @@ from app.llm.base import (
     MajorGoalDecision,
     NcsJobOption,
     RoadmapContext,
+    SupportBin,
+    SupportBinResult,
+    SupportElement,
 )
 
 MAX_INTAKE_QUESTIONS = 12  # 비용/UX 안전판 — 종료 판단은 모델이, 이 이상만 강제 종료
@@ -140,6 +143,8 @@ _COURSE_CLUSTER_SCHEMA = {
                 "additionalProperties": False,
                 "properties": {
                     "name": {"type": "string"},
+                    # 이 군집이 왜 목표에 필요한지 코치 코멘트. 못 채우면 null.
+                    "advice": {"type": ["string", "null"]},
                     "courses": {
                         "type": "array",
                         "items": {
@@ -153,11 +158,41 @@ _COURSE_CLUSTER_SCHEMA = {
                         },
                     },
                 },
-                "required": ["name", "courses"],
+                "required": ["name", "advice", "courses"],
             },
         }
     },
     "required": ["clusters"],
+}
+_SUPPORT_ELEMENT_SCHEMA = {
+    "type": "object",
+    "additionalProperties": False,
+    "properties": {
+        "label": {"type": "string"},
+        "type": {
+            "type": "string",
+            "enum": ["certification", "organization", "activity", "networking"],
+        },
+        "subtitle": {"type": ["string", "null"]},
+        "description": {"type": ["string", "null"]},
+    },
+    "required": ["label", "type", "subtitle", "description"],
+}
+_SUPPORT_BIN_SCHEMA = {
+    "type": "object",
+    "additionalProperties": False,
+    "properties": {
+        "name": {"type": "string"},
+        "advice": {"type": ["string", "null"]},
+        "elements": {"type": "array", "items": _SUPPORT_ELEMENT_SCHEMA},
+    },
+    "required": ["name", "advice", "elements"],
+}
+_SUPPORT_ELEMENTS_SCHEMA = {
+    "type": "object",
+    "additionalProperties": False,
+    "properties": {"bins": {"type": "array", "items": _SUPPORT_BIN_SCHEMA}},
+    "required": ["bins"],
 }
 
 
@@ -607,7 +642,10 @@ class AnthropicClaudeClient:
             return []
 
     async def cluster_courses(
-        self, goal_text: str, courses: list[CourseOption]
+        self,
+        goal_text: str,
+        courses: list[CourseOption],
+        rules_context: str | None = None,
     ) -> CourseClusterResult:
         """좁혀진 후보 과목 중 목표에 맞는 것을 골라 이름 붙인 군집으로 묶는다."""
         if not courses:
@@ -625,7 +663,10 @@ class AnthropicClaudeClient:
             "- reason은 이 과목이 왜 이 목표에 맞는지 한 줄로.\n"
             "- level은 과목의 계층(1000~4000)이고 years는 수강 가능 학년이다 — 서로"
             " 다른 개념이니 혼동하지 마라. 1학년 수준의 목표라면 4000단위 수업으로"
-            " 시작을 이끌지 마라(도약이 너무 크다) — 단, 아예 배제하라는 뜻은 아니다."
+            " 시작을 이끌지 마라(도약이 너무 크다) — 단, 아예 배제하라는 뜻은 아니다.\n"
+            "- advice: 이 군집 전체가 왜 이 목표에 필요한지 한국어 2~4문장으로 구체적"
+            " 근거를 들어 설명하라. 참고 규정이 주어지면(전과 선이수 학점, 복수전공"
+            " 정원 등) 그 내용을 근거로 활용하라. 못 채우겠으면 null로 둬라."
         )
         catalog = "\n".join(
             f"{c.code} | {c.name} | level={c.level} | years={c.years} | kind={c.kind}"
@@ -633,13 +674,23 @@ class AnthropicClaudeClient:
             for c in courses
         )
         user = f"진로 목표: {goal_text}\n\n후보 수업 목록:\n{catalog}"
-        # 후보가 많을 수 있는 판단이라 출력 예산을 넉넉히 잡는다. thinking은 끈다 —
-        # 이 코드베이스에서 세 번 반복된 함정(작은 max_tokens + thinking = JSON 잘림).
+        system_blocks = _cached_system(system)
+        if rules_context:
+            system_blocks.append(
+                {
+                    "type": "text",
+                    "text": f"참고 규정(학사 정보):\n{rules_context}",
+                    "cache_control": {"type": "ephemeral"},
+                }
+            )
+        # 후보가 많을 수 있는 판단이라 출력 예산을 넉넉히 잡는다(advice 필드가 늘어난 만큼
+        # ~700~1200 토큰 여유를 더 둔다). thinking은 끈다 — 이 코드베이스에서 세 번
+        # 반복된 함정(작은 max_tokens + thinking = JSON 잘림), 절대 건드리지 말 것.
         resp = await self._client.messages.create(
             model=self._extract_model,
-            max_tokens=8000,
+            max_tokens=12000,
             thinking={"type": "disabled"},
-            system=_cached_system(system),
+            system=system_blocks,
             messages=[{"role": "user", "content": user}],
             output_config={"format": {"type": "json_schema", "schema": _COURSE_CLUSTER_SCHEMA}},
         )
@@ -671,9 +722,94 @@ class AnthropicClaudeClient:
                 )
             if clustered:
                 clusters.append(
-                    CourseCluster(name=str(raw_cluster.get("name", "")), courses=clustered)
+                    CourseCluster(
+                        name=str(raw_cluster.get("name", "")),
+                        courses=clustered,
+                        advice=raw_cluster.get("advice") or None,
+                    )
                 )
         return CourseClusterResult(clusters=clusters)
+
+    async def suggest_support_elements(
+        self, goal_text: str, rules_context: str | None = None
+    ) -> SupportBinResult:
+        """수업이 아닌 비교과 준비 요소(자격증/학회/대외활동/네트워킹)를 군집으로 제안한다.
+
+        cluster_courses는 code가 후보 목록에 있는지로 환각을 걸러내지만(by_code
+        검증), 이 요소들은 애초에 고정 카탈로그가 없어 같은 방어를 적용할 수 없다.
+        그래서 별도의 가벼운 구조화 출력 호출로 분리한다 — 결과는 어디까지나 AI
+        제안이며 카탈로그 그라운딩이 없다는 점을 프롬프트에서도 못박는다.
+        """
+        if not goal_text.strip():
+            return SupportBinResult(bins=[])
+        system = (
+            "너는 대학생 진로 코치다. 아래 목표를 이루기 위한 '수업 외' 준비 요소를"
+            " 제안하라 — 자격증, 학회/동아리, 대외활동/공모전, 네트워킹(현직자 접촉 등)"
+            " 네 종류만 다룬다(수업은 별도 파이프라인이 처리하니 여기서 다루지 마라).\n\n"
+            "규칙:\n"
+            "- 2~4개의 군집(bin)으로 묶어라. 군집 이름은 목표에 맞춰 즉석에서 지어라"
+            "(예: '데이터 분석 자격증', '금융권 네트워킹'). 고정된 이름을 쓰지 마라.\n"
+            "- 군집마다 3~6개의 항목(element)을 담아라.\n"
+            "- 각 항목의 type은 certification/organization/activity/networking 중"
+            " 정확히 하나여야 한다.\n"
+            "- label: 항목 이름(예: 'ADsP', '금융공학회'). subtitle: 팝오버 위에 뜨는"
+            " 짧은 부제(예: '데이터분석 준전문가', '학내 학회'). description: 팝오버 안에"
+            " 보이는 2~3줄 설명 — 왜 필요한지, 어떻게 준비/참여하는지.\n"
+            "- 군집마다 advice: 이 군집이 목표에 왜 필요한지 한국어 2~4문장으로 구체적"
+            " 근거를 들어 설명하라. 참고 규정이 주어지면(전과 선이수 학점, 복수전공"
+            " 정원 등) 그 내용을 근거로 활용하라.\n"
+            "- 이 결과는 AI 제안일 뿐 공식 카탈로그 그라운딩이 없다는 점을 감안해라."
+            " 실명 단체·자격증은 국내에 널리 알려진 것만 제시하고, 확신이 없는 것은"
+            " 유형으로만 제시하고 절대 지어내지 마라."
+        )
+        system_blocks = _cached_system(system)
+        if rules_context:
+            system_blocks.append(
+                {
+                    "type": "text",
+                    "text": f"참고 규정(학사 정보):\n{rules_context}",
+                    "cache_control": {"type": "ephemeral"},
+                }
+            )
+        # 가벼운 판단이라 thinking 비활성(다른 경량 호출과 동일 이유 — JSON 잘림 방지).
+        resp = await self._client.messages.create(
+            model=self._extract_model,
+            max_tokens=2000,
+            thinking={"type": "disabled"},
+            system=system_blocks,
+            messages=[{"role": "user", "content": f"진로 목표: {goal_text}"}],
+            output_config={"format": {"type": "json_schema", "schema": _SUPPORT_ELEMENTS_SCHEMA}},
+        )
+        if _refused(resp) or getattr(resp, "stop_reason", None) == "max_tokens":
+            logger.warning("support element suggestion truncated or refused; returning empty")
+            return SupportBinResult(bins=[])
+        try:
+            data = json.loads(_first_text(resp))
+        except json.JSONDecodeError:
+            logger.warning("support element suggestion returned unparsable JSON; returning empty")
+            return SupportBinResult(bins=[])
+
+        bins: list[SupportBin] = []
+        for raw_bin in data.get("bins", []):
+            elements = [
+                SupportElement(
+                    label=str(raw_el.get("label", "")),
+                    type=str(raw_el.get("type", "")),
+                    subtitle=raw_el.get("subtitle") or None,
+                    description=raw_el.get("description") or None,
+                )
+                for raw_el in raw_bin.get("elements", [])
+                if raw_el.get("label")
+            ]
+            if elements:
+                bins.append(
+                    SupportBin(
+                        name=str(raw_bin.get("name", "")),
+                        advice=raw_bin.get("advice") or None,
+                        elements=elements,
+                    )
+                )
+        return SupportBinResult(bins=bins)
 
     async def research_job(
         self, job_name: str, ability_units: list[AbilityUnitRef]

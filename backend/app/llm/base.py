@@ -141,11 +141,42 @@ class CourseCluster:
 
     name: str
     courses: list[ClusteredCourse] = field(default_factory=list)
+    # 이 군집이 왜 목표에 필요한지에 대한 코치 코멘트. 학사 규정(rules_context)이
+    # 주어지면 그 근거를 반영한다. 모델이 못 채우면 None(빈 값 허용).
+    advice: str | None = None
 
 
 @dataclass
 class CourseClusterResult:
     clusters: list[CourseCluster] = field(default_factory=list)
+
+
+@dataclass
+class SupportElement:
+    """수업이 아닌 비교과 준비 요소 한 건 (자격증/학회/대외활동/네트워킹).
+
+    수업과 달리 고정 카탈로그가 없어 code로 환각을 걸러낼 수 없다 —
+    cluster_courses와는 별도의 가벼운 호출(suggest_support_elements)로 생성한다.
+    """
+
+    label: str
+    type: str  # NodeTypes 값 중 하나 (certification/organization/activity/networking)
+    subtitle: str | None = None  # 짧은 부제 (팝오버 위에 표시)
+    description: str | None = None  # 팝오버 안에 보이는 2~3줄 설명
+
+
+@dataclass
+class SupportBin:
+    """LLM이 즉석에서 이름 붙인 비교과 준비 요소 군집."""
+
+    name: str
+    advice: str | None = None
+    elements: list[SupportElement] = field(default_factory=list)
+
+
+@dataclass
+class SupportBinResult:
+    bins: list[SupportBin] = field(default_factory=list)
 
 
 @dataclass
@@ -214,12 +245,29 @@ class LLMClient(Protocol):
         ...
 
     async def cluster_courses(
-        self, goal_text: str, courses: list[CourseOption]
+        self,
+        goal_text: str,
+        courses: list[CourseOption],
+        rules_context: str | None = None,
     ) -> CourseClusterResult:
         """좁혀진 후보 과목 중 목표에 실제로 맞는 것을 골라 이름 붙인 군집으로 묶는다.
 
         군집 이름은 목표별로 모델이 즉석에서 짓는다(고정 목록 아님). 정렬(계층
         규칙 적용)은 이 메서드의 책임이 아니라 course_clustering 서비스가 한다.
+
+        rules_context: 학사 규정 발췌(전과 선이수 학점, 복수전공 정원 등) —
+        주어지면 군집별 advice의 근거로 활용한다. None이면 규정 근거 없이 생성한다.
+        """
+        ...
+
+    async def suggest_support_elements(
+        self, goal_text: str, rules_context: str | None = None
+    ) -> SupportBinResult:
+        """수업이 아닌 비교과 준비 요소(자격증/학회/대외활동/네트워킹)를 군집으로 제안한다.
+
+        cluster_courses는 코드 기반 환각 방어가 있지만, 이 요소들은 고정 카탈로그가
+        없어 같은 방어를 쓸 수 없다 — 그래서 별도의 가벼운 호출로 분리한다. 결과는
+        어디까지나 AI 제안이며 카탈로그 그라운딩이 없다.
         """
         ...
 
