@@ -214,8 +214,9 @@ export function ConstellationIntakeChat({
     try {
       const res = await intakeChat({ goalRawText: goal, messages: nextMessages });
       setMessages(res.messages);
-      setHint(res.done ? null : res.hint);
-      setOptions(res.done ? [] : res.options);
+      // 구버전 서버(hint/options 미지원)와도 안전하게 - 신뢰 경계에서 기본값 방어.
+      setHint(res.done ? null : (res.hint ?? null));
+      setOptions(res.done ? [] : (res.options ?? []));
       setPending(false);
       if (res.done || res.messages.length >= MAX_MESSAGES) {
         beginGenerating(goal);
