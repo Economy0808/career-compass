@@ -8,7 +8,8 @@
  * 새로고침하면 사라진다. 영속화/네비게이션 연결은 이후 단계에서 붙인다.
  */
 
-import { useCallback, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
+import { useRouter } from "next/navigation";
 import {
   ConstellationCanvas,
   type CanvasEdge,
@@ -17,8 +18,28 @@ import {
 } from "@/components/ConstellationCanvas";
 import { ElementBinPanel, type Bin, type BinItem, type BinDropPayload } from "@/components/ElementBinPanel";
 import { ElementNotesPanel, type ElementNote } from "@/components/ElementNotesPanel";
+import { Modal } from "@/components/ui/Modal";
 import type { ResolveWikiLink } from "@/lib/markdown";
 import { cn } from "@/lib/cn";
+import { useAuth } from "@/lib/auth-context";
+import { makeId } from "@/lib/ids";
+import { createMutationQueue } from "@/lib/use-mutation-queue";
+import {
+  addEdge,
+  addNode,
+  createConstellation,
+  createNote,
+  deleteEdge,
+  deleteNode,
+  deleteNote,
+  listConstellations,
+  listNotes,
+  patchNodeCompletion,
+  patchNodePosition,
+  patchNote,
+  type EdgeCreateInput,
+  type NodeCreateInput,
+} from "@/lib/constellation-api";
 
 // 원소를 캔버스에 놓을 때 만드는 노드의 id는 항상 `element:{binItem.id}` 형태로
 // 고정한다. 같은 원소를 두 번 드롭/Enter해도 이미 그 id의 노드가 있으면
@@ -84,9 +105,17 @@ const INITIAL_EDGES: Record<string, CanvasEdge> = {
   "edge-root-club": { id: "edge-root-club", sourceNodeId: "goal-root", targetNodeId: "club-activity" },
 };
 
-let edgeCounter = 0;
-let noteCounter = 0;
 let userItemCounter = 0;
+
+// 저장 상태 배지 문구 - 뮤테이션 큐의 진행 중 개수(pendingMutationsRef)가
+// 구동한다. "다시 시도"는 자동 재시도가 아니라 문구일 뿐 - 다음 편집이
+// 다시 큐를 타면 자연히 saved로 돌아온다.
+const SAVE_STATE_LABEL: Record<"unsaved" | "saving" | "saved" | "error", string> = {
+  unsaved: "저장 안 됨",
+  saving: "저장 중…",
+  saved: "저장됨",
+  error: "저장 오류 — 다시 시도",
+};
 
 // "모두 추가"/보관함 드래그로 통째로 놓을 때 쓰는 나선형 배치 - level(학정번호
 // 앞자리) 오름차순으로 정렬한 뒤 index가 늘수록 반지름도 커지는 황금각 나선을
@@ -175,6 +204,192 @@ export default function NewConstellationPage() {
   const [isNoteExpanded, setIsNoteExpanded] = useState(false);
   const fillTimers = useRef<Set<ReturnType<typeof setTimeout>>>(new Set());
 
+  // --- 영속화 -----------------------------------------------------------
+  // 로그인된 유저면 이 화면은 더 이상 순수 데모가 아니라 실제 별자리를
+  // 편집하는 화면이다. 로컬 state(nodes/edges/notes)가 항상 진실이고, 서버
+  // 뮤테이션은 fire-and-forget으로 흘려보낸다(응답으로 state를 덮어쓰지
+  // 않음) - 서버 응답은 최초 로드/최초 저장에서만 state를 채운다.
+  const { user, loading: authLoading } = useAuth();
+  const router = useRouter();
+  const [constellationId, setConstellationId] = useState<string | null>(null);
+  const [saveState, setSaveState] = useState<"unsaved" | "saving" | "saved" | "error">("unsaved");
+  const [titleModalOpen, setTitleModalOpen] = useState(false);
+  const [titleInput, setTitleInput] = useState("");
+
+  // 최신 state를 동기적으로 읽기 위한 미러 - 드래그/토글/연결 핸들러가 useCallback의
+  // 의존성 배열을 늘리지 않고도(재생성 최소화) 항상 최신 값을 참조할 수 있게 한다.
+  // ConstellationCanvas의 selectedNodeIdRef와 같은 패턴.
+  const constellationIdRef = useRef<string | null>(null);
+  useEffect(() => {
+    constellationIdRef.current = constellationId;
+  }, [constellationId]);
+  const nodesRef = useRef(nodes);
+  useEffect(() => {
+    nodesRef.current = nodes;
+  }, [nodes]);
+  const edgesRef = useRef(edges);
+  useEffect(() => {
+    edgesRef.current = edges;
+  }, [edges]);
+  const notesRef = useRef(notes);
+  useEffect(() => {
+    notesRef.current = notes;
+  }, [notes]);
+
+  // 서버 뮤테이션 직렬 큐 하나 - 컴포넌트 생애 동안 단 한 번만 만든다(재렌더마다
+  // 새 큐를 만들면 체이닝이 끊긴다). 큐 자체의 에러 로깅과는 별개로, 여기서는
+  // "지금 몇 개가 아직 안 끝났는지"만 세어 saveState 배지를 구동한다.
+  const pendingMutationsRef = useRef(0);
+  const [mutationQueue] = useState(() =>
+    createMutationQueue(() => {
+      pendingMutationsRef.current = Math.max(0, pendingMutationsRef.current - 1);
+      setSaveState("error");
+    })
+  );
+  const enqueueMutation = useCallback(
+    (fn: () => Promise<unknown>) => {
+      pendingMutationsRef.current += 1;
+      setSaveState("saving");
+      mutationQueue.enqueue(async () => {
+        await fn();
+        pendingMutationsRef.current = Math.max(0, pendingMutationsRef.current - 1);
+        if (pendingMutationsRef.current === 0) setSaveState("saved");
+      });
+    },
+    [mutationQueue]
+  );
+
+  // 마운트 시: 로그인된 유저의 가장 최근 별자리를 불러온다. 하나도 없으면
+  // 데모 시드를 그대로 유지한다(비로그인과 동일하게 로컬에서 시작). 로그인
+  // 안 됐으면(또는 아직 로딩 중이면) 아무 것도 하지 않는다 - 화면은 완전히
+  // 로컬 데모로만 굴러간다.
+  useEffect(() => {
+    if (authLoading || !user) return;
+    let cancelled = false;
+    (async () => {
+      try {
+        const list = await listConstellations();
+        if (cancelled || list.length === 0) return;
+        const latest = [...list].sort((a, b) => b.updatedAt - a.updatedAt)[0];
+        const noteDtos = await listNotes(latest.id);
+        if (cancelled) return;
+
+        const loadedNodes: Record<string, CanvasNode> = {};
+        for (const dto of Object.values(latest.nodes)) {
+          loadedNodes[dto.id] = {
+            id: dto.id,
+            label: dto.label,
+            type: dto.type,
+            isCompleted: dto.isCompleted,
+            position: dto.position,
+            level: dto.level,
+            code: dto.code,
+            description: dto.description,
+          };
+        }
+        const loadedEdges: Record<string, CanvasEdge> = {};
+        for (const dto of Object.values(latest.edges)) {
+          loadedEdges[dto.id] = { id: dto.id, sourceNodeId: dto.sourceNodeId, targetNodeId: dto.targetNodeId };
+        }
+        const loadedNotes: Record<string, ElementNote> = {};
+        for (const dto of noteDtos) {
+          loadedNotes[dto.id] = {
+            id: dto.id,
+            nodeId: dto.nodeId,
+            title: dto.title,
+            body: dto.body,
+            isPublic: dto.isPublic,
+            attachments: dto.attachments.map((a) => ({ id: a.id, name: a.name, mimeType: a.mimeType, url: a.url })),
+            createdAt: dto.createdAt,
+            updatedAt: dto.updatedAt,
+          };
+        }
+
+        setNodes(loadedNodes);
+        setEdges(loadedEdges);
+        setNotes(loadedNotes);
+        setConstellationId(latest.id);
+        setSaveState("saved");
+      } catch (err) {
+        // 초기 로드 실패는 조용히 데모 상태로 남긴다 - 화면이 죽으면 안 된다.
+        console.error("[constellation] 초기 로드 실패", err);
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, [authLoading, user]);
+
+  function nodeToCreateInput(node: CanvasNode): NodeCreateInput {
+    return {
+      id: node.id,
+      label: node.label,
+      type: node.type,
+      position: node.position,
+      code: node.code,
+      description: node.description,
+      level: node.level ?? undefined,
+    };
+  }
+
+  // 저장 버튼 - 비로그인이면 로그인으로 안내, 이미 별자리가 있으면(자동으로
+  // 계속 저장되는 중이므로) 할 일이 없고, 아직 한 번도 저장 안 됐으면 제목
+  // 모달을 연다.
+  const handleSaveClick = useCallback(() => {
+    if (!user) {
+      window.alert("로그인 후 저장할 수 있어요.");
+      router.push("/login");
+      return;
+    }
+    if (constellationId) return;
+    setTitleInput("");
+    setTitleModalOpen(true);
+  }, [user, constellationId, router]);
+
+  // 첫 저장(별자리 생성) - 지금까지 로컬에만 있던 노드/엣지를 통째로 실어
+  // 보낸 뒤, 완료 표시된 노드(NodeCreateIn엔 isCompleted가 없다)와 기존
+  // 로컬 노트들을 뮤테이션 큐에 태워 순서대로 뒤따라 보낸다.
+  const handleConfirmTitle = useCallback(async () => {
+    const title = titleInput.trim() || "제목 없는 별자리";
+    setTitleModalOpen(false);
+    setSaveState("saving");
+    try {
+      const nodeInputs = Object.values(nodesRef.current).map(nodeToCreateInput);
+      const edgeInputs: EdgeCreateInput[] = Object.values(edgesRef.current).map((e) => ({
+        id: e.id,
+        sourceNodeId: e.sourceNodeId,
+        targetNodeId: e.targetNodeId,
+      }));
+      const created = await createConstellation({ title, goalRawText: title, nodes: nodeInputs, edges: edgeInputs });
+      setConstellationId(created.id);
+
+      let anyEnqueued = false;
+      for (const node of Object.values(nodesRef.current)) {
+        if (node.isCompleted) {
+          anyEnqueued = true;
+          enqueueMutation(() => patchNodeCompletion(created.id, node.id, true));
+        }
+      }
+      for (const note of Object.values(notesRef.current)) {
+        anyEnqueued = true;
+        enqueueMutation(() =>
+          createNote(created.id, {
+            id: note.id,
+            nodeId: note.nodeId,
+            title: note.title,
+            body: note.body,
+            isPublic: note.isPublic,
+            attachments: [],
+          })
+        );
+      }
+      if (!anyEnqueued) setSaveState("saved");
+    } catch (err) {
+      console.error("[constellation] 별자리 생성 실패", err);
+      setSaveState("error");
+    }
+  }, [titleInput, enqueueMutation]);
+
   // 노트를 nodeId별로 묶는다. 이 그룹의 length가 카드의 "노트 N개"를 결정하는
   // 유일한 진실 - INITIAL_NODES에 박아 둔 정적 noteCount는 초기 렌더 한 번을
   // 위한 시드값일 뿐, 실제로 보이는 값은 항상 아래 nodesWithNoteCounts에서
@@ -231,23 +446,34 @@ export default function NewConstellationPage() {
     return ids;
   }, [nodes]);
 
-  const placeItem = useCallback((item: BinItem, position: CanvasPosition) => {
-    const nodeId = nodeIdForItem(item.id);
-    setNodes((prev) => {
-      if (prev[nodeId]) return prev; // 중복 드롭 - 무시
-      return {
-        ...prev,
-        [nodeId]: {
-          id: nodeId,
-          label: item.label,
-          type: item.type,
-          isCompleted: false,
-          position,
-          level: item.level ?? null,
-        },
+  const placeItem = useCallback(
+    (item: BinItem, position: CanvasPosition) => {
+      const nodeId = nodeIdForItem(item.id);
+      if (nodesRef.current[nodeId]) return; // 중복 드롭 - 무시
+      const newNode: CanvasNode = {
+        id: nodeId,
+        label: item.label,
+        type: item.type,
+        isCompleted: false,
+        position,
+        level: item.level ?? null,
       };
-    });
-  }, []);
+      setNodes((prev) => (prev[nodeId] ? prev : { ...prev, [nodeId]: newNode }));
+      const cid = constellationIdRef.current;
+      if (cid) {
+        enqueueMutation(() =>
+          addNode(cid, {
+            id: newNode.id,
+            label: newNode.label,
+            type: newNode.type,
+            position: newNode.position,
+            level: newNode.level ?? undefined,
+          })
+        );
+      }
+    },
+    [enqueueMutation]
+  );
 
   const handleExternalDrop = useCallback(
     (data: string, position: CanvasPosition) => {
@@ -291,49 +517,74 @@ export default function NewConstellationPage() {
     );
   }, []);
 
-  const handleNodeDrag = useCallback((nodeId: string, position: CanvasPosition) => {
-    setNodes((prev) => (prev[nodeId] ? { ...prev, [nodeId]: { ...prev[nodeId], position } } : prev));
-  }, []);
+  const handleNodeDrag = useCallback(
+    (nodeId: string, position: CanvasPosition) => {
+      setNodes((prev) => (prev[nodeId] ? { ...prev, [nodeId]: { ...prev[nodeId], position } } : prev));
+      const cid = constellationIdRef.current;
+      // 드래그는 이미 drag-end에서 한 번만 발화하므로(ConstellationCanvas 참고)
+      // 별도 디바운스 없이 그대로 큐에 태운다.
+      if (cid) enqueueMutation(() => patchNodePosition(cid, nodeId, position));
+    },
+    [enqueueMutation]
+  );
 
-  const handleNodeToggleComplete = useCallback((nodeId: string) => {
-    setNodes((prev) =>
-      prev[nodeId] ? { ...prev, [nodeId]: { ...prev[nodeId], isCompleted: !prev[nodeId].isCompleted } } : prev
-    );
-  }, []);
+  const handleNodeToggleComplete = useCallback(
+    (nodeId: string) => {
+      const current = nodesRef.current[nodeId];
+      if (!current) return;
+      const nextCompleted = !current.isCompleted;
+      setNodes((prev) =>
+        prev[nodeId] ? { ...prev, [nodeId]: { ...prev[nodeId], isCompleted: nextCompleted } } : prev
+      );
+      const cid = constellationIdRef.current;
+      if (cid) enqueueMutation(() => patchNodeCompletion(cid, nodeId, nextCompleted));
+    },
+    [enqueueMutation]
+  );
 
   // 잇기는 토글이다: 이미 이어진 쌍(방향 무관)을 다시 이으면 끊어지고, 아니면
   // 새로 이어진다 - 절대 같은 쌍에 두 번째 엣지를 만들지 않는다. 캔버스는
   // drag-to-connect와 툴바의 "잇기" 양쪽 모두 이 콜백 하나로 들어오므로, 토글
   // 규칙을 캔버스가 아니라 그래프 상태를 들고 있는 여기 한 곳에만 둔다 -
   // 캔버스의 props API(연결 "생성"이라는 이름)는 그대로 유지된다.
-  const handleEdgeCreate = useCallback((sourceNodeId: string, targetNodeId: string) => {
-    if (sourceNodeId === targetNodeId) return;
-    setEdges((prev) => {
-      const existingId = Object.keys(prev).find((id) => {
-        const e = prev[id];
-        return (
+  const handleEdgeCreate = useCallback(
+    (sourceNodeId: string, targetNodeId: string) => {
+      if (sourceNodeId === targetNodeId) return;
+      const existing = Object.values(edgesRef.current).find(
+        (e) =>
           (e.sourceNodeId === sourceNodeId && e.targetNodeId === targetNodeId) ||
           (e.sourceNodeId === targetNodeId && e.targetNodeId === sourceNodeId)
-        );
-      });
-      if (existingId) {
-        const next = { ...prev };
-        delete next[existingId];
-        return next;
+      );
+      const cid = constellationIdRef.current;
+      if (existing) {
+        const existingId = existing.id;
+        setEdges((prev) => {
+          const next = { ...prev };
+          delete next[existingId];
+          return next;
+        });
+        if (cid) enqueueMutation(() => deleteEdge(cid, existingId));
+        return;
       }
-      edgeCounter += 1;
-      const id = `edge-local-${edgeCounter}`;
-      return { ...prev, [id]: { id, sourceNodeId, targetNodeId } };
-    });
-  }, []);
+      const id = makeId("edge-local");
+      setEdges((prev) => ({ ...prev, [id]: { id, sourceNodeId, targetNodeId } }));
+      if (cid) enqueueMutation(() => addEdge(cid, { id, sourceNodeId, targetNodeId }));
+    },
+    [enqueueMutation]
+  );
 
-  const handleEdgeDelete = useCallback((edgeId: string) => {
-    setEdges((prev) => {
-      const next = { ...prev };
-      delete next[edgeId];
-      return next;
-    });
-  }, []);
+  const handleEdgeDelete = useCallback(
+    (edgeId: string) => {
+      setEdges((prev) => {
+        const next = { ...prev };
+        delete next[edgeId];
+        return next;
+      });
+      const cid = constellationIdRef.current;
+      if (cid) enqueueMutation(() => deleteEdge(cid, edgeId));
+    },
+    [enqueueMutation]
+  );
 
   // 노드 삭제(툴바 "삭제") - 노드 자체, 그 노드를 참조하는 엣지, 그리고 그
   // 노드에 달린 노트까지 함께 정리한다. 노트를 남겨두면 ElementNotesPanel의
@@ -341,39 +592,48 @@ export default function NewConstellationPage() {
   // 생기고, 그 노트가 물고 있던 첨부 object URL도 회수되지 않아 새는 것과
   // 같아진다 - handleDeleteNote가 개별 삭제 때 하는 정리를 여기서도 그대로
   // 반복한다.
-  const handleNodeDelete = useCallback((nodeId: string) => {
-    setNodes((prev) => {
-      if (!prev[nodeId]) return prev;
-      const next = { ...prev };
-      delete next[nodeId];
-      return next;
-    });
-    setEdges((prev) => {
-      const next: Record<string, CanvasEdge> = {};
-      let changed = false;
-      for (const [id, edge] of Object.entries(prev)) {
-        if (edge.sourceNodeId === nodeId || edge.targetNodeId === nodeId) {
-          changed = true;
-          continue;
+  const handleNodeDelete = useCallback(
+    (nodeId: string) => {
+      const existed = !!nodesRef.current[nodeId];
+      setNodes((prev) => {
+        if (!prev[nodeId]) return prev;
+        const next = { ...prev };
+        delete next[nodeId];
+        return next;
+      });
+      setEdges((prev) => {
+        const next: Record<string, CanvasEdge> = {};
+        let changed = false;
+        for (const [id, edge] of Object.entries(prev)) {
+          if (edge.sourceNodeId === nodeId || edge.targetNodeId === nodeId) {
+            changed = true;
+            continue;
+          }
+          next[id] = edge;
         }
-        next[id] = edge;
-      }
-      return changed ? next : prev;
-    });
-    setNotes((prev) => {
-      const next: Record<string, ElementNote> = {};
-      let changed = false;
-      for (const [id, note] of Object.entries(prev)) {
-        if (note.nodeId === nodeId) {
-          changed = true;
-          note.attachments.forEach((att) => URL.revokeObjectURL(att.url));
-          continue;
+        return changed ? next : prev;
+      });
+      setNotes((prev) => {
+        const next: Record<string, ElementNote> = {};
+        let changed = false;
+        for (const [id, note] of Object.entries(prev)) {
+          if (note.nodeId === nodeId) {
+            changed = true;
+            note.attachments.forEach((att) => URL.revokeObjectURL(att.url));
+            continue;
+          }
+          next[id] = note;
         }
-        next[id] = note;
-      }
-      return changed ? next : prev;
-    });
-  }, []);
+        return changed ? next : prev;
+      });
+      // 서버는 노드 삭제 시 그 노드에 달린 엣지/노트까지 함께 정리한다(cascade) -
+      // 로컬에서 이미 위에서 정리한 것과 같은 결과이므로 별도 엣지/노트 삭제
+      // 호출은 필요 없다.
+      const cid = constellationIdRef.current;
+      if (existed && cid) enqueueMutation(() => deleteNode(cid, nodeId));
+    },
+    [enqueueMutation]
+  );
 
   // "노트 N개 ›" 클릭 - 오른쪽 패널을 「군집」에서 「노트」로 스왑한다(새 영역을
   // 여는 게 아니라 같은 자리를 교체) + 상단 탭 선택도 「노트」로 옮긴다.
@@ -392,8 +652,7 @@ export default function NewConstellationPage() {
 
   const handleCreateNote = useCallback(
     (nodeId: string, input: { title: string; body: string; isPublic: boolean; attachments: ElementNote["attachments"] }) => {
-      noteCounter += 1;
-      const id = `note-local-${noteCounter}`;
+      const id = makeId("note-local");
       const now = Date.now();
       setNotes((prev) => ({
         ...prev,
@@ -408,11 +667,26 @@ export default function NewConstellationPage() {
           updatedAt: now,
         },
       }));
+      const cid = constellationIdRef.current;
+      if (cid) {
+        // 첨부는 아직 blob: URL이라 새로고침에 못 살아남는다(Storage 업로드는
+        // 이후 단계) - 서버에는 빈 배열로 보내 로컬 UX만 유지한다.
+        enqueueMutation(() =>
+          createNote(cid, {
+            id,
+            nodeId,
+            title: input.title,
+            body: input.body,
+            isPublic: input.isPublic,
+            attachments: [],
+          })
+        );
+      }
       // 자동저장: 새 노트 편집기가 첫 유의미한 입력에서 이 id로 노트를 만들고,
       // 이후 타이핑은 이 id로 onUpdateNote를 호출해야 하므로 id를 돌려준다.
       return id;
     },
-    []
+    [enqueueMutation]
   );
 
   const handleUpdateNote = useCallback(
@@ -422,21 +696,38 @@ export default function NewConstellationPage() {
           ? { ...prev, [noteId]: { ...prev[noteId], ...patch, updatedAt: Date.now() } }
           : prev
       );
+      const cid = constellationIdRef.current;
+      if (cid) {
+        enqueueMutation(() =>
+          patchNote(cid, noteId, {
+            title: patch.title,
+            body: patch.body,
+            isPublic: patch.isPublic,
+            attachments: [],
+          })
+        );
+      }
     },
-    []
+    [enqueueMutation]
   );
 
-  const handleDeleteNote = useCallback((noteId: string) => {
-    setNotes((prev) => {
-      if (!prev[noteId]) return prev;
-      // 이 노트가 물고 있던 첨부 object URL도 함께 회수한다 - 노트가
-      // 사라지면 그 이미지들을 다시 볼 방법이 없으므로 계속 들고 있을 이유가 없다.
-      prev[noteId].attachments.forEach((att) => URL.revokeObjectURL(att.url));
-      const next = { ...prev };
-      delete next[noteId];
-      return next;
-    });
-  }, []);
+  const handleDeleteNote = useCallback(
+    (noteId: string) => {
+      const existed = !!notesRef.current[noteId];
+      setNotes((prev) => {
+        if (!prev[noteId]) return prev;
+        // 이 노트가 물고 있던 첨부 object URL도 함께 회수한다 - 노트가
+        // 사라지면 그 이미지들을 다시 볼 방법이 없으므로 계속 들고 있을 이유가 없다.
+        prev[noteId].attachments.forEach((att) => URL.revokeObjectURL(att.url));
+        const next = { ...prev };
+        delete next[noteId];
+        return next;
+      });
+      const cid = constellationIdRef.current;
+      if (existed && cid) enqueueMutation(() => deleteNote(cid, noteId));
+    },
+    [enqueueMutation]
+  );
 
   // 노트 본문 안의 [[위키링크]] 클릭 - 그 원소를 캔버스에서 선택하고, 노트
   // 패널도 그 원소로 전환한다. 캔버스는 selectedNodeId를 내부 state로만
@@ -495,6 +786,55 @@ export default function NewConstellationPage() {
         onExternalDrop={handleExternalDrop}
         focusRequest={focusRequest}
       />
+
+      {/* 저장 버튼 + 상태 배지 - 좌상단에 뜨는 작은 오버레이. 별도 상단 툴바가
+          없는 화면이라 아래 aside 패널과 같은 시각 언어(테두리/배경/블러)로
+          새로 만들었다. 실제 저장은 항상 뮤테이션 큐가 알아서 흘려보내므로,
+          버튼은 "아직 서버에 존재하지 않는 별자리"를 처음 만들 때만 의미가
+          있다(제목 모달을 연다) - 이미 있으면 그냥 아무 것도 하지 않는다. */}
+      <div className="fixed left-3 top-3 z-20 flex items-center gap-2 rounded-lg border border-rule bg-ink-800/95 px-3 py-2 shadow-lg backdrop-blur-md">
+        <button
+          type="button"
+          onClick={handleSaveClick}
+          className="rounded-md bg-spec-b px-3 py-1.5 font-sans text-xs font-medium text-ink-900 hover:opacity-90 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-1 focus-visible:outline-spec-b"
+        >
+          저장
+        </button>
+        <span className="font-sans text-xs text-text-lo">{SAVE_STATE_LABEL[saveState]}</span>
+      </div>
+
+      <Modal open={titleModalOpen} onClose={() => setTitleModalOpen(false)} title="별자리 이름" size="sm">
+        <div className="space-y-3">
+          <input
+            type="text"
+            autoFocus
+            value={titleInput}
+            onChange={(e) => setTitleInput(e.target.value)}
+            onKeyDown={(e) => {
+              if (e.key === "Enter") void handleConfirmTitle();
+            }}
+            placeholder="예: 경영학 복수전공 로드맵"
+            className="w-full rounded-md border border-rule bg-ink-900 px-3 py-2 font-sans text-sm text-text-hi placeholder:text-text-lo focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-1 focus-visible:outline-spec-b"
+          />
+          <div className="flex justify-end gap-2">
+            <button
+              type="button"
+              onClick={() => setTitleModalOpen(false)}
+              className="rounded-md px-3 py-1.5 font-sans text-sm text-text-lo hover:text-text-hi"
+            >
+              취소
+            </button>
+            <button
+              type="button"
+              onClick={() => void handleConfirmTitle()}
+              className="rounded-md bg-spec-b px-3 py-1.5 font-sans text-sm font-medium text-ink-900 hover:opacity-90"
+            >
+              만들기
+            </button>
+          </div>
+        </div>
+      </Modal>
+
       <aside
         className={cn(
           "fixed z-20 flex flex-col overflow-hidden rounded-xl border border-rule bg-ink-800/95 shadow-lg backdrop-blur-md",
