@@ -18,11 +18,13 @@ import {
 } from "@/components/ConstellationCanvas";
 import { ElementBinPanel, type Bin, type BinItem, type BinDropPayload } from "@/components/ElementBinPanel";
 import { ElementNotesPanel, type ElementNote } from "@/components/ElementNotesPanel";
+import { ConstellationIntakeChat } from "@/components/ConstellationIntakeChat";
 import { Modal } from "@/components/ui/Modal";
 import type { ResolveWikiLink } from "@/lib/markdown";
 import { cn } from "@/lib/cn";
 import { useAuth } from "@/lib/auth-context";
 import { makeId } from "@/lib/ids";
+import { ApiError } from "@/lib/api";
 import { createMutationQueue } from "@/lib/use-mutation-queue";
 import {
   addEdge,
@@ -32,11 +34,17 @@ import {
   deleteEdge,
   deleteNode,
   deleteNote,
+  getBinJob,
   listConstellations,
   listNotes,
   patchNodeCompletion,
   patchNodePosition,
   patchNote,
+  patchPublish,
+  putBins,
+  startBinFillJob,
+  type BinDto,
+  type BinItemDto,
   type EdgeCreateInput,
   type NodeCreateInput,
 } from "@/lib/constellation-api";
@@ -140,6 +148,49 @@ function isBinDropPayload(value: unknown): value is BinDropPayload {
   );
 }
 
+// BinDto/BinItemDto <-> Bin/BinItem 매핑. 두 쪽 모양이 거의 1:1이라(id/label/
+// origin/advice/items, level/subtitle/description 전부 optional) 그냥 필드를
+// 그대로 옮기면 된다 - isLoading은 서버 쪽 개념이 아니므로 항상 지운다(로드 시엔
+// false 취급, 저장 시엔 payload에서 아예 뺀다).
+function mapBinItemDtoToBinItem(dto: BinItemDto): BinItem {
+  return { id: dto.id, label: dto.label, type: dto.type, level: dto.level, subtitle: dto.subtitle, description: dto.description };
+}
+
+function mapBinDtoToBin(dto: BinDto): Bin {
+  return { id: dto.id, label: dto.label, origin: dto.origin, advice: dto.advice, items: dto.items.map(mapBinItemDtoToBinItem) };
+}
+
+function mapBinToBinDto(bin: Bin): BinDto {
+  return {
+    id: bin.id,
+    label: bin.label,
+    origin: bin.origin,
+    advice: bin.advice,
+    items: bin.items.map((item) => ({
+      id: item.id,
+      label: item.label,
+      type: item.type,
+      level: item.level ?? undefined,
+      subtitle: item.subtitle,
+      description: item.description,
+    })),
+  };
+}
+
+// 수업 원소의 id는 항상 "course:{학정번호}" 형태이고(백엔드 bin_suggestion.py의
+// _course_item 참고), 라벨은 "학정번호 과목명"으로 코드가 앞에 붙어 온다.
+// 캔버스 노드는 code 필드가 있으면 label을 "코드+이름"이 아니라 순수 이름으로
+// 렌더링하는 것을 전제하므로(ConstellationCanvas의 fallbackSplit 로직 참고),
+// code를 뽑아낼 때는 라벨에서도 그 코드 접두어를 함께 잘라내야 한다 - 안 그러면
+// 칩 위에 코드가 두 번(코드 배지 + 라벨 안) 나타난다.
+const COURSE_CODE_PREFIX_RE = /^[A-Z]{2,6}\d{3,5}\s+/;
+function deriveNodeCodeAndLabel(item: BinItem): { code?: string; label: string } {
+  if (item.id.startsWith("course:")) {
+    return { code: item.id.slice(7), label: item.label.replace(COURSE_CODE_PREFIX_RE, "") };
+  }
+  return { label: item.label };
+}
+
 // 회계원리(1)에 미리 채워 둔 데모 노트 - 시드 노드가 이미 "노트 3개"라고
 // 주장하므로(INITIAL_NODES 참고) 실제로 3개를 만들어 패널이 바로 시연 가능하게
 // 한다. 하나는 비공개, 하나는 공개로 섞어 배지 차이도 눈에 보이게 했다.
@@ -202,7 +253,31 @@ export default function NewConstellationPage() {
   // (탭 전환 등) 의미가 없으므로 여기 최상위에서 관리하되, 실제 리셋은
   // ElementNotesPanel이 activeNoteKey 변화에 맞춰 호출해 준다.
   const [isNoteExpanded, setIsNoteExpanded] = useState(false);
-  const fillTimers = useRef<Set<ReturnType<typeof setTimeout>>>(new Set());
+
+  // --- 부팅 상태 + Intake 오버레이 ---------------------------------------
+  // "loading"(인증 확인 중) -> "empty"(로그인했는데 별자리가 하나도 없음, 대화
+  // 오버레이를 띄운다) 또는 "loaded"(데모 시드 또는 실제 별자리를 보여줄 준비
+  // 완료) 중 하나로만 정착한다. 비로그인 유저는 대화를 거칠 이유가 없으므로
+  // (서버에 저장할 곳이 없다) 곧장 "loaded"로 떨어져 데모 시드를 그대로 본다.
+  const [bootState, setBootState] = useState<"loading" | "empty" | "loaded">("loading");
+  const [intakeOpen, setIntakeOpen] = useState(false);
+  const [isPublished, setIsPublished] = useState(false);
+  // Intake 대화가 다듬어 준 목표 원문 - "보관함 채우기" 잡을 새로 돌릴 때(예:
+  // 사용자가 직접 보관함을 하나 더 만들 때) 매번 다시 물어보지 않고 재사용한다.
+  // 기존 별자리를 불러온 경우엔 대화를 거치지 않았으므로 그 별자리의 제목으로
+  // 대신한다(constellationTitleRef).
+  const goalTextRef = useRef<string | null>(null);
+  const constellationTitleRef = useRef<string | null>(null);
+  // "보관함 채우기" 잡 폴링 - 보관함 id별로 활성 인터벌 하나씩. 언마운트 시
+  // 전부 정리해야 리크가 없다(아래 effect 참고).
+  const fillPollsRef = useRef<Map<string, ReturnType<typeof setInterval>>>(new Map());
+  useEffect(() => {
+    const polls = fillPollsRef.current;
+    return () => {
+      polls.forEach((interval) => clearInterval(interval));
+      polls.clear();
+    };
+  }, []);
 
   // --- 영속화 -----------------------------------------------------------
   // 로그인된 유저면 이 화면은 더 이상 순수 데모가 아니라 실제 별자리를
@@ -235,6 +310,10 @@ export default function NewConstellationPage() {
   useEffect(() => {
     notesRef.current = notes;
   }, [notes]);
+  const binsRef = useRef(bins);
+  useEffect(() => {
+    binsRef.current = bins;
+  }, [bins]);
 
   // 서버 뮤테이션 직렬 큐 하나 - 컴포넌트 생애 동안 단 한 번만 만든다(재렌더마다
   // 새 큐를 만들면 체이닝이 끊긴다). 큐 자체의 에러 로깅과는 별개로, 여기서는
@@ -259,17 +338,42 @@ export default function NewConstellationPage() {
     [mutationQueue]
   );
 
+  // 보관함 전체를 서버에 밀어넣는다 - bins state에 useEffect를 걸지 않고(그러면
+  // 초기 로드가 끝난 직후 방금 서버에서 받아온 값을 그대로 되돌려 보내는 낭비
+  // 왕복이 생긴다) 실제로 사용자가 보관함을 바꾼 지점(Intake 완료/채우기 잡
+  // 완료/직접 추가/새 보관함 생성)에서만 명시적으로 호출한다. 별자리가 아직
+  // 서버에 없으면(cid 없음) 조용히 아무 것도 하지 않는다 - 그 경우 보관함은
+  // 첫 저장(handleConfirmTitle) payload에 함께 실려 나간다.
+  const persistBins = useCallback(
+    (nextBins: Bin[]) => {
+      const cid = constellationIdRef.current;
+      if (!cid) return;
+      const payload = nextBins.map(mapBinToBinDto);
+      enqueueMutation(() => putBins(cid, payload));
+    },
+    [enqueueMutation]
+  );
+
   // 마운트 시: 로그인된 유저의 가장 최근 별자리를 불러온다. 하나도 없으면
   // 데모 시드를 그대로 유지한다(비로그인과 동일하게 로컬에서 시작). 로그인
   // 안 됐으면(또는 아직 로딩 중이면) 아무 것도 하지 않는다 - 화면은 완전히
   // 로컬 데모로만 굴러간다.
   useEffect(() => {
-    if (authLoading || !user) return;
+    if (authLoading) return; // 로딩 중엔 아무 것도 정착시키지 않는다.
+    if (!user) {
+      // 비로그인 - 오버레이를 볼 이유가 없다. 데모 시드 그대로 보여준다.
+      setBootState("loaded");
+      return;
+    }
     let cancelled = false;
     (async () => {
       try {
         const list = await listConstellations();
-        if (cancelled || list.length === 0) return;
+        if (cancelled) return;
+        if (list.length === 0) {
+          setBootState("empty");
+          return;
+        }
         const latest = [...list].sort((a, b) => b.updatedAt - a.updatedAt)[0];
         const noteDtos = await listNotes(latest.id);
         if (cancelled) return;
@@ -308,17 +412,29 @@ export default function NewConstellationPage() {
         setNodes(loadedNodes);
         setEdges(loadedEdges);
         setNotes(loadedNotes);
+        if (latest.bins) setBins(latest.bins.map(mapBinDtoToBin));
         setConstellationId(latest.id);
+        setIsPublished(latest.isPublished);
+        constellationTitleRef.current = latest.title;
         setSaveState("saved");
+        setBootState("loaded");
       } catch (err) {
-        // 초기 로드 실패는 조용히 데모 상태로 남긴다 - 화면이 죽으면 안 된다.
+        // 초기 로드 실패는 조용히 데모 상태로 남긴다 - 화면이 죽으면 안 된다
+        // (오버레이도 띄우지 않는다 - 실패를 "별자리가 없다"로 오해하면 안 되므로).
         console.error("[constellation] 초기 로드 실패", err);
+        setBootState("loaded");
       }
     })();
     return () => {
       cancelled = true;
     };
   }, [authLoading, user]);
+
+  // "empty" - 로그인했는데 별자리가 하나도 없는 첫 방문. Intake 대화 오버레이로
+  // 목표부터 물어본다.
+  useEffect(() => {
+    if (bootState === "empty" && user) setIntakeOpen(true);
+  }, [bootState, user]);
 
   function nodeToCreateInput(node: CanvasNode): NodeCreateInput {
     return {
@@ -342,12 +458,14 @@ export default function NewConstellationPage() {
       return;
     }
     if (constellationId) return;
-    setTitleInput("");
+    // Intake 대화에서 다듬어진 목표가 있으면 기본 제목으로 미리 채워 준다 -
+    // 사용자가 굳이 똑같은 말을 다시 타이핑하지 않아도 되게.
+    setTitleInput(goalTextRef.current ?? "");
     setTitleModalOpen(true);
   }, [user, constellationId, router]);
 
-  // 첫 저장(별자리 생성) - 지금까지 로컬에만 있던 노드/엣지를 통째로 실어
-  // 보낸 뒤, 완료 표시된 노드(NodeCreateIn엔 isCompleted가 없다)와 기존
+  // 첫 저장(별자리 생성) - 지금까지 로컬에만 있던 노드/엣지/보관함을 통째로
+  // 실어 보낸 뒤, 완료 표시된 노드(NodeCreateIn엔 isCompleted가 없다)와 기존
   // 로컬 노트들을 뮤테이션 큐에 태워 순서대로 뒤따라 보낸다.
   const handleConfirmTitle = useCallback(async () => {
     const title = titleInput.trim() || "제목 없는 별자리";
@@ -360,7 +478,15 @@ export default function NewConstellationPage() {
         sourceNodeId: e.sourceNodeId,
         targetNodeId: e.targetNodeId,
       }));
-      const created = await createConstellation({ title, goalRawText: title, nodes: nodeInputs, edges: edgeInputs });
+      const binInputs: BinDto[] = binsRef.current.map(mapBinToBinDto);
+      const created = await createConstellation({
+        title,
+        goalRawText: title,
+        nodes: nodeInputs,
+        edges: edgeInputs,
+        bins: binInputs,
+      });
+      constellationTitleRef.current = title;
       setConstellationId(created.id);
 
       let anyEnqueued = false;
@@ -389,6 +515,59 @@ export default function NewConstellationPage() {
       setSaveState("error");
     }
   }, [titleInput, enqueueMutation]);
+
+  // 발행/비공개 토글 - 아직 저장 전(cid 없음)이면 아무 것도 하지 않는다(버튼도
+  // disabled). 낙관적으로 먼저 뒤집고, 실패하면 뮤테이션 큐의 공용 에러
+  // 배지(저장 오류)가 뜬다 - 발행 전용 별도 에러 UI는 두지 않는다.
+  const handleTogglePublish = useCallback(() => {
+    const cid = constellationIdRef.current;
+    if (!cid) return;
+    const next = !isPublished;
+    setIsPublished(next);
+    enqueueMutation(() => patchPublish(cid, next));
+  }, [isPublished, enqueueMutation]);
+
+  // "새 별자리 만들기" - 지금 편집 중인 별자리(서버에 있든 로컬 데모든)를
+  // 완전히 접고 빈 캔버스 + Intake 대화로 되돌아간다. INITIAL_* 시드는 다시
+  // 쓰지 않는다(진짜 빈 캔버스에서 새로 시작). 노트 첨부의 blob: URL은
+  // handleDeleteNote/handleNodeDelete와 같은 이유로 여기서도 회수해야 한다 -
+  // 안 그러면 별자리를 여러 번 새로 만들 때마다 계속 샌다.
+  const handleStartNewConstellation = useCallback(() => {
+    Object.values(notesRef.current).forEach((note) => {
+      note.attachments.forEach((att) => URL.revokeObjectURL(att.url));
+    });
+    fillPollsRef.current.forEach((interval) => clearInterval(interval));
+    fillPollsRef.current.clear();
+    setConstellationId(null);
+    setNodes({});
+    setEdges({});
+    setNotes({});
+    setBins([]);
+    setSaveState("unsaved");
+    setPanelMode("bins");
+    setNotesNodeId(null);
+    setIsPublished(false);
+    pendingMutationsRef.current = 0;
+    goalTextRef.current = null;
+    constellationTitleRef.current = null;
+    setIntakeOpen(true);
+  }, []);
+
+  // Intake 대화가 끝나(구간 잡까지 완료) 넘겨준 보관함으로 캔버스를 채운다.
+  // 캔버스 노드/엣지는 건드리지 않는다 - 원소를 캔버스에 놓는 건 항상 사용자의
+  // 드래그/Enter로만 일어난다(placeItem). 여기서 만든 보관함은 아직 서버
+  // 별자리가 없으면(cid 없음) persistBins가 조용히 아무 것도 안 하고, 첫
+  // 저장(handleConfirmTitle) payload에 함께 실려 나간다.
+  const handleIntakeComplete = useCallback(
+    (dtoBins: BinDto[], goalText: string) => {
+      goalTextRef.current = goalText;
+      const mapped = dtoBins.map(mapBinDtoToBin);
+      setBins(mapped);
+      persistBins(mapped);
+      setIntakeOpen(false);
+    },
+    [persistBins]
+  );
 
   // 노트를 nodeId별로 묶는다. 이 그룹의 length가 카드의 "노트 N개"를 결정하는
   // 유일한 진실 - INITIAL_NODES에 박아 둔 정적 noteCount는 초기 렌더 한 번을
@@ -450,27 +629,20 @@ export default function NewConstellationPage() {
     (item: BinItem, position: CanvasPosition) => {
       const nodeId = nodeIdForItem(item.id);
       if (nodesRef.current[nodeId]) return; // 중복 드롭 - 무시
+      const { code, label } = deriveNodeCodeAndLabel(item);
       const newNode: CanvasNode = {
         id: nodeId,
-        label: item.label,
+        label,
         type: item.type,
         isCompleted: false,
         position,
         level: item.level ?? null,
+        code,
+        description: item.description,
       };
       setNodes((prev) => (prev[nodeId] ? prev : { ...prev, [nodeId]: newNode }));
       const cid = constellationIdRef.current;
-      if (cid) {
-        enqueueMutation(() =>
-          addNode(cid, {
-            id: newNode.id,
-            label: newNode.label,
-            type: newNode.type,
-            position: newNode.position,
-            level: newNode.level ?? undefined,
-          })
-        );
-      }
+      if (cid) enqueueMutation(() => addNode(cid, nodeToCreateInput(newNode)));
     },
     [enqueueMutation]
   );
@@ -509,13 +681,20 @@ export default function NewConstellationPage() {
   // 보관함에 사용자가 직접 원소를 추가한다(모든 보관함에서 허용 - LLM이 놓친
   // 과목/자격증 등을 손으로 채울 수 있어야 하므로 origin이 "llm"이어도 막지
   // 않는다). id는 여기서 생성해 항상 유일함을 보장한다.
-  const handleAddItem = useCallback((binId: string, item: Omit<BinItem, "id">) => {
-    userItemCounter += 1;
-    const id = `item-user-${userItemCounter}`;
-    setBins((prev) =>
-      prev.map((bin) => (bin.id === binId ? { ...bin, items: [...bin.items, { id, ...item }] } : bin))
-    );
-  }, []);
+  const handleAddItem = useCallback(
+    (binId: string, item: Omit<BinItem, "id">) => {
+      userItemCounter += 1;
+      const id = `item-user-${userItemCounter}`;
+      setBins((prev) => {
+        const next = prev.map((bin) =>
+          bin.id === binId ? { ...bin, items: [...bin.items, { id, ...item }] } : bin
+        );
+        persistBins(next);
+        return next;
+      });
+    },
+    [persistBins]
+  );
 
   const handleNodeDrag = useCallback(
     (nodeId: string, position: CanvasPosition) => {
@@ -746,30 +925,84 @@ export default function NewConstellationPage() {
     setPanelMode("notes");
   }, []);
 
-  const handleCreateBin = useCallback((label: string) => {
-    const id = `bin-user-${Date.now()}`;
-    setBins((prev) => [...prev, { id, label, origin: "user", items: [], isLoading: true }]);
-    // 백엔드가 없으므로 LLM이 채우는 과정을 데모용으로 흉내낸다: 잠시 뒤
-    // 로딩 상태를 풀고 그럴듯한 항목 2개를 채워 넣는다.
-    const timer = setTimeout(() => {
-      setBins((prev) =>
-        prev.map((bin) =>
-          bin.id === id
-            ? {
-                ...bin,
-                isLoading: false,
-                items: [
-                  { id: `${id}-item-1`, label: `${label} 활동 A`, type: "activity" },
-                  { id: `${id}-item-2`, label: `${label} 활동 B`, type: "activity" },
-                ],
-              }
-            : bin
-        )
+  // 이 보관함의 폴링을 끝낸다(성공/실패/만료 무관 공통 정리) - 인터벌 정리 +
+  // 로딩 상태 해제. items는 건드리지 않는다(실패 시 그냥 빈 채로 남는다).
+  const finishBinFill = useCallback((binId: string, patch?: { items: BinItem[]; advice?: string }) => {
+    const interval = fillPollsRef.current.get(binId);
+    if (interval) {
+      clearInterval(interval);
+      fillPollsRef.current.delete(binId);
+    }
+    setBins((prev) => {
+      const next = prev.map((bin) =>
+        bin.id === binId ? { ...bin, isLoading: false, ...(patch ?? {}) } : bin
       );
-      fillTimers.current.delete(timer);
-    }, 900);
-    fillTimers.current.add(timer);
-  }, []);
+      if (patch) persistBins(next); // 실패 시엔 바뀐 게 없으니 다시 저장할 필요 없다.
+      return next;
+    });
+  }, [persistBins]);
+
+  // 사용자가 직접 만든 보관함 - LLM에게 실제로 채워 달라고 요청한다(구간 생성과
+  // 같은 잡 폴링 패턴, ConstellationIntakeChat 참고). goalText는 Intake 대화가
+  // 다듬어 준 원문을 최우선으로 쓰고, 없으면(대화 없이 기존 별자리를 불러온
+  // 경우) 별자리 제목, 그마저 없으면 보관함 이름 자체로 대신한다.
+  const handleCreateBin = useCallback(
+    (label: string) => {
+      const id = makeId("bin-user");
+      setBins((prev) => {
+        const next: Bin[] = [...prev, { id, label, origin: "user" as const, items: [], isLoading: true }];
+        persistBins(next);
+        return next;
+      });
+
+      const goal = goalTextRef.current ?? constellationTitleRef.current ?? label;
+      startBinFillJob(goal, label)
+        .then(({ jobId }) => {
+          let attempts = 0;
+          const interval = setInterval(() => {
+            attempts += 1;
+            if (attempts > 120) {
+              console.error("[constellation] 보관함 채우기 작업 시간 초과", { binId: id });
+              finishBinFill(id);
+              return;
+            }
+            getBinJob(jobId)
+              .then((status) => {
+                if (status.status === "done") {
+                  const resultBin = status.result?.bins?.[0];
+                  finishBinFill(
+                    id,
+                    resultBin
+                      ? { items: resultBin.items.map(mapBinItemDtoToBinItem), advice: resultBin.advice }
+                      : { items: [] }
+                  );
+                  return;
+                }
+                if (status.status === "error") {
+                  console.error("[constellation] 보관함 채우기 실패", status.detail);
+                  finishBinFill(id);
+                }
+                // pending/running이면 다음 tick에서 계속 폴링한다.
+              })
+              .catch((err: unknown) => {
+                if (err instanceof ApiError && err.status === 404) {
+                  // 잡이 인메모리라 서버 재시작 시 사라질 수 있다 - 만료로 취급.
+                  console.error("[constellation] 보관함 채우기 작업 만료", err);
+                  finishBinFill(id);
+                  return;
+                }
+                // 그 외 일시적 오류는 다음 폴링 tick에서 다시 시도한다.
+              });
+          }, 1500);
+          fillPollsRef.current.set(id, interval);
+        })
+        .catch((err: unknown) => {
+          console.error("[constellation] 보관함 채우기 시작 실패", err);
+          finishBinFill(id);
+        });
+    },
+    [persistBins, finishBinFill]
+  );
 
   return (
     // 그래프뷰 자체가 페이지의 배경 - 카드도 컬럼도 아니라 뷰포트를 꽉 채우는
@@ -804,7 +1037,33 @@ export default function NewConstellationPage() {
           저장
         </button>
         <span className="font-sans text-xs text-text-lo">{SAVE_STATE_LABEL[saveState]}</span>
+
+        {/* 발행 토글 - 아직 한 번도 저장 안 됐으면(cid 없음) 눌러도 발행할
+            대상이 없으므로 비활성 + 이유를 title 툴팁으로 알려준다. 저장
+            상태 배지와는 별개의 진실(발행 여부)이라 칩을 따로 둔다. */}
+        <span className="mx-0.5 h-4 w-px bg-rule" aria-hidden />
+        <button
+          type="button"
+          onClick={handleTogglePublish}
+          disabled={!constellationId}
+          title={!constellationId ? "먼저 저장한 뒤 발행할 수 있어요" : undefined}
+          className="rounded-md border border-rule px-3 py-1.5 font-sans text-xs font-medium text-text-hi transition-colors hover:bg-ink-700 disabled:cursor-not-allowed disabled:opacity-40 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-1 focus-visible:outline-spec-b"
+        >
+          {isPublished ? "비공개로 전환" : "발행"}
+        </button>
+        <span
+          className={cn(
+            "font-sans text-xs",
+            isPublished ? "text-lit" : "text-text-lo"
+          )}
+        >
+          {isPublished ? "발행됨" : "비공개"}
+        </span>
       </div>
+
+      {intakeOpen && (
+        <ConstellationIntakeChat onComplete={handleIntakeComplete} onDismiss={() => setIntakeOpen(false)} />
+      )}
 
       <Modal open={titleModalOpen} onClose={() => setTitleModalOpen(false)} title="별자리 이름" size="sm">
         <div className="space-y-3">
@@ -858,6 +1117,7 @@ export default function NewConstellationPage() {
             onCreateBin={handleCreateBin}
             onAddItem={handleAddItem}
             placedItemIds={placedItemIds}
+            onStartNewConstellation={handleStartNewConstellation}
           />
         </div>
         <ElementNotesPanel

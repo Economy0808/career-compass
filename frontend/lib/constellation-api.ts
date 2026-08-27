@@ -188,6 +188,7 @@ export function createConstellation(input: {
   goalRawText: string;
   nodes: NodeCreateInput[];
   edges: EdgeCreateInput[];
+  bins?: BinDto[];
 }): Promise<ConstellationDto> {
   return request<ConstellationDto>("/api/constellations", jsonInit("POST", input));
 }
