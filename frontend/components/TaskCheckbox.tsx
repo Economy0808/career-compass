@@ -50,7 +50,7 @@ export function TaskCheckbox({ checked, onToggle, disabled, ariaLabel }: TaskChe
                 ? {
                     transformBox: "fill-box",
                     transformOrigin: "center",
-                    animation: "sprout .5s cubic-bezier(.34,1.56,.64,1) both",
+                    animation: "sprout .5s cubic-bezier(.22,1,.36,1) both",
                   }
                 : undefined
             }

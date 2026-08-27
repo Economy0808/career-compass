@@ -23,6 +23,7 @@ import {
 } from "react";
 import { cn } from "@/lib/cn";
 import { Button } from "@/components/ui/Button";
+import { CloseIcon } from "@/components/ui";
 import { ApiError } from "@/lib/api";
 import {
   getBinJob,
@@ -240,7 +241,7 @@ export function ConstellationIntakeChat({
               aria-label="닫기"
               className="ml-auto rounded-sm px-1.5 py-1 text-text-lo transition-colors hover:text-text-hi focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-1 focus-visible:outline-spec-b"
             >
-              ✕
+              <CloseIcon />
             </button>
           )}
         </div>
@@ -305,14 +306,33 @@ export function ConstellationIntakeChat({
 
 function ChatBubble({ role, children }: { role: "user" | "assistant"; children: string }) {
   const isUser = role === "user";
+  if (isUser) {
+    return (
+      <div className="flex justify-end">
+        <p className="max-w-[85%] whitespace-pre-wrap rounded-lg bg-spec-b/16 px-3.5 py-2 font-sans text-sm leading-relaxed text-text-hi">
+          {children}
+        </p>
+      </div>
+    );
+  }
+  // 관측 기록 톤(시안 보드 3): AI 질문은 말풍선 상자 없이, 별빛 글리프를 앞세운
+  // 본문으로 - "챗봇"이 아니라 관측 일지에 적히는 질문처럼 읽히게 한다.
   return (
-    <div className={cn("flex", isUser ? "justify-end" : "justify-start")}>
-      <p
-        className={cn(
-          "max-w-[85%] whitespace-pre-wrap rounded-lg px-3.5 py-2 font-sans text-sm leading-relaxed",
-          isUser ? "bg-spec-b/16 text-text-hi" : "bg-ink-700 text-text-hi"
-        )}
+    <div className="flex items-start gap-2.5 pr-6">
+      <svg
+        width="14"
+        height="14"
+        viewBox="0 0 16 16"
+        fill="transparent"
+        stroke="var(--lit)"
+        strokeWidth="1.2"
+        strokeLinecap="round"
+        aria-hidden
+        className="mt-1 shrink-0"
       >
+        <path d="M8 1.5 L8 14.5 M1.5 8 L14.5 8 M3.7 3.7 L12.3 12.3 M12.3 3.7 L3.7 12.3" />
+      </svg>
+      <p className="max-w-[85%] whitespace-pre-wrap font-sans text-sm leading-relaxed text-text-hi">
         {children}
       </p>
     </div>
@@ -320,19 +340,25 @@ function ChatBubble({ role, children }: { role: "user" | "assistant"; children: 
 }
 
 function TypingIndicator() {
+  // 챗봇식 점 3개 대신 별빛 글리프가 깜빡인다 - 관측 기록 톤 유지.
   return (
-    <div className="flex justify-start">
-      <div className="flex items-center gap-1 rounded-lg bg-ink-700 px-3.5 py-2.5">
-        {[0, 1, 2].map((i) => (
-          <span
-            key={i}
-            aria-hidden
-            className="h-1.5 w-1.5 rounded-full bg-text-lo motion-safe:animate-pulse"
-            style={{ animationDelay: `${i * 150}ms` }}
-          />
-        ))}
-        <span className="sr-only">입력 중…</span>
-      </div>
+    <div className="flex items-start gap-2.5 pr-6">
+      <svg
+        width="14"
+        height="14"
+        viewBox="0 0 16 16"
+        fill="transparent"
+        stroke="var(--lit)"
+        strokeWidth="1.2"
+        strokeLinecap="round"
+        aria-hidden
+        className="mt-1 shrink-0 motion-safe:animate-pulse"
+      >
+        <path d="M8 1.5 L8 14.5 M1.5 8 L14.5 8 M3.7 3.7 L12.3 12.3 M12.3 3.7 L3.7 12.3" />
+      </svg>
+      <span className="font-sans text-sm text-text-lo" role="status">
+        다음 질문을 고르는 중…
+      </span>
     </div>
   );
 }
@@ -364,15 +390,19 @@ function GeneratingPanel({
   }
   return (
     <div className="flex flex-1 flex-col items-center justify-center gap-3 px-6 py-10 text-center">
-      <div className="flex items-center gap-1.5" aria-hidden>
-        {[0, 1, 2].map((i) => (
-          <span
-            key={i}
-            className="h-2 w-2 rounded-full bg-spec-b motion-safe:animate-pulse"
-            style={{ animationDelay: `${i * 200}ms` }}
-          />
-        ))}
-      </div>
+      <svg
+        width="26"
+        height="26"
+        viewBox="0 0 16 16"
+        fill="transparent"
+        stroke="var(--lit)"
+        strokeWidth="1.1"
+        strokeLinecap="round"
+        aria-hidden
+        className="motion-safe:animate-pulse"
+      >
+        <path d="M8 1.5 L8 14.5 M1.5 8 L14.5 8 M3.7 3.7 L12.3 12.3 M12.3 3.7 L3.7 12.3" />
+      </svg>
       <p className="font-sans text-sm text-text-hi" role="status" aria-live="polite">
         군집을 만드는 중…
       </p>

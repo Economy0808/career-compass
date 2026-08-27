@@ -176,7 +176,7 @@ export default function VerifyPage() {
   );
 
   return (
-    <div className="mx-auto w-full max-w-md">
+    <div className="mx-auto flex min-h-[76dvh] w-full max-w-md flex-col justify-center">
       <Card className="p-8">{body}</Card>
     </div>
   );

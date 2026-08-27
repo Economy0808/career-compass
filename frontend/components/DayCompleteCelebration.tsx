@@ -71,7 +71,7 @@ export function DayCompleteCelebration({ onDone }: DayCompleteCelebrationProps) 
         {/* 중앙 별 */}
         <div
           className="flex h-[112px] w-[112px] items-center justify-center rounded-full border-2 border-lit/60 bg-ink-800 shadow-glow-bloom"
-          style={{ animation: "celebratePop .6s cubic-bezier(.34,1.56,.64,1) both" }}
+          style={{ animation: "celebratePop .6s cubic-bezier(.22,1,.36,1) both" }}
         >
           <svg width="60" height="60" viewBox="0 0 24 24">
             <path d={STAR_PATH} fill="#FFF3C4" />

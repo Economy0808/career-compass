@@ -71,7 +71,7 @@ export default function SignupPage() {
   }
 
   return (
-    <div className="mx-auto w-full max-w-md">
+    <div className="mx-auto flex min-h-[76dvh] w-full max-w-md flex-col justify-center">
       <Card className="p-8">
         <h1 className="font-serif text-display font-bold text-text-hi">새 계정 만들기</h1>
         <p className="mb-6 mt-[7px] text-body-sm leading-relaxed text-text-lo">
