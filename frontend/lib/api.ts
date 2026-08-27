@@ -27,11 +27,26 @@ export class ApiError extends Error {
 }
 
 async function request<T>(path: string, init?: RequestInit): Promise<T> {
+  // Headers로 병합해야 jsonInit의 Content-Type이나 FormData(브라우저가 알아서
+  // multipart Content-Type을 세팅) 케이스를 모두 안전하게 다룰 수 있다.
+  const headers = new Headers(init?.headers);
+  if (typeof window !== "undefined") {
+    try {
+      // 지연 import — 서버 번들(SSR/Workers)에서 firebase 초기화가 트리거되지 않도록 함
+      const { getFirebaseAuth } = await import("./firebase");
+      const token = await getFirebaseAuth().currentUser?.getIdToken();
+      if (token) headers.set("Authorization", `Bearer ${token}`);
+    } catch {
+      // Firebase 미초기화 환경에서는 토큰 없이 진행
+    }
+  }
+
   const res = await fetch(`${API_BASE_URL}${path}`, {
     cache: "no-store",
     // 세션 쿠키(HttpOnly) 전송 — 유저 식별은 전적으로 서버가 한다.
     credentials: "include",
     ...init,
+    headers,
   });
   if (!res.ok) {
     let detail = `요청에 실패했어요 (${res.status})`;
