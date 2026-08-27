@@ -2,11 +2,24 @@
   "version": "0.0.1",
   "configurations": [
     {
-      "name": "frontend-dev",
-      "runtimeExecutable": "npm",
-      "runtimeArgs": ["--prefix", "frontend", "run", "dev"],
-      "port": 3000,
-      "autoPort": true
+      "name": "backend",
+      "runtimeExecutable": "powershell",
+      "runtimeArgs": [
+        "-NoProfile",
+        "-Command",
+        "$env:FIREBASE_AUTH_EMULATOR_HOST='localhost:9099'; $env:FIRESTORE_EMULATOR_HOST='localhost:8080'; $env:FIRESTORE_PROJECT_ID='demo-ourlab'; Set-Location backend; .venv\\Scripts\\python.exe -m uvicorn app.main:app --port 8000"
+      ],
+      "port": 8000
+    },
+    {
+      "name": "frontend",
+      "runtimeExecutable": "powershell",
+      "runtimeArgs": [
+        "-NoProfile",
+        "-Command",
+        "Set-Location frontend; npm run dev"
+      ],
+      "port": 3000
     }
   ]
 }

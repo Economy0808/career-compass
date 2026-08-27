@@ -1,4 +1,31 @@
-# 백엔드 세션 핸드오프 (2026-08-27 작성, 같은 날 백엔드 세션이 갱신)
+# 백엔드 세션 핸드오프 (2026-08-27 작성, 같은 날 백엔드 세션이 2회 갱신)
+
+> **2026-08-27 인증 배선 세션 결과 — ① 4번 "인증 배선 + 프론트 전환" 완료** (커밋
+> `2ec49ef`·`3ae907c`·`ee16faf`·`92e4cf5`·`54132a1`·`750d10e`, 에뮬레이터 E2E 실검증 통과):
+> - **백엔드**: `POST /api/auth/sync` — 3단 yonsei 판정(토큰 클레임 → 이메일 자동 부여 →
+>   라이브 조회, 학생증 경로 stale 토큰 커버) + `users/{uid}` 프로필 upsert(`user_repo.py`,
+>   created_at/consent_at 1회 기록). `mint_id_token` 공용 헬퍼화. 에뮬레이터 테스트 10개 추가
+>   (Firebase 계열 총 30개 그린).
+> - **프론트**: firebase 12.18.0, `lib/firebase.ts` 지연 초기화(SSR/Workers 안전),
+>   `request()`가 Bearer 자동 주입(쿠키 병행 유지). auth-context 전면 재작성(onAuthStateChanged
+>   + sync 병합, 라우팅은 sync 응답 기준). login/signup/verify 페이지 Firebase 재작성(PIPA 동의
+>   유지→consent_at 저장, verify는 5초 폴링+재발송 쿨다운, 학생증은 준비 중 표시).
+>   `lib/constellation-api.ts` 14개 함수. `constellation/new` 저장 배선: 직렬 뮤테이션 큐
+>   (드롭→드래그 순서 보장), uuid id(카운터 충돌 픽스), 제목 모달 최초 저장(완료상태·시드노트
+>   재생), 마운트 시 최신 별자리 복원. 첨부는 Storage 전까지 `[]` 전송.
+> - **E2E 실검증**(에뮬레이터): 가입→인증메일 링크→자동 폴링으로 연세 인증 완료→별자리 저장
+>   (POST 201→완료 PATCH→노트 3건 직렬)→새로고침 복원→노드 추가(모두 추가→POST 201×2)→
+>   재복원까지 전부 통과. 노트 응답 camelCase·epoch-ms·ownerId=uid 확인. 미인증 REST 직접
+>   접근은 rules가 403(기본 deny 작동).
+> - **dev 환경**: `.claude/launch.json`에 backend(uvicorn+에뮬레이터 env)/frontend 항목 추가.
+>   에뮬레이터는 `firebase emulators:start --only auth,firestore --project demo-ourlab`
+>   (⚠️ --project 누락 시 ourlab-0808 네임스페이스로 떠서 데이터 안 보임). 인증 링크는
+>   `GET :9099/emulator/v1/projects/demo-ourlab/oobCodes`로 조회 가능.
+> - **다음 우선순위**: C(군집 advice — 학칙 추출본 근거) · D(진입 플로우) · 남은 정리:
+>   splitCourseCode fallback 제거+BinItem.code(S7, 보류됨), 구 기능(일정·프로필·팔로우)
+>   Firebase 마이그레이션, Storage/첨부(Blaze 후), 실서비스 웹 config(.env만 교체하면 됨).
+> - ⚠️ 이 세션 중 컴퓨터 강제종료 2회 발생 — 서브에이전트 산출물은 작업 트리에 남아
+>   재개 가능했음(SendMessage로 트랜스크립트 재개가 유효한 패턴).
 
 > **2026-08-27 백엔드 세션 결과 — ① 1~3 "영속화 묶음" 완료** (커밋 `7ff7457`→`c609ac8`,
 > 브랜치 `feature/constellation`, 에뮬레이터 pytest 78개 전부 통과):
