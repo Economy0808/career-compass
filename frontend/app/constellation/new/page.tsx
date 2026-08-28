@@ -1713,6 +1713,49 @@ export default function NewConstellationPage() {
             onStartNewConstellation={handleStartNewConstellation}
           />
         </div>
+        {/* 볼트 연결 상태 줄 - ElementNotesPanel 바로 위, 「노트」 탭일 때만.
+            미지원 브라우저(showDirectoryPicker 없음)에서는 아예 렌더하지
+            않는다. */}
+        {panelMode === "notes" && vaultSupported && (
+          <div className="flex shrink-0 items-center justify-between gap-2 border-b border-paper-line bg-paper-soft px-2.5 py-1.5 font-sans text-[11px]">
+            {vaultHandle ? (
+              <>
+                <span className="min-w-0 truncate text-paper-ink">볼트: {vaultHandle.name}</span>
+                <span className="flex shrink-0 items-center gap-1.5">
+                  {vaultNeedsPermission && (
+                    <button
+                      type="button"
+                      onClick={handleRequestVaultPermission}
+                      className="rounded-none border border-paper-line px-1.5 py-0.5 text-paper-ink hover:border-paper-ink"
+                    >
+                      권한 다시 허용
+                    </button>
+                  )}
+                  <button
+                    type="button"
+                    onClick={handleDisconnectVault}
+                    className="rounded-none border border-paper-line px-1.5 py-0.5 text-paper-lo hover:border-paper-ink hover:text-paper-ink"
+                  >
+                    해제
+                  </button>
+                </span>
+              </>
+            ) : (
+              <>
+                <button
+                  type="button"
+                  onClick={handleConnectVault}
+                  className="shrink-0 rounded-none border border-dashed border-paper-line px-1.5 py-0.5 text-paper-lo hover:border-paper-ink hover:text-paper-ink"
+                >
+                  로컬 볼트 연결
+                </button>
+                <span className="min-w-0 truncate text-right text-paper-lo">
+                  서버 동기화(모바일 열람)는 곧 프리미엄으로
+                </span>
+              </>
+            )}
+          </div>
+        )}
         <ElementNotesPanel
           className={panelMode !== "notes" ? "hidden" : undefined}
           nodes={Object.values(nodesWithNoteCounts)}
