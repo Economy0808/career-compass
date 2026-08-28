@@ -788,7 +788,21 @@ async def test_feed_excludes_unpublished(authed_as: Callable[[str], None]) -> No
 
 
 @pytest.mark.asyncio
-async def test_feed_requires_auth() -> None:
+async def test_feed_allows_anonymous_access(authed_as: Callable[[str], None]) -> None:
+    """발행된 별자리는 공개 데이터이므로 Authorization 헤더 없는 익명 요청도
+    200과 함께 발행물 목록을 받아야 한다 (제한은 저장 시점에만 건다는 방침)."""
+    authed_as("user-a")
+    async with _client() as client:
+        cid = (
+            await client.post(
+                "/api/constellations", json={"title": "익명 열람 대상", "goalRawText": "x"}
+            )
+        ).json()["id"]
+        await client.patch(f"/api/constellations/{cid}/publish", json={"isPublished": True})
+
+    app.dependency_overrides.clear()  # get_current_user override 제거 - 익명 상태 재현
     async with _client() as client:
         resp = await client.get("/api/constellations/feed")
-        assert resp.status_code == 401
+        assert resp.status_code == 200
+        ids = {item["constellation"]["id"] for item in resp.json()}
+        assert cid in ids

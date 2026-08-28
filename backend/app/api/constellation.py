@@ -17,7 +17,7 @@ from typing import ParamSpec, TypeVar
 from fastapi import APIRouter, Depends, HTTPException
 from google.cloud.firestore import Client
 
-from app.auth.deps import get_current_user
+from app.auth.deps import get_current_user, get_current_user_optional
 from app.auth.firebase_auth import DecodedToken
 from app.domain.constellation import Constellation, Note, Position
 from app.firestore import constellation_repo, note_repo, user_repo
@@ -137,10 +137,15 @@ async def list_my_constellations(
 
 @router.get("/feed", response_model=list[FeedItemOut], response_model_exclude_none=True)
 async def get_feed(
-    user: DecodedToken = Depends(get_current_user),
+    user: DecodedToken | None = Depends(get_current_user_optional),
     db: Client = Depends(get_firestore_client),
 ) -> list[FeedItemOut]:
     """공개된 별자리 피드 (최신 수정순, 최대 20개).
+
+    발행된 별자리는 공개 데이터이므로 비로그인(익명) 요청도 허용한다 - 로그인
+    여부와 무관하게 열람은 되고, 제한은 저장(발행/수정 등 쓰기) 시점에만 건다는
+    방침을 따른다. user 파라미터는 현재 응답 내용에 영향을 주지 않지만, 추후
+    "내가 좋아요한 항목" 등 개인화가 붙을 자리를 위해 시그니처에 남겨둔다.
 
     ROUTE ORDER: 반드시 GET /{constellation_id}보다 먼저 선언해야 한다 -
     그렇지 않으면 FastAPI가 "feed"를 constellation_id 경로 파라미터로 매칭한다.
