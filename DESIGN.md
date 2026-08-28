@@ -119,8 +119,10 @@ components:
   모르는 유형은 `--text-lo`로 안전 강등된다.
 
 ### Tertiary
-- **별빛(lit)**: 이어진 간선(lit edge)과 달성 상태 전용 따뜻한 별빛.
-  **초록이 아니다** — 원본 토큰 주석의 문구 그대로.
+- **별빛(lit)**: 용처 셋 — 이어진 간선(lit edge), 달성 상태, 그리고
+  **스토리 링(새 별빛 소식)**: 안 본 활성 스토리가 있는 아바타의 보더
+  (`StoryRing`의 hasUnseen, 프로필 아바타 진입 링). "새로 도착한 빛"이라는
+  같은 은유의 확장이다. **초록이 아니다** — 원본 토큰 주석의 문구 그대로.
 
 ### Neutral — 관측 우주
 - **ink-900**: 페이지 지면. 완전한 #000이 아니라 청보라 색조를 남긴 근검정 —
@@ -274,6 +276,21 @@ Plex Sans KR이 한글 본문을 담백하게 받친다. 본문 전역에 `word-
   호버만 `bg-paper`로 올려(기조가 이미 `paper-soft`라 `hover:bg-paper-soft`는
   안 보인다) 대비를 유지한다. 탭바는 몰입형에서도 그대로 쓴다.
 
+### Community & Stories (잉크 관측 표면 확장)
+커뮤니티·스토리는 전부 **관측 표면**이다 — 종이 크롬이 아니라 ink 팔레트를
+쓴다(Floating-Chrome Paper Rule의 "관측 컨텍스트 모달" 분류).
+- **게시판/글 카드 레시피**: `rounded-lg border border-rule bg-ink-800/70
+  backdrop-blur-[2px]` + 호버 `bg-ink-800/90`. 커뮤니티 홈 카드·글 목록 행·
+  댓글 카드가 모두 이 한 레시피다. 메타 줄은 `text-caption text-text-lo`,
+  숫자 카운트만 `font-mono`(No-Korean-Mono).
+- **스토리 링**: 아바타 원은 `bg-ink-800`, 보더는 안 본 스토리 `border-lit` /
+  본 스토리 `border-rule`(§Colors Tertiary). 프로필 아바타도 활성 스토리가
+  있으면 같은 lit 링이 진입점이 된다.
+- **스토리 뷰어**: 전체화면 `bg-ink-900` 다이얼로그(z-[70], 포커스 트랩).
+  진행 바는 `bg-ink-700` 트랙 + `bg-text-hi` 채움(5초 linear, reduced-motion
+  시 즉시 채움). 액센트 색 없음 — 콘텐츠(이미지)가 주인공이다.
+- **업로드 시트·작성 모달**: 잉크 컨텍스트 모달이다 — `--paper-*` 금지.
+
 ### Constellation Canvas (signature)
 - SVG+CSS 그래프. 노드 색은 `lib/element-colors.ts`, 이어진 간선은 lit 색 +
   `edgeGlowPulse`(opacity만 애니메이션 — transform 금지, 실버그에서 나온 규칙).
@@ -315,5 +332,5 @@ Plex Sans KR이 한글 본문을 담백하게 받친다. 본문 전역에 `word-
 - **Don't** `--paper-*`를 관측 표면(캔버스·노드·배경, 관측 컨텍스트 모달)에
   쓰지 않는다 — 떠 있는 크롬(레일/탭바/패널/툴바) 및 그 확장인 섬 성격
   모달(`LaunchModal` 등) 전용이다.
-- **Don't** lit(간선/달성)에 초록을 쓰지 않는다 — 별빛은 따뜻한 노랑이다.
+- **Don't** lit(간선/달성/스토리 링)에 초록을 쓰지 않는다 — 별빛은 따뜻한 노랑이다.
 - **Don't** SVG 투명 채움에 `fill="none"`을 쓰지 않는다 (`docs/design-handoff-guide.md` §3-1).

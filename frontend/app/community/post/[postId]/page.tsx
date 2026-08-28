@@ -36,7 +36,7 @@ function CommentRow({ comment }: { comment: CommunityCommentDto }) {
     ? comment.isMine
       ? "익명(나)"
       : "익명"
-    : (comment.authorDisplayName ?? "익명");
+    : (comment.authorDisplayName ?? "관측자");
   return (
     <div className="rounded-lg border border-rule bg-ink-800/70 p-3.5">
       <div className="flex items-center gap-2 text-caption text-text-lo">
@@ -139,7 +139,8 @@ export default function CommunityPostPage() {
   }
 
   const forcedAnonymous = isForcedAnonymousBoard(post.boardId);
-  const authorLabel = post.isAnonymous ? (post.isMine ? "익명(나)" : "익명") : (post.authorDisplayName ?? "익명");
+  // 실명 글인데 프로필 이름이 비어 있으면 "익명"으로 둔갑시키지 말고 중립 폴백.
+  const authorLabel = post.isAnonymous ? (post.isMine ? "익명(나)" : "익명") : (post.authorDisplayName ?? "관측자");
 
   return (
     <div className="mx-auto max-w-2xl px-4 py-10 md:px-8">
@@ -158,7 +159,10 @@ export default function CommunityPostPage() {
         <Button variant="secondary" size="sm" onClick={handleLike} disabled={liking}>
           좋아요 {post.likeCount}
         </Button>
-        <span className="font-mono text-caption text-text-lo">댓글 {post.comments.length}</span>
+        {/* No-Korean-Mono: mono는 숫자에만. */}
+        <span className="text-caption text-text-lo">
+          댓글 <span className="font-mono">{post.comments.length}</span>
+        </span>
       </div>
 
       <div className="mt-8 flex flex-col gap-2.5">

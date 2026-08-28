@@ -8,7 +8,7 @@
  * 채움으로 자동 축소한다(이 컴포넌트에서 별도 media query 불필요).
  */
 
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { cn } from "@/lib/cn";
 import { useAuth } from "@/lib/auth-context";
 import { relativeTimeKo } from "@/lib/format";
@@ -36,6 +36,7 @@ export function StoryViewer({ ring, startUid, onClose }: StoryViewerProps) {
   const [stories, setStories] = useState<StoryDto[] | null>(null);
   const [index, setIndex] = useState(0);
   const [filled, setFilled] = useState(false);
+  const rootRef = useRef<HTMLDivElement>(null);
 
   const userIdx = ring.findIndex((r) => r.uid === uid);
 
@@ -98,13 +99,50 @@ export function StoryViewer({ ring, startUid, onClose }: StoryViewerProps) {
     // eslint-disable-next-line react-hooks/exhaustive-deps -- next()는 최신 stories/index를 매 렌더 새로 캡처
   }, [current?.id]);
 
+  // 키 핸들러가 effect 재구독 없이 최신 next/prev를 쓰기 위한 ref.
+  const navRef = useRef({ next, prev });
+  navRef.current = { next, prev };
+
   useEffect(() => {
     function onKey(e: KeyboardEvent) {
       if (e.key === "Escape") onClose();
+      else if (e.key === "ArrowLeft") navRef.current.prev();
+      else if (e.key === "ArrowRight") navRef.current.next();
     }
     window.addEventListener("keydown", onKey);
     return () => window.removeEventListener("keydown", onKey);
   }, [onClose]);
+
+  // 포커스 트랩 - z-[70] 뒤의 레일/탭바로 Tab이 새지 않게 다이얼로그 안에서
+  // 순환시키고, 닫힐 때 이전 포커스를 복원한다(ElementNotesPanel 오버레이와
+  // 동일한 경량 패턴 - 라이브러리 없음).
+  useEffect(() => {
+    const root = rootRef.current;
+    if (!root) return;
+    const prevFocus = document.activeElement instanceof HTMLElement ? document.activeElement : null;
+    const focusables = () =>
+      Array.from(root.querySelectorAll<HTMLElement>('button, [href], [tabindex]:not([tabindex="-1"])'));
+    focusables()[0]?.focus();
+    function onKeyDown(e: KeyboardEvent) {
+      if (e.key !== "Tab") return;
+      const list = focusables();
+      const first = list[0];
+      const last = list[list.length - 1];
+      if (!first || !last) return;
+      if (e.shiftKey && document.activeElement === first) {
+        e.preventDefault();
+        last.focus();
+      } else if (!e.shiftKey && document.activeElement === last) {
+        e.preventDefault();
+        first.focus();
+      }
+    }
+    root.addEventListener("keydown", onKeyDown);
+    return () => {
+      root.removeEventListener("keydown", onKeyDown);
+      prevFocus?.focus();
+    };
+  }, []);
 
   async function handleDelete() {
     if (!current) return;
@@ -119,7 +157,7 @@ export function StoryViewer({ ring, startUid, onClose }: StoryViewerProps) {
   const entry = ring[userIdx];
 
   return (
-    <div className="fixed inset-0 z-[70] flex flex-col bg-ink-900" role="dialog" aria-modal="true">
+    <div ref={rootRef} className="fixed inset-0 z-[70] flex flex-col bg-ink-900" role="dialog" aria-modal="true">
       {/* 진행 바 */}
       <div className="flex gap-1 p-2.5 pt-3">
         {(stories ?? []).map((s, i) => (

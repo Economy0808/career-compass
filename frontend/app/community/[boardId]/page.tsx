@@ -35,7 +35,8 @@ function PostSkeleton() {
 }
 
 function PostRow({ post }: { post: CommunityPostDto }) {
-  const authorLabel = post.isAnonymous ? (post.isMine ? "익명(나)" : "익명") : (post.authorDisplayName ?? "익명");
+  // 실명 글인데 프로필 이름이 비어 있으면 "익명"으로 둔갑시키지 말고 중립 폴백.
+  const authorLabel = post.isAnonymous ? (post.isMine ? "익명(나)" : "익명") : (post.authorDisplayName ?? "관측자");
   return (
     <Link
       href={`/community/post/${post.id}`}
@@ -47,9 +48,14 @@ function PostRow({ post }: { post: CommunityPostDto }) {
         <span aria-hidden>·</span>
         <span>{relativeTimeKo(post.createdAt)}</span>
         <span aria-hidden>·</span>
-        <span className="font-mono">좋아요 {post.likeCount}</span>
+        {/* No-Korean-Mono: mono는 숫자에만 - 한글 글리프가 없다(DESIGN.md Don't). */}
+        <span>
+          좋아요 <span className="font-mono">{post.likeCount}</span>
+        </span>
         <span aria-hidden>·</span>
-        <span className="font-mono">댓글 {post.commentCount}</span>
+        <span>
+          댓글 <span className="font-mono">{post.commentCount}</span>
+        </span>
       </div>
     </Link>
   );
