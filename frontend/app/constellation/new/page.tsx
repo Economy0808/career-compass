@@ -313,6 +313,11 @@ export default function NewConstellationPage() {
   // 오버레이를 띄운다) 또는 "loaded"(데모 시드 또는 실제 별자리를 보여줄 준비
   // 완료) 중 하나로만 정착한다. 비로그인도 "empty"로 정착해 대화 오버레이를 탄다
   // (렌즈->대화->추천 체인은 인증과 무관 - 제한은 저장 시점).
+  // bootState가 풀리는 모든 지점(아래 boot effect의 empty/loaded/에러 경로 전부)이
+  // 같은 동기 블록에서 setIntakeOpen(true)도 함께 호출한다 - React가 같은 커밋으로
+  // 배칭해 캔버스와 대화 오버레이가 한 프레임에 같이 나타난다(따로 effect를 두면
+  // bootState 커밋 이후 한 프레임 캔버스만 노출됐다 대화가 뜨는 번쩍임이 생김).
+  // "loading" 동안은 아래 JSX의 전면 베일이 화면을 가린다.
   const [bootState, setBootState] = useState<"loading" | "empty" | "loaded">("loading");
   const [intakeOpen, setIntakeOpen] = useState(false);
   const [isPublished, setIsPublished] = useState(false);
@@ -422,6 +427,7 @@ export default function NewConstellationPage() {
       // 비로그인도 렌즈->대화->추천 시안 체인을 그대로 탄다(사용자 결정 - 제한은
       // 저장 시점에 건다). 대화를 닫으면 데모 시드가 남는다.
       setBootState("empty");
+      setIntakeOpen(true);
       return;
     }
     let cancelled = false;
@@ -431,6 +437,7 @@ export default function NewConstellationPage() {
         if (cancelled) return;
         if (list.length === 0) {
           setBootState("empty");
+          setIntakeOpen(true);
           return;
         }
         const latest = [...list].sort((a, b) => b.updatedAt - a.updatedAt)[0];
@@ -477,11 +484,15 @@ export default function NewConstellationPage() {
         constellationTitleRef.current = latest.title;
         setSaveState("saved");
         setBootState("loaded");
+        setIntakeOpen(true);
       } catch (err) {
-        // 초기 로드 실패는 조용히 데모 상태로 남긴다 - 화면이 죽으면 안 된다
-        // (오버레이도 띄우지 않는다 - 실패를 "별자리가 없다"로 오해하면 안 되므로).
+        // 초기 로드 실패는 조용히 데모 상태로 남긴다 - 화면이 죽으면 안 된다.
+        // 다만 대화 오버레이는 다른 경로와 동일하게 그대로 띄운다("별자리가
+        // 없다"는 안내가 아니라 "/constellation/new은 항상 대화부터" 규칙 자체는
+        // 로드 성공 여부와 무관하기 때문).
         console.error("[constellation] 초기 로드 실패", err);
         setBootState("loaded");
+        setIntakeOpen(true);
       }
     })();
     return () => {
@@ -489,15 +500,11 @@ export default function NewConstellationPage() {
     };
   }, [authLoading, user]);
 
-  // 부팅이 끝나면(empty든 loaded든) Intake 대화 오버레이를 먼저 연다 - 이미
-  // 저장된 별자리가 있어도 예외 없다(사용자 지시: "/constellation/new은 항상
-  // 대화부터"). 기존 별자리가 있으면 대화 화면 우상단에 안내 배지가 뜨고,
-  // 그걸 눌러 닫으면(onDismiss) 불러온 별자리가 그대로 드러난다. deps를
-  // [bootState] 하나로만 둔 건 사용자가 대화를 닫은 뒤(intakeOpen=false) 다른
-  // 값이 바뀌었다고 이 effect가 다시 열어버리면 안 되기 때문이다.
-  useEffect(() => {
-    if (bootState !== "loading") setIntakeOpen(true);
-  }, [bootState]);
+  // Intake 대화 오버레이는 위 boot effect의 각 정착 지점(empty/loaded/에러)이
+  // setBootState와 같은 동기 블록에서 직접 연다(사용자 지시: "/constellation/new은
+  // 항상 대화부터" - 이미 저장된 별자리가 있어도 예외 없음). 기존 별자리가 있으면
+  // 대화 화면 우상단에 안내 배지가 뜨고, 그걸 눌러 닫으면(onDismiss) 불러온
+  // 별자리가 그대로 드러난다.
 
   function nodeToCreateInput(node: CanvasNode): NodeCreateInput {
     return {
@@ -1193,6 +1200,17 @@ export default function NewConstellationPage() {
           {isPublished ? "발행됨" : "비공개"}
         </span>
       </div>
+
+      {/* 로딩 베일 - bootState가 정착하기 전까지 캔버스/저장 툴바를 완전히
+          가린다. 정착과 동시에(위 boot effect) intakeOpen도 true가 되므로
+          베일이 걷히는 프레임에 곧장 대화 오버레이가 뜬다 - 메인 캔버스가
+          먼저 노출됐다 대화가 뒤늦게 덮는 번쩍임을 막는 목적. z-[70]은 이
+          파일 안의 다른 오버레이(z-20)와 인테이크/초안 무대(z-40)보다 위. */}
+      {bootState === "loading" && (
+        <div className="fixed inset-0 z-[70] flex items-center justify-center bg-ink-900">
+          <p className="animate-pulse font-serif text-sm text-text-lo">관측 준비 중…</p>
+        </div>
+      )}
 
       {intakeOpen && (
         <ConstellationIntakeChat
