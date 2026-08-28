@@ -24,7 +24,7 @@ import { MiniConstellation } from "@/components/MiniConstellation";
 import { listUserConstellations, type ConstellationDto } from "@/lib/constellation-api";
 import { getProfile, followUser, unfollowUser, type ProfileDto } from "@/lib/profiles-api";
 import { createPost, deletePost, listUserPosts, type PostDto } from "@/lib/posts-api";
-import { createStory } from "@/lib/stories-api";
+import { createStory, listUserStories } from "@/lib/stories-api";
 import { fileToDataUrl } from "@/lib/image-utils";
 import { ApiError } from "@/lib/api";
 import { useAuth } from "@/lib/auth-context";
@@ -119,6 +119,9 @@ export default function ProfilePage({ params }: { params: { id: string } }) {
   const [storyError, setStoryError] = useState<string | null>(null);
   const [ringRefreshKey, setRingRefreshKey] = useState(0);
   const [viewer, setViewer] = useState<{ uid: string; ring: StoryRingEntryDto[] } | null>(null);
+  // 이 프로필 유저의 활성 스토리 유무 - 있으면 아바타가 스토리 진입점(lit 링)이
+  // 된다. /api/stories/user/{uid}는 익명 허용이라 비로그인 열람도 가능하다.
+  const [hasActiveStories, setHasActiveStories] = useState(false);
 
   useEffect(() => {
     let cancelled = false;
@@ -142,6 +145,22 @@ export default function ProfilePage({ params }: { params: { id: string } }) {
       cancelled = true;
     };
   }, [params.id]);
+
+  // 본인이 스토리를 새로 올리면(ringRefreshKey) 아바타 링도 즉시 갱신한다.
+  useEffect(() => {
+    let cancelled = false;
+    setHasActiveStories(false);
+    listUserStories(params.id)
+      .then((list) => {
+        if (!cancelled) setHasActiveStories(list.length > 0);
+      })
+      .catch(() => {
+        // 실패 시 링 없이 두면 그만 - 진입점만 사라질 뿐 열람은 뷰어가 재시도.
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [params.id, ringRefreshKey]);
 
   useEffect(() => {
     let cancelled = false;
@@ -247,12 +266,31 @@ export default function ProfilePage({ params }: { params: { id: string } }) {
     <>
       {/* ─ 헤더 (인스타 해부학: 아바타 | 이름·통계·bio) ─ */}
       <div className="flex items-start gap-5 md:gap-10">
-        {/* 아바타 - 바깥 링은 향후 스토리 링 자리(지금은 장식 헤어라인) */}
-        <div className="flex h-20 w-20 shrink-0 items-center justify-center rounded-full border border-rule bg-ink-800 p-1 md:h-28 md:w-28">
-          <div className="flex h-full w-full items-center justify-center rounded-full bg-ink-900 text-[34px] md:text-[46px]">
-            {avatarEmoji}
+        {/* 아바타 - 활성 스토리가 있으면 lit 링 + 클릭→뷰어(익명 열람 가능),
+            없으면 장식 헤어라인 그대로. */}
+        {hasActiveStories ? (
+          <button
+            type="button"
+            aria-label={`${displayName}의 스토리 보기`}
+            onClick={() =>
+              setViewer({
+                uid: params.id,
+                ring: [{ uid: params.id, displayName, avatarEmoji, hasUnseen: true }],
+              })
+            }
+            className="flex h-20 w-20 shrink-0 items-center justify-center rounded-full border-2 border-lit bg-ink-800 p-1 transition-transform hover:scale-[1.03] focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-spec-b md:h-28 md:w-28"
+          >
+            <span className="flex h-full w-full items-center justify-center rounded-full bg-ink-900 text-[34px] md:text-[46px]">
+              {avatarEmoji}
+            </span>
+          </button>
+        ) : (
+          <div className="flex h-20 w-20 shrink-0 items-center justify-center rounded-full border border-rule bg-ink-800 p-1 md:h-28 md:w-28">
+            <div className="flex h-full w-full items-center justify-center rounded-full bg-ink-900 text-[34px] md:text-[46px]">
+              {avatarEmoji}
+            </div>
           </div>
-        </div>
+        )}
 
         <div className="min-w-0 flex-1 pt-1">
           <div className="flex flex-wrap items-center gap-x-3 gap-y-2">
