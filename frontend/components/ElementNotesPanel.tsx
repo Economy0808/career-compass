@@ -1047,10 +1047,11 @@ function NoteEditor({
   }
 
   // isExpanded일 때는 이 편집기 하나만 패널(아일랜드) 밖으로 튀어나와 뷰포트
-  // 기준 오버레이가 된다 - 패널 자체는 그대로 두고, 노트패드만 왼쪽 네비 레일
-  // 경계(212px = SideRail.tsx의 w-rail 196px + 16px 여백, tailwind.config.ts의
-  // rail: "196px")까지 넓어진다. md 미만(모바일 바텀시트)에서는 레일이 아예
-  // 없으므로 전체화면으로 대체한다.
+  // 기준 오버레이가 된다 - 패널 자체는 그대로 두고, 노트패드만 좌우 16px
+  // 여백만 남기고 넓어진다. 섬 크롬 전환(F2) 이후 몰입형 화면엔 더 이상
+  // 풀높이 레일이 없으므로(좌상단은 로고, 좌하단은 NavIsland 팝오버) 옛
+  // 212px 레일 회피 계산은 필요 없다. md 미만(모바일 바텀시트)에서는
+  // 전체화면으로 대체한다.
   // 두 타이포 스케일 중 지금 상태에 맞는 쪽을 고른다 - 제목 input, 본문
   // textarea, 렌더링된 마크다운 컨테이너 세 곳 모두 이 값 하나를 그대로 쓴다.
   const typeScale = isExpanded ? EXPANDED_TYPE_SCALE : COLLAPSED_TYPE_SCALE;
@@ -1069,7 +1070,7 @@ function NoteEditor({
   const editorWrapperClass = isExpanded
     ? cn(
         "fixed inset-2 z-[25] flex flex-col gap-2.5 overflow-y-auto rounded-none border border-rule bg-ink-800/95 p-3.5 shadow-2xl backdrop-blur-md",
-        "md:inset-auto md:left-[212px] md:right-4 md:top-4 md:bottom-4 md:w-auto",
+        "md:inset-auto md:left-4 md:right-4 md:top-4 md:bottom-4 md:w-auto",
         "transition-[opacity,transform] duration-200 ease-out motion-reduce:transition-none"
       )
     : "space-y-2.5";
@@ -1083,17 +1084,17 @@ function NoteEditor({
   // isExpanded 상태에서는 이 편집기를 document.body로 포탈한다. 부모 aside가
   // backdrop-blur-md(=backdrop-filter)를 갖고 있는데, backdrop-filter는
   // transform/filter와 마찬가지로 자손 fixed 요소의 containing block을
-  // 자기 자신으로 바꿔버린다 - 그러면 여기 있는 "fixed; left:212px; right:16px"가
+  // 자기 자신으로 바꿔버린다 - 그러면 여기 있는 "fixed; left:16px; right:16px"가
   // 뷰포트가 아니라 ~288px 너비의 aside 기준으로 계산되어, 오른쪽 끝에 붙은
   // ~60px 세로 슬리버가 된다(제목 글자가 한 자씩 줄바꿈되는 버그의 원인).
   // body로 포탈하면 fixed가 다시 뷰포트 기준이 된다. 접힌(비확장) 상태는
   // 그대로 패널 안 인라인 렌더링을 유지한다.
-  // 확대(isExpanded) 상태에서는 오버레이 자체는 여전히 레일 경계까지 넓게
-  // 펴지지만(212px~), 그 안의 글줄까지 그 폭을 다 채우면 옵시디언과 달리
-  // 한 줄이 너무 길어져 읽기 힘들어진다 - 옵시디언은 넓은 창에서도 본문을
-  // 화면 중앙의 좁은 단(칼럼)에 고정한다. 그래서 제목/본문/첨부만 최대
-  // ~720px 중앙 정렬 칼럼으로 감싼다. 접힌 상태에서는 패널 자체가 이미
-  // 좁으므로 감싸지 않고 기존 그대로 전체 폭을 쓴다.
+  // 확대(isExpanded) 상태에서는 오버레이 자체는 화면 좌우 16px까지 넓게
+  // 펴지지만, 그 안의 글줄까지 그 폭을 다 채우면 옵시디언과 달리 한 줄이
+  // 너무 길어져 읽기 힘들어진다 - 옵시디언은 넓은 창에서도 본문을 화면
+  // 중앙의 좁은 단(칼럼)에 고정한다. 그래서 제목/본문/첨부만 최대 ~720px
+  // 중앙 정렬 칼럼으로 감싼다. 접힌 상태에서는 패널 자체가 이미 좁으므로
+  // 감싸지 않고 기존 그대로 전체 폭을 쓴다.
   const contentColumn = (
     <>
       {/* 옵시디언 스타일: 폼이 아니라 한 장의 문서. 제목과 본문 사이에 테두리도

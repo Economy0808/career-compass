@@ -189,6 +189,24 @@ textarea,
   display: none;
 }
 
+/* 몰입형 캔버스의 섬(island) 크롬 전용 등장 애니메이션 - 서랍 버튼에서 네비
+   섬이 확장되거나(transform-origin: bottom left) 군집/노트 패널이 접힘
+   칩에서 펼쳐질 때(transform-origin: right) 공통으로 쓴다. 원점(origin)은
+   호출부가 Tailwind의 origin-* 유틸리티로 지정하고, 이 키프레임은 scale+
+   opacity만 맡는다 - 표준 이징(cubic-bezier(.22,1,.36,1))과 함께 유틸리티
+   클래스(animate-[islandExpand_220ms_cubic-bezier(.22,1,.36,1)])로 쓰인다.
+   prefers-reduced-motion은 위 전역 kill switch가 duration을 0으로 줄인다. */
+@keyframes islandExpand {
+  0% {
+    opacity: 0;
+    transform: scale(0.85);
+  }
+  100% {
+    opacity: 1;
+    transform: scale(1);
+  }
+}
+
 @keyframes sprout {
   0% {
     transform: scale(0);

@@ -171,11 +171,24 @@ Plex Sans KR이 한글 본문을 담백하게 받친다. 본문 전역에 `word-
 
 ## Layout
 
-전체화면 별자리 캔버스가 바닥이고, 군집/노트 패널은 그 위에 떠 있는 종이
-오버레이다(`rounded-xl border-paper-line bg-paper/95 backdrop-blur-md`) —
-그리드 컬럼이 아니다. 앱 셸은 좌측 레일 196px(`spacing.rail`)과 하단 탭바
-58px(`spacing.tabbar`, `--tabbar-h` + safe-area)로 구성되고, 캔버스 페이지는
-`--tabbar-h`만큼 공간을 예약한다. 좌표 격자는 48px 셀(`.bg-radec-grid` /
+전체화면 별자리 캔버스가 바닥이고, 크롬은 전부 그 위에 뜨는 낱개의 "섬
+(island)"이다 — 그리드 컬럼도, 화면 폭을 나눠 갖는 풀높이 레일도 아니다.
+비몰입 화면(피드/프로필/일정 등)은 좌측 레일 196px(`spacing.rail`)과 하단
+탭바 58px(`spacing.tabbar`, `--tabbar-h` + safe-area)로 구성된 기존 구조를
+그대로 쓴다. 몰입형 캔버스(`/constellation/*`)만 섬 구조로 바뀐다:
+- **좌상단 로고**: 종이 카드 없이 어두운 우주 위에 직접 "OurLab" + 헤어라인
+  + "Yonsei Community"(`AppShell.tsx`). 클릭 시 "/"로 이동.
+- **좌하단 네비 섬**(`NavIsland.tsx`): 서랍 아이콘 버튼(fixed left-3 bottom-3)을
+  누르면 그 자리에서 종이 팝오버가 확장된다(SideRail과 같은 nav-items 로직
+  재사용). 바깥 클릭/ESC/재클릭으로 닫힌다.
+- **우측 군집/노트 패널**: 접기 버튼으로 섬 아이콘 칩 ↔ 전체 패널을 오간다
+  (`app/constellation/new/page.tsx`, transform-origin 우측). 기본은 펼침,
+  모바일 바텀시트는 이 상태와 무관하게 항상 펼쳐진다.
+- **저장 툴바**: 좌상단이 로고 자리라 상단 중앙(`left-1/2 -translate-x-1/2`)
+  으로 옮겼다.
+공통 등장 애니메이션은 `islandExpand` 키프레임(scale+opacity, 220ms,
+`cubic-bezier(.22,1,.36,1)`) + Tailwind `origin-*` 유틸리티. 탭바는 몰입형
+에서도 그대로 유지된다. 좌표 격자는 48px 셀(`.bg-radec-grid` /
 `.bg-paper-grid`), 불투명도 3~4.5% — 노드보다 튀면 실패다. 랜딩은 `inset-4`
 (md: `inset-7`) 계선 프레임 안에 최대 1280px 그리드(좌 헤드라인 / 우 도면,
 모바일은 도면 축소판이 위).
@@ -239,14 +252,19 @@ Plex Sans KR이 한글 본문을 담백하게 받친다. 본문 전역에 `word-
   `rounded-md` 버튼(선택 시 `bg-paper text-paper-ink`).
 
 ### Navigation
-- 좌측 레일 + 하단 탭바 — 둘 다 종이 카드(`bg-paper/95` + `border-paper-line`
-  + `backdrop-blur`, `.paper-surface` 클래스로 포커스 링/스크롤바를 잉크색으로
-  전환). 활성 항목은 spec-b 틴트 대신 **"잉크가 눌린" 채움**
-  (`bg-paper-ink text-paper`, 레일)이나 잉크색 텍스트(탭바) — 종이 위에서
-  spec-b(#9DB4FF)는 대비가 약해(~1.6:1) 쓰지 않는다. 호버는 `bg-paper-soft`.
-  탭바 중앙 FAB는 종이 바 위에 떠도 spec-b→lit 그라데이션 원 + `shadow-fab`,
-  ink-900 아이콘을 그대로 유지한다 — 원형 악센트라 종이/잉크 어느 배경에도
-  얹힌다.
+- **비몰입 화면**: 좌측 레일 + 하단 탭바 — 둘 다 종이 카드(`bg-paper/95` +
+  `border-paper-line` + `backdrop-blur`, `.paper-surface` 클래스로 포커스
+  링/스크롤바를 잉크색으로 전환). 활성 항목은 spec-b 틴트 대신 **"잉크가
+  눌린" 채움**(`bg-paper-ink text-paper`, 레일)이나 잉크색 텍스트(탭바) —
+  종이 위에서 spec-b(#9DB4FF)는 대비가 약해(~1.6:1) 쓰지 않는다. 호버는
+  `bg-paper-soft`. 탭바 중앙 FAB는 종이 바 위에 떠도 spec-b→lit 그라데이션
+  원 + `shadow-fab`, ink-900 아이콘을 그대로 유지한다 — 원형 악센트라
+  종이/잉크 어느 배경에도 얹힌다.
+- **몰입형 캔버스**: 풀높이 레일 대신 `NavIsland.tsx`의 팝오버 하나다. 기조는
+  `bg-paper-soft/95`(레일의 `bg-paper/95`보다 한 단계 어둡다 — "흰색 너무
+  밝음" 피드백 반영) + `backdrop-blur-md`, 활성/호버 규칙은 레일과 동일하되
+  호버만 `bg-paper`로 올려(기조가 이미 `paper-soft`라 `hover:bg-paper-soft`는
+  안 보인다) 대비를 유지한다. 탭바는 몰입형에서도 그대로 쓴다.
 
 ### Constellation Canvas (signature)
 - SVG+CSS 그래프. 노드 색은 `lib/element-colors.ts`, 이어진 간선은 lit 색 +

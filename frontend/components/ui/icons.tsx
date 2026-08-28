@@ -70,6 +70,21 @@ export function ChevronRightIcon({ size = 18, className, style }: IconProps) {
   return svg(size, className, style, <path d="M9.5 5.5L16 12l-6.5 6.5" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />);
 }
 
+export function ChevronLeftIcon({ size = 18, className, style }: IconProps) {
+  return svg(size, className, style, <path d="M14.5 5.5L8 12l6.5 6.5" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />);
+}
+
+/** 서랍장(보관함) 아이콘 - 몰입형 캔버스의 네비 섬 토글 버튼 전용. */
+export function DrawerIcon({ size = 18, className, style }: IconProps) {
+  return svg(size, className, style, (
+    <>
+      <rect x="4" y="3.5" width="16" height="17" rx="2" stroke="currentColor" strokeWidth="2" />
+      <path d="M4 12h16" stroke="currentColor" strokeWidth="2" />
+      <path d="M9.5 7.5h5M9.5 16.5h5" stroke="currentColor" strokeWidth="2" strokeLinecap="round" />
+    </>
+  ));
+}
+
 export function PlusIcon({ size = 18, className, style }: IconProps) {
   return svg(size, className, style, <path d="M12 5.5v13M5.5 12h13" stroke="currentColor" strokeWidth="2.2" strokeLinecap="round" />);
 }

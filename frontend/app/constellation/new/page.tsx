@@ -21,6 +21,7 @@ import { ElementNotesPanel, type ElementNote } from "@/components/ElementNotesPa
 import { ConstellationIntakeChat } from "@/components/ConstellationIntakeChat";
 import { DraftReviewStage } from "@/components/DraftReviewStage";
 import { Modal } from "@/components/ui/Modal";
+import { ChevronLeftIcon, ChevronRightIcon } from "@/components/ui/icons";
 import type { ResolveWikiLink } from "@/lib/markdown";
 import { cn } from "@/lib/cn";
 import { useAuth } from "@/lib/auth-context";
@@ -298,6 +299,11 @@ export default function NewConstellationPage() {
   const [edges, setEdges] = useState<Record<string, CanvasEdge>>(INITIAL_EDGES);
   const [notes, setNotes] = useState<Record<string, ElementNote>>(INITIAL_NOTES);
   const [panelMode, setPanelMode] = useState<PanelMode>("bins");
+  // 우측 군집/노트 패널 접기(섬화) - md 이상에서만 의미가 있다. 접으면 섬
+  // 아이콘 칩 하나만 남고, 다시 누르면 같은 자리에서 패널이 펼쳐진다. 모바일
+  // 바텀시트는 이 상태와 무관하게 항상 펼쳐진 채로 보인다(아래 aside
+  // className의 md: 전용 분기 참고). 기본은 펼침.
+  const [isPanelCollapsed, setIsPanelCollapsed] = useState(false);
   const [notesNodeId, setNotesNodeId] = useState<string | null>(null);
   // notesNodeId를 같은 값으로 다시 세팅해도(같은 원소를 카드에서 또 클릭 등)
   // 노트 패널이 "펼치고 스크롤"을 다시 수행해야 하므로, nodeId 자체가 아니라
@@ -594,7 +600,7 @@ export default function NewConstellationPage() {
     if (!cid) return;
     const next = !isPublished;
     setIsPublished(next);
-    enqueueMutation(() => patchPublish(cid, next));
+    enqueueMutation(() => patchPublish(cid, { isPublished: next }));
   }, [isPublished, enqueueMutation]);
 
   // "새 별자리 만들기" - 지금 편집 중인 별자리(서버에 있든 로컬 데모든)를
@@ -1177,11 +1183,10 @@ export default function NewConstellationPage() {
           새로 만들었다. 실제 저장은 항상 뮤테이션 큐가 알아서 흘려보내므로,
           버튼은 "아직 서버에 존재하지 않는 별자리"를 처음 만들 때만 의미가
           있다(제목 모달을 연다) - 이미 있으면 그냥 아무 것도 하지 않는다. */}
-      {/* md 이상에서는 좌측 네비 레일(SideRail.tsx, w-rail=196px, 불투명 종이)이
-          떠 있어 left-3만으로는 레일 아래 깔린다 - 레일 폭 + 12px 여백만큼
-          오른쪽으로 밀어낸다(tailwind.config.ts의 spacing.rail: "196px",
-          ElementNotesPanel.tsx의 212px 계산과 같은 값). */}
-      <div className="paper-surface fixed left-3 top-3 z-20 flex items-center gap-2 rounded-lg border border-paper-line bg-paper/95 px-3 py-2 shadow-panel backdrop-blur-md md:left-[208px]">
+      {/* 섬 크롬 전환 이후 좌상단은 OurLab 로고 자리다(AppShell.tsx) - 툴바가
+          겹치지 않도록 상단 중앙으로 옮겼다. 더 이상 풀높이 레일이 없으므로
+          레일 폭을 피하던 옛 left-[208px] 계산은 필요 없다. */}
+      <div className="paper-surface fixed left-1/2 top-3 z-20 flex -translate-x-1/2 items-center gap-2 rounded-lg border border-paper-line bg-paper-soft/95 px-3 py-2 shadow-panel backdrop-blur-md">
         <button
           type="button"
           onClick={handleSaveClick}
@@ -1291,14 +1296,35 @@ export default function NewConstellationPage() {
         </div>
       </Modal>
 
+      {/* 접힌 섬 아이콘 칩 - md 이상에서만 의미가 있다(모바일 바텀시트는 항상
+          펼쳐진 채로 유지). 아래 aside와 같은 자리(우상단)에 떠 있다가, 누르면
+          같은 코너에서 패널이 확장돼 나온다(transform-origin 우측). */}
+      {isPanelCollapsed && (
+        <button
+          type="button"
+          aria-expanded={false}
+          aria-label="군집·노트 패널 펼치기"
+          onClick={() => setIsPanelCollapsed(false)}
+          className="paper-surface fixed right-4 top-4 z-20 hidden h-11 w-11 items-center justify-center rounded-full border border-paper-line bg-paper-soft/95 text-paper-ink shadow-panel backdrop-blur-md transition-colors hover:bg-paper md:flex"
+        >
+          <ChevronLeftIcon size={20} />
+        </button>
+      )}
+
       <aside
         className={cn(
-          "paper-surface fixed z-20 flex flex-col overflow-hidden rounded-xl border border-paper-line bg-paper/95 shadow-panel backdrop-blur-md",
+          "paper-surface fixed z-20 flex flex-col overflow-hidden rounded-xl border border-paper-line bg-paper-soft/95 shadow-panel backdrop-blur-md",
           "inset-x-3 bottom-[calc(var(--tabbar-h)+var(--safe-bottom)+12px)] max-h-[46vh]",
-          "md:inset-x-auto md:bottom-4 md:right-4 md:top-4 md:h-auto md:max-h-none md:w-72"
+          "md:inset-x-auto md:bottom-4 md:right-4 md:top-4 md:h-auto md:max-h-none md:w-72 md:origin-right",
+          isPanelCollapsed && "md:hidden",
+          !isPanelCollapsed && "md:animate-[islandExpand_220ms_cubic-bezier(.22,1,.36,1)]"
         )}
       >
-        <PanelTabs mode={panelMode} onChange={handleTabChange} />
+        <PanelTabs
+          mode={panelMode}
+          onChange={handleTabChange}
+          onToggleCollapse={() => setIsPanelCollapsed(true)}
+        />
         {/* 두 패널을 항상 마운트해 두고 CSS로만 숨긴다(조건부 렌더로 언마운트하지
             않음) - ElementNotesPanel이 로컬로 들고 있는 "확대된 노트 탭들" 상태가
             상단 탭을 「군집」으로 옮겼다 「노트」로 되돌아와도 그대로 남아있어야
@@ -1341,8 +1367,18 @@ const PANEL_TABS: { mode: PanelMode; label: string }[] = [
 // 오른쪽 패널 맨 위에 상시 떠 있는 세그먼트 탭 - 「군집」/「노트」 둘 다 항상
 // 한 번의 클릭 거리에 있게 하고, 지금 보고 있는 쪽을 aria-selected로 알린다.
 // role="tablist"/"tab" + 방향키 이동을 갖춘 표준 탭 패턴(버튼 2개 + 컨테이너
-// 하나 - 커스텀 위젯을 새로 만들지 않는다).
-function PanelTabs({ mode, onChange }: { mode: PanelMode; onChange: (mode: PanelMode) => void }) {
+// 하나 - 커스텀 위젯을 새로 만들지 않는다). onToggleCollapse가 있으면(md
+// 이상에서만) 탭 옆에 접기 버튼을 함께 그린다 - 모바일 바텀시트에는 접는
+// 개념이 없으므로 hidden md:flex로 그 쪽에서만 노출한다.
+function PanelTabs({
+  mode,
+  onChange,
+  onToggleCollapse,
+}: {
+  mode: PanelMode;
+  onChange: (mode: PanelMode) => void;
+  onToggleCollapse?: () => void;
+}) {
   const tabRefs = useRef<Array<HTMLButtonElement | null>>([]);
 
   const focusAndSelect = (index: number) => {
@@ -1352,8 +1388,8 @@ function PanelTabs({ mode, onChange }: { mode: PanelMode; onChange: (mode: Panel
   };
 
   return (
-    <div className="border-b border-paper-line p-2">
-      <div role="tablist" aria-label="오른쪽 패널 전환" className="flex gap-1 rounded-lg bg-paper-soft p-1">
+    <div className="flex items-center gap-1.5 border-b border-paper-line p-2">
+      <div role="tablist" aria-label="오른쪽 패널 전환" className="flex flex-1 gap-1 rounded-lg bg-paper-soft p-1">
         {PANEL_TABS.map((tab, index) => {
           const selected = tab.mode === mode;
           return (
@@ -1389,6 +1425,17 @@ function PanelTabs({ mode, onChange }: { mode: PanelMode; onChange: (mode: Panel
           );
         })}
       </div>
+      {onToggleCollapse && (
+        <button
+          type="button"
+          aria-expanded={true}
+          aria-label="패널 접기"
+          onClick={onToggleCollapse}
+          className="hidden h-7 w-7 shrink-0 items-center justify-center rounded-md text-paper-lo transition-colors hover:bg-paper hover:text-paper-ink focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-1 focus-visible:outline-paper-ink md:flex"
+        >
+          <ChevronRightIcon size={16} />
+        </button>
+      )}
     </div>
   );
 }
