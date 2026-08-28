@@ -22,6 +22,7 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useEffect, useState } from "react";
 import { useAuth } from "@/lib/auth-context";
+import { BgmToggle } from "@/components/BgmToggle";
 
 /** 미완성 별자리 선화 - 점선 시야원 + 이은 별 + 아직 못 이은 빈 별. */
 function ReticleFigure({ width }: { width: number }) {
@@ -100,6 +101,8 @@ export function TelescopeLanding() {
           OurLab
         </span>
         <nav className="flex items-center gap-7 text-body-sm">
+          {/* 진입 플로우 BGM(랜딩=묵직한 믹스). 사용자 배치 지시. */}
+          <BgmToggle mode="landing" variant="paper" />
           <Link href="/constellation/new" style={{ color: "var(--paper-lo)" }}>
             둘러보기
           </Link>

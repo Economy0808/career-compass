@@ -23,6 +23,7 @@ import { DraftReviewStage } from "@/components/DraftReviewStage";
 import { ColorPaletteBar } from "@/components/ColorPaletteBar";
 import { LaunchModal, type LaunchInput } from "@/components/LaunchModal";
 import { Modal } from "@/components/ui/Modal";
+import { BgmToggle } from "@/components/BgmToggle";
 import { ChevronLeftIcon, ChevronRightIcon } from "@/components/ui/icons";
 import type { ResolveWikiLink } from "@/lib/markdown";
 import { cn } from "@/lib/cn";
@@ -1585,6 +1586,8 @@ export default function NewConstellationPage() {
           paletteOpen && "max-md:hidden"
         )}
       >
+        {/* 캔버스 BGM("미디 재생 느낌" 변형). 사용자 배치 지시. */}
+        <BgmToggle mode="canvas" variant="paper" className="paper-surface shadow-panel backdrop-blur-md" />
         <button
           type="button"
           onClick={handleSaveClick}
