@@ -96,6 +96,10 @@ export interface ConstellationCanvasProps {
 
 const NODE_RADIUS = 9;
 const HANDLE_RADIUS = 22;
+// 달성 노드의 십자 회절 스파이크 크기 - 반지름의 배수로 길이를 정해 큰
+// 노드(magT 낮음)와 작은 노드(magT 높음) 모두에서 비례가 자연스럽게 맞는다.
+const SPIKE_LENGTH_MULT = 3.5;
+const SPIKE_WIDTH = 1.1;
 // 호버 시 노드를 도는 위성(달) 궤도 파라미터. 실제 원 궤도(반지름 a)를 각도 i만큼
 // 기울여 2D에 투영하면 장반경 a, 단반경 b=a·cos(i)인 타원이 된다(케플러 투영과
 // 동일한 원리). φ는 화면상에서 그 타원 자체를 살짝 돌려, "위에서 내려다본 원"이
@@ -636,6 +640,20 @@ export function ConstellationCanvas({
               <feMergeNode in="SourceGraphic" />
             </feMerge>
           </filter>
+          {/* 달성 노드의 십자 회절 스파이크용 그라디언트 - stopColor를
+              currentColor로 둬서 노드 색(spec-b 등)마다 그라디언트를 새로 만들
+              필요 없이, 적용하는 <g>의 style.color 하나로 색을 바꿔 재사용한다.
+              중심은 불투명, 양 끝(십자의 끝)은 투명해 "빛번짐"처럼 사그라든다. */}
+          <linearGradient id="const-spike-h" x1="0" y1="0" x2="1" y2="0">
+            <stop offset="0%" stopColor="currentColor" stopOpacity="0" />
+            <stop offset="50%" stopColor="currentColor" stopOpacity="0.9" />
+            <stop offset="100%" stopColor="currentColor" stopOpacity="0" />
+          </linearGradient>
+          <linearGradient id="const-spike-v" x1="0" y1="0" x2="0" y2="1">
+            <stop offset="0%" stopColor="currentColor" stopOpacity="0" />
+            <stop offset="50%" stopColor="currentColor" stopOpacity="0.9" />
+            <stop offset="100%" stopColor="currentColor" stopOpacity="0" />
+          </linearGradient>
         </defs>
         {/* 배경 격자는 SVG가 아니라 컨테이너의 .bg-radec-grid(적경/적위 좌표선,
             globals.css)로 깐다 - "차트 위에 찍는 중"이라는 인상만 아주 옅게. */}
@@ -698,10 +716,14 @@ export function ConstellationCanvas({
             // 항상 자연스럽게 보이도록 한다. 은은하게만 - magT는 0~1.
             const magT = Math.min(1, Math.max(0, ((node.level ?? 2000) - 1000) / 3000));
             const r = NODE_RADIUS - magT * 2.4;
-            // 완료 여부를 "밝기"로 읽히게 한다 - 미완료는 속이 빈 어두운 점(희미한
-            // 별), 완료는 분광형 색으로 꽉 찬 밝은 별(+발광). 대비를 세게 줬다:
-            // 미완료는 불투명도도 낮춰 눈에 잘 안 띄게, 완료는 항상 100%.
-            const magOpacity = node.isCompleted ? 1 : 0.55 - magT * 0.18;
+            // 색은 이제 완료 여부와 무관하게 처음부터 켜져 있다 - 캔버스를 보는
+            // 즉시 "여기 어떤 유형의 원소가 있는지"가 읽혀야 하기 때문(색이
+            // 완료의 보상이던 예전 설계는 미완료 캔버스가 거의 텅 비어 보였다).
+            // 대신 "밝기"가 아니라 "빛번짐"으로 달성을 표현한다 - 미완료는 보통
+            // 밝기의 분광형 별(글로우 없음), 완료는 더 밝아지고(opacity 1)
+            // const-glow 발광 + 십자 회절 스파이크(아래 spikeLength)가 붙는다.
+            const magOpacity = node.isCompleted ? 1 : 0.82 - magT * 0.08;
+            const spikeLength = r * SPIKE_LENGTH_MULT;
             // node.code가 있으면 그걸 그대로 쓰고(라벨은 순수 이름), 없으면
             // 과거처럼 라벨에서 정규식으로 분리한다(하위호환 fallback).
             const fallbackSplit = node.code ? null : splitCourseCode(node.label);
@@ -764,24 +786,55 @@ export function ConstellationCanvas({
                   />
                 )}
 
-                {/* 완료 = 밝은 별(분광형 색 채움 + 발광), 미완료 = 속이 빈 희미한 점.
-                    타입 색은 미완료일 때 더 이상 쓰지 않는다 - "밝기"만으로 완료
-                    여부가 읽혀야 하고, 색은 완료된 뒤에야 드러나는 보상이어야 한다. */}
-                {/* 미완료 노드의 채움은 "none"이 아니라 "transparent"여야 한다.
-                    둘은 똑같이 투명하게 보이지만 SVG는 fill="none"인 영역을 클릭
-                    판정에서 제외한다. none으로 두면 미완료 노드는 몸통을 눌러도
-                    반응하지 않고, 실제로 "군집에서 끌어온 요소는 연결이 안 된다"는
-                    증상으로 나타났다(시드 노드는 완료 상태라 색이 채워져 멀쩡했다). */}
+                {/* 미완료 = 분광형 색으로 채워진 보통 밝기의 별(글로우 없음).
+                    완료 = 더 밝아지고(opacity 1) + const-glow 발광 + 아래
+                    십자 회절 스파이크까지 붙는다 - "승급"이 밝기 하나가 아니라
+                    빛번짐이라는 눈에 띄는 사건으로 읽히게 하는 게 새 디자인의
+                    핵심이다. */}
+                {/* (과거 버그 메모) 예전엔 미완료 노드가 fill="transparent"였는데,
+                    SVG가 fill="none" 영역을 클릭 판정에서 빼버리는 함정 때문에
+                    "군집에서 끌어온 요소는 연결이 안 된다"는 버그가 난 적이 있다.
+                    지금은 미완료도 항상 분광형 색으로 채워지므로 이 함정 자체가
+                    구조적으로 사라졌다 - 그래도 새 원소 타입을 추가할 때 절대
+                    fill="none"을 쓰지 말 것(DEFAULT_TYPE_COLOR로 안전 강등되는
+                    색도 실제 색이지 none이 아니다). */}
                 {/* onDoubleClick은 여기가 아니라 위 <g>에 달려 있다 - 몸통(r≈8)만
                     노렸던 예전 방식은 핸들 링(r=22, 위성 작업으로 확대됨)이 대부분의
                     면적을 덮어버려 살짝만 빗나가도 더블클릭이 엣지 드래그로 새는
                     버그였다. <g>에 달면 몸통이든 링이든 어디를 더블클릭해도(네이티브
                     dblclick 이벤트는 버블링된다) 판정 영역이 r=22 전체로 넓어진다. */}
+                {node.isCompleted && (
+                  // 십자 회절 스파이크 - 노드 색(currentColor로 상속)의 얇은
+                  // 빛줄기 4방향. const-glow로 살짝 더 번지게 하고, 노드마다
+                  // 위상/주기를 hashNodeId로 흩어 "다 같이 깜빡"을 피한다.
+                  <g
+                    aria-hidden="true"
+                    pointerEvents="none"
+                    filter="url(#const-glow)"
+                    style={{
+                      color,
+                      animation: `spikeBreathe ${(3.2 + hashNodeId(`${node.id}#spikeDur`) * 1.6).toFixed(2)}s ease-in-out ${(hashNodeId(`${node.id}#spikeDelay`) * 3).toFixed(2)}s infinite`,
+                    }}
+                  >
+                    <rect
+                      x={-spikeLength}
+                      y={-SPIKE_WIDTH / 2}
+                      width={spikeLength * 2}
+                      height={SPIKE_WIDTH}
+                      fill="url(#const-spike-h)"
+                    />
+                    <rect
+                      x={-SPIKE_WIDTH / 2}
+                      y={-spikeLength}
+                      width={SPIKE_WIDTH}
+                      height={spikeLength * 2}
+                      fill="url(#const-spike-v)"
+                    />
+                  </g>
+                )}
                 <circle
                   r={r}
-                  fill={node.isCompleted ? color : "transparent"}
-                  stroke={node.isCompleted ? "none" : "var(--rule)"}
-                  strokeWidth={node.isCompleted ? 0 : 1}
+                  fill={color}
                   opacity={magOpacity}
                   filter={node.isCompleted ? "url(#const-glow)" : undefined}
                 />

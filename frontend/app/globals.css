@@ -231,6 +231,19 @@ textarea,
     opacity: var(--twinkle-hi, 1);
   }
 }
+/* 달성 노드의 십자 회절 스파이크(ConstellationCanvas)가 천천히 숨쉬는 연출.
+   부모 <g>가 팬/줌 transform 안에 있으므로 scale/transform 애니메이션을
+   얹으면 edgeGlowPulse에서 이미 겪은 것과 같은 부류의 좌표 어긋남 위험이
+   있다 - 그래서 opacity만 애니메이션한다. */
+@keyframes spikeBreathe {
+  0%,
+  100% {
+    opacity: 0.55;
+  }
+  50% {
+    opacity: 1;
+  }
+}
 /* 하루 6개 완료 축하 연출 */
 @keyframes celebratePop {
   0% {
