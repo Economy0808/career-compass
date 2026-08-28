@@ -83,22 +83,29 @@ a:hover {
 }
 
 /* 밝은 종이 지면 위에서는 전역 포커스 링(spec-b, 연청)이 안 보인다(~1.6:1) -
-   랜딩 스코프에서만 잉크색으로 바꾼다. CTA 호버도 투명도 페이드 대신
-   "잉크가 더 눌린" 상태로. */
-.telescope-landing :focus-visible {
+   잉크색으로 바꾼다. 원래는 랜딩(.telescope-landing) 전용이었지만, 앱의 떠
+   있는 크롬(레일/탭바/군집 패널/저장 툴바)도 같은 종이 팔레트를 쓰게 되면서
+   `.paper-surface`로 스코프를 확장했다 - 랜딩 쪽 선택자는 그대로 남겨 기존
+   동작을 깨지 않는다. CTA 호버도 투명도 페이드 대신 "잉크가 더 눌린" 상태로. */
+.telescope-landing :focus-visible,
+.paper-surface :focus-visible {
   outline-color: var(--paper-ink);
 }
-/* 랜딩이 스크롤될 때 다크월드용 스크롤바가 종이 위에 비치지 않게 잉크 톤으로. */
-.telescope-landing::-webkit-scrollbar-thumb {
+/* 종이 서피스가 스크롤될 때 다크월드용 스크롤바가 비치지 않게 잉크 톤으로. */
+.telescope-landing::-webkit-scrollbar-thumb,
+.paper-surface::-webkit-scrollbar-thumb {
   background: rgb(16 20 31 / 0.18);
 }
-.telescope-landing .cta-ink {
+.telescope-landing .cta-ink,
+.paper-surface .cta-ink {
   transition: background-color 0.2s ease-out;
 }
-.telescope-landing .cta-ink:hover {
+.telescope-landing .cta-ink:hover,
+.paper-surface .cta-ink:hover {
   background-color: #05070d !important;
 }
-.telescope-landing .cta-ink:active {
+.telescope-landing .cta-ink:active,
+.paper-surface .cta-ink:active {
   transform: translateY(1px);
 }
 

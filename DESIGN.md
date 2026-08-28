@@ -96,9 +96,11 @@ components:
 충돌 시 그 문서가 이긴다.
 
 **Key Characteristics:**
-- 다크 전용 앱 + 밝은 랜딩 단 하나의 예외 (두 팔레트 모두 청보라 색조)
+- 다크 관측 표면(캔버스·노드·배경·모달) + 앱의 떠 있는 크롬(레일·탭바·
+  패널·툴바)은 종이 팔레트 — 두 팔레트 모두 청보라 색조로 한 잉크의 양면
 - 천문 어휘가 곧 토큰 이름 (항성 분광형 spec-b/a/g/k/m, lit, 적경/적위 격자)
-- 모션은 의미 있는 순간에만 — 상시 배경 애니메이션 금지
+- 모션은 의미 있는 순간에만 — 상시 배경 애니메이션 금지(팬 유발 드리프트,
+  배경 별 twinkle 제외)
 - 장식은 1px 헤어라인과 좌표 격자(불투명도 3~4.5%)로만
 
 ## Colors
@@ -126,18 +128,25 @@ components:
 - **ink-800**: 패널/서피스 · **ink-700**: 융기·호버 · **rule**: 헤어라인·차트 격자
   (`/NN` 불투명도 단계로 사용) · **text-hi / text-lo**: 본문/보조 텍스트.
 
-### Neutral — 종이 성도 (랜딩 전용)
-- **paper**: 밝은 지면 · **paper-line / paper-soft**: 계선(프레임·눈금) ·
-  **paper-ink / paper-lo**: 본문/보조 · **paper-faint**: 장식 선 전용 —
-  읽는 텍스트에 쓰면 대비 미달(실측 1.9:1).
+### Neutral — 종이 성도 (랜딩 + 앱의 떠 있는 크롬)
+- **paper**: 밝은 지면 · **paper-line / paper-soft**: 계선(프레임·눈금)·
+  raised 카드/호버 틴트 · **paper-ink / paper-lo**: 본문/보조 · **paper-faint**:
+  장식 선 전용 — 읽는 텍스트에 쓰면 대비 미달(실측 1.9:1).
 
 ### Named Rules
 **The Two-File Sync Rule.** 색 실값은 `app/globals.css`(CSS 변수)와
 `tailwind.config.ts`(hex)에 이중화되어 있다. 반드시 두 파일을 같이 고친다 —
 상세는 `docs/design-handoff-guide.md` §1.
 
-**The Landing-Scope Rule.** `--paper-*`와 그에 딸린 포커스 링(잉크색)·스크롤바·
-CTA 규칙은 `.telescope-landing` 스코프 안에서만 산다. 앱 서피스로 새어 나가면 안 된다.
+**The Floating-Chrome Paper Rule (구 Landing-Scope Rule).** `--paper-*`는
+더 이상 랜딩 전용이 아니다 — 랜딩과, 앱의 **떠 있는 크롬**(좌측 레일, 하단
+탭바, 군집/노트 패널, 캔버스 위 저장·발행 툴바)에 함께 쓴다. 은유: 학생은
+밤하늘(캔버스)을 보며 종이 차트(떠 있는 판)에 기록하는 제도사 — 캔버스·노드·
+배경·모달 등 **관측 표면 자체**는 여전히 ink 전용이고, 그 위에 얹히는 판만
+종이가 된다. 그에 딸린 포커스 링(잉크색)·스크롤바·`.cta-ink` 규칙은
+`.telescope-landing`뿐 아니라 `.paper-surface` 스코프 클래스에도 적용된다 —
+새 종이 크롬에 이 클래스를 얹으면 랜딩과 같은 포커스/스크롤바/CTA 언어를
+그대로 재사용한다.
 
 ## Typography
 
@@ -162,9 +171,9 @@ Plex Sans KR이 한글 본문을 담백하게 받친다. 본문 전역에 `word-
 
 ## Layout
 
-전체화면 별자리 캔버스가 바닥이고, 군집/노트 패널은 그 위에 떠 있는
-오버레이다(`rounded-xl border-rule bg-ink-800/95 backdrop-blur-md`) — 그리드
-컬럼이 아니다. 앱 셸은 좌측 레일 196px(`spacing.rail`)과 하단 탭바
+전체화면 별자리 캔버스가 바닥이고, 군집/노트 패널은 그 위에 떠 있는 종이
+오버레이다(`rounded-xl border-paper-line bg-paper/95 backdrop-blur-md`) —
+그리드 컬럼이 아니다. 앱 셸은 좌측 레일 196px(`spacing.rail`)과 하단 탭바
 58px(`spacing.tabbar`, `--tabbar-h` + safe-area)로 구성되고, 캔버스 페이지는
 `--tabbar-h`만큼 공간을 예약한다. 좌표 격자는 48px 셀(`.bg-radec-grid` /
 `.bg-paper-grid`), 불투명도 3~4.5% — 노드보다 튀면 실패다. 랜딩은 `inset-4`
@@ -205,21 +214,39 @@ Plex Sans KR이 한글 본문을 담백하게 받친다. 본문 전역에 `word-
   눌린" `#05070d`, active는 `translateY(1px)`.
 
 ### Cards / Containers
-- **Corner:** 16px. **Background:** `bg-ink-800/70` + `backdrop-blur-[2px]`,
-  떠 있는 패널은 `/95` + `blur-md`. **Border:** 1px rule. **Padding:** 16px.
+- **관측 표면 카드**(캔버스 내부 요소): **Corner:** 16px. **Background:**
+  `bg-ink-800/70` + `backdrop-blur-[2px]`. **Border:** 1px rule. **Padding:** 16px.
+- **떠 있는 종이 카드**(레일/탭바/군집·노트 패널/저장 툴바): **Background:**
+  `bg-paper/95` + `backdrop-blur-md`. **Border:** 1px `border-paper-line`.
+  본문 `text-paper-ink`, 보조 `text-paper-lo`. 패널 내부의 raised 섹션(보관함
+  섬 등)은 한 단계 진한 `bg-paper-soft`로 그룹을 나눈다. 그림자는 기존
+  `shadow-panel`/`shadow-overlay` 어휘를 그대로 쓴다 — 종이라고 새 그림자
+  토큰을 만들지 않는다.
 
 ### Inputs / Fields
-- **Style:** `bg-ink-900/60` + `border-rule`, 12px 라디우스, placeholder는 text-lo.
-- **Focus:** spec-b 아웃라인(전역 규칙과 동일). **Caret:** spec-b.
-- **Disabled:** `opacity-50`.
+- **관측 표면(캔버스 안):** `bg-ink-900/60` + `border-rule`, 12px 라디우스,
+  placeholder는 text-lo. **Focus:** spec-b 아웃라인. **Caret:** spec-b.
+- **종이 크롬 안(군집 패널 등):** 배경은 투명 또는 `bg-paper`, `border-paper-line`,
+  텍스트 `text-paper-ink`, placeholder `text-paper-lo`, focus는 `border-paper-ink`
+  + `.paper-surface` 스코프의 paper-ink 링.
+- **Disabled:** `opacity-50`(공통).
 
 ### Chips (보관함 요소 칩)
-- 유형 색 점(`colorForType`) + 라벨. 이미 캔버스에 놓인 요소는 흐림 + 체크.
-- 세그먼트 탭(군집/노트): `bg-ink-900/60 p-1` 트랙 안 `rounded-md` 버튼.
+- 유형 색 점(`colorForType`) + 라벨 — 종이 위에서도 분광형 색은 그대로 쓰되,
+  옅은 spec-a 같은 색은 점 둘레에 `ring-paper-ink/10`로 대비를 보정한다.
+  이미 캔버스에 놓인 요소는 흐림 + 체크.
+- 세그먼트 탭(군집/노트): 종이 패널 안에서는 `bg-paper-soft p-1` 트랙 안
+  `rounded-md` 버튼(선택 시 `bg-paper text-paper-ink`).
 
 ### Navigation
-- 좌측 레일 + 하단 탭바. 탭바 중앙 FAB는 spec-b→lit 그라데이션 원 +
-  `shadow-fab`, ink-900 아이콘.
+- 좌측 레일 + 하단 탭바 — 둘 다 종이 카드(`bg-paper/95` + `border-paper-line`
+  + `backdrop-blur`, `.paper-surface` 클래스로 포커스 링/스크롤바를 잉크색으로
+  전환). 활성 항목은 spec-b 틴트 대신 **"잉크가 눌린" 채움**
+  (`bg-paper-ink text-paper`, 레일)이나 잉크색 텍스트(탭바) — 종이 위에서
+  spec-b(#9DB4FF)는 대비가 약해(~1.6:1) 쓰지 않는다. 호버는 `bg-paper-soft`.
+  탭바 중앙 FAB는 종이 바 위에 떠도 spec-b→lit 그라데이션 원 + `shadow-fab`,
+  ink-900 아이콘을 그대로 유지한다 — 원형 악센트라 종이/잉크 어느 배경에도
+  얹힌다.
 
 ### Constellation Canvas (signature)
 - SVG+CSS 그래프. 노드 색은 `lib/element-colors.ts`, 이어진 간선은 lit 색 +
@@ -239,13 +266,16 @@ Plex Sans KR이 한글 본문을 담백하게 받친다. 본문 전역에 `word-
 ### Do:
 - **Do** 색은 globals.css + tailwind.config.ts 두 곳을 항상 같이 고친다 (§Colors).
 - **Do** 유형→색은 `lib/element-colors.ts` 한 곳만 import한다.
-- **Do** 새 인터랙티브 요소에 spec-b 포커스 링(랜딩에서는 paper-ink)을 유지한다.
+- **Do** 새 인터랙티브 요소에 spec-b 포커스 링을 유지한다 — 종이 크롬
+  (`.telescope-landing`/`.paper-surface`) 안에서는 paper-ink 링으로 바뀐다.
 - **Do** 장식 레이어는 `pointer-events: none` + 그래프 뒤에 둔다.
 
 ### Don't:
 - **Don't** `font-mono`를 한글에 쓰지 않는다 — 글리프가 없다.
-- **Don't** 배경 상시 애니메이션을 추가하지 않는다 (유일 예외: 팬 유발 드리프트).
+- **Don't** 배경 상시 애니메이션을 추가하지 않는다. 예외 둘: 팬 유발 드리프트,
+  그리고 배경 별의 은은한 twinkle(`starTwinkle`, opacity만 애니메이션).
 - **Don't** 마스코트·일러스트·게임적 장식·그라데이션 텍스트를 쓰지 않는다.
-- **Don't** `--paper-*`를 로그인 후 앱 서피스에 쓰지 않는다.
+- **Don't** `--paper-*`를 관측 표면(캔버스·노드·배경·모달)에 쓰지 않는다 —
+  떠 있는 크롬(레일/탭바/패널/툴바) 전용이다.
 - **Don't** lit(간선/달성)에 초록을 쓰지 않는다 — 별빛은 따뜻한 노랑이다.
 - **Don't** SVG 투명 채움에 `fill="none"`을 쓰지 않는다 (`docs/design-handoff-guide.md` §3-1).

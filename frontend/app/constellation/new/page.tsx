@@ -1168,33 +1168,37 @@ export default function NewConstellationPage() {
           새로 만들었다. 실제 저장은 항상 뮤테이션 큐가 알아서 흘려보내므로,
           버튼은 "아직 서버에 존재하지 않는 별자리"를 처음 만들 때만 의미가
           있다(제목 모달을 연다) - 이미 있으면 그냥 아무 것도 하지 않는다. */}
-      <div className="fixed left-3 top-3 z-20 flex items-center gap-2 rounded-lg border border-rule bg-ink-800/95 px-3 py-2 shadow-lg backdrop-blur-md">
+      <div className="paper-surface fixed left-3 top-3 z-20 flex items-center gap-2 rounded-lg border border-paper-line bg-paper/95 px-3 py-2 shadow-panel backdrop-blur-md">
         <button
           type="button"
           onClick={handleSaveClick}
-          className="rounded-md bg-spec-b px-3 py-1.5 font-sans text-xs font-medium text-ink-900 hover:opacity-90 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-1 focus-visible:outline-spec-b"
+          className="cta-ink rounded-md bg-paper-ink px-3 py-1.5 font-sans text-xs font-medium text-paper focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-1 focus-visible:outline-paper-ink"
         >
           저장
         </button>
-        <span className="font-sans text-xs text-text-lo">{SAVE_STATE_LABEL[saveState]}</span>
+        <span className="font-sans text-xs text-paper-lo">{SAVE_STATE_LABEL[saveState]}</span>
 
         {/* 발행 토글 - 아직 한 번도 저장 안 됐으면(cid 없음) 눌러도 발행할
             대상이 없으므로 비활성 + 이유를 title 툴팁으로 알려준다. 저장
             상태 배지와는 별개의 진실(발행 여부)이라 칩을 따로 둔다. */}
-        <span className="mx-0.5 h-4 w-px bg-rule" aria-hidden />
+        <span className="mx-0.5 h-4 w-px bg-paper-line" aria-hidden />
         <button
           type="button"
           onClick={handleTogglePublish}
           disabled={!constellationId}
           title={!constellationId ? "먼저 저장한 뒤 발행할 수 있어요" : undefined}
-          className="rounded-md border border-rule px-3 py-1.5 font-sans text-xs font-medium text-text-hi transition-colors hover:bg-ink-700 disabled:cursor-not-allowed disabled:opacity-40 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-1 focus-visible:outline-spec-b"
+          className="rounded-md border border-paper-line px-3 py-1.5 font-sans text-xs font-medium text-paper-ink transition-colors hover:bg-paper-soft disabled:cursor-not-allowed disabled:opacity-40 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-1 focus-visible:outline-paper-ink"
         >
           {isPublished ? "비공개로 전환" : "발행"}
         </button>
         <span
           className={cn(
             "font-sans text-xs",
-            isPublished ? "text-lit" : "text-text-lo"
+            // lit(별빛)은 종이 위에서 거의 안 보이는 대비라(둘 다 밝은 색조)
+            // 어두운 잉크 칩 위에 얹어 별빛이 실제로 빛나 보이게 한다.
+            isPublished
+              ? "rounded-full bg-paper-ink px-1.5 py-0.5 font-semibold text-lit"
+              : "text-paper-lo"
           )}
         >
           {isPublished ? "발행됨" : "비공개"}
@@ -1276,7 +1280,7 @@ export default function NewConstellationPage() {
 
       <aside
         className={cn(
-          "fixed z-20 flex flex-col overflow-hidden rounded-xl border border-rule bg-ink-800/95 shadow-lg backdrop-blur-md",
+          "paper-surface fixed z-20 flex flex-col overflow-hidden rounded-xl border border-paper-line bg-paper/95 shadow-panel backdrop-blur-md",
           "inset-x-3 bottom-[calc(var(--tabbar-h)+var(--safe-bottom)+12px)] max-h-[46vh]",
           "md:inset-x-auto md:bottom-4 md:right-4 md:top-4 md:h-auto md:max-h-none md:w-72"
         )}
@@ -1335,8 +1339,8 @@ function PanelTabs({ mode, onChange }: { mode: PanelMode; onChange: (mode: Panel
   };
 
   return (
-    <div className="border-b border-rule p-2">
-      <div role="tablist" aria-label="오른쪽 패널 전환" className="flex gap-1 rounded-lg bg-ink-900/60 p-1">
+    <div className="border-b border-paper-line p-2">
+      <div role="tablist" aria-label="오른쪽 패널 전환" className="flex gap-1 rounded-lg bg-paper-soft p-1">
         {PANEL_TABS.map((tab, index) => {
           const selected = tab.mode === mode;
           return (
@@ -1363,8 +1367,8 @@ function PanelTabs({ mode, onChange }: { mode: PanelMode; onChange: (mode: Panel
               }}
               className={cn(
                 "flex-1 rounded-md px-2.5 py-1.5 font-sans text-xs font-medium transition-colors",
-                "focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-1 focus-visible:outline-spec-b",
-                selected ? "bg-ink-700 text-text-hi" : "text-text-lo hover:text-text-hi"
+                "focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-1 focus-visible:outline-paper-ink",
+                selected ? "bg-paper text-paper-ink" : "text-paper-lo hover:text-paper-ink"
               )}
             >
               {tab.label}

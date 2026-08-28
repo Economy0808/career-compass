@@ -181,18 +181,18 @@ function ItemChip({
       className={cn(
         "group flex items-center gap-1.5 rounded-none border px-2 py-1 text-caption font-semibold",
         "transition-colors select-none",
-        "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-spec-b/70 focus-visible:ring-offset-2 focus-visible:ring-offset-ink-800",
+        "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-paper-ink/60 focus-visible:ring-offset-2 focus-visible:ring-offset-paper-soft",
         placed
-          ? "cursor-default border-rule text-text-lo opacity-45"
-          : "cursor-grab border-rule text-text-hi hover:border-spec-b/60 hover:bg-ink-700 active:cursor-grabbing"
+          ? "cursor-default border-paper-line text-paper-lo opacity-45"
+          : "cursor-grab border-paper-line text-paper-ink hover:border-paper-ink/50 hover:bg-paper active:cursor-grabbing"
       )}
     >
       <span
         aria-hidden
-        className="h-1.5 w-1.5 shrink-0 rounded-full"
-        style={{ background: placed ? "var(--text-lo)" : (TYPE_COLOR[item.type] ?? DEFAULT_TYPE_COLOR) }}
+        className="h-1.5 w-1.5 shrink-0 rounded-full ring-1 ring-paper-ink/10"
+        style={{ background: placed ? "var(--paper-lo)" : (TYPE_COLOR[item.type] ?? DEFAULT_TYPE_COLOR) }}
       />
-      {code && <span className="font-mono text-micro text-text-lo">{code}</span>}
+      {code && <span className="font-mono text-micro text-paper-lo">{code}</span>}
       <span className="truncate">{rest}</span>
       {placed && (
         <span aria-hidden className="text-lit">
@@ -271,23 +271,23 @@ function BinSection({
   }
 
   return (
-    <section className="rounded-lg border border-rule bg-ink-700/50 px-3 py-2.5">
+    <section className="rounded-lg border border-paper-line bg-paper-soft/60 px-3 py-2.5">
       <header
         className="mb-2 flex items-center gap-1.5"
         draggable={!bin.isLoading && bin.items.length > 0}
         onDragStart={handleBinDragStart}
         title="보관함 전체를 캔버스로 끌어놓을 수 있어요"
       >
-        <h3 className="text-caption font-bold tracking-[.02em] text-text-hi">{bin.label}</h3>
+        <h3 className="text-caption font-bold tracking-[.02em] text-paper-ink">{bin.label}</h3>
         {bin.origin === "user" && (
-          <span className="rounded-none bg-ink-800 px-1.5 py-0.5 text-micro font-semibold text-text-lo">
+          <span className="rounded-none bg-paper px-1.5 py-0.5 text-micro font-semibold text-paper-lo">
             내가 만든 보관함
           </span>
         )}
         {isAiSuggested && (
           <span
             title="카탈로그 검증 없이 AI가 제안한 항목이에요"
-            className="rounded-none bg-ink-800 px-1.5 py-0.5 text-micro font-semibold text-text-lo"
+            className="rounded-none bg-paper px-1.5 py-0.5 text-micro font-semibold text-paper-lo"
           >
             AI 제안
           </span>
@@ -307,7 +307,7 @@ function BinSection({
             aria-expanded={adviceOpen}
             aria-controls={adviceId}
             aria-label={`${bin.label} 조언 보기`}
-            className="shrink-0 rounded-full p-0.5 text-text-lo transition-colors hover:bg-ink-800 hover:text-text-hi focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-spec-b/70"
+            className="shrink-0 rounded-full p-0.5 text-paper-lo transition-colors hover:bg-paper hover:text-paper-ink focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-paper-ink/60"
           >
             <InfoIcon size={14} />
           </button>
@@ -318,11 +318,11 @@ function BinSection({
               type="button"
               onClick={handlePlaceAll}
               disabled={!canPlaceAll}
-              className="ml-auto shrink-0 rounded-none px-1.5 py-0.5 text-micro font-semibold text-spec-b transition-colors hover:bg-spec-b/15 disabled:cursor-not-allowed disabled:text-text-lo disabled:opacity-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-spec-b/70"
+              className="ml-auto shrink-0 rounded-none px-1.5 py-0.5 text-micro font-semibold text-paper-ink transition-colors hover:bg-paper-ink/8 disabled:cursor-not-allowed disabled:text-paper-lo disabled:opacity-50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-paper-ink/60"
             >
               모두 추가
             </button>
-            <span className="font-mono text-micro text-text-lo">{bin.items.length}</span>
+            <span className="font-mono text-micro text-paper-lo">{bin.items.length}</span>
           </>
         )}
       </header>
@@ -330,7 +330,7 @@ function BinSection({
       {hasAdvice && adviceOpen && (
         <p
           id={adviceId}
-          className="mt-1 mb-2 rounded-md border border-rule bg-ink-900/60 px-2.5 py-2 text-caption leading-relaxed text-text-lo"
+          className="mt-1 mb-2 rounded-md border border-paper-line bg-paper px-2.5 py-2 text-caption leading-relaxed text-paper-lo"
         >
           {bin.advice}
         </p>
@@ -343,13 +343,13 @@ function BinSection({
             <span
               key={i}
               aria-hidden
-              className="h-6 animate-pulse rounded-none bg-ink-800"
+              className="h-6 animate-pulse rounded-none bg-paper"
               style={{ width: 52 + i * 18 }}
             />
           ))}
         </div>
       ) : bin.items.length === 0 ? (
-        <p className="text-micro text-text-lo">아직 원소가 없어요.</p>
+        <p className="text-micro text-paper-lo">아직 원소가 없어요.</p>
       ) : (
         // level(학정번호 앞자리)로 tier를 나눠, 기초 과목이 위로 오게 쌓는다.
         // 왼쪽의 얇은 세로선은 "같은 tier"라는 연결을 은은하게만 표시하는
@@ -366,10 +366,10 @@ function BinSection({
         <div className="canvas-scroll max-h-56 space-y-2 overflow-y-auto overscroll-contain pr-0.5">
           {groups.map((group) => (
             <div key={group.level ?? "unleveled"} className="relative pl-2.5">
-              <div className="absolute inset-y-0.5 left-0 w-px bg-rule" aria-hidden />
-              <div className="mb-1 flex items-baseline gap-1.5 text-micro font-semibold text-text-lo">
+              <div className="absolute inset-y-0.5 left-0 w-px bg-paper-line" aria-hidden />
+              <div className="mb-1 flex items-baseline gap-1.5 text-micro font-semibold text-paper-lo">
                 {group.level !== null && (
-                  <span className="font-mono text-[10px] text-text-lo/80">{group.level}</span>
+                  <span className="font-mono text-micro text-paper-lo/80">{group.level}</span>
                 )}
                 <span>{group.level !== null ? tierLabel(group.level) : "학년 정보 없음"}</span>
               </div>
@@ -391,14 +391,14 @@ function BinSection({
       {!bin.isLoading && (
         <form
           onSubmit={handleAddItem}
-          className="mt-2 flex items-center gap-1.5 border-t border-rule pt-2"
+          className="mt-2 flex items-center gap-1.5 border-t border-paper-line pt-2"
           aria-label={`${bin.label}에 원소 직접 추가`}
         >
           <select
             value={addType}
             onChange={(e) => setAddType(e.target.value)}
             aria-label="새 원소 종류"
-            className="shrink-0 rounded-none border border-rule bg-ink-800 px-1 py-1 text-micro text-text-hi focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-spec-b/70"
+            className="shrink-0 rounded-none border border-paper-line bg-paper px-1 py-1 text-micro text-paper-ink focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-paper-ink/60"
           >
             {ELEMENT_TYPE_OPTIONS.map((opt) => (
               <option key={opt.value} value={opt.value}>
@@ -411,12 +411,12 @@ function BinSection({
             onChange={(e) => setAddLabel(e.target.value)}
             placeholder="요소 이름 직접 추가"
             aria-label="새 원소 이름"
-            className="min-w-0 flex-1 rounded-none border border-rule bg-transparent px-2 py-1 text-micro text-text-hi placeholder:text-text-lo focus:border-spec-b focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-spec-b/70"
+            className="min-w-0 flex-1 rounded-none border border-paper-line bg-transparent px-2 py-1 text-micro text-paper-ink placeholder:text-paper-lo focus:border-paper-ink focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-paper-ink/60"
           />
           <button
             type="submit"
             disabled={!addLabel.trim()}
-            className="shrink-0 rounded-none bg-spec-b/18 px-2 py-1 text-micro font-semibold text-spec-b transition-colors hover:bg-spec-b/25 disabled:cursor-not-allowed disabled:opacity-40 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-spec-b/70"
+            className="shrink-0 rounded-none bg-paper-ink/12 px-2 py-1 text-micro font-semibold text-paper-ink transition-colors hover:bg-paper-ink/18 disabled:cursor-not-allowed disabled:opacity-40 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-paper-ink/60"
           >
             추가
           </button>
@@ -458,16 +458,16 @@ export function ElementBinPanel({
       tabIndex={0}
       className={cn("flex min-h-0 flex-1 flex-col overflow-hidden", className)}
     >
-      <div className="border-b border-rule px-4 py-3.5">
-        <div className="text-body-sm font-bold text-text-hi">원소 보관함</div>
-        <p className="mt-0.5 text-micro text-text-lo">
+      <div className="border-b border-paper-line px-4 py-3.5">
+        <div className="text-body-sm font-bold text-paper-ink">원소 보관함</div>
+        <p className="mt-0.5 text-micro text-paper-lo">
           칩을 캔버스로 끌어놓거나, 칩에 포커스한 뒤 Enter를 누르세요.
         </p>
       </div>
 
       <div className="canvas-scroll min-h-0 flex-1 space-y-2 overflow-y-auto p-2.5">
         {bins.length === 0 ? (
-          <p className="px-1.5 py-6 text-body-sm text-text-lo">아직 보관함이 없어요.</p>
+          <p className="px-1.5 py-6 text-body-sm text-paper-lo">아직 보관함이 없어요.</p>
         ) : (
           bins.map((bin) => (
             <BinSection
@@ -482,7 +482,7 @@ export function ElementBinPanel({
       </div>
 
       <form
-        className="flex items-center gap-1.5 border-t border-rule p-3"
+        className="flex items-center gap-1.5 border-t border-paper-line p-3"
         onSubmit={(e) => {
           e.preventDefault();
           handleCreateBin();
@@ -493,23 +493,23 @@ export function ElementBinPanel({
           onChange={(e) => setNewBinLabel(e.target.value)}
           placeholder="새 보관함 이름"
           aria-label="새 보관함 이름"
-          className="min-w-0 flex-1 rounded-none border border-rule bg-transparent px-2.5 py-1.5 text-caption text-text-hi placeholder:text-text-lo focus:border-spec-b focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-spec-b/70"
+          className="min-w-0 flex-1 rounded-none border border-paper-line bg-transparent px-2.5 py-1.5 text-caption text-paper-ink placeholder:text-paper-lo focus:border-paper-ink focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-paper-ink/60"
         />
         <button
           type="submit"
           disabled={!newBinLabel.trim()}
-          className="shrink-0 rounded-none bg-spec-b/18 px-2.5 py-1.5 text-caption font-semibold text-spec-b transition-colors hover:bg-spec-b/25 disabled:cursor-not-allowed disabled:opacity-40 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-spec-b/70"
+          className="shrink-0 rounded-none bg-paper-ink/12 px-2.5 py-1.5 text-caption font-semibold text-paper-ink transition-colors hover:bg-paper-ink/18 disabled:cursor-not-allowed disabled:opacity-40 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-paper-ink/60"
         >
           추가
         </button>
       </form>
 
       {onStartNewConstellation && (
-        <div className="border-t border-rule px-3 pb-3 pt-2">
+        <div className="border-t border-paper-line px-3 pb-3 pt-2">
           <button
             type="button"
             onClick={onStartNewConstellation}
-            className="flex w-full items-center justify-center gap-1.5 rounded-lg border border-rule bg-ink-700/60 py-1.5 text-caption font-semibold text-text-hi transition-colors hover:bg-ink-700 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-spec-b/70 md:py-2 md:text-sm"
+            className="flex w-full items-center justify-center gap-1.5 rounded-lg border border-paper-line bg-paper-soft py-1.5 text-caption font-semibold text-paper-ink transition-colors hover:bg-paper-line/50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-paper-ink/60 md:py-2 md:text-sm"
           >
             <SeedIcon size={14} />
             새 별자리 만들기

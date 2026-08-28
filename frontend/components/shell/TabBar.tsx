@@ -16,7 +16,7 @@ export function TabBar() {
 
   return (
     <nav
-      className="fixed inset-x-0 bottom-0 z-50 flex items-center justify-around border-t border-rule bg-ink-800/90 px-1 backdrop-blur-lg md:hidden"
+      className="paper-surface fixed inset-x-0 bottom-0 z-50 flex items-center justify-around border-t border-paper-line bg-paper/95 px-1 backdrop-blur-lg md:hidden"
       style={{
         height: "calc(var(--tabbar-h) + var(--safe-bottom))",
         paddingBottom: "var(--safe-bottom)",
@@ -46,7 +46,7 @@ export function TabBar() {
             onClick={() => router.push(target)}
             className={cn(
               "flex min-w-[56px] flex-col items-center gap-1 py-1.5 text-micro font-semibold transition-colors",
-              isNavActive(item, pathname, user) ? "text-spec-b" : "text-text-lo"
+              isNavActive(item, pathname, user) ? "text-paper-ink" : "text-paper-lo"
             )}
           >
             <item.Icon size={20} />
