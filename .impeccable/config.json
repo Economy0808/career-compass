@@ -140,6 +140,18 @@
         "value": "9px",
         "createdAt": "2026-08-28T10:18:58.966Z",
         "reason": "logo lockup sub-label: sized so the Latin mono line matches the 22px wordmark width - user-directed rebalance (로고 비율 지적), one-off wordmark scale not a text ramp step"
+      },
+      {
+        "rule": "design-system-font-size",
+        "value": "34px",
+        "createdAt": "2026-08-28T10:31:27.761Z",
+        "reason": "profile avatar emoji glyph scale (mobile) - not body type"
+      },
+      {
+        "rule": "design-system-font-size",
+        "value": "46px",
+        "createdAt": "2026-08-28T10:31:27.991Z",
+        "reason": "profile avatar emoji glyph scale (md) - not body type"
       }
     ]
   }

@@ -1,52 +1,108 @@
 "use client";
 
+/*
+ * 프로필 - 인스타그램 해부학을 우리 관측 세계 토큰으로 옮긴 화면(사용자
+ * 벤치마크 지시): 좌측 큰 아바타 · 이름 줄 · 통계 줄 · bio · 탭 줄(사진/별자리)
+ * · 정사각 3열 그리드. 게시물의 주인공은 사진(+짤막한 글)이고, 발행한 별자리는
+ * 두 번째 탭으로 물러난다.
+ *
+ * 설계 여지(지금 만들지 않음 - 사용자 지시 "염두에 두고 설계"):
+ * - 스토리: 아바타의 링이 스토리 링 자리다(현재는 장식 헤어라인). 하이라이트
+ *   줄은 헤더와 탭 사이에 들어갈 예정.
+ * - DM: 타인 프로필의 팔로우 버튼 옆이 "메시지" 버튼 자리다.
+ * - 음악/노트 짧은 공유: 게시물 타입 확장(PostDto에 kind 추가)으로 수용한다.
+ *
+ * 이미지는 Storage(Blaze) 전까지 data URL로 문서에 저장된다 - 업로드 전에
+ * 클라이언트에서 1080px/JPEG로 리사이즈해 1MiB 문서 한도를 지킨다(fileToDataUrl).
+ */
+
 import Link from "next/link";
 import { useRouter } from "next/navigation";
-import { useEffect, useState } from "react";
-import { Button, EmptyState } from "@/components/ui";
+import { useEffect, useRef, useState } from "react";
+import { Button, EmptyState, Modal } from "@/components/ui";
 import { MiniConstellation } from "@/components/MiniConstellation";
 import { listUserConstellations, type ConstellationDto } from "@/lib/constellation-api";
 import { getProfile, followUser, unfollowUser, type ProfileDto } from "@/lib/profiles-api";
+import { createPost, deletePost, listUserPosts, type PostDto } from "@/lib/posts-api";
 import { ApiError } from "@/lib/api";
 import { useAuth } from "@/lib/auth-context";
-import { DangerZone } from "./_components/DangerZone";
+import { AccountDeleteModal } from "./_components/DangerZone";
 
-/** 로딩 중 보여줄 스켈레톤 타일 개수. 실제 그리드 개수와 무관 - 그냥 화면을 채울 만큼. */
 const SKELETON_TILES = 9;
+const CAPTION_MAX = 500;
 
-function ProfileGridSkeleton() {
+/** 업로드 전 클라이언트 리사이즈 - 긴 변 1080px, JPEG. 문서 1MiB 한도를
+ * 지키기 위해 결과가 크면 품질을 단계적으로 낮춘다. */
+async function fileToDataUrl(file: File): Promise<string> {
+  const bitmap = await createImageBitmap(file);
+  const MAX_EDGE = 1080;
+  const scale = Math.min(1, MAX_EDGE / Math.max(bitmap.width, bitmap.height));
+  const canvas = document.createElement("canvas");
+  canvas.width = Math.max(1, Math.round(bitmap.width * scale));
+  canvas.height = Math.max(1, Math.round(bitmap.height * scale));
+  const ctx = canvas.getContext("2d");
+  if (!ctx) throw new Error("canvas 2d context unavailable");
+  ctx.drawImage(bitmap, 0, 0, canvas.width, canvas.height);
+  let quality = 0.82;
+  let out = canvas.toDataURL("image/jpeg", quality);
+  while (out.length > 900_000 && quality > 0.4) {
+    quality -= 0.12;
+    out = canvas.toDataURL("image/jpeg", quality);
+  }
+  return out;
+}
+
+function GridSkeleton() {
   return (
-    <div className="grid grid-cols-2 gap-3 md:grid-cols-3" aria-hidden>
+    <div className="grid grid-cols-3 gap-1" aria-hidden>
       {Array.from({ length: SKELETON_TILES }).map((_, i) => (
-        <div
-          key={i}
-          className="aspect-square animate-pulse rounded-lg border border-rule bg-ink-800/70"
-        />
+        <div key={i} className="aspect-square animate-pulse bg-ink-800/70" />
       ))}
     </div>
   );
 }
 
-/** 프로필 그리드의 별자리 타일 - FeedCard와 같은 카드 크롬(테두리/배경)에
- * MiniConstellation을 정사각형으로 얹는다. "누르면 확대되면서 본다"는 지시는
- * hover 시 살짝 커지는 1개 트랜지션(scale)로 표현한다 - 클릭 후 라우팅을
- * 지연시켜 별도 확대 애니메이션을 타는 방식은 상태/타이머가 늘어나는 과잉
- * 연출이라 택하지 않았다. prefers-reduced-motion은 전역 규칙이 처리한다. */
+/** 정사각 3x3 그리드 아이콘(사진 탭). */
+function GridIcon({ size = 18 }: { size?: number }) {
+  return (
+    <svg width={size} height={size} viewBox="0 0 24 24" fill="transparent" stroke="currentColor" strokeWidth="1.7" aria-hidden>
+      <path d="M4 4h16v16H4Z M4 10.7h16 M4 17.3h16 M10.7 4v16 M17.3 4v16" />
+    </svg>
+  );
+}
+
+/** 4점 별 아이콘(별자리 탭). */
+function StarTabIcon({ size = 18 }: { size?: number }) {
+  return (
+    <svg width={size} height={size} viewBox="0 0 24 24" fill="transparent" stroke="currentColor" strokeWidth="1.7" strokeLinejoin="round" aria-hidden>
+      <path d="M12 3.5 L14 10 L20.5 12 L14 14 L12 20.5 L10 14 L3.5 12 L10 10 Z" />
+    </svg>
+  );
+}
+
+/** 케밥(세로 점 3개) 아이콘. */
+function KebabIcon({ size = 18 }: { size?: number }) {
+  return (
+    <svg width={size} height={size} viewBox="0 0 24 24" fill="currentColor" aria-hidden>
+      <circle cx="12" cy="5.5" r="1.7" />
+      <circle cx="12" cy="12" r="1.7" />
+      <circle cx="12" cy="18.5" r="1.7" />
+    </svg>
+  );
+}
+
 function ConstellationTile({ item }: { item: ConstellationDto }) {
   return (
     <Link
       href={`/constellation/${item.id}`}
-      className="group block overflow-hidden rounded-lg border border-rule bg-ink-800/70 no-underline transition-transform duration-150 hover:scale-[1.03] hover:bg-ink-800/90"
+      className="group relative block aspect-square overflow-hidden bg-ink-900 no-underline transition-transform duration-150 hover:scale-[1.02]"
     >
-      <div className="relative aspect-square overflow-hidden bg-ink-900">
-        <div className="bg-radec-grid pointer-events-none absolute inset-0" aria-hidden />
-        <MiniConstellation
-          nodes={item.nodes}
-          edges={item.edges}
-          className="absolute inset-0 h-full w-full p-3"
-        />
-      </div>
-      <p className="truncate px-2.5 py-2 text-caption text-text-lo">{item.title}</p>
+      <div className="bg-radec-grid pointer-events-none absolute inset-0" aria-hidden />
+      <MiniConstellation nodes={item.nodes} edges={item.edges} className="absolute inset-0 h-full w-full p-3" />
+      {/* 인스타 타일처럼 캡션은 밖에 안 두고 hover 오버레이로만 */}
+      <span className="absolute inset-x-0 bottom-0 truncate bg-gradient-to-t from-ink-900/85 to-transparent px-2 pb-1.5 pt-5 text-caption text-text-hi opacity-0 transition-opacity group-hover:opacity-100">
+        {item.title}
+      </span>
     </Link>
   );
 }
@@ -56,21 +112,38 @@ export default function ProfilePage({ params }: { params: { id: string } }) {
   const { user, loading: authLoading } = useAuth();
   const isOwn = !authLoading && user?.uid === params.id;
 
+  const [tab, setTab] = useState<"photos" | "constellations">("photos");
+  const [posts, setPosts] = useState<PostDto[] | null>(null);
   const [items, setItems] = useState<ConstellationDto[] | null>(null);
-  // undefined = 로딩/에러(자리표시 유지), 로드 성공 시 ProfileDto.
   const [profile, setProfile] = useState<ProfileDto | undefined>(undefined);
   const [followPending, setFollowPending] = useState(false);
   const [followError, setFollowError] = useState<string | null>(null);
 
+  // 케밥 메뉴/모달/컴포저/라이트박스 상태
+  const [menuOpen, setMenuOpen] = useState(false);
+  const [deleteOpen, setDeleteOpen] = useState(false);
+  const [draft, setDraft] = useState<{ imageData: string; caption: string } | null>(null);
+  const [posting, setPosting] = useState(false);
+  const [postError, setPostError] = useState<string | null>(null);
+  const [lightbox, setLightbox] = useState<PostDto | null>(null);
+  const fileInputRef = useRef<HTMLInputElement>(null);
+
   useEffect(() => {
     let cancelled = false;
+    setPosts(null);
     setItems(null);
+    listUserPosts(params.id)
+      .then((list) => {
+        if (!cancelled) setPosts(list);
+      })
+      .catch(() => {
+        if (!cancelled) setPosts([]);
+      });
     listUserConstellations(params.id)
       .then((list) => {
         if (!cancelled) setItems(list);
       })
       .catch(() => {
-        // 에러도 빈 상태로 취급한다 - 프로필 페이지에 별도 에러 UI를 두지 않는다.
         if (!cancelled) setItems([]);
       });
     return () => {
@@ -87,7 +160,7 @@ export default function ProfilePage({ params }: { params: { id: string } }) {
         if (!cancelled) setProfile(p);
       })
       .catch(() => {
-        // 404/에러 시 기존 자리표시("이름 없는 관측자")를 유지한다.
+        // 404/에러 시 자리표시 유지.
       });
     return () => {
       cancelled = true;
@@ -117,44 +190,204 @@ export default function ProfilePage({ params }: { params: { id: string } }) {
     }
   }
 
+  async function handleFilePicked(file: File | undefined): Promise<void> {
+    if (!file) return;
+    setPostError(null);
+    try {
+      const imageData = await fileToDataUrl(file);
+      setDraft({ imageData, caption: "" });
+    } catch {
+      setPostError("이미지를 읽지 못했어요. 다른 파일로 시도해주세요.");
+    }
+  }
+
+  async function handlePublishPost(): Promise<void> {
+    if (!draft || posting) return;
+    setPosting(true);
+    setPostError(null);
+    try {
+      const created = await createPost({ imageData: draft.imageData, caption: draft.caption.trim() });
+      setPosts((prev) => [created, ...(prev ?? [])]);
+      setDraft(null);
+    } catch {
+      setPostError("게시물을 올리지 못했어요. 잠시 후 다시 시도해주세요.");
+    } finally {
+      setPosting(false);
+    }
+  }
+
+  async function handleDeletePost(post: PostDto): Promise<void> {
+    try {
+      await deletePost(post.id);
+      setPosts((prev) => (prev ?? []).filter((p) => p.id !== post.id));
+      setLightbox(null);
+    } catch {
+      // 라이트박스에 조용한 실패 문구 대신 상태 유지 - 재시도 가능.
+      setPostError("삭제하지 못했어요. 다시 시도해주세요.");
+    }
+  }
+
+  const stats: { label: string; value: number | string }[] = [
+    { label: "게시물", value: posts?.length ?? "–" },
+    { label: "별자리", value: items?.length ?? "–" },
+    { label: "팔로워", value: profile?.followerCount ?? "–" },
+    { label: "팔로잉", value: profile?.followingCount ?? "–" },
+  ];
+
   return (
     <>
-      <div className="flex flex-wrap items-center gap-4">
-        <div className="flex h-16 w-16 shrink-0 items-center justify-center rounded-full border-2 border-lit/45 bg-ink-900 text-title shadow-glow-bloom">
-          {avatarEmoji}
-        </div>
-        <div className="min-w-0 flex-1">
-          <h1 className="truncate font-serif text-title font-bold text-text-hi">{displayName}</h1>
-          <div className="mt-1.5 flex flex-wrap items-center gap-x-4 gap-y-1 text-caption text-text-lo">
-            <span>
-              별자리 <b className="text-text-lo">{items?.length ?? "–"}</b>
-            </span>
-            <span>
-              팔로워 <b className="text-text-lo">{profile?.followerCount ?? "–"}</b>
-            </span>
-            <span>
-              팔로잉 <b className="text-text-lo">{profile?.followingCount ?? "–"}</b>
-            </span>
+      {/* ─ 헤더 (인스타 해부학: 아바타 | 이름·통계·bio) ─ */}
+      <div className="flex items-start gap-5 md:gap-10">
+        {/* 아바타 - 바깥 링은 향후 스토리 링 자리(지금은 장식 헤어라인) */}
+        <div className="flex h-20 w-20 shrink-0 items-center justify-center rounded-full border border-rule bg-ink-800 p-1 md:h-28 md:w-28">
+          <div className="flex h-full w-full items-center justify-center rounded-full bg-ink-900 text-[34px] md:text-[46px]">
+            {avatarEmoji}
           </div>
+        </div>
+
+        <div className="min-w-0 flex-1 pt-1">
+          <div className="flex flex-wrap items-center gap-x-3 gap-y-2">
+            <h1 className="truncate font-sans text-heading font-semibold text-text-hi">{displayName}</h1>
+            {profile?.isFollowing !== undefined && (
+              <Button variant="ghost" size="sm" onClick={handleFollowToggle} disabled={followPending}>
+                {profile.isFollowing ? "팔로잉" : "팔로우"}
+              </Button>
+            )}
+            {/* 향후: 타인 프로필의 "메시지"(DM) 버튼이 이 옆에 선다. */}
+            {isOwn && (
+              <div className="relative">
+                <button
+                  type="button"
+                  aria-label="프로필 설정 메뉴"
+                  aria-expanded={menuOpen}
+                  onClick={() => setMenuOpen((v) => !v)}
+                  className="rounded-md p-1.5 text-text-lo transition-colors hover:bg-ink-700 hover:text-text-hi focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-1 focus-visible:outline-spec-b"
+                >
+                  <KebabIcon />
+                </button>
+                {menuOpen && (
+                  <>
+                    {/* 바깥 클릭으로 닫는 투명 배경 */}
+                    <button
+                      type="button"
+                      aria-label="메뉴 닫기"
+                      className="fixed inset-0 z-10 cursor-default"
+                      onClick={() => setMenuOpen(false)}
+                    />
+                    <div className="absolute right-0 z-20 mt-1.5 w-44 overflow-hidden rounded-lg border border-rule bg-ink-800/95 shadow-panel backdrop-blur-md">
+                      {/* 향후: 프로필 편집, 스토리 설정 등 잡다한 설정 항목이
+                          이 메뉴에 쌓인다(사용자 지시). */}
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setMenuOpen(false);
+                          setDeleteOpen(true);
+                        }}
+                        className="block w-full px-3.5 py-2.5 text-left font-sans text-body-sm text-spec-m transition-colors hover:bg-ink-700"
+                      >
+                        회원 탈퇴
+                      </button>
+                    </div>
+                  </>
+                )}
+              </div>
+            )}
+          </div>
+
+          <div className="mt-2.5 flex items-center gap-5 md:gap-7">
+            {stats.map((s) => (
+              <span key={s.label} className="font-sans text-body-sm text-text-lo">
+                <b className="mr-1 font-semibold text-text-hi">{s.value}</b>
+                {s.label}
+              </span>
+            ))}
+          </div>
+
           {profile?.bio && (
-            <p className="mt-1.5 text-caption text-text-lo">{profile.bio}</p>
+            <p className="mt-2.5 max-w-md text-body-sm leading-relaxed text-text-lo">{profile.bio}</p>
           )}
+          {followError && <p className="mt-1.5 text-micro text-spec-m">{followError}</p>}
         </div>
-        {/* isFollowing 키가 응답에 있을 때만 렌더 - 익명 열람이거나 본인 프로필이면
-            계약상 키 자체가 빠지므로 자연히 숨겨진다. */}
-        {profile?.isFollowing !== undefined && (
-          <div className="flex flex-col items-end gap-1">
-            <Button variant="ghost" size="sm" onClick={handleFollowToggle} disabled={followPending}>
-              {profile.isFollowing ? "팔로잉" : "팔로우"}
-            </Button>
-            {followError && <p className="text-micro text-spec-m">{followError}</p>}
-          </div>
-        )}
       </div>
 
-      <div className="mt-9">
-        {items === null ? (
-          <ProfileGridSkeleton />
+      {/* 향후: 스토리 하이라이트 줄이 여기(헤더와 탭 사이)에 들어간다. */}
+
+      {/* ─ 탭 줄 (인스타처럼 상단 보더 + 중앙 아이콘) ─ */}
+      <div className="mt-8 flex items-center justify-center gap-14 border-t border-rule">
+        {(
+          [
+            { key: "photos", label: "사진 게시물", Icon: GridIcon },
+            { key: "constellations", label: "별자리", Icon: StarTabIcon },
+          ] as const
+        ).map(({ key, label, Icon }) => {
+          const active = tab === key;
+          return (
+            <button
+              key={key}
+              type="button"
+              aria-label={label}
+              aria-selected={active}
+              role="tab"
+              onClick={() => setTab(key)}
+              className={
+                "-mt-px flex items-center gap-1.5 border-t-2 px-1 py-3 font-sans text-caption transition-colors " +
+                (active
+                  ? "border-text-hi text-text-hi"
+                  : "border-transparent text-text-lo hover:text-text-hi")
+              }
+            >
+              <Icon size={16} />
+              <span className="hidden md:inline">{label}</span>
+            </button>
+          );
+        })}
+      </div>
+
+      {/* ─ 그리드 ─ */}
+      <div className="mt-1">
+        {tab === "photos" ? (
+          posts === null ? (
+            <GridSkeleton />
+          ) : posts.length === 0 && !isOwn ? (
+            <EmptyState title="아직 게시물이 없어요" />
+          ) : (
+            <div className="grid grid-cols-3 gap-1">
+              {isOwn && (
+                <button
+                  type="button"
+                  onClick={() => fileInputRef.current?.click()}
+                  className="flex aspect-square flex-col items-center justify-center gap-1.5 border border-dashed border-rule text-text-lo transition-colors hover:bg-ink-800 hover:text-text-hi focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-1 focus-visible:outline-spec-b"
+                >
+                  <svg width="26" height="26" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="1.6" fill="transparent" strokeLinecap="round" aria-hidden>
+                    <path d="M12 5v14M5 12h14" />
+                  </svg>
+                  <span className="font-sans text-micro">새 게시물</span>
+                </button>
+              )}
+              {posts.map((post) => (
+                <button
+                  key={post.id}
+                  type="button"
+                  onClick={() => setLightbox(post)}
+                  className="group relative aspect-square overflow-hidden bg-ink-800 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-1 focus-visible:outline-spec-b"
+                >
+                  {/* eslint-disable-next-line @next/next/no-img-element -- data URL은 next/image 최적화 대상이 아니다 */}
+                  <img
+                    src={post.imageData}
+                    alt={post.caption || "게시물 사진"}
+                    className="h-full w-full object-cover transition-transform duration-150 group-hover:scale-[1.03]"
+                  />
+                  {post.caption && (
+                    <span className="absolute inset-x-0 bottom-0 truncate bg-gradient-to-t from-ink-900/85 to-transparent px-2 pb-1.5 pt-5 text-left text-caption text-text-hi opacity-0 transition-opacity group-hover:opacity-100">
+                      {post.caption}
+                    </span>
+                  )}
+                </button>
+              ))}
+            </div>
+          )
+        ) : items === null ? (
+          <GridSkeleton />
         ) : items.length === 0 ? (
           <EmptyState
             title="아직 띄운 별자리가 없어요"
@@ -171,7 +404,7 @@ export default function ProfilePage({ params }: { params: { id: string } }) {
             }
           />
         ) : (
-          <div className="grid grid-cols-2 gap-3 md:grid-cols-3">
+          <div className="grid grid-cols-3 gap-1">
             {items.map((item) => (
               <ConstellationTile key={item.id} item={item} />
             ))}
@@ -179,7 +412,70 @@ export default function ProfilePage({ params }: { params: { id: string } }) {
         )}
       </div>
 
-      {isOwn && <DangerZone onDeleted={() => router.push("/")} />}
+      {/* 숨은 파일 입력 - "새 게시물" 타일이 트리거 */}
+      <input
+        ref={fileInputRef}
+        type="file"
+        accept="image/jpeg,image/png,image/webp"
+        className="hidden"
+        onChange={(e) => {
+          void handleFilePicked(e.target.files?.[0]);
+          e.target.value = "";
+        }}
+      />
+
+      {/* 새 게시물 컴포저 - 미리보기 + 짤막한 글 */}
+      <Modal open={draft !== null} onClose={() => !posting && setDraft(null)} title="새 게시물">
+        {draft && (
+          <>
+            {/* eslint-disable-next-line @next/next/no-img-element -- data URL 미리보기 */}
+            <img src={draft.imageData} alt="업로드할 사진 미리보기" className="max-h-[46vh] w-full rounded-md object-contain" />
+            <textarea
+              value={draft.caption}
+              maxLength={CAPTION_MAX}
+              onChange={(e) => setDraft({ ...draft, caption: e.target.value })}
+              rows={2}
+              placeholder="짤막한 글을 남겨보세요 (선택)"
+              className="mt-3 w-full resize-none rounded-md border border-rule bg-ink-900/70 px-3 py-2 font-sans text-sm text-text-hi placeholder:text-text-lo focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-1 focus-visible:outline-spec-b"
+            />
+            {postError && <p className="mt-1.5 text-micro text-spec-m">{postError}</p>}
+            <div className="mt-4 flex gap-2">
+              <Button className="flex-1" onClick={handlePublishPost} disabled={posting}>
+                {posting ? "올리는 중…" : "올리기"}
+              </Button>
+              <Button variant="ghost" onClick={() => setDraft(null)} disabled={posting}>
+                취소
+              </Button>
+            </div>
+          </>
+        )}
+      </Modal>
+
+      {/* 라이트박스 - "누르면 확대되면서" 보는 인스타 관례 */}
+      <Modal open={lightbox !== null} onClose={() => setLightbox(null)} title={displayName}>
+        {lightbox && (
+          <>
+            {/* eslint-disable-next-line @next/next/no-img-element -- data URL 원본 보기 */}
+            <img src={lightbox.imageData} alt={lightbox.caption || "게시물 사진"} className="max-h-[62vh] w-full rounded-md object-contain" />
+            {lightbox.caption && (
+              <p className="mt-3 whitespace-pre-wrap text-body-sm leading-relaxed text-text-hi">{lightbox.caption}</p>
+            )}
+            <div className="mt-2 flex items-center justify-between">
+              <span className="font-mono text-micro text-text-lo">
+                {new Date(lightbox.createdAt).toLocaleDateString("ko-KR")}
+              </span>
+              {isOwn && (
+                <Button variant="danger" size="sm" onClick={() => void handleDeletePost(lightbox)}>
+                  삭제
+                </Button>
+              )}
+            </div>
+            {postError && <p className="mt-1.5 text-micro text-spec-m">{postError}</p>}
+          </>
+        )}
+      </Modal>
+
+      <AccountDeleteModal open={deleteOpen} onClose={() => setDeleteOpen(false)} onDeleted={() => router.push("/")} />
     </>
   );
 }

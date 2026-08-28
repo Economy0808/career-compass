@@ -1,0 +1,125 @@
+"""프로필 사진 게시물(Post) API 통합 테스트 - 실제 Firestore 에뮬레이터를 상대로 실행한다.
+
+test_constellation_api.py와 동일한 이유로 Mock을 쓰지 않는다(에뮬레이터 스킵
+가드도 그 파일을 그대로 복사한 관례). 인증은 app.dependency_overrides[get_current_user]로
+대체한다.
+
+CRITICAL: 이 스위트는 작성만 하고 실행하지 않는다(작업 지시 - 공유 에뮬레이터
+데이터가 전멸하는 함정이 있어 이 세션에서는 pytest를 절대 돌리지 않는다).
+
+실행 방법 (backend/ 에서, 이 세션이 아닌 별도 검증 시):
+    firebase emulators:exec --only firestore --project demo-ourlab \
+        ".venv/Scripts/python.exe -m pytest tests/test_posts_api.py -q"
+"""
+
+from __future__ import annotations
+
+import os
+from collections.abc import Callable, Iterator
+
+import pytest
+import requests
+from httpx import ASGITransport, AsyncClient
+
+from app.auth.deps import get_current_user
+from app.auth.firebase_auth import DecodedToken
+from app.main import app
+
+_TINY_PNG_DATA_URL = (
+    "data:image/png;base64,"
+    "iVBORw0KGgoAAAANSUhEUgAAAAEAAAABCAQAAAC1HAwCAAAAC0lEQVR42mNk+A8AAQUBAScY42YAAAAASUVORK5CYII="
+)
+
+
+def _emulator_available() -> bool:
+    """FIRESTORE_EMULATOR_HOST가 설정돼 있고 실제로 응답하는지 확인한다."""
+    host = os.environ.get("FIRESTORE_EMULATOR_HOST")
+    if not host:
+        return False
+    try:
+        requests.get(f"http://{host}/", timeout=2)
+    except requests.exceptions.RequestException:
+        return False
+    return True
+
+
+pytestmark = pytest.mark.skipif(
+    not _emulator_available(),
+    reason=(
+        "FIRESTORE_EMULATOR_HOST가 설정되지 않았거나 에뮬레이터가 응답하지 않음 - "
+        "firebase emulators:exec --only firestore --project demo-ourlab 로 실행할 것"
+    ),
+)
+
+
+@pytest.fixture(autouse=True)
+def _clear_overrides() -> Iterator[None]:
+    """app이 모듈 전역 싱글턴이라, 테스트가 실패하든 성공하든 override는 항상 지운다."""
+    yield
+    app.dependency_overrides.clear()
+
+
+@pytest.fixture
+def authed_as() -> Callable[[str], None]:
+    """주어진 uid로 get_current_user override를 세팅하는 함수를 돌려준다."""
+
+    def _set(uid: str) -> None:
+        app.dependency_overrides[get_current_user] = lambda: DecodedToken(uid=uid)
+
+    return _set
+
+
+def _client() -> AsyncClient:
+    return AsyncClient(transport=ASGITransport(app=app), base_url="http://test")
+
+
+@pytest.mark.asyncio
+async def test_create_then_list_then_owner_delete(authed_as: Callable[[str], None]) -> None:
+    authed_as("user-a")
+    async with _client() as client:
+        create_resp = await client.post(
+            "/api/posts",
+            json={"imageData": _TINY_PNG_DATA_URL, "caption": "오늘의 한 컷"},
+        )
+        assert create_resp.status_code == 201
+        created = create_resp.json()
+        assert created["ownerId"] == "user-a"
+        assert created["caption"] == "오늘의 한 컷"
+        assert isinstance(created["id"], str) and created["id"]
+        assert isinstance(created["createdAt"], int)
+
+        list_resp = await client.get("/api/posts/user/user-a")
+        assert list_resp.status_code == 200
+        posts = list_resp.json()
+        assert any(p["id"] == created["id"] for p in posts)
+
+        delete_resp = await client.delete(f"/api/posts/{created['id']}")
+        assert delete_resp.status_code == 204
+
+        list_after_resp = await client.get("/api/posts/user/user-a")
+        assert all(p["id"] != created["id"] for p in list_after_resp.json())
+
+
+@pytest.mark.asyncio
+async def test_other_user_delete_returns_403(authed_as: Callable[[str], None]) -> None:
+    authed_as("user-a")
+    async with _client() as client:
+        create_resp = await client.post(
+            "/api/posts", json={"imageData": _TINY_PNG_DATA_URL, "caption": ""}
+        )
+        post_id = create_resp.json()["id"]
+
+    authed_as("user-b")
+    async with _client() as client:
+        delete_resp = await client.delete(f"/api/posts/{post_id}")
+        assert delete_resp.status_code == 403
+
+
+@pytest.mark.asyncio
+async def test_invalid_image_data_returns_422(authed_as: Callable[[str], None]) -> None:
+    authed_as("user-a")
+    async with _client() as client:
+        resp = await client.post(
+            "/api/posts", json={"imageData": "not-a-data-url", "caption": ""}
+        )
+        assert resp.status_code == 422

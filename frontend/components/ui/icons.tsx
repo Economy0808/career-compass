@@ -20,6 +20,18 @@ export function SproutIcon({ size = 18, className, style }: IconProps) {
   ));
 }
 
+/** 프로필 마크 - 원 안의 사람 실루엣(인스타그램 프로필 탭 관례). 네비의
+ * "내 별자리"를 대체한다(사용자 지시). */
+export function ProfileIcon({ size = 18, className, style }: IconProps) {
+  return svg(size, className, style, (
+    <>
+      <circle cx="12" cy="12" r="9" stroke="currentColor" strokeWidth="1.8" fill="transparent" />
+      <circle cx="12" cy="10" r="3" fill="currentColor" />
+      <path d="M6.5 18.2c1-2.6 3.1-3.9 5.5-3.9s4.5 1.3 5.5 3.9" stroke="currentColor" strokeWidth="1.8" strokeLinecap="round" fill="transparent" />
+    </>
+  ));
+}
+
 export function SeedIcon({ size = 18, className, style }: IconProps) {
   return svg(size, className, style, (
     <>
