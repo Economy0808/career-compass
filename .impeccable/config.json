@@ -152,6 +152,12 @@
         "value": "46px",
         "createdAt": "2026-08-28T10:31:27.991Z",
         "reason": "profile avatar emoji glyph scale (md) - not body type"
+      },
+      {
+        "rule": "design-system-font-size",
+        "value": "26px",
+        "createdAt": "2026-08-28T11:54:06.364Z",
+        "reason": "story ring avatar emoji glyph scale - not body type (same family as 34/46px profile avatar)"
       }
     ]
   }

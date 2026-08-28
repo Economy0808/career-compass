@@ -12,7 +12,10 @@ import Link from "next/link";
 import { useEffect, useState } from "react";
 import { Avatar, Button } from "@/components/ui";
 import { MiniConstellation } from "@/components/MiniConstellation";
+import { StoryRing } from "@/components/StoryRing";
+import { StoryViewer } from "@/components/StoryViewer";
 import { getFeed, type FeedItemDto } from "@/lib/constellation-api";
+import type { StoryRingEntryDto } from "@/lib/stories-api";
 import { relativeTimeKo } from "@/lib/format";
 
 /** 데이터 로딩 중 표시. app/page.tsx가 인증 상태 로딩 중에도 동일한 스켈레톤을
@@ -97,6 +100,7 @@ function EmptyFeedFigure() {
 export function FeedView() {
   const [items, setItems] = useState<FeedItemDto[] | null>(null);
   const [error, setError] = useState<string | null>(null);
+  const [viewer, setViewer] = useState<{ uid: string; ring: StoryRingEntryDto[] } | null>(null);
 
   function load() {
     setError(null);
@@ -134,6 +138,8 @@ export function FeedView() {
         </span>
       </header>
 
+      <StoryRing onOpen={(uid, ring) => setViewer({ uid, ring })} className="mb-8" />
+
       {items.length === 0 ? (
         <div className="rounded-lg border border-dashed border-rule px-6 py-16 text-center">
           <EmptyFeedFigure />
@@ -159,6 +165,10 @@ export function FeedView() {
             <FeedCard key={item.constellation.id} item={item} />
           ))}
         </div>
+      )}
+
+      {viewer && (
+        <StoryViewer ring={viewer.ring} startUid={viewer.uid} onClose={() => setViewer(null)} />
       )}
     </div>
   );

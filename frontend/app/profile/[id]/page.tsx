@@ -24,33 +24,17 @@ import { MiniConstellation } from "@/components/MiniConstellation";
 import { listUserConstellations, type ConstellationDto } from "@/lib/constellation-api";
 import { getProfile, followUser, unfollowUser, type ProfileDto } from "@/lib/profiles-api";
 import { createPost, deletePost, listUserPosts, type PostDto } from "@/lib/posts-api";
+import { createStory } from "@/lib/stories-api";
+import { fileToDataUrl } from "@/lib/image-utils";
 import { ApiError } from "@/lib/api";
 import { useAuth } from "@/lib/auth-context";
+import { StoryRing } from "@/components/StoryRing";
+import { StoryViewer } from "@/components/StoryViewer";
+import type { StoryRingEntryDto } from "@/lib/stories-api";
 import { AccountDeleteModal } from "./_components/DangerZone";
 
 const SKELETON_TILES = 9;
 const CAPTION_MAX = 500;
-
-/** 업로드 전 클라이언트 리사이즈 - 긴 변 1080px, JPEG. 문서 1MiB 한도를
- * 지키기 위해 결과가 크면 품질을 단계적으로 낮춘다. */
-async function fileToDataUrl(file: File): Promise<string> {
-  const bitmap = await createImageBitmap(file);
-  const MAX_EDGE = 1080;
-  const scale = Math.min(1, MAX_EDGE / Math.max(bitmap.width, bitmap.height));
-  const canvas = document.createElement("canvas");
-  canvas.width = Math.max(1, Math.round(bitmap.width * scale));
-  canvas.height = Math.max(1, Math.round(bitmap.height * scale));
-  const ctx = canvas.getContext("2d");
-  if (!ctx) throw new Error("canvas 2d context unavailable");
-  ctx.drawImage(bitmap, 0, 0, canvas.width, canvas.height);
-  let quality = 0.82;
-  let out = canvas.toDataURL("image/jpeg", quality);
-  while (out.length > 900_000 && quality > 0.4) {
-    quality -= 0.12;
-    out = canvas.toDataURL("image/jpeg", quality);
-  }
-  return out;
-}
 
 function GridSkeleton() {
   return (
@@ -128,6 +112,14 @@ export default function ProfilePage({ params }: { params: { id: string } }) {
   const [lightbox, setLightbox] = useState<PostDto | null>(null);
   const fileInputRef = useRef<HTMLInputElement>(null);
 
+  // 업로드 선택 시트("새 게시물" 타일 클릭 시) + 스토리 업로드 + 뷰어 상태
+  const [uploadSheetOpen, setUploadSheetOpen] = useState(false);
+  const [uploadTarget, setUploadTarget] = useState<"post" | "story" | null>(null);
+  const [storyPosting, setStoryPosting] = useState(false);
+  const [storyError, setStoryError] = useState<string | null>(null);
+  const [ringRefreshKey, setRingRefreshKey] = useState(0);
+  const [viewer, setViewer] = useState<{ uid: string; ring: StoryRingEntryDto[] } | null>(null);
+
   useEffect(() => {
     let cancelled = false;
     setPosts(null);
@@ -192,12 +184,29 @@ export default function ProfilePage({ params }: { params: { id: string } }) {
 
   async function handleFilePicked(file: File | undefined): Promise<void> {
     if (!file) return;
+    if (uploadTarget === "story") {
+      setStoryError(null);
+      setStoryPosting(true);
+      try {
+        const imageData = await fileToDataUrl(file);
+        await createStory(imageData);
+        setRingRefreshKey((k) => k + 1);
+      } catch {
+        setStoryError("스토리를 올리지 못했어요. 잠시 후 다시 시도해주세요.");
+      } finally {
+        setStoryPosting(false);
+        setUploadTarget(null);
+      }
+      return;
+    }
     setPostError(null);
     try {
       const imageData = await fileToDataUrl(file);
       setDraft({ imageData, caption: "" });
     } catch {
       setPostError("이미지를 읽지 못했어요. 다른 파일로 시도해주세요.");
+    } finally {
+      setUploadTarget(null);
     }
   }
 
@@ -310,7 +319,13 @@ export default function ProfilePage({ params }: { params: { id: string } }) {
         </div>
       </div>
 
-      {/* 향후: 스토리 하이라이트 줄이 여기(헤더와 탭 사이)에 들어간다. */}
+      {/* 스토리 하이라이트 줄 - 헤더와 탭 사이 */}
+      <StoryRing
+        key={ringRefreshKey}
+        onOpen={(uid, ring) => setViewer({ uid, ring })}
+        className="mt-6"
+      />
+      {storyError && <p className="mt-1.5 text-micro text-spec-m">{storyError}</p>}
 
       {/* ─ 탭 줄 (인스타처럼 상단 보더 + 중앙 아이콘) ─ */}
       <div className="mt-8 flex items-center justify-center gap-14 border-t border-rule">
@@ -355,13 +370,14 @@ export default function ProfilePage({ params }: { params: { id: string } }) {
               {isOwn && (
                 <button
                   type="button"
-                  onClick={() => fileInputRef.current?.click()}
+                  onClick={() => setUploadSheetOpen(true)}
+                  disabled={storyPosting}
                   className="flex aspect-square flex-col items-center justify-center gap-1.5 border border-dashed border-rule text-text-lo transition-colors hover:bg-ink-800 hover:text-text-hi focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-1 focus-visible:outline-spec-b"
                 >
                   <svg width="26" height="26" viewBox="0 0 24 24" stroke="currentColor" strokeWidth="1.6" fill="transparent" strokeLinecap="round" aria-hidden>
                     <path d="M12 5v14M5 12h14" />
                   </svg>
-                  <span className="font-sans text-micro">새 게시물</span>
+                  <span className="font-sans text-micro">{storyPosting ? "스토리 올리는 중…" : "새로 만들기"}</span>
                 </button>
               )}
               {posts.map((post) => (
@@ -412,7 +428,7 @@ export default function ProfilePage({ params }: { params: { id: string } }) {
         )}
       </div>
 
-      {/* 숨은 파일 입력 - "새 게시물" 타일이 트리거 */}
+      {/* 숨은 파일 입력 - 업로드 선택 시트의 "사진 게시물"/"스토리" 항목이 트리거 */}
       <input
         ref={fileInputRef}
         type="file"
@@ -423,6 +439,43 @@ export default function ProfilePage({ params }: { params: { id: string } }) {
           e.target.value = "";
         }}
       />
+
+      {/* 업로드 선택 시트 - "새로 만들기" 타일 클릭 시 등장(기존 케밥 메뉴 관례) */}
+      <Modal open={uploadSheetOpen} onClose={() => setUploadSheetOpen(false)} title="새로 만들기" size="sm">
+        <div className="flex flex-col gap-1">
+          <button
+            type="button"
+            onClick={() => {
+              setUploadTarget("post");
+              setUploadSheetOpen(false);
+              fileInputRef.current?.click();
+            }}
+            className="rounded-md px-3.5 py-3 text-left font-sans text-body-sm text-text-hi transition-colors hover:bg-ink-700"
+          >
+            사진 게시물
+          </button>
+          <button
+            type="button"
+            onClick={() => {
+              setUploadTarget("story");
+              setUploadSheetOpen(false);
+              fileInputRef.current?.click();
+            }}
+            className="rounded-md px-3.5 py-3 text-left font-sans text-body-sm text-text-hi transition-colors hover:bg-ink-700"
+          >
+            스토리
+          </button>
+          <div className="rounded-md px-3.5 py-3">
+            <span className="font-sans text-body-sm text-text-lo/60">영상 — 준비 중</span>
+            <p className="mt-0.5 font-sans text-micro text-text-lo/50">저장소 연결 후 제공돼요</p>
+          </div>
+        </div>
+      </Modal>
+
+      {/* 스토리 뷰어 - 링/피드 어디서 열든 동일 컴포넌트 */}
+      {viewer && (
+        <StoryViewer ring={viewer.ring} startUid={viewer.uid} onClose={() => setViewer(null)} />
+      )}
 
       {/* 새 게시물 컴포저 - 미리보기 + 짤막한 글 */}
       <Modal open={draft !== null} onClose={() => !posting && setDraft(null)} title="새 게시물">
