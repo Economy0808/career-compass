@@ -1505,7 +1505,9 @@ export default function NewConstellationPage() {
         className={cn(
           "paper-surface fixed z-20 flex items-center gap-1.5 rounded-lg border border-paper-line bg-paper-soft/95 px-3 py-2 font-sans text-xs font-medium text-paper-ink shadow-panel backdrop-blur-md transition-colors hover:bg-paper focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-1 focus-visible:outline-paper-ink",
           "right-3 top-3",
-          isPanelCollapsed ? "md:right-[68px] md:top-4" : "md:right-[304px] md:top-3",
+          // 군집 섬(md: w-72 + right-4 = 304px)과 딱 붙지 않게 20px 숨통을 더
+          // 둔다(사용자 지적: "편집 버튼도 군집 아일랜드랑 너무 붙었어").
+          isPanelCollapsed ? "md:right-[80px] md:top-4" : "md:right-[324px] md:top-3",
           paletteOpen && "max-md:hidden"
         )}
       >
@@ -1521,14 +1523,17 @@ export default function NewConstellationPage() {
         className={cn(
           "paper-surface fixed z-20",
           "right-3 bottom-[calc(var(--tabbar-h)+var(--safe-bottom)+46vh+24px)]",
-          isPanelCollapsed ? "md:right-[68px] md:bottom-4" : "md:right-[304px] md:bottom-4",
+          isPanelCollapsed ? "md:right-[80px] md:bottom-4" : "md:right-[324px] md:bottom-4",
           paletteOpen && "max-md:hidden"
         )}
       >
+        {/* 어두운 우주 위에서 잉크색 버튼은 윤곽이 죽는다(사용자 지적) -
+            다른 떠 있는 크롬과 같은 밝은 종이 필로 뒤집어 또렷하게 보이게
+            한다. 화면의 유일한 "완결" 행동이라 밝은 쪽이 위계상으로도 맞다. */}
         <button
           type="button"
           onClick={() => setLaunchModalOpen(true)}
-          className="cta-ink rounded-lg bg-paper-ink px-4 py-2.5 font-sans text-sm font-medium text-paper shadow-panel backdrop-blur-md focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-1 focus-visible:outline-paper-ink"
+          className="rounded-full border border-paper-line bg-paper px-4 py-2.5 font-sans text-sm font-semibold text-paper-ink shadow-panel backdrop-blur-md transition-colors hover:bg-paper-soft focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-1 focus-visible:outline-paper-ink"
         >
           별자리 띄우기
         </button>
@@ -1565,7 +1570,16 @@ export default function NewConstellationPage() {
       {/* 섬 크롬 전환 이후 좌상단은 OurLab 로고 자리다(AppShell.tsx) - 툴바가
           겹치지 않도록 상단 중앙으로 옮겼다. 더 이상 풀높이 레일이 없으므로
           레일 폭을 피하던 옛 left-[208px] 계산은 필요 없다. */}
-      <div className="paper-surface fixed left-1/2 top-3 z-20 flex -translate-x-1/2 items-center gap-2 rounded-lg border border-paper-line bg-paper-soft/95 px-3 py-2 shadow-panel backdrop-blur-md">
+      <div
+        className={cn(
+          "paper-surface fixed top-3 z-20 flex -translate-x-1/2 items-center gap-2 rounded-lg border border-paper-line bg-paper-soft/95 px-3 py-2 shadow-panel backdrop-blur-md",
+          // "전체 화면 중간 말고 여백의 중간"(사용자 지적) - 우측 군집 섬이
+          // 차지하는 폭을 빼고 남은 하늘 영역의 정중앙에 둔다. <md는 패널이
+          // 하단 시트라 그냥 화면 중앙.
+          "left-1/2",
+          isPanelCollapsed ? "md:left-[calc((100vw-80px)/2)]" : "md:left-[calc((100vw-320px)/2)]"
+        )}
+      >
         <button
           type="button"
           onClick={handleSaveClick}
