@@ -125,6 +125,15 @@
         ],
         "createdAt": "2026-08-27T19:10:35.700Z",
         "reason": "selected-draft state marker from user-pinned Cosmos board (artifact 88238bcc board4: border-left 2px lit), not a decorative card accent"
+      },
+      {
+        "rule": "design-system-font-size",
+        "value": "10px",
+        "files": [
+          "frontend/components/ElementNotesPanel.tsx"
+        ],
+        "createdAt": "2026-08-28T06:00:57.508Z",
+        "reason": "pre-existing micro size in notes panel (predates 2026-08-28 paper conversion; only color tokens changed on these lines)"
       }
     ]
   }
