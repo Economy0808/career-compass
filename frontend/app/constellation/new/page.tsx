@@ -699,6 +699,8 @@ export default function NewConstellationPage() {
   // 사용자가 저장 버튼을 눌러야 일어난다(기존 흐름 그대로).
   const handleAcceptDraft = useCallback(() => {
     setDraftOffer(null);
+    fitTokenRef.current += 1;
+    setFitRequest(fitTokenRef.current);
   }, []);
 
   // "직접 그릴래요" - 초안 미리보기를 버리고 완전히 빈 캔버스로 돌아간다.
@@ -1057,6 +1059,12 @@ export default function NewConstellationPage() {
   // ConstellationCanvas의 focusNodeId prop으로 전달한다(아래 렌더 참고).
   const [focusRequest, setFocusRequest] = useState<{ nodeId: string; token: number } | null>(null);
   const focusTokenRef = useRef(0);
+  // 시안 확정("이 별자리로 시작") 직후 캔버스가 화면 밖에 걸리는 문제 - 확정
+  // 시점에 이 카운터를 올려 ConstellationCanvas의 fit-to-content를 1회
+  // 발동시킨다(값 자체가 아니라 매번 바뀌는 숫자가 신호 - focusRequest와 같은
+  // token 문법).
+  const [fitRequest, setFitRequest] = useState<number | null>(null);
+  const fitTokenRef = useRef(0);
   const handleNoteLinkClick = useCallback((nodeId: string) => {
     focusTokenRef.current += 1;
     setFocusRequest({ nodeId, token: focusTokenRef.current });
@@ -1161,6 +1169,7 @@ export default function NewConstellationPage() {
         onOpenNotes={handleOpenNotes}
         onExternalDrop={handleExternalDrop}
         focusRequest={focusRequest}
+        fitRequest={fitRequest}
       />
 
       {/* 저장 버튼 + 상태 배지 - 좌상단에 뜨는 작은 오버레이. 별도 상단 툴바가
@@ -1168,7 +1177,11 @@ export default function NewConstellationPage() {
           새로 만들었다. 실제 저장은 항상 뮤테이션 큐가 알아서 흘려보내므로,
           버튼은 "아직 서버에 존재하지 않는 별자리"를 처음 만들 때만 의미가
           있다(제목 모달을 연다) - 이미 있으면 그냥 아무 것도 하지 않는다. */}
-      <div className="paper-surface fixed left-3 top-3 z-20 flex items-center gap-2 rounded-lg border border-paper-line bg-paper/95 px-3 py-2 shadow-panel backdrop-blur-md">
+      {/* md 이상에서는 좌측 네비 레일(SideRail.tsx, w-rail=196px, 불투명 종이)이
+          떠 있어 left-3만으로는 레일 아래 깔린다 - 레일 폭 + 12px 여백만큼
+          오른쪽으로 밀어낸다(tailwind.config.ts의 spacing.rail: "196px",
+          ElementNotesPanel.tsx의 212px 계산과 같은 값). */}
+      <div className="paper-surface fixed left-3 top-3 z-20 flex items-center gap-2 rounded-lg border border-paper-line bg-paper/95 px-3 py-2 shadow-panel backdrop-blur-md md:left-[208px]">
         <button
           type="button"
           onClick={handleSaveClick}

@@ -428,7 +428,7 @@ export function ElementNotesPanel({
         tabIndex={0}
         className={cn("flex min-h-0 flex-1 flex-col overflow-hidden", className)}
       >
-        <p className="px-3 py-6 text-center font-sans text-body-sm leading-relaxed text-text-lo">
+        <p className="px-3 py-6 text-center font-sans text-body-sm leading-relaxed text-paper-lo">
           캔버스에 아직 원소가 없어요. 원소를 놓으면 여기서 노트를 볼 수 있어요.
         </p>
       </div>
@@ -452,7 +452,7 @@ export function ElementNotesPanel({
           const newNoteKey = `new:${node.id}`;
 
           return (
-            <div key={node.id} className="rounded-none border border-rule bg-ink-900/60">
+            <div key={node.id} className="rounded-none border border-paper-line bg-paper">
               <button
                 type="button"
                 id={barId}
@@ -469,32 +469,32 @@ export function ElementNotesPanel({
                     return next;
                   })
                 }
-                className="flex w-full items-center gap-2 rounded-none px-2.5 py-2 text-left focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-1 focus-visible:outline-spec-b"
+                className="flex w-full items-center gap-2 rounded-none px-2.5 py-2 text-left focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-1 focus-visible:outline-paper-ink"
               >
                 <span
                   aria-hidden
                   className="h-1.5 w-1.5 shrink-0 rounded-full"
                   style={{ background: colorForType(node.type) }}
                 />
-                <span className="min-w-0 flex-1 truncate font-sans text-sm font-medium text-text-hi">
+                <span className="min-w-0 flex-1 truncate font-sans text-sm font-medium text-paper-ink">
                   {node.label}
                 </span>
-                {node.code && <span className="shrink-0 font-mono text-[11px] text-text-lo">{node.code}</span>}
-                <span className="shrink-0 font-sans text-[11px] text-text-lo">{notes.length}개</span>
+                {node.code && <span className="shrink-0 font-mono text-[11px] text-paper-lo">{node.code}</span>}
+                <span className="shrink-0 font-sans text-[11px] text-paper-lo">{notes.length}개</span>
                 <span
                   aria-hidden
-                  className={cn("shrink-0 text-text-lo transition-transform", isOpen && "rotate-90")}
+                  className={cn("shrink-0 text-paper-lo transition-transform", isOpen && "rotate-90")}
                 >
                   {"›"}
                 </span>
               </button>
 
               {isOpen && (
-                <div id={regionId} role="region" aria-labelledby={barId} className="space-y-1.5 border-t border-rule px-2.5 py-2">
+                <div id={regionId} role="region" aria-labelledby={barId} className="space-y-1.5 border-t border-paper-line px-2.5 py-2">
                   <button
                     type="button"
                     onClick={() => setActiveNoteKey((cur) => (cur === newNoteKey ? null : newNoteKey))}
-                    className="w-full rounded-none border border-dashed border-rule px-2.5 py-1.5 text-left font-sans text-xs text-text-lo hover:border-spec-b hover:text-text-hi focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-1 focus-visible:outline-spec-b"
+                    className="w-full rounded-none border border-dashed border-paper-line px-2.5 py-1.5 text-left font-sans text-xs text-paper-lo hover:border-paper-ink hover:text-paper-ink focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-1 focus-visible:outline-paper-ink"
                   >
                     {"+ 새 노트"}
                   </button>
@@ -513,7 +513,7 @@ export function ElementNotesPanel({
                   )}
 
                   {notes.length === 0 ? (
-                    <p className="px-1 py-4 text-center font-sans text-[11px] leading-relaxed text-text-lo">
+                    <p className="px-1 py-4 text-center font-sans text-[11px] leading-relaxed text-paper-lo">
                       아직 노트가 없어요. 여기서 배운 걸 처음으로 적어보세요.
                     </p>
                   ) : (
@@ -522,7 +522,7 @@ export function ElementNotesPanel({
                       const noteRegionId = `note-region-${note.id}`;
                       const noteBarId = `note-bar-${note.id}`;
                       return (
-                        <div key={note.id} className="rounded-none border border-rule bg-ink-800/60">
+                        <div key={note.id} className="rounded-none border border-paper-line bg-paper-soft">
                           {/* "직사각형 상단" - 노트패드가 아니라 이 행의 헤더. 확대
                               버튼과 부가 옵션(⋮ 메뉴)이 여기 산다. 제목은 굵고 잘리지
                               않게(요청 3) - 대신 두 번째 줄(본문 미리보기)만 truncate. */}
@@ -533,12 +533,12 @@ export function ElementNotesPanel({
                               aria-expanded={noteOpen}
                               aria-controls={noteRegionId}
                               onClick={() => setActiveNoteKey(noteOpen ? null : note.id)}
-                              className="min-w-0 flex-1 rounded-none text-left focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-1 focus-visible:outline-spec-b"
+                              className="min-w-0 flex-1 rounded-none text-left focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-1 focus-visible:outline-paper-ink"
                             >
-                              <div className="font-sans text-sm font-bold text-text-hi">
+                              <div className="font-sans text-sm font-bold text-paper-ink">
                                 {note.title || "무제"}
                               </div>
-                              <div className="truncate font-sans text-[10px] text-text-lo">
+                              <div className="truncate font-sans text-[10px] text-paper-lo">
                                 {previewOf(note.body) || "내용 없음"}
                               </div>
                             </button>
@@ -553,7 +553,7 @@ export function ElementNotesPanel({
                                   openTab(node.id, note.id);
                                 }
                               }}
-                              className="flex h-6 w-6 shrink-0 items-center justify-center rounded-none border border-rule text-text-lo hover:border-spec-b hover:text-text-hi focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-1 focus-visible:outline-spec-b"
+                              className="flex h-6 w-6 shrink-0 items-center justify-center rounded-none border border-paper-line text-paper-lo hover:border-paper-ink hover:text-paper-ink focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-1 focus-visible:outline-paper-ink"
                             >
                               {/* 사이드 패널 글리프: 사각형 + 세로 분할선(이미지 1) -
                                   이전의 모서리 화살표(⛶) 스타일을 대체. */}
@@ -574,7 +574,7 @@ export function ElementNotesPanel({
                               id={noteRegionId}
                               role="region"
                               aria-labelledby={noteBarId}
-                              className="border-t border-rule px-2.5 py-2"
+                              className="border-t border-paper-line px-2.5 py-2"
                             >
                               <NoteEditor
                                 initial={{
@@ -675,7 +675,17 @@ interface NoteEditorProps {
  * 중이면 연필(→편집). 접힌 편집기의 바닥 줄(⋯ 왼쪽)과 확대 탭 바(⫿ 왼쪽)
  * 두 자리에서 재사용한다.
  */
-function NoteModeToggleButton({ mode, onToggle }: { mode: NoteMode; onToggle: () => void }) {
+function NoteModeToggleButton({
+  mode,
+  onToggle,
+  paper = false,
+}: {
+  mode: NoteMode;
+  onToggle: () => void;
+  /** 접힌 편집기(종이 표면 아코디언)에서 쓰일 때만 true - 확대 탭 바(잉크
+   * 표면, NoteTabBar)에서는 기본값(잉크)을 그대로 쓴다. */
+  paper?: boolean;
+}) {
   const isEdit = mode === "edit";
   const label = isEdit ? "읽기 모드로 전환" : "편집 모드로 전환";
   return (
@@ -684,7 +694,12 @@ function NoteModeToggleButton({ mode, onToggle }: { mode: NoteMode; onToggle: ()
       onClick={onToggle}
       aria-label={label}
       title={label}
-      className="flex h-6 w-6 shrink-0 items-center justify-center rounded-none border border-rule text-text-lo hover:border-spec-b hover:text-text-hi focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-1 focus-visible:outline-spec-b"
+      className={cn(
+        "flex h-6 w-6 shrink-0 items-center justify-center rounded-none border focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-1",
+        paper
+          ? "border-paper-line text-paper-lo hover:border-paper-ink hover:text-paper-ink focus-visible:outline-paper-ink"
+          : "border-rule text-text-lo hover:border-spec-b hover:text-text-hi focus-visible:outline-spec-b"
+      )}
     >
       {isEdit ? (
         // 펼쳐진 책 - 클릭하면 읽기 모드로 전환.
@@ -1040,6 +1055,17 @@ function NoteEditor({
   // textarea, 렌더링된 마크다운 컨테이너 세 곳 모두 이 값 하나를 그대로 쓴다.
   const typeScale = isExpanded ? EXPANDED_TYPE_SCALE : COLLAPSED_TYPE_SCALE;
 
+  // 이 편집기는 두 표면에서 재사용된다: 접힌 상태(패널 아코디언 안, 종이
+  // 표면)와 확대 상태(z-[25] 전체화면 오버레이, 관측 표면 - 사용자 지시로
+  // 잉크 유지). 레이아웃/기능은 그대로 두고 색 토큰만 이 스위치로 가른다.
+  const textHi = isExpanded ? "text-text-hi" : "text-paper-ink";
+  const textLo = isExpanded ? "text-text-lo" : "text-paper-lo";
+  const ruleBorder = isExpanded ? "border-rule" : "border-paper-line";
+  const focusOutline = isExpanded
+    ? "focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-1 focus-visible:outline-spec-b"
+    : "focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-1 focus-visible:outline-paper-ink";
+  const hoverBorder = isExpanded ? "hover:border-spec-b hover:text-text-hi" : "hover:border-paper-ink hover:text-paper-ink";
+
   const editorWrapperClass = isExpanded
     ? cn(
         "fixed inset-2 z-[25] flex flex-col gap-2.5 overflow-y-auto rounded-none border border-rule bg-ink-800/95 p-3.5 shadow-2xl backdrop-blur-md",
@@ -1085,7 +1111,11 @@ function NoteEditor({
           fontWeight: typeScale.titleFontWeight,
           lineHeight: typeScale.titleLineHeight,
         }}
-        className="w-full border-0 bg-transparent py-1 font-serif text-text-hi placeholder:text-text-lo/60 focus-visible:outline-none"
+        className={cn(
+          "w-full border-0 bg-transparent py-1 font-serif focus-visible:outline-none",
+          textHi,
+          isExpanded ? "placeholder:text-text-lo/60" : "placeholder:text-paper-lo/60"
+        )}
         onKeyDown={(e) => {
           if (e.key === "Escape") handleEscape();
           if (e.key === "Enter") {
@@ -1111,7 +1141,11 @@ function NoteEditor({
           placeholder={bodyPlaceholder}
           rows={isExpanded ? 20 : 9}
           style={{ fontSize: typeScale.bodyFontSize, lineHeight: typeScale.bodyLineHeight }}
-          className="w-full resize-none border-0 bg-transparent px-0 py-1 font-sans text-text-hi placeholder:text-text-lo focus-visible:outline-none"
+          className={cn(
+            "w-full resize-none border-0 bg-transparent px-0 py-1 font-sans focus-visible:outline-none",
+            textHi,
+            isExpanded ? "placeholder:text-text-lo" : "placeholder:text-paper-lo"
+          )}
           onKeyDown={(e) => {
             // Esc로 편집을 취소할 수 있어야 하지만(키보드로 빠져나가기), 캔버스의
             // 전역 Delete/Backspace 핸들러가 여기서 절대 발동하면 안 된다 - 이
@@ -1126,14 +1160,15 @@ function NoteEditor({
           onClick={enterEditMode}
           style={{ fontSize: typeScale.bodyFontSize, lineHeight: typeScale.bodyLineHeight }}
           className={cn(
-            "min-h-[120px] cursor-text border-0 bg-transparent px-0 py-1 font-sans text-text-hi focus-visible:outline-none",
+            "min-h-[120px] cursor-text border-0 bg-transparent px-0 py-1 font-sans focus-visible:outline-none",
+            textHi,
             isExpanded && "min-h-[320px]"
           )}
         >
           {body.trim() ? (
             <Markdown text={body} resolveLink={resolveLink} onLinkClick={onLinkClick} />
           ) : (
-            <span className="text-text-lo">{bodyPlaceholder}</span>
+            <span className={textLo}>{bodyPlaceholder}</span>
           )}
           {attachments.length > 0 && (
             <div className="mt-3 grid grid-cols-3 gap-2">
@@ -1143,7 +1178,7 @@ function NoteEditor({
                   key={att.id}
                   src={att.url}
                   alt={att.name}
-                  className="aspect-square w-full rounded-none border border-rule object-cover"
+                  className={cn("aspect-square w-full rounded-none border object-cover", ruleBorder)}
                 />
               ))}
             </div>
@@ -1163,7 +1198,7 @@ function NoteEditor({
       {attachments.length > 0 && (
         <div className="flex flex-wrap gap-2">
           {attachments.map((att) => (
-            <div key={att.id} className="group relative h-14 w-14 shrink-0 overflow-hidden rounded-none border border-rule">
+            <div key={att.id} className={cn("group relative h-14 w-14 shrink-0 overflow-hidden rounded-none border", ruleBorder)}>
               {/* eslint-disable-next-line @next/next/no-img-element */}
               <img src={att.url} alt={att.name} className="h-full w-full object-cover" />
               <button
@@ -1171,7 +1206,10 @@ function NoteEditor({
                 onClick={() => handleRemoveAttachment(att.id)}
                 aria-label={`${att.name} 첨부 삭제`}
                 title="삭제"
-                className="absolute right-0 top-0 flex h-4 w-4 items-center justify-center rounded-none bg-ink-900/80 font-sans text-[10px] text-text-hi hover:bg-spec-m focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-1 focus-visible:outline-spec-b"
+                className={cn(
+                  "absolute right-0 top-0 flex h-4 w-4 items-center justify-center rounded-none bg-ink-900/80 font-sans text-[10px] text-text-hi hover:bg-spec-m",
+                  focusOutline
+                )}
               >
                 ×
               </button>
@@ -1196,13 +1234,19 @@ function NoteEditor({
           토글은 접힌 상태에서만 여기 둔다 - 확대 상태에서는 같은 토글이 이미
           탭 바(⫿ 버튼 바로 왼쪽)에 있으므로 중복시키지 않는다. */}
       <div className={cn("flex items-center justify-end gap-1.5 pt-1", isExpanded && "mx-auto w-full max-w-[720px]")}>
-        {!isExpanded && <NoteModeToggleButton mode={mode} onToggle={toggleMode} />}
+        {!isExpanded && <NoteModeToggleButton mode={mode} onToggle={toggleMode} paper />}
         <button
           type="button"
           onClick={() => fileInputRef.current?.click()}
           aria-label="파일 탐색기에서 이미지 첨부"
           title="파일에서 첨부"
-          className="flex h-6 w-6 shrink-0 items-center justify-center rounded-none border border-rule font-sans text-xs leading-none text-text-lo hover:border-spec-b hover:text-text-hi focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-1 focus-visible:outline-spec-b"
+          className={cn(
+            "flex h-6 w-6 shrink-0 items-center justify-center rounded-none border font-sans text-xs leading-none",
+            ruleBorder,
+            textLo,
+            hoverBorder,
+            focusOutline
+          )}
         >
           {"⋯"}
         </button>
@@ -1583,7 +1627,7 @@ function NoteKebabMenu({ isPublic, createdAt, onTogglePublic, onDelete }: NoteKe
         aria-expanded={open}
         aria-label="노트 옵션 더보기"
         onClick={() => setOpen((v) => !v)}
-        className="flex h-6 w-6 items-center justify-center rounded-none border border-rule text-text-lo hover:border-spec-b hover:text-text-hi focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-1 focus-visible:outline-spec-b"
+        className="flex h-6 w-6 items-center justify-center rounded-none border border-paper-line text-paper-lo hover:border-paper-ink hover:text-paper-ink focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-1 focus-visible:outline-paper-ink"
       >
         <svg width="13" height="13" viewBox="0 0 13 13" fill="none" aria-hidden="true">
           <circle cx="6.5" cy="2" r="1" fill="currentColor" />
@@ -1595,7 +1639,7 @@ function NoteKebabMenu({ isPublic, createdAt, onTogglePublic, onDelete }: NoteKe
         <div
           role="menu"
           aria-label="노트 옵션"
-          className="absolute right-0 top-full z-10 mt-1 w-40 rounded-none border border-rule bg-ink-800 py-1 shadow-lg"
+          className="absolute right-0 top-full z-10 mt-1 w-40 rounded-none border border-paper-line bg-paper py-1 shadow-lg"
         >
           <button
             type="button"
@@ -1604,7 +1648,7 @@ function NoteKebabMenu({ isPublic, createdAt, onTogglePublic, onDelete }: NoteKe
               onTogglePublic();
               setOpen(false);
             }}
-            className="block w-full rounded-none px-2.5 py-1.5 text-left font-sans text-xs text-text-hi hover:bg-ink-700"
+            className="block w-full rounded-none px-2.5 py-1.5 text-left font-sans text-xs text-paper-ink hover:bg-paper-soft"
           >
             {isPublic ? "비공개로 전환" : "공개로 전환"}
           </button>
@@ -1615,11 +1659,11 @@ function NoteKebabMenu({ isPublic, createdAt, onTogglePublic, onDelete }: NoteKe
               onDelete();
               setOpen(false);
             }}
-            className="block w-full rounded-none px-2.5 py-1.5 text-left font-sans text-xs text-spec-m hover:bg-ink-700"
+            className="block w-full rounded-none px-2.5 py-1.5 text-left font-sans text-xs text-spec-m hover:bg-paper-soft"
           >
             삭제
           </button>
-          <div className="mt-1 border-t border-rule px-2.5 pt-1.5 font-mono text-[10px] text-text-lo" aria-hidden="true">
+          <div className="mt-1 border-t border-paper-line px-2.5 pt-1.5 font-mono text-[10px] text-paper-lo" aria-hidden="true">
             {formatUpdatedAt(createdAt)} 생성
           </div>
         </div>

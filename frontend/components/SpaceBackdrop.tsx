@@ -89,7 +89,11 @@ function twinkleStyle(s: Star): StyleWithVars {
   return {
     "--twinkle-lo": Math.max(0.05, s.opacity * 0.4).toFixed(2),
     "--twinkle-hi": Math.min(1, s.opacity * 1.9).toFixed(2),
-    animation: `starTwinkle ${s.twinkleDuration.toFixed(2)}s ease-in-out ${s.twinkleDelay.toFixed(2)}s infinite`,
+    // delay를 음수로 줘서 마운트 시점에 이미 주기 중간에서 시작하게 한다 -
+    // 양수 delay는 그 시간만큼 지난 뒤 기본 opacity에서 키프레임 값으로
+    // 눈에 띄게 "툭" 튀는데, 음수는 애니메이션이 그 지점부터 이미 재생 중인
+    // 것으로 취급되어 튐 없이 바로 자연스러운 위상에서 시작한다.
+    animation: `starTwinkle ${s.twinkleDuration.toFixed(2)}s ease-in-out -${s.twinkleDelay.toFixed(2)}s infinite`,
   };
 }
 

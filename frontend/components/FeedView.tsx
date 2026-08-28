@@ -59,7 +59,10 @@ function FeedCard({ item }: { item: FeedItemDto }) {
             {completed}/{nodeList.length}
           </span>
         </div>
-        <span className="font-mono text-micro tracking-[0.08em] text-text-lo/80">
+        {/* relativeTimeKo()는 "N시간 전"처럼 항상 한글을 포함한다 - IBM Plex
+            Mono엔 한글 글리프가 없으므로(No-Korean-Mono, design-handoff-guide
+            §3-6) font-sans로 렌더링한다. */}
+        <span className="font-sans text-micro tracking-[0.08em] text-text-lo/80">
           {relativeTimeKo(constellation.updatedAt)}
         </span>
       </div>
@@ -115,8 +118,12 @@ export function FeedView() {
     <div className="mx-auto max-w-6xl px-4 py-10 md:px-8">
       <header className="mb-8 flex flex-col gap-1.5">
         <h1 className="font-serif text-display font-bold text-text-hi">다른 사람들의 별자리</h1>
-        <span className="font-mono text-caption tracking-[0.14em] text-text-lo">
-          FIELD NOTE · {items.length}개의 별자리
+        {/* "개의 별자리"는 한글이라 font-mono(IBM Plex Mono, 한글 글리프 없음)에
+            남기면 안 된다(No-Korean-Mono, design-handoff-guide §3-6) - 라틴/숫자
+            구간만 font-mono로 남기고 나머지는 font-sans로 분리한다. */}
+        <span className="text-caption tracking-[0.14em] text-text-lo">
+          <span className="font-mono">FIELD NOTE · {items.length}</span>
+          <span className="font-sans">개의 별자리</span>
         </span>
       </header>
 

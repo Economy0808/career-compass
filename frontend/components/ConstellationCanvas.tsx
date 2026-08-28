@@ -91,6 +91,11 @@ export interface ConstellationCanvasProps {
    * 없으므로, "이 노드를 선택하라"는 명령을 token으로 감싸 전달한다 - 같은
    * nodeId를 연속으로 다시 눌러도(토큰이 매번 바뀌므로) 매번 반응한다. */
   focusRequest?: { nodeId: string; token: number } | null;
+  /** 밖(시안 확정 등)에서 "지금 그래프 전체가 뷰포트에 들어오도록 다시
+   * 맞춰라"는 요청. focusRequest와 같은 token 문법 - 값 자체가 아니라 매번
+   * 바뀌는 숫자로 "지금 한 번 더 요청됨"을 알린다(같은 그래프에 다시 요청해도
+   * 반응해야 하므로 boolean이 아니라 카운터). */
+  fitRequest?: number | null;
   className?: string;
 }
 
@@ -112,6 +117,16 @@ const SATELLITE_RADIUS = 2.4;
 const CLICK_THRESHOLD = 4;
 const MIN_ZOOM = 0.35;
 const MAX_ZOOM = 2.5;
+// fit-to-content 여백 - 좌측 레일(196px)과 우측 「군집/노트」 패널(md에서
+// w-72=288px)이 캔버스 위에 얹히는 오버레이라(SVG 자체 폭은 안 줄어듦) 그냥
+// 컨테이너 여백만큼만 맞추면 노드가 패널 밑에 깔린다. 좌우를 더 넉넉히 안쪽으로
+// 당겨 시안 확정 직후 패널과 겹치지 않게 한다.
+const FIT_PADDING_X = 220;
+const FIT_PADDING_Y = 72;
+// 자동 맞춤 줌은 아무리 노드가 넓게 퍼져도 이 값을 넘지 않는다("과하게 당기지
+// 말 것" - 사용자 지시). 좁게 뭉친 노드 몇 개를 화면 가득 확대하는 것도
+// 부자연스럽다.
+const FIT_MAX_ZOOM = 1;
 
 
 /** djb2 문자열 해시 - [0,1) 실수로 정규화한다. Math.random 금지: 같은
@@ -219,6 +234,28 @@ interface Transform {
   k: number;
 }
 
+/** 노드 목록의 바운딩 박스가 rect(뷰포트) 안에 여백을 두고 들어오도록 하는
+ * transform을 계산한다. 최초 부트 자동 중앙 정렬과 밖에서 오는 fitRequest가
+ * 이 함수 하나를 공유한다 - 두 곳 다 "지금 그래프 전체를 보여줘라"는 같은
+ * 요청이기 때문. k는 [MIN_ZOOM, FIT_MAX_ZOOM] 사이로 클램프한다(과하게 당기지
+ * 않음 + 너무 멀어지지도 않음). */
+function computeFitTransform(nodeList: CanvasNode[], rect: { width: number; height: number }): Transform {
+  const xs = nodeList.map((n) => n.position.x);
+  const ys = nodeList.map((n) => n.position.y);
+  const minX = Math.min(...xs);
+  const maxX = Math.max(...xs);
+  const minY = Math.min(...ys);
+  const maxY = Math.max(...ys);
+  const cx = (minX + maxX) / 2;
+  const cy = (minY + maxY) / 2;
+  const bboxW = Math.max(1, maxX - minX);
+  const bboxH = Math.max(1, maxY - minY);
+  const availW = Math.max(1, rect.width - FIT_PADDING_X * 2);
+  const availH = Math.max(1, rect.height - FIT_PADDING_Y * 2);
+  const k = Math.min(FIT_MAX_ZOOM, Math.max(MIN_ZOOM, Math.min(availW / bboxW, availH / bboxH)));
+  return { x: rect.width / 2 - cx * k, y: rect.height / 2 - cy * k, k };
+}
+
 interface DragNodeState {
   kind: "node";
   nodeId: string;
@@ -257,6 +294,7 @@ export function ConstellationCanvas({
   onExternalDrop,
   readOnly = false,
   focusRequest,
+  fitRequest,
   className,
 }: ConstellationCanvasProps) {
   const svgRef = useRef<SVGSVGElement>(null);
@@ -316,13 +354,24 @@ export function ConstellationCanvas({
     if (nodeList.length === 0) return;
     const rect = svg.getBoundingClientRect();
     if (rect.width === 0 || rect.height === 0) return;
-    const xs = nodeList.map((n) => n.position.x);
-    const ys = nodeList.map((n) => n.position.y);
-    const cx = (Math.min(...xs) + Math.max(...xs)) / 2;
-    const cy = (Math.min(...ys) + Math.max(...ys)) / 2;
     didAutoCenterRef.current = true;
-    setTransform({ x: rect.width / 2 - cx, y: rect.height / 2 - cy, k: 1 });
+    setTransform(computeFitTransform(nodeList, rect));
   }, [nodes]);
+
+  // 밖에서 오는 fit 요청(시안 확정 등) - 위 부트 자동 중앙 정렬과 달리 매번
+  // 다시 발동해야 하므로 한 번만 실행되는 ref 가드를 두지 않는다. focusRequest
+  // 효과와 같은 패턴으로 token 값 자체만 의존성으로 둔다.
+  useEffect(() => {
+    if (fitRequest == null) return;
+    const svg = svgRef.current;
+    if (!svg) return;
+    const nodeList = Object.values(nodes);
+    if (nodeList.length === 0) return;
+    const rect = svg.getBoundingClientRect();
+    if (rect.width === 0 || rect.height === 0) return;
+    setTransform(computeFitTransform(nodeList, rect));
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [fitRequest]);
 
   // --- 팬 & 줌 -------------------------------------------------------------
 
@@ -813,7 +862,11 @@ export function ConstellationCanvas({
                     filter="url(#const-glow)"
                     style={{
                       color,
-                      animation: `spikeBreathe ${(3.2 + hashNodeId(`${node.id}#spikeDur`) * 1.6).toFixed(2)}s ease-in-out ${(hashNodeId(`${node.id}#spikeDelay`) * 3).toFixed(2)}s infinite`,
+                      // delay를 음수로 줘서 마운트 시점에 이미 주기 중간에서 시작하게
+                      // 한다 - 양수 delay는 그 시간이 지난 순간 기본 opacity에서
+                      // 키프레임 값으로 눈에 띄게 "툭" 튄다(SpaceBackdrop의 twinkle과
+                      // 동일한 처리).
+                      animation: `spikeBreathe ${(3.2 + hashNodeId(`${node.id}#spikeDur`) * 1.6).toFixed(2)}s ease-in-out -${(hashNodeId(`${node.id}#spikeDelay`) * 3).toFixed(2)}s infinite`,
                     }}
                   >
                     <rect
