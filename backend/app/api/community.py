@@ -272,7 +272,10 @@ async def like_post(
     except community_repo.PostNotFoundError as e:
         raise _POST_NOT_FOUND from e
     post = community_repo.get_post(db, post_id)
-    assert post is not None  # 방금 like_post가 성공했으므로 존재가 보장됨
+    if post is None:
+        # like_post 성공 직후라 정상 경로에선 없을 수 없지만, assert는 python -O에서
+        # 사라져 None이 그대로 흘러간다(검수 지적) - unlike와 같은 404로 처리.
+        raise _POST_NOT_FOUND
     return _to_post_out(post, requester_uid=user.uid, is_liked=True)
 
 
