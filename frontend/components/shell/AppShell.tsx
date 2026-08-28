@@ -20,21 +20,32 @@ export interface AppShellProps {
 // 오버라이드로는 불가능해서 부득이 셸을 건드렸다. 다른 라우트(/schedule,
 // /profile, 인증 페이지 등)는 이 분기를 타지 않으므로 동작이 전혀 바뀌지 않는다.
 const IMMERSIVE_PREFIXES = ["/constellation"];
+// 메인(피드) 화면도 몰입형과 같은 "떠 있는 섬" 크롬을 쓴다(사용자 지시:
+// "네비도 메인페이지 진입할때는 떠 있어야"). 차이는 하나 - 캔버스처럼 main을
+// 뷰포트에 고정하지 않고, 콘텐츠가 자기 여백을 갖고 일반 스크롤한다.
+const ISLAND_CHROME_ROUTES = ["/", "/feed"];
 
 export function AppShell({ children }: AppShellProps) {
   const pathname = usePathname();
   const isImmersive = IMMERSIVE_PREFIXES.some((p) => pathname?.startsWith(p));
+  const isIslandChrome = pathname !== null && ISLAND_CHROME_ROUTES.includes(pathname);
 
-  if (isImmersive) {
+  if (isImmersive || isIslandChrome) {
     // "섬(island)" 크롬: 풀높이 종이 레일 대신, 어두운 우주 위에 로고만 직접
     // 얹고(카드 없음) 네비게이션은 좌하단 서랍 버튼에서 확장되는 팝오버로
     // 옮겼다(NavIsland.tsx). SideRail은 더 이상 이 분기에서 쓰지 않는다 -
     // 비몰입 화면(피드/프로필 등)은 아래 return의 SideRail을 그대로 쓴다.
     return (
-      <div className="relative h-dvh overflow-hidden bg-ink-900">
-        {/* 캔버스가 배경 전체(레일 뒤쪽 포함)를 채우도록 main을 뷰포트에
-            그대로 꽉 채운다 - padding/max-width 없음, 카드 아님. */}
-        <main className="absolute inset-0">{children}</main>
+      <div className={isImmersive ? "relative h-dvh overflow-hidden bg-ink-900" : "relative min-h-dvh bg-ink-900"}>
+        {/* 몰입형: 캔버스가 배경 전체를 채우도록 main을 뷰포트에 고정.
+            섬 크롬(피드): 일반 스크롤 + 로고/탭바를 피하는 자체 여백. */}
+        {isImmersive ? (
+          <main className="absolute inset-0">{children}</main>
+        ) : (
+          <main className="mx-auto w-full max-w-5xl px-4 pt-24 pb-[calc(var(--tabbar-h)+var(--safe-bottom)+16px)] md:px-8 md:pb-16">
+            {children}
+          </main>
+        )}
 
         {/* 좌상단 로고 - 종이 카드 없이 어두운 우주 위에 직접. 로고=홈 관례로
             "/"로 이동. OurLab 글자 아래 헤어라인을 밑줄처럼 두고 그 아래에
