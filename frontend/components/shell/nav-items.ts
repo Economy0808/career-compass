@@ -15,7 +15,7 @@ export interface NavItem {
 }
 
 export const NAV_ITEMS: readonly NavItem[] = [
-  { key: "feed", label: "소셜", shortLabel: "소셜", Icon: EagleIcon, href: "/", requiresAuth: false },
+  { key: "feed", label: "소셜", shortLabel: "소셜", Icon: EagleIcon, href: "/feed", requiresAuth: false },
   { key: "schedule", label: "일정", shortLabel: "일정", Icon: CalendarIcon, href: "/schedule", requiresAuth: true },
   {
     key: "new",
