@@ -23,7 +23,8 @@ import { Button, EmptyState, Modal } from "@/components/ui";
 import { MiniConstellation } from "@/components/MiniConstellation";
 import { listUserConstellations, type ConstellationDto } from "@/lib/constellation-api";
 import { getProfile, followUser, unfollowUser, type ProfileDto } from "@/lib/profiles-api";
-import { createPost, deletePost, listUserPosts, type PostDto } from "@/lib/posts-api";
+import { createPost, listUserPosts, type PostDto } from "@/lib/posts-api";
+import { PostDetail } from "@/components/PostDetail";
 import { createStory, listUserStories } from "@/lib/stories-api";
 import { fileToDataUrl } from "@/lib/image-utils";
 import { ApiError } from "@/lib/api";
@@ -35,6 +36,17 @@ import { AccountDeleteModal } from "./_components/DangerZone";
 
 const SKELETON_TILES = 9;
 const CAPTION_MAX = 500;
+const POST_IMAGES_MAX = 10;
+
+/** 다중 장 타일 배지 - 인스타식 겹친 사각형. */
+function MultiImageIcon({ size = 16 }: { size?: number }) {
+  return (
+    <svg width={size} height={size} viewBox="0 0 24 24" fill="transparent" stroke="currentColor" strokeWidth="1.8" strokeLinejoin="round" aria-hidden>
+      <rect x="8" y="3.5" width="12.5" height="12.5" rx="2" />
+      <path d="M16 20.5 H5.5 A2 2 0 0 1 3.5 18.5 V8" />
+    </svg>
+  );
+}
 
 function GridSkeleton() {
   return (
@@ -106,7 +118,8 @@ export default function ProfilePage({ params }: { params: { id: string } }) {
   // 케밥 메뉴/모달/컴포저/라이트박스 상태
   const [menuOpen, setMenuOpen] = useState(false);
   const [deleteOpen, setDeleteOpen] = useState(false);
-  const [draft, setDraft] = useState<{ imageData: string; caption: string } | null>(null);
+  const [draft, setDraft] = useState<{ images: string[]; caption: string } | null>(null);
+  const [draftPreviewIdx, setDraftPreviewIdx] = useState(0);
   const [posting, setPosting] = useState(false);
   const [postError, setPostError] = useState<string | null>(null);
   const [lightbox, setLightbox] = useState<PostDto | null>(null);
@@ -201,13 +214,16 @@ export default function ProfilePage({ params }: { params: { id: string } }) {
     }
   }
 
-  async function handleFilePicked(file: File | undefined): Promise<void> {
-    if (!file) return;
+  async function handleFilesPicked(fileList: FileList | null): Promise<void> {
+    const files = Array.from(fileList ?? []);
+    if (files.length === 0) return;
     if (uploadTarget === "story") {
       setStoryError(null);
       setStoryPosting(true);
       try {
-        const imageData = await fileToDataUrl(file);
+        const first = files[0];
+        if (!first) return;
+        const imageData = await fileToDataUrl(first);
         await createStory(imageData);
         setRingRefreshKey((k) => k + 1);
       } catch {
@@ -218,10 +234,15 @@ export default function ProfilePage({ params }: { params: { id: string } }) {
       }
       return;
     }
-    setPostError(null);
+    // 사진 게시물: 최대 10장, 선택 순서가 곧 게시 순서(리사이즈는 장별 적용).
+    setPostError(files.length > POST_IMAGES_MAX ? `사진은 ${POST_IMAGES_MAX}장까지예요. 앞의 ${POST_IMAGES_MAX}장만 담았어요.` : null);
     try {
-      const imageData = await fileToDataUrl(file);
-      setDraft({ imageData, caption: "" });
+      const images: string[] = [];
+      for (const file of files.slice(0, POST_IMAGES_MAX)) {
+        images.push(await fileToDataUrl(file));
+      }
+      setDraftPreviewIdx(0);
+      setDraft({ images, caption: "" });
     } catch {
       setPostError("이미지를 읽지 못했어요. 다른 파일로 시도해주세요.");
     } finally {
@@ -234,24 +255,13 @@ export default function ProfilePage({ params }: { params: { id: string } }) {
     setPosting(true);
     setPostError(null);
     try {
-      const created = await createPost({ imageData: draft.imageData, caption: draft.caption.trim() });
+      const created = await createPost({ images: draft.images, caption: draft.caption.trim() });
       setPosts((prev) => [created, ...(prev ?? [])]);
       setDraft(null);
     } catch {
       setPostError("게시물을 올리지 못했어요. 잠시 후 다시 시도해주세요.");
     } finally {
       setPosting(false);
-    }
-  }
-
-  async function handleDeletePost(post: PostDto): Promise<void> {
-    try {
-      await deletePost(post.id);
-      setPosts((prev) => (prev ?? []).filter((p) => p.id !== post.id));
-      setLightbox(null);
-    } catch {
-      // 라이트박스에 조용한 실패 문구 대신 상태 유지 - 재시도 가능.
-      setPostError("삭제하지 못했어요. 다시 시도해주세요.");
     }
   }
 
@@ -431,6 +441,11 @@ export default function ProfilePage({ params }: { params: { id: string } }) {
                     alt={post.caption || "게시물 사진"}
                     className="h-full w-full object-cover transition-transform duration-150 group-hover:scale-[1.03]"
                   />
+                  {(post.imageCount ?? 1) > 1 && (
+                    <span className="absolute right-1.5 top-1.5 text-text-hi drop-shadow-[0_1px_2px_rgba(0,0,0,0.6)]" aria-label="사진 여러 장">
+                      <MultiImageIcon />
+                    </span>
+                  )}
                   {post.caption && (
                     <span className="absolute inset-x-0 bottom-0 truncate bg-gradient-to-t from-ink-900/85 to-transparent px-2 pb-1.5 pt-5 text-left text-caption text-text-hi opacity-0 transition-opacity group-hover:opacity-100">
                       {post.caption}
@@ -473,7 +488,7 @@ export default function ProfilePage({ params }: { params: { id: string } }) {
         accept="image/jpeg,image/png,image/webp"
         className="hidden"
         onChange={(e) => {
-          void handleFilePicked(e.target.files?.[0]);
+          void handleFilesPicked(e.target.files);
           e.target.value = "";
         }}
       />
@@ -486,6 +501,8 @@ export default function ProfilePage({ params }: { params: { id: string } }) {
             onClick={() => {
               setUploadTarget("post");
               setUploadSheetOpen(false);
+              // 상태 반영 전에 click이 나가므로 multiple은 DOM에 직접 세팅한다.
+              if (fileInputRef.current) fileInputRef.current.multiple = true;
               fileInputRef.current?.click();
             }}
             className="rounded-md px-3.5 py-3 text-left font-sans text-body-sm text-text-hi transition-colors hover:bg-ink-700"
@@ -497,6 +514,7 @@ export default function ProfilePage({ params }: { params: { id: string } }) {
             onClick={() => {
               setUploadTarget("story");
               setUploadSheetOpen(false);
+              if (fileInputRef.current) fileInputRef.current.multiple = false;
               fileInputRef.current?.click();
             }}
             className="rounded-md px-3.5 py-3 text-left font-sans text-body-sm text-text-hi transition-colors hover:bg-ink-700"
@@ -520,7 +538,50 @@ export default function ProfilePage({ params }: { params: { id: string } }) {
         {draft && (
           <>
             {/* eslint-disable-next-line @next/next/no-img-element -- data URL 미리보기 */}
-            <img src={draft.imageData} alt="업로드할 사진 미리보기" className="max-h-[46vh] w-full rounded-md object-contain" />
+            <img
+              src={draft.images[Math.min(draftPreviewIdx, draft.images.length - 1)]}
+              alt="업로드할 사진 미리보기"
+              className="max-h-[42vh] w-full rounded-md bg-ink-900 object-contain"
+            />
+            {/* 순서 미리보기 스트립 - 선택 순서가 곧 게시 순서. ✕로 장별 제외. */}
+            {draft.images.length > 1 && (
+              <div className="mt-2 flex gap-1.5 overflow-x-auto py-1">
+                {draft.images.map((img, i) => (
+                  <div key={i} className="relative shrink-0">
+                    <button
+                      type="button"
+                      aria-label={`${i + 1}번째 사진 미리보기`}
+                      onClick={() => setDraftPreviewIdx(i)}
+                      className={
+                        "block h-14 w-14 overflow-hidden rounded-md border-2 " +
+                        (i === Math.min(draftPreviewIdx, draft.images.length - 1)
+                          ? "border-spec-b"
+                          : "border-transparent opacity-70 hover:opacity-100")
+                      }
+                    >
+                      {/* eslint-disable-next-line @next/next/no-img-element -- data URL 썸네일 */}
+                      <img src={img} alt="" className="h-full w-full object-cover" />
+                    </button>
+                    <button
+                      type="button"
+                      aria-label={`${i + 1}번째 사진 빼기`}
+                      onClick={() => {
+                        const images = draft.images.filter((_, j) => j !== i);
+                        if (images.length === 0) {
+                          setDraft(null);
+                          return;
+                        }
+                        setDraftPreviewIdx((idx) => Math.min(idx, images.length - 1));
+                        setDraft({ ...draft, images });
+                      }}
+                      className="absolute -right-1 -top-1 flex h-5 w-5 items-center justify-center rounded-full bg-ink-700 text-micro leading-none text-text-hi"
+                    >
+                      ✕
+                    </button>
+                  </div>
+                ))}
+              </div>
+            )}
             <textarea
               value={draft.caption}
               maxLength={CAPTION_MAX}
@@ -542,27 +603,22 @@ export default function ProfilePage({ params }: { params: { id: string } }) {
         )}
       </Modal>
 
-      {/* 라이트박스 - "누르면 확대되면서" 보는 인스타 관례 */}
+      {/* 라이트박스 - "누르면 확대되면서" 보는 인스타 관례. 본문(캐러셀·별
+          좋아요·댓글·공유)은 /post/{id} 퍼머링크와 같은 PostDetail 하나다. */}
       <Modal open={lightbox !== null} onClose={() => setLightbox(null)} title={displayName}>
         {lightbox && (
-          <>
-            {/* eslint-disable-next-line @next/next/no-img-element -- data URL 원본 보기 */}
-            <img src={lightbox.imageData} alt={lightbox.caption || "게시물 사진"} className="max-h-[62vh] w-full rounded-md object-contain" />
-            {lightbox.caption && (
-              <p className="mt-3 whitespace-pre-wrap text-body-sm leading-relaxed text-text-hi">{lightbox.caption}</p>
-            )}
-            <div className="mt-2 flex items-center justify-between">
-              <span className="font-mono text-micro text-text-lo">
-                {new Date(lightbox.createdAt).toLocaleDateString("ko-KR")}
-              </span>
-              {isOwn && (
-                <Button variant="danger" size="sm" onClick={() => void handleDeletePost(lightbox)}>
-                  삭제
-                </Button>
-              )}
-            </div>
-            {postError && <p className="mt-1.5 text-micro text-spec-m">{postError}</p>}
-          </>
+          <PostDetail
+            postId={lightbox.id}
+            initial={lightbox}
+            showDelete={isOwn}
+            onDeleted={() => {
+              setPosts((prev) => (prev ?? []).filter((p) => p.id !== lightbox.id));
+              setLightbox(null);
+            }}
+            onPostChange={(updated) =>
+              setPosts((prev) => (prev ?? []).map((p) => (p.id === updated.id ? updated : p)))
+            }
+          />
         )}
       </Modal>
 
