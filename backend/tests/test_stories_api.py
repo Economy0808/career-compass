@@ -14,6 +14,7 @@ CRITICAL: 이 스위트는 작성만 하고 실행하지 않는다(작업 지시
 from __future__ import annotations
 
 import os
+import time
 from collections.abc import Callable, Iterator
 
 import pytest
@@ -117,7 +118,9 @@ async def test_create_story_invalid_image_returns_422(authed_as: Callable[[str],
 
 @pytest.mark.asyncio
 async def test_list_user_stories_excludes_expired_anonymous_allowed() -> None:
-    now = 1_800_000_000_000
+    # 만료 판정은 서버의 실제 시계 기준이므로 고정 상수를 쓰면 안 된다 -
+    # 미래 시각을 "현재"로 둔 초판은 만료 문서가 아직 안 만료된 걸로 읽혔다(실측).
+    now = int(time.time() * 1000)
     _set_story_doc(
         "expired-1",
         {

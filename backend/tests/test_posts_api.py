@@ -21,7 +21,7 @@ import pytest
 import requests
 from httpx import ASGITransport, AsyncClient
 
-from app.auth.deps import get_current_user
+from app.auth.deps import get_current_user, get_current_user_optional
 from app.auth.firebase_auth import DecodedToken
 from app.main import app
 
@@ -61,10 +61,16 @@ def _clear_overrides() -> Iterator[None]:
 
 @pytest.fixture
 def authed_as() -> Callable[[str], None]:
-    """주어진 uid로 get_current_user override를 세팅하는 함수를 돌려준다."""
+    """주어진 uid로 인증 override를 세팅하는 함수를 돌려준다.
+
+    필수 인증(get_current_user)만 잡으면 목록 GET처럼 optional 의존성을 쓰는
+    엔드포인트에서 viewer가 None으로 남아 isMine이 항상 False가 된다 - 격리
+    에뮬레이터 런에서 실측된 함정이라 둘 다 같은 uid로 잡는다.
+    """
 
     def _set(uid: str) -> None:
         app.dependency_overrides[get_current_user] = lambda: DecodedToken(uid=uid)
+        app.dependency_overrides[get_current_user_optional] = lambda: DecodedToken(uid=uid)
 
     return _set
 
@@ -113,6 +119,8 @@ async def test_anonymous_and_other_user_see_is_mine_false(
     assert create_resp.json()["isMine"] is True
 
     # 익명 열람: isMine은 항상 False, 조회 자체는 허용된다.
+    # authed_as가 optional까지 잡으므로 익명 검증 전에 그 override만 걷어낸다.
+    app.dependency_overrides.pop(get_current_user_optional, None)
     async with _client() as client:
         anon_resp = await client.get("/api/posts/user/user-a")
     assert anon_resp.status_code == 200
