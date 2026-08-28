@@ -29,6 +29,7 @@ import {
 } from "@/components/ConstellationCanvas";
 import { EmptyState, Avatar } from "@/components/ui";
 import { getConstellation, type ConstellationDto } from "@/lib/constellation-api";
+import { getProfile, type ProfileDto } from "@/lib/profiles-api";
 import { ApiError } from "@/lib/api";
 
 function readDescription(data: ConstellationDto): string | undefined {
@@ -87,6 +88,9 @@ export default function ConstellationViewerPage() {
   const [state, setState] = useState<LoadState>({ kind: "loading" });
   const fitTokenRef = useRef(0);
   const [fitRequest, setFitRequest] = useState<number | null>(null);
+  // 작성자 표시 - 뷰어 렌더를 막지 않는 별도 상태. undefined=조회 중/실패(자리표시
+  // 유지), ProfileDto=로드 성공.
+  const [author, setAuthor] = useState<ProfileDto | undefined>(undefined);
 
   useEffect(() => {
     let cancelled = false;
@@ -117,6 +121,24 @@ export default function ConstellationViewerPage() {
       cancelled = true;
     };
   }, [cid]);
+
+  const ownerId = state.kind === "loaded" ? state.data.ownerId : null;
+
+  useEffect(() => {
+    if (ownerId === null) return;
+    let cancelled = false;
+    setAuthor(undefined);
+    getProfile(ownerId)
+      .then((p) => {
+        if (!cancelled) setAuthor(p);
+      })
+      .catch(() => {
+        // 조회 실패는 헤더 자리표시("알 수 없는 관측자")만 유지 - 뷰어 렌더를 막지 않는다.
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [ownerId]);
 
   const nodes = useMemo(() => (state.kind === "loaded" ? mapNodes(state.data) : {}), [state]);
   const edges = useMemo(() => (state.kind === "loaded" ? mapEdges(state.data) : {}), [state]);
@@ -170,10 +192,10 @@ export default function ConstellationViewerPage() {
       <div className="paper-surface fixed left-1/2 top-3 z-20 max-w-md -translate-x-1/2 rounded-lg border border-paper-line bg-paper-soft/95 px-4 py-3 shadow-panel backdrop-blur-md">
         <h1 className="truncate font-serif text-title font-bold text-paper-ink">{data.title}</h1>
         <div className="mt-1.5 flex items-center gap-2">
-          {/* 이 엔드포인트(GET /constellations/{id})는 피드와 달리 작성자
-              표시 이름을 내려주지 않는다(ownerId뿐) - 피드 카드가 이름이 없을
-              때 쓰는 것과 같은 자리표시 문구로 통일한다. */}
-          <Avatar emoji="🔭" name="이름 없는 관측자" size="sm" />
+          {/* GET /constellations/{id}는 ownerId만 내려준다 - 표시 이름/아바타는
+              lib/profiles-api.ts의 GET /api/profiles/{uid}로 별도 조회한다.
+              조회 실패(404 등)는 "알 수 없는 관측자" 자리표시로 통일한다. */}
+          <Avatar emoji={author?.avatarEmoji ?? "🔭"} name={author?.displayName ?? "알 수 없는 관측자"} size="sm" />
         </div>
         {description && (
           <p className="mt-2 font-sans text-xs leading-relaxed text-paper-lo">{description}</p>

@@ -6,6 +6,8 @@ import { useEffect, useState } from "react";
 import { Button, EmptyState } from "@/components/ui";
 import { MiniConstellation } from "@/components/MiniConstellation";
 import { listUserConstellations, type ConstellationDto } from "@/lib/constellation-api";
+import { getProfile, followUser, unfollowUser, type ProfileDto } from "@/lib/profiles-api";
+import { ApiError } from "@/lib/api";
 import { useAuth } from "@/lib/auth-context";
 import { DangerZone } from "./_components/DangerZone";
 
@@ -55,6 +57,10 @@ export default function ProfilePage({ params }: { params: { id: string } }) {
   const isOwn = !authLoading && user?.uid === params.id;
 
   const [items, setItems] = useState<ConstellationDto[] | null>(null);
+  // undefined = 로딩/에러(자리표시 유지), 로드 성공 시 ProfileDto.
+  const [profile, setProfile] = useState<ProfileDto | undefined>(undefined);
+  const [followPending, setFollowPending] = useState(false);
+  const [followError, setFollowError] = useState<string | null>(null);
 
   useEffect(() => {
     let cancelled = false;
@@ -72,13 +78,44 @@ export default function ProfilePage({ params }: { params: { id: string } }) {
     };
   }, [params.id]);
 
-  // 이름/아바타: B2(팔로우·유저 조회 API 이관)까지는 타인의 displayName/아바타를
-  // 가져올 방법이 없다 - 구 FastAPI(/api/users)는 숫자 PK 기반이라 Firebase uid로
-  // 조회할 수 없고, 여기서 새로 추가하지도 않는다. 내 프로필이면 auth 상태에서
-  // 채우고, 타인은 피드 카드와 같은 자리표시("이름 없는 관측자" + 기본 이모지)로
-  // 둔다.
-  const displayName = isOwn ? user?.displayName ?? "이름 없는 관측자" : "이름 없는 관측자";
-  const avatarEmoji = isOwn ? user?.avatarEmoji ?? "🔭" : "🔭";
+  useEffect(() => {
+    let cancelled = false;
+    setProfile(undefined);
+    setFollowError(null);
+    getProfile(params.id)
+      .then((p) => {
+        if (!cancelled) setProfile(p);
+      })
+      .catch(() => {
+        // 404/에러 시 기존 자리표시("이름 없는 관측자")를 유지한다.
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [params.id]);
+
+  const displayName = profile?.displayName ?? "이름 없는 관측자";
+  const avatarEmoji = profile?.avatarEmoji ?? "🔭";
+
+  async function handleFollowToggle(): Promise<void> {
+    if (!profile || profile.isFollowing === undefined || followPending) return;
+    setFollowPending(true);
+    setFollowError(null);
+    try {
+      const updated = profile.isFollowing
+        ? await unfollowUser(params.id)
+        : await followUser(params.id);
+      setProfile(updated);
+    } catch (err) {
+      setFollowError(
+        err instanceof ApiError && err.status === 429
+          ? "요청이 많아요. 잠시 후 다시 시도해주세요."
+          : "팔로우 처리에 실패했어요."
+      );
+    } finally {
+      setFollowPending(false);
+    }
+  }
 
   return (
     <>
@@ -92,18 +129,26 @@ export default function ProfilePage({ params }: { params: { id: string } }) {
             <span>
               별자리 <b className="text-text-lo">{items?.length ?? "–"}</b>
             </span>
-            {/* 팔로워/팔로잉: B2(팔로우 API 이관) 전까지 실값이 없어 흐리게 자리만
-                잡아둔다. */}
-            <span className="text-text-lo/50">팔로워 –</span>
-            <span className="text-text-lo/50">팔로잉 –</span>
+            <span>
+              팔로워 <b className="text-text-lo">{profile?.followerCount ?? "–"}</b>
+            </span>
+            <span>
+              팔로잉 <b className="text-text-lo">{profile?.followingCount ?? "–"}</b>
+            </span>
           </div>
+          {profile?.bio && (
+            <p className="mt-1.5 text-caption text-text-lo">{profile.bio}</p>
+          )}
         </div>
-        {!isOwn && (
-          // 팔로우 버튼: UI만 - B2에서 팔로우 API가 붙기 전까지 클릭해도 아무
-          // 동작도 하지 않는다.
-          <Button variant="ghost" size="sm" onClick={() => {}}>
-            팔로우
-          </Button>
+        {/* isFollowing 키가 응답에 있을 때만 렌더 - 익명 열람이거나 본인 프로필이면
+            계약상 키 자체가 빠지므로 자연히 숨겨진다. */}
+        {profile?.isFollowing !== undefined && (
+          <div className="flex flex-col items-end gap-1">
+            <Button variant="ghost" size="sm" onClick={handleFollowToggle} disabled={followPending}>
+              {profile.isFollowing ? "팔로잉" : "팔로우"}
+            </Button>
+            {followError && <p className="text-micro text-spec-m">{followError}</p>}
+          </div>
         )}
       </div>
 
