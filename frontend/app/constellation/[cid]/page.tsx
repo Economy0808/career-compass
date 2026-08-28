@@ -189,7 +189,9 @@ export default function ConstellationViewerPage() {
       {/* 상단 정보 카드 - 이름 + 작성자(+ description/contributors가 있으면).
           새 별자리 만들기 화면의 좌상단 저장 툴바와 같은 종이 크롬 시각
           언어(paper-surface, DESIGN.md의 Floating-Chrome Paper Rule). */}
-      <div className="paper-surface fixed left-1/2 top-3 z-20 max-w-md -translate-x-1/2 rounded-lg border border-paper-line bg-paper-soft/95 px-4 py-3 shadow-panel backdrop-blur-md">
+      {/* 모바일: 좌상단 로고 섬과 같은 줄에서 충돌하지 않게 그 아래로 내리고,
+          폭은 뷰포트에 클램프한다(375px에서 max-w-md가 넘치던 검수 지적). */}
+      <div className="paper-surface fixed left-1/2 top-16 z-20 w-[min(92vw,28rem)] -translate-x-1/2 rounded-lg border border-paper-line bg-paper-soft/95 px-4 py-3 shadow-panel backdrop-blur-md md:top-3">
         <h1 className="truncate font-serif text-title font-bold text-paper-ink">{data.title}</h1>
         <div className="mt-1.5 flex items-center gap-2">
           {/* GET /constellations/{id}는 ownerId만 내려준다 - 표시 이름/아바타는
