@@ -1,4 +1,33 @@
-# 백엔드 세션 핸드오프 (2026-08-27 작성, 2026-08-28 5차 갱신)
+# 백엔드 세션 핸드오프 (2026-08-27 작성, 2026-08-28 6차 갱신)
+
+> **6차 (오후) — 사용자 6건 배치: 전환 무깜빡임 + 소셜/feed + 별·노드 시각 언어 + 종이 크롬**
+> (커밋 `a6033b1`~`b5e6622` 8개, Playwright 실완주 검증 — 브라우저 패널 숨김 상태라
+> preview 스크린샷 불가 → Playwright MCP로 대체한 것도 실측 기록):
+> - **전환 깜빡임 해소** (`a6033b1`): 부트 4개 해소 지점에서 setIntakeOpen(true)을
+>   setBootState와 **같은 동기 블록**에 배칭(별도 effect 삭제 — paint 후 1프레임 노출이
+>   원인이었음) + bootState==="loading" 동안 z-[70] 불투명 베일("관측 준비 중…").
+> - **소셜 네비** (`d7690f4`+`7e51221`): 증상 "소셜 누르면 처음으로" = href "/"가 비로그인
+>   랜딩이었던 것. GET /feed는 get_current_user_optional(발행물은 공개, 익명 200 테스트 추가,
+>   30 pytest 통과), 피드 UI를 FeedView.tsx로 추출 → /feed 신설(익명 열람), 네비 href=/feed.
+>   로그인 홈("/")은 FeedView 재사용으로 불변.
+> - **별 twinkle** (`f3b9721`): DIM 1/3+BRIGHT 전부, 시드 파생 per-star 주기(2.5~6s,
+>   Math.random 금지 규약 유지), opacity-only. 실측: 336개 circle 개별 주기 확인.
+> - **노드 상태 반전** (`b896dcf`): 미완료=분광형 색으로 **켜진** 별(0.75~0.85), 달성(더블클릭)=
+>   더 밝게+const-glow+**십자 회절 스파이크**(rect 2개+gradient, spikeBreathe). 더블클릭 실측
+>   aria-pressed/스파이크/애니메이션 확인. 엣지 lit 규칙 불변.
+> - **종이 크롬** (`8c84bc2`): 방향 "관측 하늘 위 종이 성도 카드" — SideRail/TabBar/
+>   ElementBinPanel/저장 툴바를 --paper-*로 전환. 활성 네비=잉크 눌림(bg-paper-ink),
+>   포커스 링=paper-ink(.paper-surface 스코프 신설, 랜딩 규칙 재사용). DESIGN.md
+>   Landing-Scope Rule → Floating-Chrome Paper Rule 개정, twinkle 예외 명기.
+> - **검수·QA 후속** (`f7e7ed6`+`b5e6622`): ①툴바 fixed left-3가 불투명 종이 레일에 묻힘 →
+>   md:left-[208px] ②초안 confirm 후 노드가 뷰 밖 → ConstellationCanvas에 fitRequest 토큰
+>   prop(computeFitTransform, 부트 자동 센터도 동일 헬퍼) ③ElementNotesPanel 종이 전환
+>   (전체화면 에디터는 잉크 유지 — 관측 표면) ④FeedView 한글 font-mono 위반 분리
+>   ⑤design-handoff-guide §1·§3-4에 starTwinkle/spikeBreathe 상시 모션 예외 동기화
+>   ⑥twinkle/spike delay를 음수로(마운트 후 '툭' 스냅 제거).
+> - 시안 품질 질문 답: **mock이라 그런 것 맞음** — 실 LLM 전환은 launch `backend`+재기동만.
+> - 미검증: 발행→피드 카드 노출(로그인 필요), 기존 별자리 배지(로그인+기존 문서 필요).
+>   에뮬레이터는 pytest로 또 비워졌다가 22과목 재시드됨.
 
 > **5차 (야간 마감) — 대화 우선 진입 + 전용 초안 스테이지** (`63226b4`, 브라우저 완주 검증):
 > - 사용자 결정: /constellation/new 진입 시 **항상 대화부터**(기존 별자리 있으면 우상단
