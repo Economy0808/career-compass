@@ -11,6 +11,9 @@
 
 # next.js
 /.next/
+# NEXT_DIST_DIR variants (secondary dev server / verification builds)
+/.next-alt/
+/.next-build/
 /out/
 
 # production
