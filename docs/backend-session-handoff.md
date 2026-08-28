@@ -1,4 +1,34 @@
-# 백엔드 세션 핸드오프 (2026-08-27 작성, 2026-08-28 8차 갱신)
+# 백엔드 세션 핸드오프 (2026-08-27 작성, 2026-08-28 9차 갱신)
+
+> **9차 (심야2) — 탐색(Explore) 신설 + 소셜의 SNS 피드 전환** (두 세션 공동. 사용자 배경:
+> "소셜 탭 존재이유가 유명무실 — 관심사를 직접 축적할 수 있는 우리 강점으로 사람을 찾게 하자".
+> 재량 승인: 모바일 탭 5슬롯=탐색·소셜·생성FAB·커뮤니티·프로필, **일정은 모바일 탭 제외**):
+> - **백엔드** `254e6e9`: ①**interest_tags 축적** — 발행/비공개 전환 시점에
+>   발행 별자리 전체의 노드 라벨 빈도 상위 5를 순수 함수(compute_interest_tags, 동률=최근
+>   갱신 우선)로 계산해 users 문서 비정규화(발행 0이면 빈 리스트, 트랜잭션 밖 느슨한 일관성)
+>   ②`GET /api/explore/users`(≤30, 정렬 단일 키 (-교집합,-updatedAt) — 익명은 교집합 0이라
+>   자연 최신순, 본인·이름 없는 유저 제외, commonTags는 로그인 시만 키 존재) ·
+>   `GET /api/explore/search?q=`(display_name prefix 관용구, 1~30자, ≤20)
+>   ③`GET /api/posts/feed`(작성자 조인 {post, author} 중첩 — FeedItemOut 관례, /user/{uid}보다
+>   먼저 선언). 격리 런 **55/55**(explore 스위트 포함) + compute_interest_tags 단위 27케이스.
+> - **프론트(피어 03-code-ae=구 03-code-c7 연속)**: `6eab37b` 네비(돋보기 SearchIcon,
+>   TAB_ORDER=[explore,feed,new,community,mine]) + /explore(디바운스 검색·seq 역전 방지,
+>   aspect-[3/4] 초상형 카드 그리드, commonTags lit 칩) · `854e5be` /feed SNS 전환(별자리
+>   스트림 제거→스토리 링+게시물 스트림+동영상 준비 중 자리, 캐러셀·별 좋아요 재사용,
+>   댓글은 카운트+퍼머링크로 N+1 회피) · `cdae459` 계약 정렬 · `034bad0` 검수 5건(카드
+>   이름 shrink-0+칩 slice(0,4)+"+N", 캐러셀 스와이프+44px 히트, 좋아요/공유 44px,
+>   한글 자간 분리, FIELD NOTE 제거→"게시물 N개").
+> - **검수 4차**: 백엔드 0건, 정본 정합 클린. 모바일 카드 이름 소실의 근본 원인
+>   (truncate span만 flex-shrink로 0 압축) 규명 포함.
+> - **함정 추가**: ①시드 스크립트가 users 문서에 epoch-ms int를 넣으면 user_repo의
+>   datetime 관례와 충돌해 explore 정렬에서 500 — **컬렉션별 타임스탬프 관례 확인 후 시드**
+>   (users=datetime, constellation/community/stories=epoch-ms int) ②한글 포함 파일에
+>   PowerShell 텍스트 치환 금지(cp949로 주석 전파 — 피어 실사고, Edit 도구로만)
+>   ③피어 세션 재기동 시 이름이 바뀜(03-code-19→ae) — ListAgents로 재확인 후 위임 재전달.
+> - **사용자 QA 목록(로그인 필요) 추가분**: 탐색에서 겹치는 관심사 유저 카드의 lit 칩 확인,
+>   발행 시 interest_tags 실제 축적(발행 후 탐색에 본인 노출).
+> - 다음 후보: 영상 업로드(Storage/Blaze 후 — 피드·프로필·스토리에 이음새 있음), 탐색
+>   페이지네이션·태그 필터, 검색 디바운스 서버 측 제한, 피드 팔로잉 필터 탭.
 
 > **8차 (심야) — 커뮤니티/SNS 2층위: 익명 게시판 6종 + 스토리 24h** (두 세션 공동, 사용자 결정:
 > 영상은 Storage/Blaze 활성화 후 별도 배치 · 스토리=인스타식 24h · 게시판 자유/비밀/질문/정보/진로/홍보):
