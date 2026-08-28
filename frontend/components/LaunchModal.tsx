@@ -50,7 +50,11 @@ export function LaunchModal({
 }: LaunchModalProps) {
   const [title, setTitle] = useState(defaultTitle);
   const [description, setDescription] = useState(defaultDescription ?? "");
-  const [isPublished, setIsPublished] = useState(defaultIsPublished);
+  // "띄우기" 모달을 여는 의도 자체가 공개이므로 스위치는 항상 켜진 채 시작한다
+  // (실사고: 기본 꺼짐이라 띄우기를 눌러도 비공개로 저장돼 "프로필에 안 떠요").
+  // 내리고 싶을 때만 사용자가 스위치를 끈다. defaultIsPublished는 이제 표시용
+  // 상태 칩(발행됨/비공개)에서만 쓰인다.
+  const [isPublished, setIsPublished] = useState(true);
   const [contributors, setContributors] = useState<string[]>(defaultContributors);
   const [contributorInput, setContributorInput] = useState("");
   const [submitting, setSubmitting] = useState(false);
@@ -62,7 +66,7 @@ export function LaunchModal({
     if (!open) return;
     setTitle(defaultTitle);
     setDescription(defaultDescription ?? "");
-    setIsPublished(defaultIsPublished);
+    setIsPublished(true); // 위 초기값 주석 참고 - 띄우기 = 공개가 기본
     setContributors(defaultContributors);
     setContributorInput("");
     setError(null);

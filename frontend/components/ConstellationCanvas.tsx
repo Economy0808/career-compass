@@ -22,7 +22,6 @@ import {
   type MouseEvent as ReactMouseEvent,
   type PointerEvent as ReactPointerEvent,
   type RefObject,
-  type WheelEvent as ReactWheelEvent,
 } from "react";
 import { cn } from "@/lib/cn";
 import { colorForType } from "@/lib/element-colors";
@@ -389,8 +388,12 @@ export function ConstellationCanvas({
 
   // --- 팬 & 줌 -------------------------------------------------------------
 
+  // 주의: React의 onWheel은 루트에 passive로 붙어 preventDefault가 무시된다 -
+  // 트랙패드 핀치(ctrl+wheel 확대)가 캔버스 줌과 함께 "브라우저 페이지 줌"까지
+  // 일으키던 실버그의 원인. 그래서 이 핸들러는 JSX prop이 아니라 아래
+  // useEffect에서 네이티브 리스너({ passive: false })로 직접 단다.
   const handleWheel = useCallback(
-    (e: ReactWheelEvent<SVGSVGElement>) => {
+    (e: WheelEvent) => {
       e.preventDefault();
       const rect = svgRef.current?.getBoundingClientRect();
       const px = e.clientX - (rect?.left ?? 0);
@@ -410,6 +413,15 @@ export function ConstellationCanvas({
     },
     []
   );
+
+  // handleWheel을 non-passive로 등록한다(위 주석 참고). svg가 마운트된 동안만.
+  useEffect(() => {
+    const el = svgRef.current;
+    if (!el) return;
+    const listener = (e: WheelEvent) => handleWheel(e);
+    el.addEventListener("wheel", listener, { passive: false });
+    return () => el.removeEventListener("wheel", listener);
+  }, [handleWheel]);
 
   const handleBackgroundPointerDown = useCallback(
     (e: ReactPointerEvent<SVGSVGElement>) => {
@@ -698,7 +710,6 @@ export function ConstellationCanvas({
       <svg
         ref={svgRef}
         className="h-full w-full touch-none select-none"
-        onWheel={handleWheel}
         onPointerDown={handleBackgroundPointerDown}
         onPointerMove={handlePointerMove}
         onPointerUp={handlePointerUp}
@@ -715,7 +726,7 @@ export function ConstellationCanvas({
           if (!data) return;
           onExternalDrop(data, clientToWorld(e.clientX, e.clientY));
         }}
-        style={{ cursor: readOnly ? "default" : "grab" }}
+        style={{ cursor: readOnly ? "default" : "grab", touchAction: "none" }}
       >
         <defs>
           <filter id="const-glow" x="-200%" y="-200%" width="500%" height="500%">

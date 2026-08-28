@@ -533,15 +533,18 @@ export default function NewConstellationPage() {
         constellationTitleRef.current = latest.title;
         setSaveState("saved");
         setBootState("loaded");
-        setIntakeOpen(true);
+        // 기존 별자리가 있으면 대화를 다시 시키지 않는다(사용자 지시: "이미
+        // 만들고 있었으면 처음부터 다시 대화하게 하면 안 된다"). 바로 이어서
+        // 편집하고, 새로 시작하고 싶을 때만 보관함의 "새 별자리 만들기"로
+        // 대화를 연다.
+        setIntakeOpen(false);
       } catch (err) {
         // 초기 로드 실패는 조용히 데모 상태로 남긴다 - 화면이 죽으면 안 된다.
-        // 다만 대화 오버레이는 다른 경로와 동일하게 그대로 띄운다("별자리가
-        // 없다"는 안내가 아니라 "/constellation/new은 항상 대화부터" 규칙 자체는
-        // 로드 성공 여부와 무관하기 때문).
+        // 기존 별자리가 있는 사용자일 수 있으므로 대화를 강제로 띄우지 않는다
+        // (일시 오류 때마다 처음부터 대화하게 되는 역효과 방지).
         console.error("[constellation] 초기 로드 실패", err);
         setBootState("loaded");
-        setIntakeOpen(true);
+        setIntakeOpen(false);
       }
     })();
     return () => {
