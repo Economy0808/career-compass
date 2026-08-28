@@ -35,7 +35,7 @@ function PostSkeleton() {
 }
 
 function PostRow({ post }: { post: CommunityPostDto }) {
-  const authorLabel = post.isAnonymous ? (post.isMine ? "익명(나)" : "익명") : (post.authorName ?? "익명");
+  const authorLabel = post.isAnonymous ? (post.isMine ? "익명(나)" : "익명") : (post.authorDisplayName ?? "익명");
   return (
     <Link
       href={`/community/post/${post.id}`}

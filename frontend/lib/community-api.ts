@@ -22,7 +22,7 @@ export interface BoardMeta {
 export const BOARDS: readonly BoardMeta[] = [
   { id: "free", name: "자유", description: "형식 없이 편하게 나누는 이야기", forcedAnonymous: false },
   { id: "secret", name: "비밀", description: "털어놓기 조심스러운 이야기, 항상 익명", forcedAnonymous: true },
-  { id: "qna", name: "질문", description: "궁금한 걸 묻고 답하는 곳", forcedAnonymous: false },
+  { id: "question", name: "질문", description: "궁금한 걸 묻고 답하는 곳", forcedAnonymous: false },
   { id: "info", name: "정보", description: "학교생활에 도움 되는 정보 공유", forcedAnonymous: false },
   { id: "career", name: "진로", description: "전공·진로 고민을 나누는 곳", forcedAnonymous: false },
   { id: "promo", name: "홍보", description: "모임·행사·서비스 홍보", forcedAnonymous: false },
@@ -39,16 +39,19 @@ export interface BoardDto {
   description: string;
 }
 
-/** 백엔드 CommunityPostOut과 1:1 대응(예상). isAnonymous면 authorName은 응답에서
- * 생략되고, isMine은 로그인 본인 글일 때만 내려온다. */
+/** 백엔드 CommunityPostOut과 1:1 대응(C1 확정 계약, 커밋 27977e3). 익명 글은
+ * authorUid/authorDisplayName 두 키 모두 응답에서 생략되고, isMine/isLiked는
+ * 로그인 시에만 내려온다. */
 export interface CommunityPostDto {
   id: string;
   boardId: string;
   title: string;
   body: string;
   isAnonymous: boolean;
-  authorName?: string;
+  authorUid?: string;
+  authorDisplayName?: string;
   isMine?: boolean;
+  isLiked?: boolean;
   likeCount: number;
   commentCount: number;
   createdAt: number;
@@ -58,11 +61,14 @@ export interface CommunityCommentDto {
   id: string;
   body: string;
   isAnonymous: boolean;
-  authorName?: string;
+  authorUid?: string;
+  authorDisplayName?: string;
   isMine?: boolean;
   createdAt: number;
 }
 
+/** 상세 화면 편의용 평탄화 타입 - 서버는 {post, comments} 중첩으로 주지만
+ * (C1 확정), getCommunityPost가 여기서 평탄화해 페이지는 이 모양만 다룬다. */
 export interface CommunityPostDetailDto extends CommunityPostDto {
   comments: CommunityCommentDto[];
 }
@@ -85,8 +91,11 @@ export function createBoardPost(
   );
 }
 
-export function getCommunityPost(postId: string): Promise<CommunityPostDetailDto> {
-  return request<CommunityPostDetailDto>(`/api/community/posts/${encodeURIComponent(postId)}`);
+export async function getCommunityPost(postId: string): Promise<CommunityPostDetailDto> {
+  const raw = await request<{ post: CommunityPostDto; comments: CommunityCommentDto[] }>(
+    `/api/community/posts/${encodeURIComponent(postId)}`
+  );
+  return { ...raw.post, comments: raw.comments };
 }
 
 export function addComment(
@@ -99,9 +108,16 @@ export function addComment(
   );
 }
 
-export function toggleLike(postId: string): Promise<{ likeCount: number; liked: boolean }> {
-  return request<{ likeCount: number; liked: boolean }>(
-    `/api/community/posts/${encodeURIComponent(postId)}/like`,
-    { method: "POST" }
-  );
+/** 좋아요는 토글 단일 엔드포인트가 아니라 POST/DELETE 분리(C1 확정) - 응답은
+ * 갱신된 글 전체(likeCount+isLiked 포함)다. */
+export function likePost(postId: string): Promise<CommunityPostDto> {
+  return request<CommunityPostDto>(`/api/community/posts/${encodeURIComponent(postId)}/like`, {
+    method: "POST",
+  });
+}
+
+export function unlikePost(postId: string): Promise<CommunityPostDto> {
+  return request<CommunityPostDto>(`/api/community/posts/${encodeURIComponent(postId)}/like`, {
+    method: "DELETE",
+  });
 }

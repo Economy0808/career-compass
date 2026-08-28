@@ -15,7 +15,8 @@ import {
   addComment,
   getCommunityPost,
   isForcedAnonymousBoard,
-  toggleLike,
+  likePost,
+  unlikePost,
   type CommunityCommentDto,
   type CommunityPostDetailDto,
 } from "@/lib/community-api";
@@ -35,7 +36,7 @@ function CommentRow({ comment }: { comment: CommunityCommentDto }) {
     ? comment.isMine
       ? "익명(나)"
       : "익명"
-    : (comment.authorName ?? "익명");
+    : (comment.authorDisplayName ?? "익명");
   return (
     <div className="rounded-lg border border-rule bg-ink-800/70 p-3.5">
       <div className="flex items-center gap-2 text-caption text-text-lo">
@@ -87,8 +88,9 @@ export default function CommunityPostPage() {
     if (liking) return;
     setLiking(true);
     try {
-      const result = await toggleLike(postId);
-      setPost((prev) => (prev ? { ...prev, likeCount: result.likeCount } : prev));
+      // C1 확정: 좋아요는 POST/DELETE 분리, 응답은 갱신된 글 전체.
+      const result = post.isLiked ? await unlikePost(postId) : await likePost(postId);
+      setPost((prev) => (prev ? { ...prev, ...result, comments: prev.comments } : prev));
     } catch {
       // 조용히 실패 - 카운트는 그대로 두고 재시도 가능.
     } finally {
@@ -137,7 +139,7 @@ export default function CommunityPostPage() {
   }
 
   const forcedAnonymous = isForcedAnonymousBoard(post.boardId);
-  const authorLabel = post.isAnonymous ? (post.isMine ? "익명(나)" : "익명") : (post.authorName ?? "익명");
+  const authorLabel = post.isAnonymous ? (post.isMine ? "익명(나)" : "익명") : (post.authorDisplayName ?? "익명");
 
   return (
     <div className="mx-auto max-w-2xl px-4 py-10 md:px-8">
