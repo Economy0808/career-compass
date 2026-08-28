@@ -90,6 +90,14 @@ export interface ConstellationCanvasProps {
   onExternalDrop?: (data: string, position: CanvasPosition) => void;
   /** 피드 카드/미리보기용. true면 드래그·토글·엣지 생성이 전부 실제로 막힌다. */
   readOnly?: boolean;
+  /** 선택 활성화 지점(activateNode)마다 호출되는 훅 - 부모가 이 노드에 대해
+   * 색 팔레트 등 추가 UI를 열 수 있게 한다. 캔버스는 "선택됐다"는 사실만
+   * 알리고, 그 선택을 무엇에 쓸지는 부모(page.tsx)의 책임이다. */
+  onNodeActivate?: (nodeId: string) => void;
+  /** true면 선택 시 뜨는 기본 정보 팝오버(ElementPopover)를 렌더링하지 않는다 -
+   * 편집 모드에서 팝오버 대신 색 팔레트 바를 보여줄 때 쓴다. 캔버스 내부
+   * selectedNodeId 상태 자체는 그대로 유지된다(팝오버만 숨김). */
+  suppressInfoCard?: boolean;
   /** 밖(노트 패널의 [[위키링크]] 클릭 등)에서 특정 노드를 선택시키는 요청.
    * selectedNodeId는 이 컴포넌트의 내부 state라 외부에서 직접 제어할 수
    * 없으므로, "이 노드를 선택하라"는 명령을 token으로 감싸 전달한다 - 같은
@@ -297,6 +305,8 @@ export function ConstellationCanvas({
   onOpenNotes,
   onExternalDrop,
   readOnly = false,
+  onNodeActivate,
+  suppressInfoCard = false,
   focusRequest,
   fitRequest,
   className,
@@ -420,9 +430,13 @@ export function ConstellationCanvas({
 
   // (선언 위치 주의: beginNodeDrag가 readOnly 클릭-선택 경로에서 참조하므로
   //  그보다 먼저 선언되어야 한다 - TS2448.)
-  const activateNode = useCallback((nodeId: string) => {
-    setSelectedNodeId(nodeId);
-  }, []);
+  const activateNode = useCallback(
+    (nodeId: string) => {
+      setSelectedNodeId(nodeId);
+      onNodeActivate?.(nodeId);
+    },
+    [onNodeActivate]
+  );
 
   const beginNodeDrag = useCallback(
     (nodeId: string) => (e: ReactPointerEvent<SVGGElement>) => {
@@ -966,7 +980,7 @@ export function ConstellationCanvas({
           선택된 노드를 계속 따라간다. */}
       {/* 정보 카드는 열람 모드에서도 뜬다("구경과 인터랙션만" - 사용자 원문).
           단 노트 진입점은 편집 화면 전용이라 readOnly에선 잇지 않는다. */}
-      {selectedNodeId && nodes[selectedNodeId] && (
+      {!suppressInfoCard && selectedNodeId && nodes[selectedNodeId] && (
         <ElementPopover
           node={nodes[selectedNodeId]}
           transform={transform}
