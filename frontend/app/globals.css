@@ -132,6 +132,31 @@ a:hover {
   }
 }
 
+/* 랜딩 도면의 상시 모션(사용자 지시: "요소들 약간 둥둥 + 타겟팅 원 천천히
+   회전, 아이언맨 HUD처럼"). 상시 애니메이션 금지 규칙의 명시적 예외 -
+   랜딩 도면 전용이고, 주기는 BGM 템포(현 47BPM)의 마디에 맞춰 인라인
+   duration으로 계산해 넣는다. reduced-motion이면 아래 전역 규칙이 끈다. */
+@keyframes landingFloat {
+  from {
+    transform: translateY(var(--float-amp, 3px));
+  }
+  to {
+    transform: translateY(calc(var(--float-amp, 3px) * -1));
+  }
+}
+
+@keyframes landingSpin {
+  to {
+    transform: rotate(360deg);
+  }
+}
+
+@keyframes landingSpinCcw {
+  to {
+    transform: rotate(-360deg);
+  }
+}
+
 @keyframes apertureReveal {
   /* 접안렌즈 원의 등장: 살짝 작게서 제자리로 (1회성) */
   0% {

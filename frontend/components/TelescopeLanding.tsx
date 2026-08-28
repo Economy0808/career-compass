@@ -21,11 +21,25 @@
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useEffect, useState } from "react";
+import type { CSSProperties } from "react";
 import { useAuth } from "@/lib/auth-context";
 import { BgmToggle } from "@/components/BgmToggle";
+import { BGM_TEMPO } from "@/lib/bgm-score";
 
-/** 미완성 별자리 선화 - 점선 시야원 + 이은 별 + 아직 못 이은 빈 별. */
+/* BGM(47BPM)의 마디(4박)에 모션 주기를 맞춘다 - 음악과 화면이 같은 숨을 쉬게.
+ * 사용자 지시: "요소들 약간 둥둥 + 타겟팅 원 천천히 회전(아이언맨 HUD)". */
+const LANDING_BAR_S = (60 / BGM_TEMPO) * 4;
+
+/** 미완성 별자리 선화 - 점선 시야원 + 이은 별 + 아직 못 이은 빈 별.
+ * 상시 모션(금지 규칙의 명시적 예외, 사용자 지시): 점선 링은 12마디에 한 바퀴
+ * 시계방향, 아크 세그먼트 링은 8마디 반시계(HUD 타겟팅), 이어진 별자리는
+ * 통째로 2마디 주기 둥둥(선이 별을 따라가야 하므로 그룹 단위), 못 이은 빈 별
+ * 셋은 각자 다른 위상으로 둥둥. reduced-motion이면 전역 킬 스위치가 끈다. */
 function ReticleFigure({ width }: { width: number }) {
+  const floatStyle = (amp: number, delayBars: number): CSSProperties => ({
+    ["--float-amp" as string]: `${amp}px`,
+    animation: `landingFloat ${LANDING_BAR_S * 2}s ease-in-out ${-delayBars * LANDING_BAR_S}s infinite alternate`,
+  });
   return (
     <svg
       width={width}
@@ -35,7 +49,28 @@ function ReticleFigure({ width }: { width: number }) {
       className="block"
       aria-hidden
     >
-      <circle cx="270" cy="280" r="228" stroke="var(--paper-line)" strokeWidth="1" strokeDasharray="3 7" fill="transparent" />
+      <circle
+        cx="270"
+        cy="280"
+        r="228"
+        stroke="var(--paper-line)"
+        strokeWidth="1"
+        strokeDasharray="3 7"
+        fill="transparent"
+        style={{ transformOrigin: "270px 280px", animation: `landingSpin ${LANDING_BAR_S * 12}s linear infinite` }}
+      />
+      {/* 아크 세그먼트 링 - 점선 링과 반대로 도는 HUD 타겟팅 조각들
+          (원둘레 2π×240≈1508을 대시 배열로 쪼개 아크 두 조각만 남긴다). */}
+      <circle
+        cx="270"
+        cy="280"
+        r="240"
+        stroke="var(--paper-line)"
+        strokeWidth="1.5"
+        strokeDasharray="120 260 40 1088"
+        fill="transparent"
+        style={{ transformOrigin: "270px 280px", animation: `landingSpinCcw ${LANDING_BAR_S * 8}s linear infinite` }}
+      />
       <circle cx="270" cy="280" r="252" stroke="var(--paper-soft)" strokeWidth="1" fill="transparent" />
       <g stroke="var(--paper-faint)" strokeWidth="1">
         <line x1="270" y1="24" x2="270" y2="36" />
@@ -43,25 +78,29 @@ function ReticleFigure({ width }: { width: number }) {
         <line x1="14" y1="280" x2="26" y2="280" />
         <line x1="514" y1="280" x2="526" y2="280" />
       </g>
-      <g stroke="var(--rule)" strokeWidth="1.2" opacity="0.55">
-        <line x1="150" y1="368" x2="238" y2="292" />
-        <line x1="238" y1="292" x2="330" y2="330" />
-        <line x1="238" y1="292" x2="282" y2="196" />
-        <line x1="282" y1="196" x2="376" y2="164" />
-        <line x1="330" y1="330" x2="398" y2="256" />
+      {/* 이어진 별자리(선+별)는 한 몸으로 둥둥 - 따로 띄우면 선이 끊긴다. */}
+      <g style={floatStyle(3, 0)}>
+        <g stroke="var(--rule)" strokeWidth="1.2" opacity="0.55">
+          <line x1="150" y1="368" x2="238" y2="292" />
+          <line x1="238" y1="292" x2="330" y2="330" />
+          <line x1="238" y1="292" x2="282" y2="196" />
+          <line x1="282" y1="196" x2="376" y2="164" />
+          <line x1="330" y1="330" x2="398" y2="256" />
+        </g>
+        <g fill="var(--rule)">
+          <circle cx="150" cy="368" r="5" />
+          <circle cx="238" cy="292" r="6.5" />
+          <circle cx="330" cy="330" r="5" />
+          <circle cx="282" cy="196" r="5" />
+          <circle cx="376" cy="164" r="6.5" />
+          <circle cx="398" cy="256" r="4" />
+        </g>
       </g>
-      <g fill="var(--rule)">
-        <circle cx="150" cy="368" r="5" />
-        <circle cx="238" cy="292" r="6.5" />
-        <circle cx="330" cy="330" r="5" />
-        <circle cx="282" cy="196" r="5" />
-        <circle cx="376" cy="164" r="6.5" />
-        <circle cx="398" cy="256" r="4" />
-      </g>
+      {/* 아직 못 이은 빈 별 - 선이 없으니 각자 자유 위상으로 둥둥. */}
       <g stroke="var(--rule)" fill="transparent" strokeWidth="1.2" opacity="0.6">
-        <circle cx="192" cy="180" r="4.5" />
-        <circle cx="430" cy="352" r="4.5" />
-        <circle cx="168" cy="452" r="4.5" />
+        <circle cx="192" cy="180" r="4.5" style={floatStyle(5, 0.7)} />
+        <circle cx="430" cy="352" r="4.5" style={floatStyle(4, 1.3)} />
+        <circle cx="168" cy="452" r="4.5" style={floatStyle(5, 1.8)} />
       </g>
     </svg>
   );
