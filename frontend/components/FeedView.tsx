@@ -42,7 +42,14 @@ function FeedCard({ item }: { item: FeedItemDto }) {
   const completed = nodeList.filter((n) => n.isCompleted).length;
 
   return (
-    <article className="cursor-default rounded-lg border border-rule bg-ink-800/70 backdrop-blur-[2px] transition-colors hover:bg-ink-800/90">
+    // 카드 전체가 발행 별자리 뷰어(/constellation/{cid})로 가는 링크다 - 예전엔
+    // "클릭해도 갈 곳이 없다"는 뜻으로 cursor-default를 달아 뒀지만, 이제 갈 곳이
+    // 생겼으므로 뗐다. 호버는 기존에 있던 트랜지션 1개(bg 밝아짐)만 그대로 쓰고
+    // 새 모션은 추가하지 않는다.
+    <Link
+      href={`/constellation/${constellation.id}`}
+      className="block overflow-hidden rounded-lg border border-rule bg-ink-800/70 no-underline backdrop-blur-[2px] transition-colors hover:bg-ink-800/90"
+    >
       <div className="relative aspect-[16/10] overflow-hidden rounded-t-lg border-b border-rule bg-ink-900">
         <div className="bg-radec-grid pointer-events-none absolute inset-0" aria-hidden />
         <MiniConstellation
@@ -66,7 +73,7 @@ function FeedCard({ item }: { item: FeedItemDto }) {
           {relativeTimeKo(constellation.updatedAt)}
         </span>
       </div>
-    </article>
+    </Link>
   );
 }
 
