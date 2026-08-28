@@ -63,7 +63,7 @@ export function MiniConstellation({ nodes, edges, className }: MiniConstellation
 
   if (nodeList.length === 1) {
     const only = nodeList[0];
-    const color = colorForType(only.type);
+    const color = only.color ?? colorForType(only.type);
     return (
       <svg viewBox="0 0 100 100" className={className} aria-hidden>
         <circle
@@ -124,7 +124,7 @@ export function MiniConstellation({ nodes, edges, className }: MiniConstellation
         );
       })}
       {nodeList.map((node) => {
-        const color = colorForType(node.type);
+        const color = node.color ?? colorForType(node.type);
         return (
           <circle
             key={node.id}

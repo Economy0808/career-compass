@@ -474,7 +474,7 @@ export function ElementNotesPanel({
                 <span
                   aria-hidden
                   className="h-1.5 w-1.5 shrink-0 rounded-full"
-                  style={{ background: colorForType(node.type) }}
+                  style={{ background: node.color ?? colorForType(node.type) }}
                 />
                 <span className="min-w-0 flex-1 truncate font-sans text-sm font-medium text-paper-ink">
                   {node.label}

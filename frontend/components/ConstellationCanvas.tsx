@@ -49,6 +49,10 @@ export interface CanvasNode {
    * 타입(학회/자격증/대외활동/네트워킹)은 나중에 LLM이 채운다. 없으면 그냥
    * 섹션 자체를 렌더링하지 않는다(빈 박스/플레이스홀더 금지). */
   description?: string;
+  /** 사용자 커스텀 색(#RRGGBB, 서버 NodeDto.color). 있으면 유형색보다
+   * 우선한다 - 몸통/링/스파이크가 전부 아래 렌더의 단일 color 변수를
+   * 소비하므로 폴백은 그 한 곳에서만 처리한다. */
+  color?: string;
   /** 이 노드에 달린 노트 개수. undefined면 아직 하나도 없다는 뜻으로
    * "노트 추가"를 보여준다(0개와는 다른 상태). */
   noteCount?: number;
@@ -755,7 +759,7 @@ export function ConstellationCanvas({
           {/* 노드 */}
           {Object.values(nodes).map((node) => {
             const pos = positionOf(node.id);
-            const color = colorForType(node.type);
+            const color = node.color ?? colorForType(node.type);
             const isHovered = hoveredNodeId === node.id;
             const isFocused = focusedNodeId === node.id;
             const isSelected = selectedNodeId === node.id;

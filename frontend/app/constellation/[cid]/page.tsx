@@ -56,6 +56,7 @@ function mapNodes(dto: ConstellationDto): Record<string, CanvasNode> {
       level: n.level,
       code: n.code,
       description: n.description,
+      color: n.color,
       // noteCount는 일부러 매핑하지 않는다 - 이 뷰어는 노트를 다루지 않는다.
     };
   }

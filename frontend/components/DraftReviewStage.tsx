@@ -241,7 +241,7 @@ export function DraftReviewStage({
 
               {nodeList.map((node) => {
                 const pos = toPct(node.position);
-                const color = colorForType(node.type);
+                const color = node.color ?? colorForType(node.type);
                 // 캔버스와 같은 문법: 채움 = "달성"이다(유형이 아니라). 초안의
                 // 별은 대부분 미달성이라 속 빈 링 + 유형색 테두리로 그린다 -
                 // 확정 후 캔버스에서 같은 별이 같은 모습으로 이어져야 한다.
