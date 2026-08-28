@@ -21,6 +21,7 @@
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useEffect, useState } from "react";
+import { useAuth } from "@/lib/auth-context";
 
 /** 미완성 별자리 선화 - 점선 시야원 + 이은 별 + 아직 못 이은 빈 별. */
 function ReticleFigure({ width }: { width: number }) {
@@ -69,6 +70,9 @@ function ReticleFigure({ width }: { width: number }) {
  * 레일/탭바 구조를 건드리지 않는다(패널은 캔버스 위에 뜬다는 §설계 원칙과 동일). */
 export function TelescopeLanding() {
   const router = useRouter();
+  // "/"는 로그인 여부와 무관하게 항상 이 랜딩이다(사용자 지시). 로그인
+  // 상태면 우상단 "로그인" 자리가 "피드"(소셜)로 바뀐다.
+  const { user } = useAuth();
   // 시안 보드 2(망원경 진입): CTA -> 접안렌즈 원이 종이 가운데 떠서 대기(aperture),
   // 원을 클릭해야 확대 전환(zoom) 후 대화로 넘어간다. 전환 애니메이션은 1회뿐.
   const [stage, setStage] = useState<"idle" | "aperture" | "zoom">("idle");
@@ -99,9 +103,15 @@ export function TelescopeLanding() {
           <Link href="/constellation/new" style={{ color: "var(--paper-lo)" }}>
             둘러보기
           </Link>
-          <Link href="/login" className="font-medium" style={{ color: "var(--paper-ink)" }}>
-            로그인
-          </Link>
+          {user ? (
+            <Link href="/feed" className="font-medium" style={{ color: "var(--paper-ink)" }}>
+              피드
+            </Link>
+          ) : (
+            <Link href="/login" className="font-medium" style={{ color: "var(--paper-ink)" }}>
+              로그인
+            </Link>
+          )}
         </nav>
       </header>
 
