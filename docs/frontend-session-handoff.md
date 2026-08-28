@@ -1,4 +1,20 @@
-# 프론트엔드 세션 핸드오프 (2026-08-27 심야 갱신 — 같은 세션 3차)
+# 프론트엔드 세션 핸드오프 (2026-08-28 갱신 — 같은 세션 4차)
+
+> **4차: 신기능 배치 프론트 위임분 완료** (백엔드 세션 조정 하에 F5·F6+부수 패치):
+> - `15b6657` **열람 전용 뷰어** `/constellation/{cid}` — readOnly 캔버스+fitRequest, 종이
+>   크롬 헤더(제목·description·contributors), 404/403/미발행 빈 상태, 피드 카드 링크화.
+> - `7a520f2` **readOnly 인터랙션** — 클릭/Enter/Space→정보 카드(노트 진입점·편집은 차단).
+> - `ff18afa` **node.color 폴백 5곳** — `node.color ?? colorForType(type)`, CanvasNode.color?.
+> - `a3b54e4` **프로필 인스타화** — MiniConstellation 타일 그리드, 심플 헤더, 구 /api/users 제거.
+> - `025d068` **B2 배선** — `lib/profiles-api.ts` 신설(계약 6765735), 팔로우 실배선(익명/본인은
+>   버튼 숨김 — isFollowing 키 부재로 자연 처리), 실명/아바타/bio, 뷰어 작성자 조회+폴백.
+> - `84fc57b`+`ab1cac0` dev dist 분리(NEXT_DIST_DIR) — **검증 빌드는 반드시
+>   `$env:NEXT_DIST_DIR='.next-build'`, 네이티브 PowerShell로**(bash 경유 인용 실수로 3000
+>   서버 .next를 오염시킨 실사고 1회).
+> - **정리 후보(고아/사문)**: `components/ProfileHeader.tsx`(무참조), `lib/use-follow.ts`(구
+>   /api/users 랩퍼, 무참조), 프로필의 DangerZone은 아직 구 API(deleteAccount) 의존.
+> - **실기 QA 필요(로그인+발행 데이터)**: 프로필 그리드·뷰어·팔로우 왕복, 발행→피드 카드,
+>   기존 별자리 배지 — 코드·빌드 검증만 완료 상태.
 
 > **심야 3차: DraftReviewStage 디자인 검수**(백엔드 세션 이관, `b95d752`) — 채움=달성 문법
 > 복원·배너 정직화·타원 별 얼룩 수정·lit 정합·오버플로 클램프·모바일 레이아웃. mock 대화
