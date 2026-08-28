@@ -218,6 +218,19 @@ textarea,
     opacity: 1;
   }
 }
+/* 배경 별의 반짝임(SpaceBackdrop) - 저점/고점은 별마다 다른 --twinkle-lo/hi
+   커스텀 프로퍼티로 넘어온다(자기 밝기 기준으로 숨쉬어야 어두운 별과 밝은
+   별이 똑같이 보이지 않는다). edgeGlowPulse와 같은 이유로 opacity만
+   애니메이션한다 - transform은 여기서 쓸 이유도 없다. */
+@keyframes starTwinkle {
+  0%,
+  100% {
+    opacity: var(--twinkle-lo, 0.2);
+  }
+  50% {
+    opacity: var(--twinkle-hi, 1);
+  }
+}
 /* 하루 6개 완료 축하 연출 */
 @keyframes celebratePop {
   0% {

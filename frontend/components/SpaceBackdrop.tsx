@@ -42,6 +42,15 @@
  *
  * prefers-reduced-motion: reduce면 이벤트 구독 자체를 걸지 않는다 - 별은
  * 항상 identity transform(정적)으로 남는다.
+ *
+ * --- 반짝임(twinkle) ---------------------------------------------------------
+ * 위 관성 드리프트와는 별개로, 일부 별은 CSS 애니메이션(opacity만, JS rAF
+ * 아님)으로 은은하게 밝기가 오르내린다. 전부 반짝이면 산만하고 비용도 크므로
+ * 미광 별은 대략 1/3만, 밝은 별은 전부 twinkle 대상이다. duration/delay는
+ * Math.random이 아니라 이미 시드 PRNG로 뽑힌 각 별의 x/y 좌표를 해시해서
+ * 파생한다(seededFrac) - 그래야 서버/클라이언트가 항상 같은 타이밍을 그린다.
+ * prefers-reduced-motion은 globals.css의 전역 킬스위치(animation-duration
+ * 0.001ms)가 이 애니메이션에도 그대로 적용되므로 여기서 따로 처리하지 않는다.
  */
 
 import { useEffect, useRef } from "react";
@@ -51,6 +60,37 @@ interface Star {
   y: number;
   r: number;
   opacity: number;
+  /** 이 별이 반짝임 애니메이션 대상인지 (전체의 일부만 - 성능/과함 방지). */
+  twinkle: boolean;
+  /** 반짝임 주기(초). 시드 좌표 해시에서 파생, 2.5~6s. */
+  twinkleDuration: number;
+  /** 반짝임 시작 지연(초). 별마다 위상을 흩뜨려 "다 같이 깜빡"을 피한다. */
+  twinkleDelay: number;
+}
+
+/** 시드 PRNG에서 이미 나온 값(x, y 등)을 해시해 [0,1) 유사 난수를 얻는다.
+ * Math.random을 새로 호출하지 않고도 별마다 다른 애니메이션 타이밍을 결정적으로
+ * 파생시키기 위한 용도 - 같은 시드는 항상 같은 반짝임 타이밍을 낸다. */
+function seededFrac(v: number): number {
+  const s = Math.sin(v) * 43758.5453;
+  return s - Math.floor(s);
+}
+
+/** style에 CSS 커스텀 프로퍼티(--twinkle-lo/hi)를 얹기 위한 타입. React의
+ * CSSProperties는 커스텀 프로퍼티 키를 모르므로 템플릿 리터럴 인덱스 시그니처로
+ * 확장한다(any 금지 규칙을 지키면서 타입 안전하게). */
+type StyleWithVars = React.CSSProperties & Record<`--${string}`, string | number>;
+
+/** 별 하나의 반짝임 style. 별마다 밝기(opacity)가 크게 다르므로, 전역으로 같은
+ * 절대 밝기 구간을 오르내리면 어두운 별과 밝은 별이 똑같이 보여버린다 - 그래서
+ * 저점/고점을 CSS 변수로 넘겨 keyframes(globals.css의 starTwinkle)가 그 별
+ * 자신의 기준 밝기 주변에서만 숨쉬게 한다. */
+function twinkleStyle(s: Star): StyleWithVars {
+  return {
+    "--twinkle-lo": Math.max(0.05, s.opacity * 0.4).toFixed(2),
+    "--twinkle-hi": Math.min(1, s.opacity * 1.9).toFixed(2),
+    animation: `starTwinkle ${s.twinkleDuration.toFixed(2)}s ease-in-out ${s.twinkleDelay.toFixed(2)}s infinite`,
+  };
 }
 
 /** 시드 고정 PRNG - 같은 시드는 항상 같은 수열을 낸다(하이드레이션 안전). */
@@ -69,13 +109,21 @@ function makeStars(seed: number, count: number): Star[] {
   const stars: Star[] = [];
   for (let i = 0; i < count; i++) {
     const brightness = rand();
+    const x = Math.round(rand() * 1600 * 10) / 10;
+    const y = Math.round(rand() * 900 * 10) / 10;
     stars.push({
-      x: Math.round(rand() * 1600 * 10) / 10,
-      y: Math.round(rand() * 900 * 10) / 10,
+      x,
+      y,
       // 대부분은 먼지 같은 미광(0.4~0.9px), 드물게 1px대의 또렷한 별.
       r: Math.round((0.4 + brightness * brightness * 1.1) * 100) / 100,
       // 밝기도 제곱 분포 - 어두운 별이 압도적으로 많아야 사진처럼 읽힌다.
       opacity: Math.round((0.1 + brightness * brightness * 0.55) * 100) / 100,
+      // 대략 1/3만 반짝인다(전부 애니메이션하면 산만하고 비용도 크다). 밝은 별은
+      // 아래 BRIGHT_STARS에서 전부 true로 덮어쓴다.
+      twinkle: i % 3 === 0,
+      // x/y는 이미 시드 PRNG 결과이므로, 그걸 해시해 재현 가능한 타이밍을 만든다.
+      twinkleDuration: 2.5 + seededFrac(x * 12.9898 + y * 78.233) * 3.5,
+      twinkleDelay: seededFrac(x * 39.346 + y * 11.135) * 6,
     });
   }
   return stars;
@@ -83,11 +131,12 @@ function makeStars(seed: number, count: number): Star[] {
 
 // 모듈 로드 시 한 번만 생성 - 렌더마다 재계산하지 않는다.
 const DIM_STARS = makeStars(20260827, 420);
-// 소수의 "밝은 별"만 살짝 큰 반지름 + 부드러운 광륜.
+// 소수의 "밝은 별"만 살짝 큰 반지름 + 부드러운 광륜 + 전부 반짝임.
 const BRIGHT_STARS = makeStars(1004, 14).map((s) => ({
   ...s,
   r: 1.3 + s.r,
   opacity: Math.min(0.5, s.opacity + 0.22),
+  twinkle: true,
 }));
 
 // --- 그룹 분할 --------------------------------------------------------------
@@ -263,16 +312,39 @@ export function SpaceBackdrop() {
             groupRefs.current[gi] = el;
           }}
         >
-          {/* 미광 별밭 - 사진의 "먼지처럼 깔린 별들" */}
+          {/* 미광 별밭 - 사진의 "먼지처럼 깔린 별들". 그중 일부만 반짝인다. */}
           {group.dim.map((s, i) => (
-            <circle key={`d${gi}-${i}`} cx={s.x} cy={s.y} r={s.r} fill="#E8EAF2" opacity={s.opacity} />
+            <circle
+              key={`d${gi}-${i}`}
+              cx={s.x}
+              cy={s.y}
+              r={s.r}
+              fill="#E8EAF2"
+              opacity={s.opacity}
+              style={s.twinkle ? twinkleStyle(s) : undefined}
+            />
           ))}
 
-          {/* 소수의 밝은 별 - 작은 광륜을 두른다 */}
+          {/* 소수의 밝은 별 - 작은 광륜을 두르고 전부 반짝인다. 광륜과 별 몸통이
+              같은 타이밍(twinkleStyle)으로 함께 숨쉬어야 "같은 별"로 읽힌다. */}
           {group.bright.map((s, i) => (
             <g key={`b${gi}-${i}`}>
-              <circle cx={s.x} cy={s.y} r={s.r * 4} fill="url(#sb-star-glow)" opacity={s.opacity} />
-              <circle cx={s.x} cy={s.y} r={s.r * 0.55} fill="#F2F4FA" opacity={s.opacity} />
+              <circle
+                cx={s.x}
+                cy={s.y}
+                r={s.r * 4}
+                fill="url(#sb-star-glow)"
+                opacity={s.opacity}
+                style={twinkleStyle(s)}
+              />
+              <circle
+                cx={s.x}
+                cy={s.y}
+                r={s.r * 0.55}
+                fill="#F2F4FA"
+                opacity={s.opacity}
+                style={twinkleStyle(s)}
+              />
             </g>
           ))}
         </g>
