@@ -34,8 +34,9 @@ import {
 
 const COMMENT_MAX = 500;
 
-/** 5점 별 - 좋아요 아이콘. filled=내가 누름(lit 채움), 아니면 윤곽선만. */
-function LikeStarIcon({ filled, size = 22 }: { filled: boolean; size?: number }) {
+/** 5점 별 - 좋아요 아이콘. filled=내가 누름(lit 채움), 아니면 윤곽선만.
+ * FeedView의 피드 카드도 같은 별을 쓴다(단일 소유). */
+export function LikeStarIcon({ filled, size = 22 }: { filled: boolean; size?: number }) {
   return (
     <svg
       width={size}
@@ -52,7 +53,7 @@ function LikeStarIcon({ filled, size = 22 }: { filled: boolean; size?: number })
   );
 }
 
-function ShareIcon({ size = 20 }: { size?: number }) {
+export function ShareIcon({ size = 20 }: { size?: number }) {
   return (
     <svg
       width={size}
@@ -67,6 +68,86 @@ function ShareIcon({ size = 20 }: { size?: number }) {
     >
       <path d="M12 14 L21 3 M21 3 L14.5 21 L11.5 12.5 L3 9.5 Z" />
     </svg>
+  );
+}
+
+/** 다중 장 지연 로드 훅 - 목록의 대표 썸네일로 시작해, imageCount>1일 때만
+ * 전체 이미지를 불러온다. 실패해도 썸네일 1장으로 살아있는다.
+ * PostDetail과 FeedView 피드 카드가 공유한다. */
+export function usePostImages(postId: string, imageCount: number, thumbnail: string): string[] {
+  const [images, setImages] = useState<string[] | null>(null);
+  useEffect(() => {
+    if (imageCount <= 1) return;
+    let cancelled = false;
+    listPostImages(postId)
+      .then((list) => {
+        if (!cancelled && list.length > 0) setImages(list);
+      })
+      .catch(() => {});
+    return () => {
+      cancelled = true;
+    };
+  }, [postId, imageCount]);
+  return images ?? [thumbnail];
+}
+
+/** 캐러셀 - 좌우 넘김 + 점 인디케이터 + 지연 로드 전 장수 배지. */
+export function PostImageCarousel({
+  slides,
+  totalCount,
+  alt,
+}: {
+  slides: string[];
+  totalCount: number;
+  alt: string;
+}) {
+  const [index, setIndex] = useState(0);
+  const current = slides[Math.min(index, slides.length - 1)];
+
+  return (
+    <div className="relative">
+      {/* eslint-disable-next-line @next/next/no-img-element -- data URL은 next/image 최적화 대상이 아니다 */}
+      <img src={current} alt={alt} className="max-h-[56vh] w-full rounded-md bg-ink-900 object-contain" />
+      {slides.length > 1 && (
+        <>
+          <button
+            type="button"
+            aria-label="이전 사진"
+            onClick={() => setIndex((i) => Math.max(0, i - 1))}
+            disabled={index === 0}
+            className="absolute left-1.5 top-1/2 -translate-y-1/2 rounded-full bg-ink-900/70 p-1.5 text-text-hi backdrop-blur-sm transition-opacity disabled:opacity-30"
+          >
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="transparent" stroke="currentColor" strokeWidth="2" strokeLinecap="round" aria-hidden><path d="M15 5 L8 12 L15 19" /></svg>
+          </button>
+          <button
+            type="button"
+            aria-label="다음 사진"
+            onClick={() => setIndex((i) => Math.min(slides.length - 1, i + 1))}
+            disabled={index >= slides.length - 1}
+            className="absolute right-1.5 top-1/2 -translate-y-1/2 rounded-full bg-ink-900/70 p-1.5 text-text-hi backdrop-blur-sm transition-opacity disabled:opacity-30"
+          >
+            <svg width="16" height="16" viewBox="0 0 24 24" fill="transparent" stroke="currentColor" strokeWidth="2" strokeLinecap="round" aria-hidden><path d="M9 5 L16 12 L9 19" /></svg>
+          </button>
+          <div className="absolute inset-x-0 bottom-2 flex justify-center gap-1.5" aria-hidden>
+            {slides.map((_, i) => (
+              <span
+                key={i}
+                className={
+                  "h-1.5 w-1.5 rounded-full transition-colors " +
+                  (i === index ? "bg-text-hi" : "bg-text-lo/40")
+                }
+              />
+            ))}
+          </div>
+        </>
+      )}
+      {/* 지연 로드 전(다중 장인데 slides가 아직 1장): 장수 배지만 */}
+      {slides.length === 1 && totalCount > 1 && (
+        <span className="absolute bottom-2 right-2 rounded-full bg-ink-900/70 px-2 py-0.5 font-mono text-micro text-text-lo backdrop-blur-sm">
+          1/{totalCount}
+        </span>
+      )}
+    </div>
   );
 }
 
@@ -89,8 +170,6 @@ export function PostDetail({ postId, initial, showDelete, onDeleted, onPostChang
   const [post, setPost] = useState<PostDto | undefined>(initial);
   const [comments, setComments] = useState<PostCommentDto[] | null>(null);
   const [notFound, setNotFound] = useState(false);
-  const [images, setImages] = useState<string[] | null>(null);
-  const [imgIndex, setImgIndex] = useState(0);
   const [liking, setLiking] = useState(false);
   const [commentBody, setCommentBody] = useState("");
   const [submitting, setSubmitting] = useState(false);
@@ -122,20 +201,8 @@ export function PostDetail({ postId, initial, showDelete, onDeleted, onPostChang
     // eslint-disable-next-line react-hooks/exhaustive-deps -- initial/onPostChange는 식별용 아님
   }, [postId]);
 
-  // 다중 장일 때만 전체 이미지 지연 로드. 실패해도 대표 썸네일로 살아있는다.
   const imageCount = post?.imageCount ?? 1;
-  useEffect(() => {
-    if (imageCount <= 1) return;
-    let cancelled = false;
-    listPostImages(postId)
-      .then((list) => {
-        if (!cancelled && list.length > 0) setImages(list);
-      })
-      .catch(() => {});
-    return () => {
-      cancelled = true;
-    };
-  }, [postId, imageCount]);
+  const slides = usePostImages(postId, imageCount, post?.imageData ?? "");
 
   if (notFound) {
     return <EmptyState title="게시물을 찾을 수 없어요" description="삭제되었거나 잘못된 링크예요" />;
@@ -143,9 +210,6 @@ export function PostDetail({ postId, initial, showDelete, onDeleted, onPostChang
   if (!post) {
     return <div className="h-64 animate-pulse rounded-md bg-ink-800/70" aria-hidden />;
   }
-
-  const slides = images ?? [post.imageData];
-  const current = slides[Math.min(imgIndex, slides.length - 1)];
 
   async function handleLikeToggle(): Promise<void> {
     if (!post) return;
@@ -223,50 +287,8 @@ export function PostDetail({ postId, initial, showDelete, onDeleted, onPostChang
 
   return (
     <div className="flex flex-col">
-      {/* ─ 캐러셀 ─ */}
-      <div className="relative">
-        {/* eslint-disable-next-line @next/next/no-img-element -- data URL은 next/image 최적화 대상이 아니다 */}
-        <img src={current} alt={post.caption || "게시물 사진"} className="max-h-[56vh] w-full rounded-md bg-ink-900 object-contain" />
-        {slides.length > 1 && (
-          <>
-            <button
-              type="button"
-              aria-label="이전 사진"
-              onClick={() => setImgIndex((i) => Math.max(0, i - 1))}
-              disabled={imgIndex === 0}
-              className="absolute left-1.5 top-1/2 -translate-y-1/2 rounded-full bg-ink-900/70 p-1.5 text-text-hi backdrop-blur-sm transition-opacity disabled:opacity-30"
-            >
-              <svg width="16" height="16" viewBox="0 0 24 24" fill="transparent" stroke="currentColor" strokeWidth="2" strokeLinecap="round" aria-hidden><path d="M15 5 L8 12 L15 19" /></svg>
-            </button>
-            <button
-              type="button"
-              aria-label="다음 사진"
-              onClick={() => setImgIndex((i) => Math.min(slides.length - 1, i + 1))}
-              disabled={imgIndex >= slides.length - 1}
-              className="absolute right-1.5 top-1/2 -translate-y-1/2 rounded-full bg-ink-900/70 p-1.5 text-text-hi backdrop-blur-sm transition-opacity disabled:opacity-30"
-            >
-              <svg width="16" height="16" viewBox="0 0 24 24" fill="transparent" stroke="currentColor" strokeWidth="2" strokeLinecap="round" aria-hidden><path d="M9 5 L16 12 L9 19" /></svg>
-            </button>
-            <div className="absolute inset-x-0 bottom-2 flex justify-center gap-1.5" aria-hidden>
-              {slides.map((_, i) => (
-                <span
-                  key={i}
-                  className={
-                    "h-1.5 w-1.5 rounded-full transition-colors " +
-                    (i === imgIndex ? "bg-text-hi" : "bg-text-lo/40")
-                  }
-                />
-              ))}
-            </div>
-          </>
-        )}
-        {/* 지연 로드 전(다중 장인데 slides가 아직 1장): 장수 배지만 */}
-        {slides.length === 1 && imageCount > 1 && (
-          <span className="absolute bottom-2 right-2 rounded-full bg-ink-900/70 px-2 py-0.5 font-mono text-micro text-text-lo backdrop-blur-sm">
-            1/{imageCount}
-          </span>
-        )}
-      </div>
+      {/* ─ 캐러셀 (피드 카드와 공유) ─ */}
+      <PostImageCarousel slides={slides} totalCount={imageCount} alt={post.caption || "게시물 사진"} />
 
       {/* ─ 액션 줄: 별 좋아요 · 공유 · (소유자) 삭제 ─ */}
       <div className="mt-3 flex items-center gap-1">

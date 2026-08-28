@@ -58,6 +58,17 @@ export function listUserPosts(uid: string): Promise<PostDto[]> {
   return request<PostDto[]>(`/api/posts/user/${encodeURIComponent(uid)}`);
 }
 
+/** SNS 피드 항목 - PostOut + 작성자 조인(예상 계약, F-E3). */
+export interface FeedPostDto extends PostDto {
+  ownerDisplayName?: string;
+  ownerAvatarEmoji?: string;
+}
+
+/** 전체 게시물 피드(최신 ≤30, 익명 허용) - /feed SNS 전환용. */
+export function listFeedPosts(): Promise<FeedPostDto[]> {
+  return request<FeedPostDto[]>("/api/posts/feed");
+}
+
 export async function getPost(postId: string): Promise<PostDetailDto> {
   const raw = await request<{ post: PostDto; comments: PostCommentDto[] }>(
     `/api/posts/${encodeURIComponent(postId)}`
