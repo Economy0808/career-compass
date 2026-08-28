@@ -418,9 +418,23 @@ export function ConstellationCanvas({
 
   // --- 노드 드래그 -----------------------------------------------------------
 
+  // (선언 위치 주의: beginNodeDrag가 readOnly 클릭-선택 경로에서 참조하므로
+  //  그보다 먼저 선언되어야 한다 - TS2448.)
+  const activateNode = useCallback((nodeId: string) => {
+    setSelectedNodeId(nodeId);
+  }, []);
+
   const beginNodeDrag = useCallback(
     (nodeId: string) => (e: ReactPointerEvent<SVGGElement>) => {
-      if (readOnly || e.button !== 0) return;
+      if (e.button !== 0) return;
+      // 열람(readOnly) 모드: 드래그는 없고 클릭=선택(정보 카드)만. 이동
+      // 임계값을 잴 드래그 자체가 없으니 pointerdown에서 바로 선택한다.
+      // stopPropagation으로 배경 팬 시작을 막는 것은 편집 모드와 동일.
+      if (readOnly) {
+        e.stopPropagation();
+        activateNode(nodeId);
+        return;
+      }
       e.stopPropagation();
       const n = nodes[nodeId];
       if (!n) return;
@@ -435,7 +449,7 @@ export function ConstellationCanvas({
       };
       (e.currentTarget as Element).setPointerCapture(e.pointerId);
     },
-    [nodes, readOnly]
+    [nodes, readOnly, activateNode]
   );
 
   // --- 엣지 생성 ---------------------------------------------------------
@@ -490,17 +504,12 @@ export function ConstellationCanvas({
 
   // 클릭(또는 Enter/Space)은 이제 오직 선택만 한다 - 완료 토글(더블클릭)과
   // 연결(핸들 링 드래그), 삭제(Delete 키)는 전부 다른 제스처로 분리됐다.
-  const activateNode = useCallback((nodeId: string) => {
-    setSelectedNodeId(nodeId);
-  }, []);
-
   // Esc는 어디에 포커스가 있든 선택/카드를 닫는다. Delete/Backspace는 "선택된
   // 노드가 있을 때만" 그 노드를 삭제한다 - 이 앱엔 undo가 없으므로, 입력
   // 필드(텍스트 편집 중)에서 눌렸다면 무시해서 실수로 지워지지 않게 막는다.
   // 확인 대화상자는 일부러 안 붙였다(요청받지 않음) - 대신 삭제 전제 조건을
   // "선택 상태"로 좁혀서 아무 데서나 손쉽게 눌리지 않게 한다.
   useEffect(() => {
-    if (readOnly) return;
     function isTypingTarget(target: EventTarget | null): boolean {
       if (!(target instanceof HTMLElement)) return false;
       const tag = target.tagName;
@@ -511,6 +520,8 @@ export function ConstellationCanvas({
         setSelectedNodeId(null);
         return;
       }
+      // 열람 모드에선 Esc(카드 닫기)만 허용 - 삭제는 편집 제스처다.
+      if (readOnly) return;
       if ((e.key === "Delete" || e.key === "Backspace") && !isTypingTarget(e.target)) {
         // 갱신 함수 안에서 부모 콜백(onNodeDelete)을 부르면 렌더 중 부모 상태
         // 갱신이 되어 StrictMode 경고가 난다(closeTab에서 잡았던 것과 동일한
@@ -606,7 +617,14 @@ export function ConstellationCanvas({
 
   const handleNodeKeyDown = useCallback(
     (nodeId: string) => (e: ReactKeyboardEvent<SVGGElement>) => {
-      if (readOnly) return;
+      // 열람 모드에서도 Enter/Space로 정보 카드는 연다(키보드 동등성).
+      if (readOnly) {
+        if (e.key === "Enter" || e.key === " ") {
+          e.preventDefault();
+          activateNode(nodeId);
+        }
+        return;
+      }
       if (e.key === "Enter" || e.key === " ") {
         e.preventDefault();
         // 선택인가 토글인가: 클릭과 동일한 의미(선택)로 통일한다. 완료 토글은
@@ -786,7 +804,7 @@ export function ConstellationCanvas({
               <g
                 key={node.id}
                 transform={`translate(${pos.x} ${pos.y})`}
-                tabIndex={readOnly ? -1 : 0}
+                tabIndex={0}
                 role="button"
                 aria-label={node.label}
                 aria-pressed={node.isCompleted}
@@ -797,7 +815,7 @@ export function ConstellationCanvas({
                 onPointerLeave={() => setHoveredNodeId((cur) => (cur === node.id ? null : cur))}
                 onPointerDown={beginNodeDrag(node.id)}
                 onDoubleClick={!readOnly ? handleNodeDoubleClick(node.id) : undefined}
-                style={{ cursor: readOnly ? "default" : "pointer", outline: "none" }}
+                style={{ cursor: "pointer", outline: "none" }}
               >
                 {/* 엣지 생성용 핸들 링 - 항상 존재하는 히트 영역이지만, 평소에는
                     투명하다가 호버/포커스일 때 뚜렷한 실선 링 + 옅은 채움으로
@@ -946,12 +964,14 @@ export function ConstellationCanvas({
           제스처(더블클릭/핸들 링 드래그/Delete 키)로 옮겨서 버튼이 없다.
           transform(팬/줌)이 바뀔 때마다 다시 계산되므로 캔버스를 움직여도
           선택된 노드를 계속 따라간다. */}
-      {!readOnly && selectedNodeId && nodes[selectedNodeId] && (
+      {/* 정보 카드는 열람 모드에서도 뜬다("구경과 인터랙션만" - 사용자 원문).
+          단 노트 진입점은 편집 화면 전용이라 readOnly에선 잇지 않는다. */}
+      {selectedNodeId && nodes[selectedNodeId] && (
         <ElementPopover
           node={nodes[selectedNodeId]}
           transform={transform}
           containerRef={svgRef}
-          onOpenNotes={onOpenNotes ? () => onOpenNotes(selectedNodeId) : undefined}
+          onOpenNotes={!readOnly && onOpenNotes ? () => onOpenNotes(selectedNodeId) : undefined}
           onDismiss={() => setSelectedNodeId(null)}
         />
       )}
