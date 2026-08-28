@@ -134,6 +134,12 @@
         ],
         "createdAt": "2026-08-28T06:00:57.508Z",
         "reason": "pre-existing micro size in notes panel (predates 2026-08-28 paper conversion; only color tokens changed on these lines)"
+      },
+      {
+        "rule": "design-system-font-size",
+        "value": "9px",
+        "createdAt": "2026-08-28T10:18:58.966Z",
+        "reason": "logo lockup sub-label: sized so the Latin mono line matches the 22px wordmark width - user-directed rebalance (로고 비율 지적), one-off wordmark scale not a text ramp step"
       }
     ]
   }
