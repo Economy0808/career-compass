@@ -744,6 +744,32 @@ export default function NewConstellationPage() {
     [editMode]
   );
 
+  // 공개 칩 빠른 토글(사용자 지시: "공개 비공개도 버튼 누르면 바뀌는 걸로") -
+  // 이미 서버에 있는 별자리는 모달 없이 즉시 발행 상태를 뒤집는다. 아직 서버에
+  // 없거나 비로그인이면 띄우기 모달로 보낸다(제목/로그인 안내가 필요하므로).
+  const [publishToggling, setPublishToggling] = useState(false);
+  const handleQuickPublishToggle = useCallback(async () => {
+    const cid = constellationIdRef.current;
+    if (!user || !cid) {
+      setLaunchModalOpen(true);
+      return;
+    }
+    if (publishToggling) return;
+    setPublishToggling(true);
+    try {
+      const updated = await patchPublish(cid, { isPublished: !isPublished });
+      setIsPublished(updated.isPublished);
+      if (updated.isPublished) {
+        setJustPublished(true);
+        window.setTimeout(() => setJustPublished(false), 1600);
+      }
+    } catch (err) {
+      console.error("[constellation] 발행 상태 전환 실패", err);
+    } finally {
+      setPublishToggling(false);
+    }
+  }, [user, isPublished, publishToggling]);
+
   // "별자리 띄우기" 제출 - 로그인 + 미저장이면 모달의 이름으로 먼저 생성한
   // 뒤(기존 handleConfirmTitle과 같은 payload 구성) 발행 패치까지 이어서
   // 보낸다. 이미 저장된 별자리면 발행 패치 하나만 보낸다. 에러는 그대로
@@ -1494,26 +1520,51 @@ export default function NewConstellationPage() {
         fitRequest={fitRequest}
       />
 
-      {/* 편집 모드 토글 - 우상단, 군집 패널과 안 겹치는 하늘 영역. 패널이
-          접히면(아이콘 칩만 남음) 그만큼 안쪽으로 당겨 자리를 좁힌다.
-          진입 시 버튼 자체가 "완성"으로 바뀌어 같은 자리에서 되돌아간다. */}
-      <button
-        type="button"
-        aria-pressed={editMode}
-        aria-label={editMode ? "편집 완료" : "요소 색상 편집 모드"}
-        onClick={handleToggleEditMode}
+      {/* 우상단 컨트롤 줄 - 저장 상태 · 공개 토글 · 편집을 한 줄로(사용자
+          지시: 툴바는 편집 버튼 좌측에, 더 작게 minimal). 저장은 버튼 하나가
+          라벨로 상태를 말하고(실제 저장은 자동 큐), 공개 칩은 누르면 즉시
+          발행 상태가 뒤집힌다. 군집 섬과는 20px 숨통. */}
+      <div
         className={cn(
-          "paper-surface fixed z-20 flex items-center gap-1.5 rounded-lg border border-paper-line bg-paper-soft/95 px-3 py-2 font-sans text-xs font-medium text-paper-ink shadow-panel backdrop-blur-md transition-colors hover:bg-paper focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-1 focus-visible:outline-paper-ink",
+          "fixed z-20 flex items-center gap-1.5",
           "right-3 top-3",
-          // 군집 섬(md: w-72 + right-4 = 304px)과 딱 붙지 않게 20px 숨통을 더
-          // 둔다(사용자 지적: "편집 버튼도 군집 아일랜드랑 너무 붙었어").
           isPanelCollapsed ? "md:right-[80px] md:top-4" : "md:right-[324px] md:top-3",
           paletteOpen && "max-md:hidden"
         )}
       >
-        <EditPencilIcon />
-        {editMode ? "완성" : "편집"}
-      </button>
+        <button
+          type="button"
+          onClick={handleSaveClick}
+          className="paper-surface rounded-full border border-paper-line bg-paper-soft/95 px-2.5 py-1.5 font-sans text-micro font-medium text-paper-lo shadow-panel backdrop-blur-md transition-colors hover:text-paper-ink focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-1 focus-visible:outline-paper-ink"
+        >
+          {SAVE_STATE_LABEL[saveState]}
+        </button>
+        <button
+          type="button"
+          onClick={handleQuickPublishToggle}
+          disabled={publishToggling}
+          className={cn(
+            "paper-surface rounded-full border px-2.5 py-1.5 font-sans text-micro font-medium shadow-panel backdrop-blur-md transition-colors focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-1 focus-visible:outline-paper-ink",
+            isPublished
+              ? "border-paper-ink bg-paper-ink font-semibold text-lit"
+              : "border-paper-line bg-paper-soft/95 text-paper-lo hover:text-paper-ink",
+            justPublished && "shadow-glow-bloom",
+            publishToggling && "opacity-60"
+          )}
+        >
+          {isPublished ? "발행됨" : "비공개"}
+        </button>
+        <button
+          type="button"
+          aria-pressed={editMode}
+          aria-label={editMode ? "편집 완료" : "요소 색상 편집 모드"}
+          onClick={handleToggleEditMode}
+          className="paper-surface flex items-center gap-1.5 rounded-lg border border-paper-line bg-paper-soft/95 px-3 py-2 font-sans text-xs font-medium text-paper-ink shadow-panel backdrop-blur-md transition-colors hover:bg-paper focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-1 focus-visible:outline-paper-ink"
+        >
+          <EditPencilIcon />
+          {editMode ? "완성" : "편집"}
+        </button>
+      </div>
 
       {/* "별자리 띄우기" - 우하단, 군집 패널·네비 섬과 안 겹치는 자리. 접힘
           상태에서는 편집 버튼과 같은 규칙으로 안쪽으로 당긴다. 팔레트가 열린
@@ -1562,53 +1613,7 @@ export default function NewConstellationPage() {
         }}
       />
 
-      {/* 저장 버튼 + 상태 배지 - 좌상단에 뜨는 작은 오버레이. 별도 상단 툴바가
-          없는 화면이라 아래 aside 패널과 같은 시각 언어(테두리/배경/블러)로
-          새로 만들었다. 실제 저장은 항상 뮤테이션 큐가 알아서 흘려보내므로,
-          버튼은 "아직 서버에 존재하지 않는 별자리"를 처음 만들 때만 의미가
-          있다(제목 모달을 연다) - 이미 있으면 그냥 아무 것도 하지 않는다. */}
-      {/* 섬 크롬 전환 이후 좌상단은 OurLab 로고 자리다(AppShell.tsx) - 툴바가
-          겹치지 않도록 상단 중앙으로 옮겼다. 더 이상 풀높이 레일이 없으므로
-          레일 폭을 피하던 옛 left-[208px] 계산은 필요 없다. */}
-      <div
-        className={cn(
-          "paper-surface fixed top-3 z-20 flex -translate-x-1/2 items-center gap-2 rounded-lg border border-paper-line bg-paper-soft/95 px-3 py-2 shadow-panel backdrop-blur-md",
-          // "전체 화면 중간 말고 여백의 중간"(사용자 지적) - 우측 군집 섬이
-          // 차지하는 폭을 빼고 남은 하늘 영역의 정중앙에 둔다. <md는 패널이
-          // 하단 시트라 그냥 화면 중앙.
-          "left-1/2",
-          isPanelCollapsed ? "md:left-[calc((100vw-80px)/2)]" : "md:left-[calc((100vw-320px)/2)]"
-        )}
-      >
-        <button
-          type="button"
-          onClick={handleSaveClick}
-          className="cta-ink rounded-md bg-paper-ink px-3 py-1.5 font-sans text-xs font-medium text-paper focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-1 focus-visible:outline-paper-ink"
-        >
-          저장
-        </button>
-        <span className="font-sans text-xs text-paper-lo">{SAVE_STATE_LABEL[saveState]}</span>
-
-        {/* 발행 상태 칩 - 발행 행위 자체는 "별자리 띄우기" 모달로 옮겼고,
-            여기는 지금 발행 상태가 무엇인지만 보여준다(사용자 지시). */}
-        <span className="mx-0.5 h-4 w-px bg-paper-line" aria-hidden />
-        <span
-          className={cn(
-            "font-sans text-xs transition-shadow duration-700",
-            // lit(별빛)은 종이 위에서 거의 안 보이는 대비라(둘 다 밝은 색조)
-            // 어두운 잉크 칩 위에 얹어 별빛이 실제로 빛나 보이게 한다.
-            isPublished
-              ? "rounded-full bg-paper-ink px-1.5 py-0.5 font-semibold text-lit"
-              : "text-paper-lo",
-            // 방금 띄운 순간 - shadow-glow-bloom을 잠깐 얹었다 스스로 꺼진다
-            // (handleLaunchSubmit의 justPublished 타이머 참고). window.alert
-            // 클라이맥스를 대신하는 세계관 내 확인.
-            justPublished && "shadow-glow-bloom"
-          )}
-        >
-          {isPublished ? "발행됨" : "비공개"}
-        </span>
-      </div>
+      {/* (구 상단 중앙 저장 툴바는 우상단 컨트롤 줄로 통합됨 - 위 참조) */}
 
       {/* 로딩 베일 - bootState가 정착하기 전까지 캔버스/저장 툴바를 완전히
           가린다. 정착과 동시에(위 boot effect) intakeOpen도 true가 되므로

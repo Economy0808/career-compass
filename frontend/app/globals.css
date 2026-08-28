@@ -234,6 +234,18 @@ textarea,
    그대로 쓰면 translateX(-50%)가 부모 <g>의 좌표 변환과 어긋나 엣지가
    가로로 어긋나 보이는 버그가 생긴다(콩나무 리디자인 시안에서 그대로 복사돼
    들어온 값). opacity만 애니메이션한다 - transform 없음. */
+/* 달성 순간 엣지가 "이미 켜진 별 -> 방금 달성한 별"로 스윽 이어지는 드로우온.
+   pathLength=1 트릭으로 어떤 길이의 선이든 dashoffset 1->0 한 번이면 된다.
+   1회성(달성 제스처 유발) - 상시 모션 금지 규칙과 충돌하지 않는다. */
+@keyframes edgeDrawOn {
+  0% {
+    stroke-dashoffset: 1;
+  }
+  100% {
+    stroke-dashoffset: 0;
+  }
+}
+
 @keyframes edgeGlowPulse {
   0%,
   100% {

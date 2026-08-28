@@ -55,8 +55,10 @@ export function AppShell({ children }: AppShellProps) {
           href="/"
           className="fixed left-4 top-4 z-20 flex flex-col rounded-sm outline-none focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-spec-b"
         >
-          <span className="font-serif text-title font-bold leading-tight text-text-hi">OurLab</span>
-          <span className="mt-1 border-t border-rule pt-1 font-mono text-micro tracking-[0.14em] text-text-lo">
+          {/* 워드마크와 서브라벨의 가로폭이 거의 같아지도록 크기·자간을 맞춘
+              락업(lockup) - 밑줄이 두 줄을 한 덩어리로 묶는다(비율 지적 반영). */}
+          <span className="font-serif text-[22px] font-bold leading-tight text-text-hi">OurLab</span>
+          <span className="mt-0.5 border-t border-rule pt-[3px] font-mono text-[9px] tracking-[0.13em] text-text-lo">
             Yonsei Community
           </span>
         </Link>

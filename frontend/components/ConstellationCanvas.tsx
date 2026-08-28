@@ -132,7 +132,12 @@ const MAX_ZOOM = 2.5;
 // w-72=288px)이 캔버스 위에 얹히는 오버레이라(SVG 자체 폭은 안 줄어듦) 그냥
 // 컨테이너 여백만큼만 맞추면 노드가 패널 밑에 깔린다. 좌우를 더 넉넉히 안쪽으로
 // 당겨 시안 확정 직후 패널과 겹치지 않게 한다.
-const FIT_PADDING_X = 220;
+// 섬 크롬 전환 후 좌측 풀높이 레일은 없다 - 좌측은 기본 여백만, 우측은
+// 군집 섬(md: w-72+right-4+간격 ≈ 320px)을 통째로 피해서, fit의 "중앙"이
+// 화면 중앙이 아니라 **섬을 뺀 하늘 여백의 중앙**이 되게 한다(사용자 지시).
+// <md에서는 패널이 하단 시트라 좌우 비대칭이 없다.
+const FIT_PADDING_X = 72;
+const FIT_RIGHT_PANEL_W = 320;
 const FIT_PADDING_Y = 72;
 // 자동 맞춤 줌은 아무리 노드가 넓게 퍼져도 이 값을 넘지 않는다("과하게 당기지
 // 말 것" - 사용자 지시). 좁게 뭉친 노드 몇 개를 화면 가득 확대하는 것도
@@ -261,10 +266,12 @@ function computeFitTransform(nodeList: CanvasNode[], rect: { width: number; heig
   const cy = (minY + maxY) / 2;
   const bboxW = Math.max(1, maxX - minX);
   const bboxH = Math.max(1, maxY - minY);
-  const availW = Math.max(1, rect.width - FIT_PADDING_X * 2);
+  // md 이상에서만 우측 군집 섬 폭을 빼고 남은 하늘의 정중앙에 맞춘다.
+  const rightPad = rect.width >= 768 ? FIT_PADDING_X + FIT_RIGHT_PANEL_W : FIT_PADDING_X;
+  const availW = Math.max(1, rect.width - FIT_PADDING_X - rightPad);
   const availH = Math.max(1, rect.height - FIT_PADDING_Y * 2);
   const k = Math.min(FIT_MAX_ZOOM, Math.max(MIN_ZOOM, Math.min(availW / bboxW, availH / bboxH)));
-  return { x: rect.width / 2 - cx * k, y: rect.height / 2 - cy * k, k };
+  return { x: FIT_PADDING_X + availW / 2 - cx * k, y: rect.height / 2 - cy * k, k };
 }
 
 interface DragNodeState {
@@ -670,10 +677,57 @@ export function ConstellationCanvas({
     (nodeId: string) => (e: ReactMouseEvent<Element>) => {
       if (readOnly) return;
       e.stopPropagation();
+      // 드로우온 방향 판정용 - 이 노드가 "방금 달성된 쪽"이라는 힌트.
+      lastToggledNodeRef.current = nodeId;
       onNodeToggleComplete(nodeId);
     },
     [readOnly, onNodeToggleComplete]
   );
+
+  // --- 엣지 드로우온(달성 순간 연출) ---------------------------------------
+  // 엣지가 "막 켜진"(unlit -> lit) 순간, 이미 켜져 있던 별에서 방금 달성한
+  // 별 쪽으로 선이 스윽 그어지는 1회성 애니메이션을 얹는다(사용자 지시).
+  // litEdgesRef가 직전 렌더의 lit 집합, drawingEdges가 지금 그려지는 중인
+  // 엣지들(값 = 방금 달성한 쪽이 target인지)이다. 애니메이션이 끝나면 일반
+  // lit 스타일로 승격된다. prefers-reduced-motion이면 전역 규칙이 duration을
+  // 0으로 만들어 즉시 켜진다.
+  const lastToggledNodeRef = useRef<string | null>(null);
+  const litEdgesRef = useRef<Set<string>>(new Set());
+  const [drawingEdges, setDrawingEdges] = useState<Record<string, { towardTarget: boolean }>>({});
+
+  useEffect(() => {
+    const prevLit = litEdgesRef.current;
+    const nextLit = new Set<string>();
+    const newlyLit: Record<string, { towardTarget: boolean }> = {};
+    for (const edge of Object.values(edges)) {
+      const s = nodes[edge.sourceNodeId];
+      const t = nodes[edge.targetNodeId];
+      if (!s || !t || !s.isCompleted || !t.isCompleted) continue;
+      nextLit.add(edge.id);
+      if (!prevLit.has(edge.id)) {
+        // 방금 달성한 노드가 target이면 source->target 방향으로 긋는다.
+        newlyLit[edge.id] = { towardTarget: lastToggledNodeRef.current !== edge.sourceNodeId };
+      }
+    }
+    litEdgesRef.current = nextLit;
+    if (Object.keys(newlyLit).length > 0) {
+      setDrawingEdges((cur) => ({ ...cur, ...newlyLit }));
+    }
+    // 꺼진 엣지는 그리는 중 목록에서도 정리한다(달성 취소 직후 재달성 대비).
+    setDrawingEdges((cur) => {
+      const kept = Object.entries(cur).filter(([id]) => nextLit.has(id));
+      return kept.length === Object.keys(cur).length ? cur : Object.fromEntries(kept);
+    });
+  }, [nodes, edges]);
+
+  const finishEdgeDraw = useCallback((edgeId: string) => {
+    setDrawingEdges((cur) => {
+      if (!(edgeId in cur)) return cur;
+      const next = { ...cur };
+      delete next[edgeId];
+      return next;
+    });
+  }, []);
 
   // --- 파생 데이터 ----------------------------------------------------------
 
@@ -765,6 +819,7 @@ export function ConstellationCanvas({
             // 인접 발광 규칙: 양 끝 노드가 모두 완료일 때만 "빛나는" 스타일.
             // backend/app/domain/constellation.py의 is_edge_lit과 동일한 규칙.
             const lit = source.isCompleted && target.isCompleted;
+            const drawing = lit ? drawingEdges[edge.id] : undefined;
             return (
               <g key={edge.id}>
                 <line
@@ -772,16 +827,36 @@ export function ConstellationCanvas({
                   y1={sp.y}
                   x2={tp.x}
                   y2={tp.y}
-                  stroke={lit ? "var(--lit)" : "var(--rule)"}
-                  strokeWidth={lit ? 2 : 1}
-                  opacity={lit ? 1 : 0.8}
-                  filter={lit ? "url(#const-glow)" : undefined}
-                  style={lit ? { animation: "edgeGlowPulse 3.2s ease-in-out infinite" } : undefined}
+                  // 드로우온 중에는 바닥 선을 미점등 스타일로 깔아 두고, 아래
+                  // 오버레이 선이 그 위를 "그어" 나간다 - 끝나면 이 선이 그대로
+                  // 점등 스타일로 승격된다.
+                  stroke={lit && !drawing ? "var(--lit)" : "var(--rule)"}
+                  strokeWidth={lit && !drawing ? 2 : 1}
+                  opacity={lit && !drawing ? 1 : 0.8}
+                  filter={lit && !drawing ? "url(#const-glow)" : undefined}
+                  style={lit && !drawing ? { animation: "edgeGlowPulse 3.2s ease-in-out infinite" } : undefined}
                   onDoubleClick={
                     !readOnly && onEdgeDelete ? () => onEdgeDelete(edge.id) : undefined
                   }
                   className={!readOnly && onEdgeDelete ? "cursor-pointer" : undefined}
                 />
+                {drawing && (
+                  <line
+                    // 이미 켜져 있던 별(시작점) -> 방금 달성한 별(끝점) 방향.
+                    x1={drawing.towardTarget ? sp.x : tp.x}
+                    y1={drawing.towardTarget ? sp.y : tp.y}
+                    x2={drawing.towardTarget ? tp.x : sp.x}
+                    y2={drawing.towardTarget ? tp.y : sp.y}
+                    pathLength={1}
+                    strokeDasharray="1"
+                    stroke="var(--lit)"
+                    strokeWidth={2}
+                    filter="url(#const-glow)"
+                    style={{ animation: "edgeDrawOn 550ms cubic-bezier(.22,1,.36,1) forwards" }}
+                    onAnimationEnd={() => finishEdgeDraw(edge.id)}
+                    pointerEvents="none"
+                  />
+                )}
               </g>
             );
           })}
