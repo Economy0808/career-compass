@@ -24,6 +24,14 @@ updated_at은 반대로 호출될 때마다 항상 현재 시각으로 갱신한
 읽기 -> 병합 계산 -> 쓰기 순서를 따른다. Firestore merge=True는 필드 단위로
 덮어쓰므로 "이 필드가 이미 있으면 건드리지 말라"는 조건부 로직을 표현할 수
 없기 때문이다.
+
+## follower_count / following_count
+
+이 모듈이 직접 쓰지는 않는 비정규화 캐시 필드다 - follow_repo.py가 팔로우/
+언팔로우 트랜잭션 안에서 증감시킨다(note_repo.py의 note_count 캐시와 동일한
+설계). 필드가 아예 없는 문서(한 번도 팔로우/팔로우당한 적 없는 유저)에서는
+`profile.get("follower_count", 0)`처럼 기본값 0으로 읽어야 한다 - get_user_profile은
+있는 그대로의 dict만 돌려주고 누락 필드를 채워주지 않는다.
 """
 
 from __future__ import annotations
@@ -38,6 +46,18 @@ _COLLECTION = "users"
 
 def _doc_ref(db: Client, uid: str) -> Any:
     return db.collection(_COLLECTION).document(uid)
+
+
+def _read_existing(db: Client, uid: str) -> tuple[Any, dict[str, Any]]:
+    """문서 참조와, 이미 있는 필드를 담은 dict(없으면 빈 dict)를 함께 돌려준다.
+
+    upsert_user_profile/update_profile 둘 다 "읽기 -> 병합 계산 -> 쓰기" 순서를
+    따르므로(모듈 docstring 참고) 그 첫 단계를 공유한다.
+    """
+    doc_ref = _doc_ref(db, uid)
+    snapshot = doc_ref.get()
+    existing = snapshot.to_dict() if snapshot.exists else None
+    return doc_ref, (dict(existing) if existing is not None else {})
 
 
 def upsert_user_profile(
@@ -59,12 +79,9 @@ def upsert_user_profile(
     반환값은 갱신 이후의 문서 전체(dict)다 - 호출부(auth_sync 라우터)가 별도로
     다시 읽지 않고 그대로 응답을 만들 수 있게 한다.
     """
-    doc_ref = _doc_ref(db, uid)
-    snapshot = doc_ref.get()
-    existing = snapshot.to_dict() if snapshot.exists else None
+    doc_ref, data = _read_existing(db, uid)
     now = datetime.now(UTC)
 
-    data: dict[str, Any] = dict(existing) if existing is not None else {}
     if display_name is not None:
         data["display_name"] = display_name
     if avatar_emoji is not None:
@@ -73,6 +90,39 @@ def upsert_user_profile(
         data["created_at"] = now
     if consent_at is not None and not data.get("consent_at"):
         data["consent_at"] = consent_at
+    data["updated_at"] = now
+
+    doc_ref.set(data)
+    return data
+
+
+def update_profile(
+    db: Client,
+    uid: str,
+    *,
+    display_name: str | None = None,
+    avatar_emoji: str | None = None,
+    bio: str | None = None,
+) -> dict[str, Any]:
+    """본인 프로필 표시 필드(이름/아바타/소개)만 부분 갱신한다.
+
+    None인 인자는 건드리지 않는다 - upsert_user_profile과 동일한 관례. PIPA
+    동의 시점(consent_at)은 이 함수의 관심사가 아니다(그건 auth_sync 경로의
+    몫). 문서가 아직 없으면(auth/sync를 한 번도 안 부른 유저가 먼저 프로필을
+    수정하는 경우) created_at을 지금 시각으로 새로 잡아 만든다 - "최초 1회만"
+    의미론을 upsert_user_profile과 동일하게 유지한다.
+    """
+    doc_ref, data = _read_existing(db, uid)
+    now = datetime.now(UTC)
+
+    if display_name is not None:
+        data["display_name"] = display_name
+    if avatar_emoji is not None:
+        data["avatar_emoji"] = avatar_emoji
+    if bio is not None:
+        data["bio"] = bio
+    if "created_at" not in data or data.get("created_at") is None:
+        data["created_at"] = now
     data["updated_at"] = now
 
     doc_ref.set(data)
