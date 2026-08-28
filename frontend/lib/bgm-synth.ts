@@ -254,9 +254,10 @@ export class BgmPlayer {
       osc.frequency.setValueAtTime(freq * partial.r, t);
       const g = ctx.createGain();
       const peak = amp * partial.a * (partial.bright ? brightness : 1);
+      // 어택 1.5ms - 타점이 박자보다 밀리게 들린다는 지적으로 3ms에서 절반.
       g.gain.setValueAtTime(0, t);
-      g.gain.linearRampToValueAtTime(peak, t + 0.003);
-      g.gain.setTargetAtTime(0, t + 0.003, partial.tau);
+      g.gain.linearRampToValueAtTime(peak, t + 0.0015);
+      g.gain.setTargetAtTime(0, t + 0.0015, partial.tau);
       osc.connect(g).connect(this.buses.riff);
       osc.start(t);
       osc.stop(t + 3);
