@@ -13,9 +13,10 @@
  * 선택하게 한다(대화 오버레이의 onDismiss와 다른 지점).
  */
 
-import { useMemo } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState, type PointerEvent as ReactPointerEvent } from "react";
 import { cn } from "@/lib/cn";
 import { colorForType } from "@/lib/element-colors";
+import { SpaceBackdrop } from "@/components/SpaceBackdrop";
 import type { Bin, BinItem } from "@/components/ElementBinPanel";
 import type { CanvasEdge, CanvasNode, CanvasPosition } from "@/components/ConstellationCanvas";
 import type { DraftDto } from "@/lib/constellation-api";
@@ -66,40 +67,6 @@ function formatDraftBreakdown(draft: DraftDto, bins: Bin[]): string {
     if (!DRAFT_TYPE_LABEL_ORDER.some(([t]) => t === type)) parts.push(`${type} ${n}`);
   }
   return `${draft.tagline} · 요소 ${draft.itemIds.length}${parts.length ? " · " + parts.join(" ") : ""}`;
-}
-
-// 무대 곳곳에 흩뿌린 희미한 별 - ConstellationIntakeChat의 BackgroundStars와
-// 같은 순전히 장식용 패턴(그쪽도 export되어 있지 않아 좌표만 새로 뽑았다).
-const BACKGROUND_STARS = [
-  { x: 6, y: 18, r: 1.3, o: 0.38 },
-  { x: 18, y: 62, r: 1, o: 0.3 },
-  { x: 34, y: 10, r: 1.5, o: 0.46 },
-  { x: 47, y: 78, r: 1, o: 0.32 },
-  { x: 58, y: 30, r: 1.2, o: 0.4 },
-  { x: 88, y: 20, r: 1, o: 0.3 },
-  { x: 12, y: 88, r: 1.4, o: 0.5 },
-];
-
-function BackgroundStars() {
-  // SVG viewBox를 화면에 늘리면(preserveAspectRatio none) 원이 타원 얼룩이
-  // 된다(실측) - % 좌표의 div 점으로 그려 항상 동그란 별을 유지한다.
-  return (
-    <div className="pointer-events-none absolute inset-0" aria-hidden>
-      {BACKGROUND_STARS.map((s, idx) => (
-        <span
-          key={idx}
-          className="absolute rounded-full bg-text-hi"
-          style={{
-            left: `${s.x}%`,
-            top: `${s.y}%`,
-            width: s.r * 2,
-            height: s.r * 2,
-            opacity: s.o,
-          }}
-        />
-      ))}
-    </div>
-  );
 }
 
 /** 8-point 별빛 글리프 - ConstellationIntakeChat/page.tsx의 StarGlyph와 같은
@@ -164,14 +131,65 @@ export function DraftReviewStage({
   );
   const toPct = usePreviewLayout(nodeList);
 
+  // 팬(pan) - 무대 배경 어디서든 드래그하면 그래프(엣지+노드+라벨)만 함께
+  // 밀린다(패널/배너는 pointer-events로 분리돼 있어 이 레이어까지 안 옴).
+  // 다른 안을 고르면 새 그래프이므로 팬을 0으로 되돌린다.
+  const [pan, setPan] = useState({ x: 0, y: 0 });
+  const panDragRef = useRef<{
+    pointerId: number;
+    startClientX: number;
+    startClientY: number;
+    startPan: { x: number; y: number };
+  } | null>(null);
+
+  useEffect(() => {
+    setPan({ x: 0, y: 0 });
+  }, [selected]);
+
+  const handlePanPointerDown = useCallback(
+    (e: ReactPointerEvent<HTMLDivElement>) => {
+      if (e.button !== 0) return;
+      panDragRef.current = {
+        pointerId: e.pointerId,
+        startClientX: e.clientX,
+        startClientY: e.clientY,
+        startPan: pan,
+      };
+      e.currentTarget.setPointerCapture(e.pointerId);
+    },
+    [pan]
+  );
+
+  const handlePanPointerMove = useCallback((e: ReactPointerEvent<HTMLDivElement>) => {
+    const drag = panDragRef.current;
+    if (!drag || e.pointerId !== drag.pointerId) return;
+    setPan({
+      x: drag.startPan.x + (e.clientX - drag.startClientX),
+      y: drag.startPan.y + (e.clientY - drag.startClientY),
+    });
+    // ConstellationCanvas와 같은 배선: 이 프레임의 델타만 window에 쏴서
+    // SpaceBackdrop이 관성 드리프트로 반응하게 한다(캔버스 코드 참고).
+    window.dispatchEvent(
+      new CustomEvent("ourlab:canvas-pan", { detail: { dx: e.movementX, dy: e.movementY } })
+    );
+  }, []);
+
+  const handlePanPointerEnd = useCallback((e: ReactPointerEvent<HTMLDivElement>) => {
+    const drag = panDragRef.current;
+    if (!drag || e.pointerId !== drag.pointerId) return;
+    panDragRef.current = null;
+  }, []);
+
   return (
     <div role="region" aria-label="별자리 초안 검토" className="fixed inset-0 z-40 overflow-hidden bg-ink-900">
+      {/* 가장 안쪽 레이어부터: 심우주 별밭 -> 격자 -> 그래프. */}
+      <SpaceBackdrop />
       <div className="bg-radec-grid pointer-events-none absolute inset-0" aria-hidden />
-      <BackgroundStars />
 
       {/* 상단 중앙 배너 - 시안의 pill 형태. 이 화면은 정적 미리보기라
           "끌어서 고친다"는 약속은 하지 않는다(그건 확정 후 캔버스의 일 -
-          여기서 말하면 거짓 어포던스가 된다). */}
+          여기서 말하면 거짓 어포던스가 된다). pointer-events-none이라 팬
+          서페이스보다 위(z-10)에 있어도 드래그를 가로채지 않는다. */}
       <div
         className="pointer-events-none fixed left-1/2 top-6 z-10 flex -translate-x-1/2 items-center gap-2.5 rounded-full border border-rule bg-ink-800/95 px-5 py-2.5 shadow-lg backdrop-blur-md"
         role="status"
@@ -182,75 +200,94 @@ export function DraftReviewStage({
         </span>
       </div>
 
-      {/* 중앙-우측 큰 미리보기 - 좌하단 패널 자리를 비워두기 위해 뷰포트의
-          오른쪽 55~60%만 쓴다. */}
-      <div className="absolute inset-x-0 bottom-[calc(46vh+var(--tabbar-h))] top-20 flex items-center justify-center px-6 md:inset-y-0 md:bottom-0 md:left-auto md:right-0 md:top-0 md:w-[58%] md:py-28 md:pl-8 md:pr-12">
-        {toPct ? (
-          <div className="relative h-full max-h-[620px] w-full max-w-[760px]">
-            <svg className="absolute inset-0 h-full w-full" viewBox="0 0 100 100" preserveAspectRatio="none" aria-hidden>
-              {validEdges.map((edge) => {
-                const a = toPct(nodes[edge.sourceNodeId].position);
-                const b = toPct(nodes[edge.targetNodeId].position);
+      {/* 팬 드래그 서페이스 - 무대 전체를 덮되 배너/패널은 별도 형제 요소라
+          위에서 자기 이벤트를 먼저 가로챈다(z-index로 항상 위). 확대는
+          범위 밖(요청 없음) - 이동만 지원한다. */}
+      <div
+        className="absolute inset-0 cursor-grab touch-none active:cursor-grabbing"
+        aria-hidden
+        onPointerDown={handlePanPointerDown}
+        onPointerMove={handlePanPointerMove}
+        onPointerUp={handlePanPointerEnd}
+        onPointerCancel={handlePanPointerEnd}
+      >
+        {/* 중앙 큰 미리보기 - 좌하단 패널과 겹치지 않게, 데스크톱에서는
+            뷰포트의 26~90%(가로) / 12~88%(세로) 안에서 중앙 정렬한다
+            (b95d752의 모바일 전폭 레이아웃은 그대로 둔다). */}
+        <div className="absolute inset-x-0 bottom-[calc(46vh+var(--tabbar-h))] top-20 flex items-center justify-center px-6 md:left-[26%] md:right-[10%] md:top-[12%] md:bottom-[12%] md:px-0">
+          {toPct ? (
+            <div
+              className="relative h-full max-h-[620px] w-full max-w-[760px]"
+              style={{ transform: `translate(${pan.x}px, ${pan.y}px)` }}
+            >
+              <svg className="absolute inset-0 h-full w-full" viewBox="0 0 100 100" preserveAspectRatio="none" aria-hidden>
+                {validEdges.map((edge) => {
+                  const a = toPct(nodes[edge.sourceNodeId].position);
+                  const b = toPct(nodes[edge.targetNodeId].position);
+                  return (
+                    <line
+                      key={edge.id}
+                      x1={a.left}
+                      y1={a.top}
+                      x2={b.left}
+                      y2={b.top}
+                      stroke="rgb(255 243 196 / 0.45)"
+                      strokeWidth={0.35}
+                      vectorEffect="non-scaling-stroke"
+                    />
+                  );
+                })}
+              </svg>
+
+              {nodeList.map((node) => {
+                const pos = toPct(node.position);
+                const color = colorForType(node.type);
+                // 캔버스와 같은 문법: 채움 = "달성"이다(유형이 아니라). 초안의
+                // 별은 대부분 미달성이라 속 빈 링 + 유형색 테두리로 그린다 -
+                // 확정 후 캔버스에서 같은 별이 같은 모습으로 이어져야 한다.
+                const filled = node.isCompleted;
                 return (
-                  <line
-                    key={edge.id}
-                    x1={a.left}
-                    y1={a.top}
-                    x2={b.left}
-                    y2={b.top}
-                    stroke="rgb(255 243 196 / 0.45)"
-                    strokeWidth={0.35}
-                    vectorEffect="non-scaling-stroke"
-                  />
+                  <div
+                    key={node.id}
+                    className="absolute flex -translate-x-1/2 -translate-y-1/2 flex-col items-center"
+                    style={{ left: `${pos.left}%`, top: `${pos.top}%` }}
+                  >
+                    <span
+                      aria-hidden
+                      className="block rounded-full"
+                      style={
+                        filled
+                          ? { width: 17, height: 17, background: color, border: `1.5px solid ${color}` }
+                          : { width: 17, height: 17, background: "transparent", border: `1.5px solid ${color}` }
+                      }
+                    />
+                    <span
+                      className="mt-1.5 max-w-[120px] truncate font-sans text-body-sm text-text-hi md:max-w-[200px]"
+                      title={node.label}
+                    >
+                      {node.label}
+                    </span>
+                    {node.code && (
+                      <span className="whitespace-nowrap font-mono text-micro text-text-lo">{node.code}</span>
+                    )}
+                  </div>
                 );
               })}
-            </svg>
-
-            {nodeList.map((node) => {
-              const pos = toPct(node.position);
-              const color = colorForType(node.type);
-              // 캔버스와 같은 문법: 채움 = "달성"이다(유형이 아니라). 초안의
-              // 별은 대부분 미달성이라 속 빈 링 + 유형색 테두리로 그린다 -
-              // 확정 후 캔버스에서 같은 별이 같은 모습으로 이어져야 한다.
-              const filled = node.isCompleted;
-              return (
-                <div
-                  key={node.id}
-                  className="absolute flex -translate-x-1/2 -translate-y-1/2 flex-col items-center"
-                  style={{ left: `${pos.left}%`, top: `${pos.top}%` }}
-                >
-                  <span
-                    aria-hidden
-                    className="block rounded-full"
-                    style={
-                      filled
-                        ? { width: 17, height: 17, background: color, border: `1.5px solid ${color}` }
-                        : { width: 17, height: 17, background: "transparent", border: `1.5px solid ${color}` }
-                    }
-                  />
-                  <span
-                    className="mt-1.5 max-w-[120px] truncate font-sans text-body-sm text-text-hi md:max-w-[200px]"
-                    title={node.label}
-                  >
-                    {node.label}
-                  </span>
-                  {node.code && (
-                    <span className="whitespace-nowrap font-mono text-micro text-text-lo">{node.code}</span>
-                  )}
-                </div>
-              );
-            })}
-          </div>
-        ) : (
-          <p className="font-sans text-sm text-text-lo">그릴 원소가 없어요</p>
-        )}
+            </div>
+          ) : (
+            <p className="font-sans text-sm text-text-lo">그릴 원소가 없어요</p>
+          )}
+        </div>
       </div>
 
       {/* 좌하단 "추천 별자리" 패널 - page.tsx의 옛 DraftOfferPanel과 같은
-          레이아웃/문구/버튼 클래스를 그대로 옮겨왔다(승인된 시안 그대로). */}
+          레이아웃/문구/버튼 클래스를 그대로 옮겨왔다(승인된 시안 그대로).
+          팬 서페이스는 형제 요소라 이 패널 위에서 시작한 포인터는 원래
+          거기로 안 새지만(topmost hit-test), 혹시 몰라 명시적으로도 막는다. */}
       <aside
         role="region"
         aria-label="추천 별자리"
+        onPointerDown={(e) => e.stopPropagation()}
         className={cn(
           "fixed z-20 flex flex-col overflow-hidden rounded-xl border border-rule bg-ink-800/95 shadow-lg backdrop-blur-md",
           "inset-x-3 bottom-[calc(var(--tabbar-h)+var(--safe-bottom)+12px)] max-h-[46vh]",
