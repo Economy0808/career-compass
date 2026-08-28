@@ -54,6 +54,20 @@ import {
   type EdgeCreateInput,
   type NodeCreateInput,
 } from "@/lib/constellation-api";
+// 로컬 볼트(옵시디언처럼 로컬 폴더=원본) - 노트 CRUD를 서버 대신 여기로
+// 분기시키는 게 이 파일의 "브리지" 부분(각 분기 지점에 "볼트=원본, 서버=유료
+// 동기화 예정" 주석을 달아 둔다).
+import {
+  connectVault,
+  deleteVaultNote,
+  disconnectVault,
+  isVaultSupported,
+  listVaultNotes,
+  requestVaultPermission,
+  restoreVault,
+  writeVaultNote,
+  type VaultHandle,
+} from "@/lib/local-vault";
 
 /** 편집 모드 진입 버튼의 연필 아이콘. 다른 파일(components/ui/icons.tsx)을
  * 건드리지 않기 위해 이 화면 안에서만 쓰는 작은 SVG로 둔다. */
@@ -318,6 +332,13 @@ export default function NewConstellationPage() {
   const [nodes, setNodes] = useState<Record<string, CanvasNode>>(INITIAL_NODES);
   const [edges, setEdges] = useState<Record<string, CanvasEdge>>(INITIAL_EDGES);
   const [notes, setNotes] = useState<Record<string, ElementNote>>(INITIAL_NOTES);
+  // --- 로컬 볼트(노트 원본) ------------------------------------------------
+  // 연결되면 이 handle이 노트의 "원본"이 된다 - 서버·볼트 동시 쓰기는 하지
+  // 않는다. vaultSupported는 SSR/CSR 불일치(hydration mismatch)를 피하려고
+  // 마운트 이펙트에서만 채운다(서버 렌더 시점엔 window가 없어 항상 false).
+  const [vaultSupported, setVaultSupported] = useState(false);
+  const [vaultHandle, setVaultHandle] = useState<VaultHandle | null>(null);
+  const [vaultNeedsPermission, setVaultNeedsPermission] = useState(false);
   const [panelMode, setPanelMode] = useState<PanelMode>("bins");
   // 우측 군집/노트 패널 접기(섬화) - md 이상에서만 의미가 있다. 접으면 섬
   // 아이콘 칩 하나만 남고, 다시 누르면 같은 자리에서 패널이 펼쳐진다. 모바일
@@ -423,6 +444,46 @@ export default function NewConstellationPage() {
   useEffect(() => {
     binsRef.current = bins;
   }, [bins]);
+  const vaultHandleRef = useRef<VaultHandle | null>(null);
+  useEffect(() => {
+    vaultHandleRef.current = vaultHandle;
+  }, [vaultHandle]);
+
+  // 이전 세션에서 연결해 둔 볼트를 복원한다(로그인 여부와 무관 - 볼트는 이
+  // 브라우저 로컬 기능). requestPermission은 사용자 제스처가 필요해 여기서
+  // 자동 호출하지 않고, needsPermission으로만 알려서 상태 줄의 버튼이
+  // 담당하게 한다. 권한이 이미 granted면 바로 하이드레이트한다 - 아래 서버
+  // 로드 이펙트가 vaultHandleRef를 보고 자기 쪽 setNotes를 건너뛴다.
+  // ponytail: 두 이펙트가 병렬로 도는 레이스라 이론상 서버 응답이 이 로컬
+  // IndexedDB 조회보다 먼저 끝나면 서버 노트로 잠깐 덮일 수 있음 - 실사용에서
+  // 문제되면 두 이펙트를 하나로 합쳐 순서를 강제할 것.
+  useEffect(() => {
+    const supported = isVaultSupported();
+    setVaultSupported(supported);
+    if (!supported) return;
+    let cancelled = false;
+    (async () => {
+      const restored = await restoreVault();
+      if (cancelled || !restored) return;
+      setVaultHandle(restored.handle);
+      vaultHandleRef.current = restored.handle;
+      setVaultNeedsPermission(restored.needsPermission);
+      if (!restored.needsPermission) {
+        try {
+          const vaultNotes = await listVaultNotes(restored.handle);
+          if (cancelled) return;
+          const map: Record<string, ElementNote> = {};
+          for (const n of vaultNotes) map[n.id] = n;
+          setNotes(map);
+        } catch (err) {
+          console.error("[vault] 노트 목록 읽기 실패", err);
+        }
+      }
+    })();
+    return () => {
+      cancelled = true;
+    };
+  }, []);
 
   // 서버 뮤테이션 직렬 큐 하나 - 컴포넌트 생애 동안 단 한 번만 만든다(재렌더마다
   // 새 큐를 만들면 체이닝이 끊긴다). 큐 자체의 에러 로깅과는 별개로, 여기서는
@@ -481,12 +542,20 @@ export default function NewConstellationPage() {
       try {
         const list = await listConstellations();
         if (cancelled) return;
-        if (list.length === 0) {
+        // 플로우 규칙(사용자 확정): "띄우기 이전(작업 중)" 별자리가 있을 때만
+        // 대화·추천 시안을 건너뛰고 바로 캔버스로 온다. 별자리가 하나도 없거나
+        // 전부 띄운(발행된) 상태면 새 별자리를 위해 대화부터 다시 거친다 -
+        // 발행본은 프로필/피드에 그대로 남고, 완료 핸들러가 항상 새 문서로
+        // 시작하므로 덮어쓸 위험은 없다.
+        const inProgress = list
+          .filter((c) => !c.isPublished)
+          .sort((a, b) => b.updatedAt - a.updatedAt)[0];
+        if (!inProgress) {
           setBootState("empty");
           setIntakeOpen(true);
           return;
         }
-        const latest = [...list].sort((a, b) => b.updatedAt - a.updatedAt)[0];
+        const latest = inProgress;
         const noteDtos = await listNotes(latest.id);
         if (cancelled) return;
 
@@ -524,7 +593,9 @@ export default function NewConstellationPage() {
 
         setNodes(loadedNodes);
         setEdges(loadedEdges);
-        setNotes(loadedNotes);
+        // 볼트=원본, 서버=유료 동기화 예정 - 볼트가 이미 연결/하이드레이트됐으면
+        // (위 볼트 복원 이펙트) 서버에서 받은 노트로 덮어쓰지 않는다.
+        if (!vaultHandleRef.current) setNotes(loadedNotes);
         if (latest.bins) setBins(latest.bins.map(mapBinDtoToBin));
         setConstellationId(latest.id);
         setIsPublished(latest.isPublished);
@@ -1087,10 +1158,18 @@ export default function NewConstellationPage() {
       setNotes((prev) => {
         const next: Record<string, ElementNote> = {};
         let changed = false;
+        // 볼트=원본, 서버=유료 동기화 예정 - 볼트 모드 노트는 서버 cascade가
+        // 모르는 파일이므로(애초에 서버로 보낸 적 없음) 여기서 직접 지운다.
+        const vh = vaultHandleRef.current;
         for (const [id, note] of Object.entries(prev)) {
           if (note.nodeId === nodeId) {
             changed = true;
             note.attachments.forEach((att) => URL.revokeObjectURL(att.url));
+            if (vh) {
+              deleteVaultNote(vh, id).catch((err) =>
+                console.error("[vault] 노드 삭제 연쇄 - 노트 삭제 실패", err)
+              );
+            }
             continue;
           }
           next[id] = note;
@@ -1098,8 +1177,9 @@ export default function NewConstellationPage() {
         return changed ? next : prev;
       });
       // 서버는 노드 삭제 시 그 노드에 달린 엣지/노트까지 함께 정리한다(cascade) -
-      // 로컬에서 이미 위에서 정리한 것과 같은 결과이므로 별도 엣지/노트 삭제
-      // 호출은 필요 없다.
+      // 로컬에서 이미 위에서 정리한 것과 같은 결과이므로(볼트 노트는 위에서
+      // 직접 지웠고, 서버 노트는 서버가 cascade) 별도 엣지/노트 삭제 호출은
+      // 필요 없다. 노드/엣지 자체는 볼트 브리지 범위 밖이라 그대로 서버로 간다.
       const cid = constellationIdRef.current;
       if (existed && cid) enqueueMutation(() => deleteNode(cid, nodeId));
     },
@@ -1124,6 +1204,50 @@ export default function NewConstellationPage() {
     if (mode !== "notes") setIsNoteExpanded(false);
   }, []);
 
+  // 상태 줄의 "로컬 볼트 연결" 버튼 - 사용자가 폴더를 고르면 그 즉시 그
+  // 폴더의 notes/*.md로 notes state를 하이드레이트한다(볼트=원본, 서버=유료
+  // 동기화 예정).
+  const handleConnectVault = useCallback(async () => {
+    const handle = await connectVault();
+    if (!handle) return; // 사용자가 선택기를 취소함
+    setVaultHandle(handle);
+    setVaultNeedsPermission(false);
+    try {
+      const vaultNotes = await listVaultNotes(handle);
+      const map: Record<string, ElementNote> = {};
+      for (const n of vaultNotes) map[n.id] = n;
+      setNotes(map);
+    } catch (err) {
+      console.error("[vault] 노트 목록 읽기 실패", err);
+    }
+  }, []);
+
+  // 상태 줄의 "해제" 버튼 - IndexedDB의 핸들만 지운다. 화면에 이미 떠 있는
+  // notes state는 그대로 두고(방금까지 보던 내용이 갑자기 사라지면 당황스럽다),
+  // 이후 노트 편집은 다시 서버 경로로 흐른다.
+  const handleDisconnectVault = useCallback(async () => {
+    await disconnectVault();
+    setVaultHandle(null);
+    setVaultNeedsPermission(false);
+  }, []);
+
+  // 상태 줄의 "권한 다시 허용" 버튼 - requestPermission은 사용자 제스처
+  // 안에서만 통하므로 반드시 클릭 핸들러에서 호출해야 한다.
+  const handleRequestVaultPermission = useCallback(async () => {
+    if (!vaultHandle) return;
+    const granted = await requestVaultPermission(vaultHandle);
+    if (!granted) return;
+    setVaultNeedsPermission(false);
+    try {
+      const vaultNotes = await listVaultNotes(vaultHandle);
+      const map: Record<string, ElementNote> = {};
+      for (const n of vaultNotes) map[n.id] = n;
+      setNotes(map);
+    } catch (err) {
+      console.error("[vault] 노트 목록 읽기 실패", err);
+    }
+  }, [vaultHandle]);
+
   const handleCreateNote = useCallback(
     (nodeId: string, input: { title: string; body: string; isPublic: boolean; attachments: ElementNote["attachments"] }) => {
       const id = makeId("note-local");
@@ -1141,20 +1265,32 @@ export default function NewConstellationPage() {
           updatedAt: now,
         },
       }));
-      const cid = constellationIdRef.current;
-      if (cid) {
-        // 첨부는 아직 blob: URL이라 새로고침에 못 살아남는다(Storage 업로드는
-        // 이후 단계) - 서버에는 빈 배열로 보내 로컬 UX만 유지한다.
-        enqueueMutation(() =>
-          createNote(cid, {
-            id,
-            nodeId,
-            title: input.title,
-            body: input.body,
-            isPublic: input.isPublic,
-            attachments: [],
-          })
-        );
+      // 볼트=원본, 서버=유료 동기화 예정 - 볼트 연결 시 노트는 로컬 .md 파일에만
+      // 쓰고 서버로는 보내지 않는다(이중 원본 금지).
+      const vh = vaultHandleRef.current;
+      if (vh) {
+        const nodeLabel = nodesRef.current[nodeId]?.label ?? "";
+        writeVaultNote(
+          vh,
+          { id, nodeId, title: input.title, body: input.body, isPublic: input.isPublic, attachments: [], createdAt: now, updatedAt: now },
+          nodeLabel
+        ).catch((err) => console.error("[vault] 노트 저장 실패", err));
+      } else {
+        const cid = constellationIdRef.current;
+        if (cid) {
+          // 첨부는 아직 blob: URL이라 새로고침에 못 살아남는다(Storage 업로드는
+          // 이후 단계) - 서버에는 빈 배열로 보내 로컬 UX만 유지한다.
+          enqueueMutation(() =>
+            createNote(cid, {
+              id,
+              nodeId,
+              title: input.title,
+              body: input.body,
+              isPublic: input.isPublic,
+              attachments: [],
+            })
+          );
+        }
       }
       // 자동저장: 새 노트 편집기가 첫 유의미한 입력에서 이 id로 노트를 만들고,
       // 이후 타이핑은 이 id로 onUpdateNote를 호출해야 하므로 id를 돌려준다.
@@ -1165,21 +1301,43 @@ export default function NewConstellationPage() {
 
   const handleUpdateNote = useCallback(
     (noteId: string, patch: { title: string; body: string; isPublic: boolean; attachments: ElementNote["attachments"] }) => {
+      const now = Date.now();
+      // patch 이전(직전 렌더 기준) 노트 - nodeId/createdAt은 patch에 없으므로
+      // 볼트에 쓸 때 여기서 이어받는다.
+      const prevNote = notesRef.current[noteId];
       setNotes((prev) =>
-        prev[noteId]
-          ? { ...prev, [noteId]: { ...prev[noteId], ...patch, updatedAt: Date.now() } }
-          : prev
+        prev[noteId] ? { ...prev, [noteId]: { ...prev[noteId], ...patch, updatedAt: now } } : prev
       );
-      const cid = constellationIdRef.current;
-      if (cid) {
-        enqueueMutation(() =>
-          patchNote(cid, noteId, {
+      // 볼트=원본, 서버=유료 동기화 예정.
+      const vh = vaultHandleRef.current;
+      if (vh && prevNote) {
+        const nodeLabel = nodesRef.current[prevNote.nodeId]?.label ?? "";
+        writeVaultNote(
+          vh,
+          {
+            id: noteId,
+            nodeId: prevNote.nodeId,
             title: patch.title,
             body: patch.body,
             isPublic: patch.isPublic,
             attachments: [],
-          })
-        );
+            createdAt: prevNote.createdAt,
+            updatedAt: now,
+          },
+          nodeLabel
+        ).catch((err) => console.error("[vault] 노트 갱신 실패", err));
+      } else if (!vh) {
+        const cid = constellationIdRef.current;
+        if (cid) {
+          enqueueMutation(() =>
+            patchNote(cid, noteId, {
+              title: patch.title,
+              body: patch.body,
+              isPublic: patch.isPublic,
+              attachments: [],
+            })
+          );
+        }
       }
     },
     [enqueueMutation]
@@ -1197,8 +1355,14 @@ export default function NewConstellationPage() {
         delete next[noteId];
         return next;
       });
-      const cid = constellationIdRef.current;
-      if (existed && cid) enqueueMutation(() => deleteNote(cid, noteId));
+      // 볼트=원본, 서버=유료 동기화 예정.
+      const vh = vaultHandleRef.current;
+      if (vh) {
+        if (existed) deleteVaultNote(vh, noteId).catch((err) => console.error("[vault] 노트 삭제 실패", err));
+      } else {
+        const cid = constellationIdRef.current;
+        if (existed && cid) enqueueMutation(() => deleteNote(cid, noteId));
+      }
     },
     [enqueueMutation]
   );
