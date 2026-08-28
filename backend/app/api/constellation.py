@@ -35,9 +35,11 @@ from app.schemas.constellation import (
     CompletionPatchIn,
     ConstellationCreateIn,
     ConstellationOut,
+    EdgeColorPatchIn,
     EdgeCreateIn,
     FeedAuthorOut,
     FeedItemOut,
+    GlowPatchIn,
     NodeCreateIn,
     NoteCreateIn,
     NoteOut,
@@ -322,6 +324,24 @@ async def update_node_color(
 
 
 @router.patch(
+    "/{constellation_id}/nodes/{node_id}/glow",
+    response_model=ConstellationOut,
+    response_model_exclude_none=True,
+)
+async def update_node_glow(
+    constellation_id: str,
+    node_id: str,
+    payload: GlowPatchIn,
+    user: DecodedToken = Depends(get_current_user),
+    db: Client = Depends(get_firestore_client),
+) -> ConstellationOut:
+    updated = _translate_repo_errors(constellation_repo.update_node_glow)(
+        db, constellation_id, node_id, payload.glow_effect, user.uid
+    )
+    return constellation_to_out(updated)
+
+
+@router.patch(
     "/{constellation_id}/nodes/{node_id}/completion",
     response_model=ConstellationOut,
     response_model_exclude_none=True,
@@ -354,6 +374,24 @@ async def add_edge(
     edge = edge_from_create_in(payload)
     updated = _translate_repo_errors(constellation_repo.add_edge)(
         db, constellation_id, edge, user.uid
+    )
+    return constellation_to_out(updated)
+
+
+@router.patch(
+    "/{constellation_id}/edges/{edge_id}/color",
+    response_model=ConstellationOut,
+    response_model_exclude_none=True,
+)
+async def update_edge_color(
+    constellation_id: str,
+    edge_id: str,
+    payload: EdgeColorPatchIn,
+    user: DecodedToken = Depends(get_current_user),
+    db: Client = Depends(get_firestore_client),
+) -> ConstellationOut:
+    updated = _translate_repo_errors(constellation_repo.update_edge_color)(
+        db, constellation_id, edge_id, payload.color, user.uid
     )
     return constellation_to_out(updated)
 

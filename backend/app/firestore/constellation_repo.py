@@ -371,6 +371,30 @@ def update_node_color(
     return _run_owned_transaction(db, constellation_id, owner_id, _mutate)
 
 
+def update_node_glow(
+    db: Client,
+    constellation_id: str,
+    node_id: str,
+    glow_effect: str | None,
+    owner_id: str,
+) -> Constellation:
+    """노드 달성 연출(glow effect) 프리셋만 dot-notation 부분 업데이트로 갱신한다 (update_node_color와 동일 패턴)."""
+
+    def _mutate(constellation: Constellation) -> tuple[Constellation, dict[str, Any]]:
+        if node_id not in constellation.nodes:
+            raise NodeNotFoundError(node_id)
+        now = datetime.now(UTC)
+        constellation.nodes[node_id].glow_effect = glow_effect
+        constellation.updated_at = now
+        update_data: dict[str, Any] = {
+            _node_path(node_id, "glow_effect"): glow_effect,
+            "updated_at": now,
+        }
+        return constellation, update_data
+
+    return _run_owned_transaction(db, constellation_id, owner_id, _mutate)
+
+
 def toggle_node_completion(
     db: Client,
     constellation_id: str,
@@ -469,6 +493,30 @@ def add_edge(db: Client, constellation_id: str, edge: Edge, owner_id: str) -> Co
         constellation.updated_at = now
         update_data: dict[str, Any] = {
             _edge_path(edge.id): edge.model_dump(),
+            "updated_at": now,
+        }
+        return constellation, update_data
+
+    return _run_owned_transaction(db, constellation_id, owner_id, _mutate)
+
+
+def update_edge_color(
+    db: Client,
+    constellation_id: str,
+    edge_id: str,
+    color: str | None,
+    owner_id: str,
+) -> Constellation:
+    """엣지 색상만 dot-notation 부분 업데이트로 갱신한다 (update_node_color와 동일 패턴)."""
+
+    def _mutate(constellation: Constellation) -> tuple[Constellation, dict[str, Any]]:
+        if edge_id not in constellation.edges:
+            raise EdgeNotFoundError(edge_id)
+        now = datetime.now(UTC)
+        constellation.edges[edge_id].color = color
+        constellation.updated_at = now
+        update_data: dict[str, Any] = {
+            _edge_path(edge_id, "color"): color,
             "updated_at": now,
         }
         return constellation, update_data

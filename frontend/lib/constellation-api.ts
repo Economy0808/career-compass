@@ -48,6 +48,7 @@ export interface NodeDto {
   sourceRef?: string;
   noteCount?: number;
   color?: string;
+  glowEffect?: string;
 }
 
 /** 백엔드 EdgeOut과 1:1 대응. */
@@ -55,6 +56,7 @@ export interface EdgeDto {
   id: string;
   sourceNodeId: string;
   targetNodeId: string;
+  color?: string;
 }
 
 /** 백엔드 ConstellationOut과 1:1 대응. nodes/edges는 id를 key로 하는 맵 -
@@ -87,6 +89,7 @@ export interface NodeCreateInput {
   level?: number;
   sourceRef?: string;
   color?: string;
+  glowEffect?: string;
 }
 
 /** 백엔드 EdgeCreateIn과 1:1 대응. id는 클라이언트가 생성한다. */
@@ -94,6 +97,7 @@ export interface EdgeCreateInput {
   id: string;
   sourceNodeId: string;
   targetNodeId: string;
+  color?: string;
 }
 
 /** 백엔드 AttachmentOut/AttachmentIn과 1:1 대응(요청/응답 형태가 동일). */
@@ -281,6 +285,18 @@ export function patchNodeColor(
   );
 }
 
+/** glowEffect가 null이면 기본 연출로 되돌린다 (patchNodeColor와 대칭). */
+export function patchNodeGlow(
+  constellationId: string,
+  nodeId: string,
+  glowEffect: string | null
+): Promise<ConstellationDto> {
+  return request<ConstellationDto>(
+    `/api/constellations/${encodeURIComponent(constellationId)}/nodes/${encodeURIComponent(nodeId)}/glow`,
+    jsonInit("PATCH", { glowEffect })
+  );
+}
+
 // ---------- 엣지 ----------
 
 export function addEdge(
@@ -297,6 +313,18 @@ export function deleteEdge(constellationId: string, edgeId: string): Promise<Con
   return request<ConstellationDto>(
     `/api/constellations/${encodeURIComponent(constellationId)}/edges/${encodeURIComponent(edgeId)}`,
     { method: "DELETE" }
+  );
+}
+
+/** color가 null이면 커스텀 색을 지우고 프론트 기본색으로 되돌린다 (patchNodeColor와 대칭). */
+export function patchEdgeColor(
+  constellationId: string,
+  edgeId: string,
+  color: string | null
+): Promise<ConstellationDto> {
+  return request<ConstellationDto>(
+    `/api/constellations/${encodeURIComponent(constellationId)}/edges/${encodeURIComponent(edgeId)}/color`,
+    jsonInit("PATCH", { color })
   );
 }
 

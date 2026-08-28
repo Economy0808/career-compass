@@ -58,6 +58,7 @@ function mapNodes(dto: ConstellationDto): Record<string, CanvasNode> {
       code: n.code,
       description: n.description,
       color: n.color,
+      glowEffect: n.glowEffect,
       // noteCount는 일부러 매핑하지 않는다 - 이 뷰어는 노트를 다루지 않는다.
     };
   }
@@ -67,7 +68,7 @@ function mapNodes(dto: ConstellationDto): Record<string, CanvasNode> {
 function mapEdges(dto: ConstellationDto): Record<string, CanvasEdge> {
   const edges: Record<string, CanvasEdge> = {};
   for (const e of Object.values(dto.edges)) {
-    edges[e.id] = { id: e.id, sourceNodeId: e.sourceNodeId, targetNodeId: e.targetNodeId };
+    edges[e.id] = { id: e.id, sourceNodeId: e.sourceNodeId, targetNodeId: e.targetNodeId, color: e.color };
   }
   return edges;
 }

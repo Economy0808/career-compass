@@ -40,6 +40,12 @@ NodeOrigin = Literal["llm_suggested", "user_added"]
 # 호출부(테스트 등)에도 같은 불변식을 강제하기 위한 이중 방어선이다.
 NODE_COLOR_PATTERN = r"^#[0-9a-fA-F]{6}$"
 
+# 노드 달성 연출(glow effect) 프리셋 id 패턴. 서버는 프리셋의 의미(어떤 애니메이션인지)를
+# 전혀 모른다 - 프론트가 정의한 프리셋 id 문자열을 그대로 저장/반환할 뿐이다. 형식만
+# "소문자로 시작하는 소문자/숫자/하이픈 슬러그"로 검증해 임의 문자열 주입을 막는다.
+# 길이 제한(1~24자)은 NodeCreateIn/GlowPatchIn의 min_length/max_length와 함께 건다.
+NODE_GLOW_PATTERN = r"^[a-z][a-z0-9-]*$"
+
 # 군집(bin)의 출처. NodeOrigin("llm_suggested"/"user_added")과는 값 집합이 다르다 -
 # 프론트엔드 Bin.origin 계약("llm"|"user")을 그대로 따른다. 두 Literal을 하나로
 # 합치면 안 된다: 노드와 빈은 서로 다른 프론트엔드 타입이고, 값 문자열 자체가
@@ -80,6 +86,11 @@ class Node(BaseModel):
     note_count: int = 0
     # 프론트 팔레트에서 고른 커스텀 색상. None이면 프론트가 타입별 기본 색을 쓴다.
     color: str | None = Field(default=None, pattern=NODE_COLOR_PATTERN)
+    # 달성 연출(glow effect) 프리셋 id. None이면 프론트가 기본 연출을 쓴다.
+    # 서버는 프리셋 문자열의 의미를 모르며 형식(NODE_GLOW_PATTERN)만 검증한다.
+    glow_effect: str | None = Field(
+        default=None, pattern=NODE_GLOW_PATTERN, min_length=1, max_length=24
+    )
 
 
 class Edge(BaseModel):
@@ -93,6 +104,8 @@ class Edge(BaseModel):
     id: str
     source_node_id: str
     target_node_id: str
+    # 프론트 팔레트에서 고른 커스텀 색상. Node.color와 동일 규칙(None이면 프론트 기본색).
+    color: str | None = Field(default=None, pattern=NODE_COLOR_PATTERN)
 
 
 class BinItem(BaseModel):

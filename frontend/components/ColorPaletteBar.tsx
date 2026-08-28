@@ -12,6 +12,7 @@
 import { useEffect } from "react";
 import { cn } from "@/lib/cn";
 import { CloseIcon } from "@/components/ui/icons";
+import { GLOW_PRESETS } from "@/components/ConstellationCanvas";
 
 export interface ColorSwatchTarget {
   id: string;
@@ -48,9 +49,21 @@ export interface ColorPaletteBarProps {
   node: ColorSwatchTarget;
   onSelectColor: (color: string) => void;
   onClose: () => void;
+  /** 넘기면 "기본색" 칩이 붙는다(커스텀 색 제거 - 엣지/노드 공용). */
+  onResetColor?: () => void;
+  /** 노드 전용: 달성 연출 프리셋 줄. 현재값과 선택 콜백을 같이 넘긴다. */
+  glowEffect?: string;
+  onSelectGlow?: (glowId: string) => void;
 }
 
-export function ColorPaletteBar({ node, onSelectColor, onClose }: ColorPaletteBarProps) {
+export function ColorPaletteBar({
+  node,
+  onSelectColor,
+  onClose,
+  onResetColor,
+  glowEffect,
+  onSelectGlow,
+}: ColorPaletteBarProps) {
   // Esc는 팔레트만 닫는다(편집 모드 자체는 유지) - 캔버스 자체의 전역 Esc
   // 핸들러(정보 카드 닫기, 편집 모드에선 어차피 렌더 안 됨)와는 독립적으로 동작한다.
   useEffect(() => {
@@ -115,7 +128,46 @@ export function ColorPaletteBar({ node, onSelectColor, onClose }: ColorPaletteBa
             />
           );
         })}
+        {onResetColor && (
+          <button
+            type="button"
+            aria-label="기본색으로 되돌리기"
+            onClick={onResetColor}
+            className="h-8 shrink-0 rounded-full border border-paper-line px-2.5 font-sans text-micro text-paper-lo transition-colors hover:bg-paper hover:text-paper-ink focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-1 focus-visible:outline-paper-ink"
+          >
+            기본색
+          </button>
+        )}
       </div>
+
+      {/* 달성 연출 프리셋(노드 전용) - 서버는 id만 저장, 시각 정의는
+          ConstellationCanvas.GLOW_PRESETS가 단일 소유. */}
+      {onSelectGlow && (
+        <div className="mt-2.5 border-t border-paper-line pt-2.5">
+          <span className="font-sans text-micro font-medium text-paper-lo">달성 연출</span>
+          <div className="mt-1.5 flex flex-wrap items-center gap-1.5">
+            {GLOW_PRESETS.map((preset) => {
+              const selected = (glowEffect ?? "spike") === preset.id;
+              return (
+                <button
+                  key={preset.id}
+                  type="button"
+                  aria-pressed={selected}
+                  onClick={() => onSelectGlow(preset.id)}
+                  className={cn(
+                    "rounded-full border px-2.5 py-1 font-sans text-micro transition-colors focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-1 focus-visible:outline-paper-ink",
+                    selected
+                      ? "border-paper-ink bg-paper-ink font-medium text-paper"
+                      : "border-paper-line text-paper-lo hover:bg-paper hover:text-paper-ink"
+                  )}
+                >
+                  {preset.name}
+                </button>
+              );
+            })}
+          </div>
+        </div>
+      )}
     </div>
   );
 }

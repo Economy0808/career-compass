@@ -26,6 +26,7 @@ from pydantic.alias_generators import to_camel
 
 from app.domain.constellation import (
     NODE_COLOR_PATTERN,
+    NODE_GLOW_PATTERN,
     Bin,
     BinItem,
     BinOrigin,
@@ -140,6 +141,9 @@ class NodeCreateIn(_CamelModel):
     source_ref: str | None = None
     position: PositionIn
     color: str | None = Field(default=None, pattern=NODE_COLOR_PATTERN)
+    glow_effect: str | None = Field(
+        default=None, pattern=NODE_GLOW_PATTERN, min_length=1, max_length=24
+    )
 
 
 class NodeOut(_CamelModel):
@@ -158,6 +162,7 @@ class NodeOut(_CamelModel):
     created_at: int
     note_count: int | None = None
     color: str | None = None
+    glow_effect: str | None = None
 
 
 def node_to_out(node: Node) -> NodeOut:
@@ -176,6 +181,7 @@ def node_to_out(node: Node) -> NodeOut:
         # 0이면 응답에서 아예 빼야 하므로 None으로 치환한다 (모듈 docstring 참고).
         note_count=node.note_count or None,
         color=node.color,
+        glow_effect=node.glow_effect,
     )
 
 
@@ -195,6 +201,7 @@ def node_from_create_in(payload: NodeCreateIn, *, created_at: datetime) -> Node:
         created_at=created_at,
         note_count=0,
         color=payload.color,
+        glow_effect=payload.glow_effect,
     )
 
 
@@ -207,23 +214,31 @@ class EdgeCreateIn(_CamelModel):
     id: str = Field(min_length=1, max_length=200)
     source_node_id: str = Field(min_length=1, max_length=200)
     target_node_id: str = Field(min_length=1, max_length=200)
+    color: str | None = Field(default=None, pattern=NODE_COLOR_PATTERN)
 
 
 class EdgeOut(_CamelModel):
     id: str
     source_node_id: str
     target_node_id: str
+    color: str | None = None
 
 
 def edge_to_out(edge: Edge) -> EdgeOut:
     return EdgeOut(
-        id=edge.id, source_node_id=edge.source_node_id, target_node_id=edge.target_node_id
+        id=edge.id,
+        source_node_id=edge.source_node_id,
+        target_node_id=edge.target_node_id,
+        color=edge.color,
     )
 
 
 def edge_from_create_in(payload: EdgeCreateIn) -> Edge:
     return Edge(
-        id=payload.id, source_node_id=payload.source_node_id, target_node_id=payload.target_node_id
+        id=payload.id,
+        source_node_id=payload.source_node_id,
+        target_node_id=payload.target_node_id,
+        color=payload.color,
     )
 
 
@@ -419,6 +434,21 @@ class ColorPatchIn(_CamelModel):
     """노드 색상 갱신 요청. 빈 문자열/색상명이 아니라 "#RRGGBB" hex만 허용한다."""
 
     color: str = Field(pattern=NODE_COLOR_PATTERN)
+
+
+class EdgeColorPatchIn(_CamelModel):
+    """엣지 색상 갱신 요청. ColorPatchIn(노드)과 달리 null을 허용한다 - null이면
+    커스텀 색을 지우고 프론트 기본색으로 되돌린다는 뜻이다."""
+
+    color: str | None = Field(default=None, pattern=NODE_COLOR_PATTERN)
+
+
+class GlowPatchIn(_CamelModel):
+    """노드 달성 연출(glow effect) 프리셋 갱신 요청. null이면 기본 연출로 되돌린다."""
+
+    glow_effect: str | None = Field(
+        default=None, pattern=NODE_GLOW_PATTERN, min_length=1, max_length=24
+    )
 
 
 class PublishPatchIn(_CamelModel):

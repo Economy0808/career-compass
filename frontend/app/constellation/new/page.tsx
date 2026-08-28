@@ -42,6 +42,8 @@ import {
   listConstellations,
   listNotes,
   patchNodeColor,
+  patchNodeGlow,
+  patchEdgeColor,
   patchNodeCompletion,
   patchNodePosition,
   patchNote,
@@ -361,6 +363,8 @@ export default function NewConstellationPage() {
   // 노드 - editMode를 끄거나 다른 노드를 고르면 갱신/초기화된다.
   const [editMode, setEditMode] = useState(false);
   const [paletteNodeId, setPaletteNodeId] = useState<string | null>(null);
+  // 편집 모드에서 클릭한 엣지(연결선) - 노드 팔레트와 배타적으로 하나만 연다.
+  const [paletteEdgeId, setPaletteEdgeId] = useState<string | null>(null);
 
   // --- 별자리 띄우기(F4) ---------------------------------------------------
   // description/contributors는 저장 버튼의 titleModal(제목만 다룸)과 별개로
@@ -571,11 +575,17 @@ export default function NewConstellationPage() {
             code: dto.code,
             description: dto.description,
             color: dto.color,
+            glowEffect: dto.glowEffect,
           };
         }
         const loadedEdges: Record<string, CanvasEdge> = {};
         for (const dto of Object.values(latest.edges)) {
-          loadedEdges[dto.id] = { id: dto.id, sourceNodeId: dto.sourceNodeId, targetNodeId: dto.targetNodeId };
+          loadedEdges[dto.id] = {
+            id: dto.id,
+            sourceNodeId: dto.sourceNodeId,
+            targetNodeId: dto.targetNodeId,
+            color: dto.color,
+          };
         }
         const loadedNotes: Record<string, ElementNote> = {};
         for (const dto of noteDtos) {
@@ -639,6 +649,7 @@ export default function NewConstellationPage() {
       description: node.description,
       level: node.level ?? undefined,
       color: node.color,
+      glowEffect: node.glowEffect,
     };
   }
 
@@ -726,12 +737,39 @@ export default function NewConstellationPage() {
     [enqueueMutation]
   );
 
+  // 달성 연출 프리셋 선택 - 같은 낙관적 갱신+큐 패턴. 기본(spike)은 서버에
+  // null로 저장해 "미지정=기본" 규칙을 유지한다.
+  const handleNodeGlowChange = useCallback(
+    (nodeId: string, glowId: string) => {
+      const value = glowId === "spike" ? null : glowId;
+      setNodes((prev) =>
+        prev[nodeId] ? { ...prev, [nodeId]: { ...prev[nodeId], glowEffect: value ?? undefined } } : prev
+      );
+      const cid = constellationIdRef.current;
+      if (cid) enqueueMutation(() => patchNodeGlow(cid, nodeId, value));
+    },
+    [enqueueMutation]
+  );
+
+  // 엣지(연결선) 색 - 노드 색과 동일 패턴. null = 기본색으로 복귀.
+  const handleEdgeColorChange = useCallback(
+    (edgeId: string, color: string | null) => {
+      setEdges((prev) =>
+        prev[edgeId] ? { ...prev, [edgeId]: { ...prev[edgeId], color: color ?? undefined } } : prev
+      );
+      const cid = constellationIdRef.current;
+      if (cid) enqueueMutation(() => patchEdgeColor(cid, edgeId, color));
+    },
+    [enqueueMutation]
+  );
+
   // 편집 모드 진입/이탈 - 진입 시 열려 있던 정보 카드는 캔버스의
   // suppressInfoCard가 가려주므로 여기서는 팔레트만 확실히 닫아 둔다(이전
   // 세션에서 열려 있던 팔레트가 다음 편집 모드에 이어지지 않게).
   const handleToggleEditMode = useCallback(() => {
     setEditMode((prev) => !prev);
     setPaletteNodeId(null);
+    setPaletteEdgeId(null);
   }, []);
 
   // 캔버스의 선택 활성화 지점(activateNode)마다 호출된다 - 편집 모드가 아니면
@@ -740,6 +778,17 @@ export default function NewConstellationPage() {
     (nodeId: string) => {
       if (!editMode) return;
       setPaletteNodeId(nodeId);
+      setPaletteEdgeId(null);
+    },
+    [editMode]
+  );
+
+  // 엣지 클릭(편집 모드 전용) - 노드 팔레트와 배타적으로 선 팔레트를 연다.
+  const handleEdgeActivate = useCallback(
+    (edgeId: string) => {
+      if (!editMode) return;
+      setPaletteEdgeId(edgeId);
+      setPaletteNodeId(null);
     },
     [editMode]
   );
@@ -783,6 +832,7 @@ export default function NewConstellationPage() {
           id: e.id,
           sourceNodeId: e.sourceNodeId,
           targetNodeId: e.targetNodeId,
+          color: e.color,
         }));
         const binInputs: BinDto[] = binsRef.current.map(mapBinToBinDto);
         const created = await createConstellation({
@@ -1496,7 +1546,9 @@ export default function NewConstellationPage() {
   // 같은 식이어야 한다(아래 세 곳에서 재사용). 모바일에서 팔레트는 항상
   // 거의 전체 폭(92vw)으로 뜨므로, 열려 있는 동안은 편집/띄우기 버튼을
   // <md에서 숨겨 겹침 자체를 없앤다.
-  const paletteOpen = editMode && !!paletteNodeId && !!nodes[paletteNodeId];
+  const paletteOpen =
+    editMode &&
+    ((!!paletteNodeId && !!nodes[paletteNodeId]) || (!!paletteEdgeId && !!edges[paletteEdgeId]));
 
   return (
     // 그래프뷰 자체가 페이지의 배경 - 카드도 컬럼도 아니라 뷰포트를 꽉 채우는
@@ -1515,6 +1567,7 @@ export default function NewConstellationPage() {
         onOpenNotes={handleOpenNotes}
         onExternalDrop={handleExternalDrop}
         onNodeActivate={handleNodeActivate}
+        onEdgeActivate={editMode ? handleEdgeActivate : undefined}
         suppressInfoCard={editMode}
         focusRequest={focusRequest}
         fitRequest={fitRequest}
@@ -1594,7 +1647,25 @@ export default function NewConstellationPage() {
         <ColorPaletteBar
           node={nodes[paletteNodeId]}
           onSelectColor={(color) => handleNodeColorChange(paletteNodeId, color)}
+          glowEffect={nodes[paletteNodeId].glowEffect}
+          onSelectGlow={(glowId) => handleNodeGlowChange(paletteNodeId, glowId)}
           onClose={() => setPaletteNodeId(null)}
+        />
+      )}
+
+      {/* 엣지(연결선) 팔레트 - 같은 컴포넌트를 선 대상으로 재사용. 달성 연출
+          줄은 없고, 기본색 복귀 칩이 붙는다. */}
+      {editMode && paletteEdgeId && edges[paletteEdgeId] && (
+        <ColorPaletteBar
+          node={{
+            id: paletteEdgeId,
+            label: "연결선",
+            type: "edge",
+            color: edges[paletteEdgeId].color,
+          }}
+          onSelectColor={(color) => handleEdgeColorChange(paletteEdgeId, color)}
+          onResetColor={() => handleEdgeColorChange(paletteEdgeId, null)}
+          onClose={() => setPaletteEdgeId(null)}
         />
       )}
 

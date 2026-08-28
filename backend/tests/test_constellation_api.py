@@ -402,6 +402,149 @@ async def test_edge_add_remove_and_unknown_edge_404(authed_as: Callable[[str], N
         assert resp.status_code == 404
 
 
+@pytest.mark.asyncio
+async def test_edge_color_saved_on_create_and_mutation_updates_it(
+    authed_as: Callable[[str], None],
+) -> None:
+    authed_as("user-a")
+    async with _client() as client:
+        cid = (
+            await client.post(
+                "/api/constellations", json={"title": "엣지 색상 흐름", "goalRawText": "x"}
+            )
+        ).json()["id"]
+        for nid in ("n1", "n2"):
+            await client.post(
+                f"/api/constellations/{cid}/nodes",
+                json={"id": nid, "label": nid, "type": "course", "position": {"x": 0, "y": 0}},
+            )
+
+        resp = await client.post(
+            f"/api/constellations/{cid}/edges",
+            json={"id": "e1", "sourceNodeId": "n1", "targetNodeId": "n2", "color": "#FF00AA"},
+        )
+        assert resp.status_code == 201
+        assert resp.json()["edges"]["e1"]["color"] == "#FF00AA"
+
+        resp = await client.patch(
+            f"/api/constellations/{cid}/edges/e1/color",
+            json={"color": "#00ff00"},
+        )
+        assert resp.status_code == 200
+        assert resp.json()["edges"]["e1"]["color"] == "#00ff00"
+
+        # null은 커스텀 색을 지운다.
+        resp = await client.patch(
+            f"/api/constellations/{cid}/edges/e1/color",
+            json={"color": None},
+        )
+        assert resp.status_code == 200
+        assert "color" not in resp.json()["edges"]["e1"]
+
+
+@pytest.mark.asyncio
+async def test_edge_color_invalid_pattern_returns_422(authed_as: Callable[[str], None]) -> None:
+    authed_as("user-a")
+    async with _client() as client:
+        cid = (
+            await client.post(
+                "/api/constellations", json={"title": "엣지 색상 검증", "goalRawText": "x"}
+            )
+        ).json()["id"]
+        for nid in ("n1", "n2"):
+            await client.post(
+                f"/api/constellations/{cid}/nodes",
+                json={"id": nid, "label": nid, "type": "course", "position": {"x": 0, "y": 0}},
+            )
+        await client.post(
+            f"/api/constellations/{cid}/edges",
+            json={"id": "e1", "sourceNodeId": "n1", "targetNodeId": "n2"},
+        )
+
+        resp = await client.patch(
+            f"/api/constellations/{cid}/edges/e1/color",
+            json={"color": "red"},
+        )
+        assert resp.status_code == 422
+
+
+@pytest.mark.asyncio
+async def test_node_glow_effect_saved_on_create_and_mutation_updates_it(
+    authed_as: Callable[[str], None],
+) -> None:
+    authed_as("user-a")
+    async with _client() as client:
+        cid = (
+            await client.post(
+                "/api/constellations", json={"title": "글로우 흐름", "goalRawText": "x"}
+            )
+        ).json()["id"]
+
+        resp = await client.post(
+            f"/api/constellations/{cid}/nodes",
+            json={
+                "id": "n1",
+                "label": "n1",
+                "type": "course",
+                "position": {"x": 0, "y": 0},
+                "glowEffect": "supernova",
+            },
+        )
+        assert resp.status_code == 201
+        assert resp.json()["nodes"]["n1"]["glowEffect"] == "supernova"
+
+        resp = await client.patch(
+            f"/api/constellations/{cid}/nodes/n1/glow",
+            json={"glowEffect": "sparkle-2"},
+        )
+        assert resp.status_code == 200
+        assert resp.json()["nodes"]["n1"]["glowEffect"] == "sparkle-2"
+
+        # null은 기본 연출로 되돌린다.
+        resp = await client.patch(
+            f"/api/constellations/{cid}/nodes/n1/glow",
+            json={"glowEffect": None},
+        )
+        assert resp.status_code == 200
+        assert "glowEffect" not in resp.json()["nodes"]["n1"]
+
+
+@pytest.mark.asyncio
+async def test_node_glow_effect_invalid_pattern_returns_422(
+    authed_as: Callable[[str], None],
+) -> None:
+    authed_as("user-a")
+    async with _client() as client:
+        cid = (
+            await client.post(
+                "/api/constellations", json={"title": "글로우 검증", "goalRawText": "x"}
+            )
+        ).json()["id"]
+        await client.post(
+            f"/api/constellations/{cid}/nodes",
+            json={"id": "n1", "label": "n1", "type": "course", "position": {"x": 0, "y": 0}},
+        )
+
+        # 대문자로 시작 - 패턴 위반.
+        resp = await client.patch(
+            f"/api/constellations/{cid}/nodes/n1/glow",
+            json={"glowEffect": "Supernova"},
+        )
+        assert resp.status_code == 422
+
+        resp = await client.post(
+            f"/api/constellations/{cid}/nodes",
+            json={
+                "id": "n2",
+                "label": "n2",
+                "type": "course",
+                "position": {"x": 0, "y": 0},
+                "glowEffect": "Bad_Slug",
+            },
+        )
+        assert resp.status_code == 422
+
+
 # --- 노트 ---
 
 

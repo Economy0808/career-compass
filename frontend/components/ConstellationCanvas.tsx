@@ -55,6 +55,9 @@ export interface CanvasNode {
   /** 이 노드에 달린 노트 개수. undefined면 아직 하나도 없다는 뜻으로
    * "노트 추가"를 보여준다(0개와는 다른 상태). */
   noteCount?: number;
+  /** 달성 연출 프리셋 id(서버 NodeDto.glowEffect). GLOW_PRESETS 참고 -
+   * 미지정/미지원 id는 기본(spike)으로 강등된다. */
+  glowEffect?: string;
 }
 
 /** 백엔드 Edge 모델과 1:1로 대응. */
@@ -62,7 +65,20 @@ export interface CanvasEdge {
   id: string;
   sourceNodeId: string;
   targetNodeId: string;
+  /** 사용자 커스텀 선 색(#RRGGBB, 서버 EdgeDto.color). 미점등/점등 기본색을
+   * 모두 이 색으로 대체한다(미지정이면 rule/lit 기본). */
+  color?: string;
 }
+
+/** 달성 연출 프리셋 - 팔레트(ColorPaletteBar)와 렌더가 공유하는 단일 목록.
+ * 서버는 id 문자열만 저장하고 시각 정의는 전부 여기 있다. */
+export const GLOW_PRESETS: { id: string; name: string }[] = [
+  { id: "spike", name: "회절 스파이크" },
+  { id: "halo", name: "후광" },
+  { id: "ring", name: "회절 고리" },
+  { id: "beam", name: "빛기둥" },
+  { id: "quiet", name: "고요" },
+];
 
 export interface ConstellationCanvasProps {
   /** id를 key로 하는 맵. Firestore 점 표기 부분 업데이트와 형태를 맞춘 것이므로 배열로 바꾸지 않는다. */
@@ -93,6 +109,9 @@ export interface ConstellationCanvasProps {
    * 색 팔레트 등 추가 UI를 열 수 있게 한다. 캔버스는 "선택됐다"는 사실만
    * 알리고, 그 선택을 무엇에 쓸지는 부모(page.tsx)의 책임이다. */
   onNodeActivate?: (nodeId: string) => void;
+  /** 엣지 단일 클릭 훅 - 편집 모드에서 부모가 넘겨주면 선(엣지)도 클릭해
+   * 색 팔레트를 열 수 있다(더블클릭 삭제와는 별개 제스처). */
+  onEdgeActivate?: (edgeId: string) => void;
   /** true면 선택 시 뜨는 기본 정보 팝오버(ElementPopover)를 렌더링하지 않는다 -
    * 편집 모드에서 팝오버 대신 색 팔레트 바를 보여줄 때 쓴다. 캔버스 내부
    * selectedNodeId 상태 자체는 그대로 유지된다(팝오버만 숨김). */
@@ -312,6 +331,7 @@ export function ConstellationCanvas({
   onExternalDrop,
   readOnly = false,
   onNodeActivate,
+  onEdgeActivate,
   suppressInfoCard = false,
   focusRequest,
   fitRequest,
@@ -820,6 +840,11 @@ export function ConstellationCanvas({
             // backend/app/domain/constellation.py의 is_edge_lit과 동일한 규칙.
             const lit = source.isCompleted && target.isCompleted;
             const drawing = lit ? drawingEdges[edge.id] : undefined;
+            // 커스텀 선 색은 점등/미점등 기본색을 모두 대체한다(미점등일 땐
+            // 같은 색을 흐리게) - "색을 골랐는데 미점등이라 안 보임"을 피한다.
+            const litStroke = edge.color ?? "var(--lit)";
+            const unlitStroke = edge.color ?? "var(--rule)";
+            const edgeInteractive = !readOnly && (onEdgeActivate || onEdgeDelete);
             return (
               <g key={edge.id}>
                 <line
@@ -830,16 +855,46 @@ export function ConstellationCanvas({
                   // 드로우온 중에는 바닥 선을 미점등 스타일로 깔아 두고, 아래
                   // 오버레이 선이 그 위를 "그어" 나간다 - 끝나면 이 선이 그대로
                   // 점등 스타일로 승격된다.
-                  stroke={lit && !drawing ? "var(--lit)" : "var(--rule)"}
+                  stroke={lit && !drawing ? litStroke : unlitStroke}
                   strokeWidth={lit && !drawing ? 2 : 1}
-                  opacity={lit && !drawing ? 1 : 0.8}
+                  opacity={lit && !drawing ? 1 : edge.color ? 0.55 : 0.8}
                   filter={lit && !drawing ? "url(#const-glow)" : undefined}
                   style={lit && !drawing ? { animation: "edgeGlowPulse 3.2s ease-in-out infinite" } : undefined}
+                  onClick={
+                    !readOnly && onEdgeActivate
+                      ? (e) => {
+                          e.stopPropagation();
+                          onEdgeActivate(edge.id);
+                        }
+                      : undefined
+                  }
                   onDoubleClick={
                     !readOnly && onEdgeDelete ? () => onEdgeDelete(edge.id) : undefined
                   }
-                  className={!readOnly && onEdgeDelete ? "cursor-pointer" : undefined}
+                  className={edgeInteractive ? "cursor-pointer" : undefined}
                 />
+                {/* 클릭 판정 확장용 투명 히트 영역 - 1~2px 선은 정확히 맞추기
+                    어렵다. 시각 선과 같은 좌표에 굵은 투명 선을 겹친다. */}
+                {edgeInteractive && (
+                  <line
+                    x1={sp.x}
+                    y1={sp.y}
+                    x2={tp.x}
+                    y2={tp.y}
+                    stroke="transparent"
+                    strokeWidth={10}
+                    onClick={
+                      onEdgeActivate
+                        ? (e) => {
+                            e.stopPropagation();
+                            onEdgeActivate(edge.id);
+                          }
+                        : undefined
+                    }
+                    onDoubleClick={onEdgeDelete ? () => onEdgeDelete(edge.id) : undefined}
+                    className="cursor-pointer"
+                  />
+                )}
                 {drawing && (
                   <line
                     // 이미 켜져 있던 별(시작점) -> 방금 달성한 별(끝점) 방향.
@@ -849,7 +904,7 @@ export function ConstellationCanvas({
                     y2={drawing.towardTarget ? tp.y : sp.y}
                     pathLength={1}
                     strokeDasharray="1"
-                    stroke="var(--lit)"
+                    stroke={litStroke}
                     strokeWidth={2}
                     filter="url(#const-glow)"
                     style={{ animation: "edgeDrawOn 550ms cubic-bezier(.22,1,.36,1) forwards" }}
@@ -977,37 +1032,50 @@ export function ConstellationCanvas({
                     면적을 덮어버려 살짝만 빗나가도 더블클릭이 엣지 드래그로 새는
                     버그였다. <g>에 달면 몸통이든 링이든 어디를 더블클릭해도(네이티브
                     dblclick 이벤트는 버블링된다) 판정 영역이 r=22 전체로 넓어진다. */}
-                {node.isCompleted && (
-                  // 십자 회절 스파이크 - 노드 색(currentColor로 상속)의 얇은
-                  // 빛줄기 4방향. const-glow로 살짝 더 번지게 하고, 노드마다
-                  // 위상/주기를 hashNodeId로 흩어 "다 같이 깜빡"을 피한다.
+                {node.isCompleted && node.glowEffect !== "quiet" && (
+                  // 달성 연출 - GLOW_PRESETS의 id별 변주. 공통: 노드 색을
+                  // currentColor로 상속, const-glow로 번짐, spikeBreathe(opacity
+                  // 전용)로 숨쉬기. 노드마다 위상/주기를 hashNodeId로 흩어
+                  // "다 같이 깜빡"을 피한다. delay 음수 = 마운트 툭 튐 방지.
                   <g
                     aria-hidden="true"
                     pointerEvents="none"
                     filter="url(#const-glow)"
                     style={{
                       color,
-                      // delay를 음수로 줘서 마운트 시점에 이미 주기 중간에서 시작하게
-                      // 한다 - 양수 delay는 그 시간이 지난 순간 기본 opacity에서
-                      // 키프레임 값으로 눈에 띄게 "툭" 튄다(SpaceBackdrop의 twinkle과
-                      // 동일한 처리).
                       animation: `spikeBreathe ${(3.2 + hashNodeId(`${node.id}#spikeDur`) * 1.6).toFixed(2)}s ease-in-out -${(hashNodeId(`${node.id}#spikeDelay`) * 3).toFixed(2)}s infinite`,
                     }}
                   >
-                    <rect
-                      x={-spikeLength}
-                      y={-SPIKE_WIDTH / 2}
-                      width={spikeLength * 2}
-                      height={SPIKE_WIDTH}
-                      fill="url(#const-spike-h)"
-                    />
-                    <rect
-                      x={-SPIKE_WIDTH / 2}
-                      y={-spikeLength}
-                      width={SPIKE_WIDTH}
-                      height={spikeLength * 2}
-                      fill="url(#const-spike-v)"
-                    />
+                    {(() => {
+                      const glow = node.glowEffect ?? "spike";
+                      if (glow === "halo") {
+                        // 부드러운 원형 후광 두 겹.
+                        return (
+                          <>
+                            <circle r={r * 2.1} fill="currentColor" opacity={0.16} />
+                            <circle r={r * 3.1} fill="currentColor" opacity={0.08} />
+                          </>
+                        );
+                      }
+                      if (glow === "ring") {
+                        // 얇은 회절 고리 두 개.
+                        return (
+                          <>
+                            <circle r={r * 1.9} fill="transparent" stroke="currentColor" strokeWidth={0.9} opacity={0.55} />
+                            <circle r={r * 2.7} fill="transparent" stroke="currentColor" strokeWidth={0.6} opacity={0.3} />
+                          </>
+                        );
+                      }
+                      // spike(기본)와 beam(더 길고 가는 빛기둥)은 같은 렉트 구조.
+                      const len = glow === "beam" ? spikeLength * 1.8 : spikeLength;
+                      const w = glow === "beam" ? SPIKE_WIDTH * 0.8 : SPIKE_WIDTH;
+                      return (
+                        <>
+                          <rect x={-len} y={-w / 2} width={len * 2} height={w} fill="url(#const-spike-h)" />
+                          <rect x={-w / 2} y={-len} width={w} height={len * 2} fill="url(#const-spike-v)" />
+                        </>
+                      );
+                    })()}
                   </g>
                 )}
                 <circle
