@@ -47,6 +47,7 @@ export interface NodeDto {
   level?: number;
   sourceRef?: string;
   noteCount?: number;
+  color?: string;
 }
 
 /** 백엔드 EdgeOut과 1:1 대응. */
@@ -65,6 +66,8 @@ export interface ConstellationDto {
   ownerId: string;
   title: string;
   goalRawText: string;
+  description?: string;
+  contributors: string[];
   nodes: Record<string, NodeDto>;
   edges: Record<string, EdgeDto>;
   isPublished: boolean;
@@ -83,6 +86,7 @@ export interface NodeCreateInput {
   description?: string;
   level?: number;
   sourceRef?: string;
+  color?: string;
 }
 
 /** 백엔드 EdgeCreateIn과 1:1 대응. id는 클라이언트가 생성한다. */
@@ -215,6 +219,10 @@ export function getConstellation(constellationId: string): Promise<Constellation
   return request<ConstellationDto>(`/api/constellations/${encodeURIComponent(constellationId)}`);
 }
 
+export function listUserConstellations(uid: string): Promise<ConstellationDto[]> {
+  return request<ConstellationDto[]>(`/api/constellations/user/${encodeURIComponent(uid)}`);
+}
+
 export function deleteConstellation(constellationId: string): Promise<void> {
   return request<void>(`/api/constellations/${encodeURIComponent(constellationId)}`, {
     method: "DELETE",
@@ -259,6 +267,17 @@ export function patchNodeCompletion(
   return request<ConstellationDto>(
     `/api/constellations/${encodeURIComponent(constellationId)}/nodes/${encodeURIComponent(nodeId)}/completion`,
     jsonInit("PATCH", { isCompleted })
+  );
+}
+
+export function patchNodeColor(
+  constellationId: string,
+  nodeId: string,
+  color: string
+): Promise<ConstellationDto> {
+  return request<ConstellationDto>(
+    `/api/constellations/${encodeURIComponent(constellationId)}/nodes/${encodeURIComponent(nodeId)}/color`,
+    jsonInit("PATCH", { color })
   );
 }
 
@@ -354,13 +373,21 @@ export function putBins(
   );
 }
 
+/** 발행 상태 및 메타데이터 패치 입력. */
+export interface PublishPatch {
+  isPublished: boolean;
+  title?: string;
+  description?: string;
+  contributors?: string[];
+}
+
 export function patchPublish(
   constellationId: string,
-  isPublished: boolean
+  patch: PublishPatch
 ): Promise<ConstellationDto> {
   return request<ConstellationDto>(
     `/api/constellations/${encodeURIComponent(constellationId)}/publish`,
-    jsonInit("PATCH", { isPublished })
+    jsonInit("PATCH", patch)
   );
 }
 
