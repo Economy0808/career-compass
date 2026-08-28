@@ -20,6 +20,8 @@ import { ElementBinPanel, type Bin, type BinItem, type BinDropPayload } from "@/
 import { ElementNotesPanel, type ElementNote } from "@/components/ElementNotesPanel";
 import { ConstellationIntakeChat } from "@/components/ConstellationIntakeChat";
 import { DraftReviewStage } from "@/components/DraftReviewStage";
+import { ColorPaletteBar } from "@/components/ColorPaletteBar";
+import { LaunchModal, type LaunchInput } from "@/components/LaunchModal";
 import { Modal } from "@/components/ui/Modal";
 import { ChevronLeftIcon, ChevronRightIcon } from "@/components/ui/icons";
 import type { ResolveWikiLink } from "@/lib/markdown";
@@ -39,6 +41,7 @@ import {
   getBinJob,
   listConstellations,
   listNotes,
+  patchNodeColor,
   patchNodeCompletion,
   patchNodePosition,
   patchNote,
@@ -51,6 +54,23 @@ import {
   type EdgeCreateInput,
   type NodeCreateInput,
 } from "@/lib/constellation-api";
+
+/** 편집 모드 진입 버튼의 연필 아이콘. 다른 파일(components/ui/icons.tsx)을
+ * 건드리지 않기 위해 이 화면 안에서만 쓰는 작은 SVG로 둔다. */
+function EditPencilIcon({ size = 14 }: { size?: number }) {
+  return (
+    <svg width={size} height={size} viewBox="0 0 24 24" fill="none" aria-hidden="true">
+      <path d="M12 20h9" stroke="currentColor" strokeWidth="2" strokeLinecap="round" />
+      <path
+        d="M16.5 3.5a2.12 2.12 0 0 1 3 3L7 19l-4 1 1-4L16.5 3.5Z"
+        stroke="currentColor"
+        strokeWidth="2"
+        strokeLinecap="round"
+        strokeLinejoin="round"
+      />
+    </svg>
+  );
+}
 
 // 원소를 캔버스에 놓을 때 만드는 노드의 id는 항상 `element:{binItem.id}` 형태로
 // 고정한다. 같은 원소를 두 번 드롭/Enter해도 이미 그 id의 노드가 있으면
@@ -314,6 +334,21 @@ export default function NewConstellationPage() {
   // ElementNotesPanel이 activeNoteKey 변화에 맞춰 호출해 준다.
   const [isNoteExpanded, setIsNoteExpanded] = useState(false);
 
+  // --- 편집 모드(F3: 색 커스터마이징) -------------------------------------
+  // editMode에서는 노드를 클릭해도 기본 정보 팝오버 대신 색 팔레트 바가
+  // 뜬다(캔버스의 suppressInfoCard). paletteNodeId는 지금 팔레트가 열려 있는
+  // 노드 - editMode를 끄거나 다른 노드를 고르면 갱신/초기화된다.
+  const [editMode, setEditMode] = useState(false);
+  const [paletteNodeId, setPaletteNodeId] = useState<string | null>(null);
+
+  // --- 별자리 띄우기(F4) ---------------------------------------------------
+  // description/contributors는 저장 버튼의 titleModal(제목만 다룸)과 별개로
+  // 이 모달이 전담하는 발행 메타데이터라 여기 최상위에서 들고 있다가 모달을
+  // 다시 열 때 기본값으로 넘긴다(직전에 입력한 값을 계속 보여주기 위함).
+  const [launchModalOpen, setLaunchModalOpen] = useState(false);
+  const [launchDescription, setLaunchDescription] = useState("");
+  const [launchContributors, setLaunchContributors] = useState<string[]>([]);
+
   // --- 부팅 상태 + Intake 오버레이 ---------------------------------------
   // "loading"(인증 확인 중) -> "empty"(로그인했는데 별자리가 하나도 없음, 대화
   // 오버레이를 띄운다) 또는 "loaded"(데모 시드 또는 실제 별자리를 보여줄 준비
@@ -461,6 +496,7 @@ export default function NewConstellationPage() {
             level: dto.level,
             code: dto.code,
             description: dto.description,
+            color: dto.color,
           };
         }
         const loadedEdges: Record<string, CanvasEdge> = {};
@@ -487,6 +523,8 @@ export default function NewConstellationPage() {
         if (latest.bins) setBins(latest.bins.map(mapBinDtoToBin));
         setConstellationId(latest.id);
         setIsPublished(latest.isPublished);
+        setLaunchDescription(latest.description ?? "");
+        setLaunchContributors(latest.contributors ?? []);
         constellationTitleRef.current = latest.title;
         setSaveState("saved");
         setBootState("loaded");
@@ -521,6 +559,7 @@ export default function NewConstellationPage() {
       code: node.code,
       description: node.description,
       level: node.level ?? undefined,
+      color: node.color,
     };
   }
 
@@ -592,16 +631,104 @@ export default function NewConstellationPage() {
     }
   }, [titleInput, enqueueMutation]);
 
-  // 발행/비공개 토글 - 아직 저장 전(cid 없음)이면 아무 것도 하지 않는다(버튼도
-  // disabled). 낙관적으로 먼저 뒤집고, 실패하면 뮤테이션 큐의 공용 에러
-  // 배지(저장 오류)가 뜬다 - 발행 전용 별도 에러 UI는 두지 않는다.
-  const handleTogglePublish = useCallback(() => {
-    const cid = constellationIdRef.current;
-    if (!cid) return;
-    const next = !isPublished;
-    setIsPublished(next);
-    enqueueMutation(() => patchPublish(cid, { isPublished: next }));
-  }, [isPublished, enqueueMutation]);
+  // 발행 행위 자체는 이제 "별자리 띄우기" 모달(handleLaunchSubmit)로
+  // 일원화됐다 - 좌상단 툴바에는 발행 상태를 보여주는 칩만 남는다(사용자 지시).
+
+  // 색 팔레트에서 스와치를 고른 결과 - 낙관적 로컬 갱신 후, 저장된 별자리면
+  // 뮤테이션 큐로 흘려보낸다(기존 handleNodeDrag 등과 동일한 패턴). 미저장
+  // (익명 포함)이면 로컬 state만 바뀌고, 이후 저장 시 nodeToCreateInput이
+  // node.color를 그대로 실어 나른다.
+  const handleNodeColorChange = useCallback(
+    (nodeId: string, color: string) => {
+      setNodes((prev) => (prev[nodeId] ? { ...prev, [nodeId]: { ...prev[nodeId], color } } : prev));
+      const cid = constellationIdRef.current;
+      if (cid) enqueueMutation(() => patchNodeColor(cid, nodeId, color));
+    },
+    [enqueueMutation]
+  );
+
+  // 편집 모드 진입/이탈 - 진입 시 열려 있던 정보 카드는 캔버스의
+  // suppressInfoCard가 가려주므로 여기서는 팔레트만 확실히 닫아 둔다(이전
+  // 세션에서 열려 있던 팔레트가 다음 편집 모드에 이어지지 않게).
+  const handleToggleEditMode = useCallback(() => {
+    setEditMode((prev) => !prev);
+    setPaletteNodeId(null);
+  }, []);
+
+  // 캔버스의 선택 활성화 지점(activateNode)마다 호출된다 - 편집 모드가 아니면
+  // 아무 것도 하지 않는다(일반 모드는 기본 정보 팝오버가 그대로 담당).
+  const handleNodeActivate = useCallback(
+    (nodeId: string) => {
+      if (!editMode) return;
+      setPaletteNodeId(nodeId);
+    },
+    [editMode]
+  );
+
+  // "별자리 띄우기" 제출 - 로그인 + 미저장이면 모달의 이름으로 먼저 생성한
+  // 뒤(기존 handleConfirmTitle과 같은 payload 구성) 발행 패치까지 이어서
+  // 보낸다. 이미 저장된 별자리면 발행 패치 하나만 보낸다. 에러는 그대로
+  // 던져 LaunchModal이 인라인 에러를 보여주게 한다.
+  const handleLaunchSubmit = useCallback(
+    async (input: LaunchInput) => {
+      let cid = constellationIdRef.current;
+      if (!cid) {
+        const nodeInputs = Object.values(nodesRef.current).map(nodeToCreateInput);
+        const edgeInputs: EdgeCreateInput[] = Object.values(edgesRef.current).map((e) => ({
+          id: e.id,
+          sourceNodeId: e.sourceNodeId,
+          targetNodeId: e.targetNodeId,
+        }));
+        const binInputs: BinDto[] = binsRef.current.map(mapBinToBinDto);
+        const created = await createConstellation({
+          title: input.title,
+          goalRawText: input.title,
+          nodes: nodeInputs,
+          edges: edgeInputs,
+          bins: binInputs,
+        });
+        cid = created.id;
+        constellationTitleRef.current = input.title;
+        setConstellationId(cid);
+
+        let anyEnqueued = false;
+        for (const node of Object.values(nodesRef.current)) {
+          if (node.isCompleted) {
+            anyEnqueued = true;
+            enqueueMutation(() => patchNodeCompletion(created.id, node.id, true));
+          }
+        }
+        for (const note of Object.values(notesRef.current)) {
+          anyEnqueued = true;
+          enqueueMutation(() =>
+            createNote(created.id, {
+              id: note.id,
+              nodeId: note.nodeId,
+              title: note.title,
+              body: note.body,
+              isPublic: note.isPublic,
+              attachments: [],
+            })
+          );
+        }
+        if (!anyEnqueued) setSaveState("saved");
+      }
+
+      const updated = await patchPublish(cid, {
+        isPublished: input.isPublished,
+        title: input.title,
+        description: input.description,
+        contributors: input.contributors,
+      });
+      constellationTitleRef.current = input.title;
+      setIsPublished(updated.isPublished);
+      setLaunchDescription(input.description);
+      setLaunchContributors(input.contributors);
+      setLaunchModalOpen(false);
+      window.alert(input.isPublished ? "별자리를 띄웠어요!" : "저장했어요 (비공개)");
+    },
+    [enqueueMutation]
+  );
 
   // "새 별자리 만들기" - 지금 편집 중인 별자리(서버에 있든 로컬 데모든)를
   // 완전히 접고 빈 캔버스 + Intake 대화로 되돌아간다. INITIAL_* 시드는 다시
@@ -624,6 +751,8 @@ export default function NewConstellationPage() {
     setPanelMode("bins");
     setNotesNodeId(null);
     setIsPublished(false);
+    setLaunchDescription("");
+    setLaunchContributors([]);
     pendingMutationsRef.current = 0;
     goalTextRef.current = null;
     constellationTitleRef.current = null;
@@ -653,6 +782,8 @@ export default function NewConstellationPage() {
       setNotes({});
       setSaveState("unsaved");
       setIsPublished(false);
+      setLaunchDescription("");
+      setLaunchContributors([]);
       pendingMutationsRef.current = 0;
       constellationTitleRef.current = null;
 
@@ -1174,8 +1305,69 @@ export default function NewConstellationPage() {
         onNodeDelete={handleNodeDelete}
         onOpenNotes={handleOpenNotes}
         onExternalDrop={handleExternalDrop}
+        onNodeActivate={handleNodeActivate}
+        suppressInfoCard={editMode}
         focusRequest={focusRequest}
         fitRequest={fitRequest}
+      />
+
+      {/* 편집 모드 토글 - 우상단, 군집 패널과 안 겹치는 하늘 영역. 패널이
+          접히면(아이콘 칩만 남음) 그만큼 안쪽으로 당겨 자리를 좁힌다.
+          진입 시 버튼 자체가 "완성"으로 바뀌어 같은 자리에서 되돌아간다. */}
+      <button
+        type="button"
+        aria-pressed={editMode}
+        aria-label={editMode ? "편집 완료" : "요소 색상 편집 모드"}
+        onClick={handleToggleEditMode}
+        className={cn(
+          "paper-surface fixed z-20 flex items-center gap-1.5 rounded-lg border border-paper-line bg-paper-soft/95 px-3 py-2 font-sans text-xs font-medium text-paper-ink shadow-panel backdrop-blur-md transition-colors hover:bg-paper focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-1 focus-visible:outline-paper-ink",
+          "right-3 top-3",
+          isPanelCollapsed ? "md:right-[68px] md:top-4" : "md:right-[304px] md:top-3"
+        )}
+      >
+        <EditPencilIcon />
+        {editMode ? "완성" : "편집"}
+      </button>
+
+      {/* "별자리 띄우기" - 우하단, 군집 패널·네비 섬과 안 겹치는 자리. 접힘
+          상태에서는 편집 버튼과 같은 규칙으로 안쪽으로 당긴다. */}
+      <div
+        className={cn(
+          "paper-surface fixed z-20",
+          "right-3 bottom-[calc(var(--tabbar-h)+var(--safe-bottom)+46vh+24px)]",
+          isPanelCollapsed ? "md:right-[68px] md:bottom-4" : "md:right-[304px] md:bottom-4"
+        )}
+      >
+        <button
+          type="button"
+          onClick={() => setLaunchModalOpen(true)}
+          className="cta-ink rounded-lg bg-paper-ink px-4 py-2.5 font-sans text-sm font-medium text-paper shadow-panel backdrop-blur-md focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-1 focus-visible:outline-paper-ink"
+        >
+          별자리 띄우기
+        </button>
+      </div>
+
+      {editMode && paletteNodeId && nodes[paletteNodeId] && (
+        <ColorPaletteBar
+          node={nodes[paletteNodeId]}
+          onSelectColor={(color) => handleNodeColorChange(paletteNodeId, color)}
+          onClose={() => setPaletteNodeId(null)}
+        />
+      )}
+
+      <LaunchModal
+        open={launchModalOpen}
+        onClose={() => setLaunchModalOpen(false)}
+        isLoggedIn={!!user}
+        defaultTitle={constellationTitleRef.current ?? goalTextRef.current ?? ""}
+        defaultDescription={launchDescription}
+        defaultIsPublished={isPublished}
+        defaultContributors={launchContributors}
+        onLaunch={handleLaunchSubmit}
+        onGoLogin={() => {
+          setLaunchModalOpen(false);
+          router.push("/login");
+        }}
       />
 
       {/* 저장 버튼 + 상태 배지 - 좌상단에 뜨는 작은 오버레이. 별도 상단 툴바가
@@ -1196,19 +1388,9 @@ export default function NewConstellationPage() {
         </button>
         <span className="font-sans text-xs text-paper-lo">{SAVE_STATE_LABEL[saveState]}</span>
 
-        {/* 발행 토글 - 아직 한 번도 저장 안 됐으면(cid 없음) 눌러도 발행할
-            대상이 없으므로 비활성 + 이유를 title 툴팁으로 알려준다. 저장
-            상태 배지와는 별개의 진실(발행 여부)이라 칩을 따로 둔다. */}
+        {/* 발행 상태 칩 - 발행 행위 자체는 "별자리 띄우기" 모달로 옮겼고,
+            여기는 지금 발행 상태가 무엇인지만 보여준다(사용자 지시). */}
         <span className="mx-0.5 h-4 w-px bg-paper-line" aria-hidden />
-        <button
-          type="button"
-          onClick={handleTogglePublish}
-          disabled={!constellationId}
-          title={!constellationId ? "먼저 저장한 뒤 발행할 수 있어요" : undefined}
-          className="rounded-md border border-paper-line px-3 py-1.5 font-sans text-xs font-medium text-paper-ink transition-colors hover:bg-paper-soft disabled:cursor-not-allowed disabled:opacity-40 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-1 focus-visible:outline-paper-ink"
-        >
-          {isPublished ? "비공개로 전환" : "발행"}
-        </button>
         <span
           className={cn(
             "font-sans text-xs",
