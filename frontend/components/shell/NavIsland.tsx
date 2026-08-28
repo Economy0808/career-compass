@@ -58,7 +58,11 @@ export function NavIsland() {
   }
 
   return (
-    <div ref={containerRef} className="pointer-events-auto fixed bottom-3 left-3 z-30">
+    // <md에서는 숨긴다 - TabBar가 같은 항목을 이미 하단에 노출하므로
+    // (nav-items.ts 공유) 서랍 버튼은 모바일 TabBar 아래 깔려 안 보이던
+    // 죽은 UI였다. 별개의 진입점을 또 두는 대신 md 이상(TabBar가 없는
+    // 화면)에서만 서랍으로 남긴다.
+    <div ref={containerRef} className="pointer-events-auto fixed bottom-3 left-3 z-30 hidden md:block">
       {open && (
         <div
           role="menu"
@@ -93,7 +97,12 @@ export function NavIsland() {
                   <span className="text-body">{user.avatarEmoji ?? "🙂"}</span>
                   <span className="truncate">{user.displayName ?? "사용자"}</span>
                   {!user.yonseiVerified && (
-                    <span className="ml-auto shrink-0 rounded-full bg-spec-m/18 px-1.5 py-0.5 text-micro font-semibold text-spec-m">
+                    // SideRail의 bg-spec-m/18 + text-spec-m 배지는 어두운
+                    // 표면 기준(spec-m 자체가 밝은 코랄이라 종이 위 텍스트로
+                    // 쓰면 대비가 ~2.4:1로 미달) - 이 섬은 paper 표면이라
+                    // 텍스트만 paper-ink로 바꾼다(틴트는 그대로 spec-m 유지 -
+                    // 색으로는 여전히 "주의" 신호를 준다, 새 hex는 안 씀).
+                    <span className="ml-auto shrink-0 rounded-full bg-spec-m/18 px-1.5 py-0.5 text-micro font-semibold text-paper-ink">
                       인증 전
                     </span>
                   )}

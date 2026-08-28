@@ -51,8 +51,10 @@ export function AppShell({ children }: AppShellProps) {
         </Link>
 
         {/* 네비 섬 - 좌하단 서랍 버튼(NavIsland 내부에서 자체적으로 open
-            상태를 들고 있음, md 이하에서도 항상 노출 - 모바일은 TabBar와
-            병행). */}
+            상태를 들고 있음). <md에서는 NavIsland 자신이 스스로를 숨긴다 -
+            TabBar가 하단 고정으로 이미 같은 항목을 노출해 서랍 버튼이 그
+            뒤에 깔려 안 보이던 문제가 있었다(2026-08-28 검수). md 이상
+            (TabBar 없음)에서만 서랍으로 남는다. */}
         <NavIsland />
 
         <TabBar />

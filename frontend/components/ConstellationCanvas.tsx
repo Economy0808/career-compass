@@ -821,7 +821,10 @@ export function ConstellationCanvas({
                 tabIndex={0}
                 role="button"
                 aria-label={node.label}
-                aria-pressed={node.isCompleted}
+                // readOnly(열람)에서는 토글 시맨틱이 없다 - 클릭해도 완료
+                // 상태가 안 바뀌므로 aria-pressed 자체를 생략한다(undefined,
+                // role="button"은 유지).
+                aria-pressed={readOnly ? undefined : node.isCompleted}
                 onKeyDown={handleNodeKeyDown(node.id)}
                 onFocus={() => setFocusedNodeId(node.id)}
                 onBlur={() => setFocusedNodeId((cur) => (cur === node.id ? null : cur))}

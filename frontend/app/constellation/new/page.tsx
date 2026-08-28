@@ -348,6 +348,11 @@ export default function NewConstellationPage() {
   const [launchModalOpen, setLaunchModalOpen] = useState(false);
   const [launchDescription, setLaunchDescription] = useState("");
   const [launchContributors, setLaunchContributors] = useState<string[]>([]);
+  // 띄우기 직후 잠깐 켜지는 별빛 발광 - window.alert 클라이맥스를 대신한다
+  // (사용자 지시: 세계관 내 확인). 저장 툴바의 "발행됨" 칩에 shadow-glow-bloom을
+  // 잠깐 얹었다 스스로 꺼진다. prefers-reduced-motion은 globals.css의 전역
+  // transition-duration 킬스위치가 처리하므로 여기서 따로 분기하지 않는다.
+  const [justPublished, setJustPublished] = useState(false);
 
   // --- 부팅 상태 + Intake 오버레이 ---------------------------------------
   // "loading"(인증 확인 중) -> "empty"(로그인했는데 별자리가 하나도 없음, 대화
@@ -725,7 +730,12 @@ export default function NewConstellationPage() {
       setLaunchDescription(input.description);
       setLaunchContributors(input.contributors);
       setLaunchModalOpen(false);
-      window.alert(input.isPublished ? "별자리를 띄웠어요!" : "저장했어요 (비공개)");
+      if (input.isPublished) {
+        // 발행 칩("발행됨")이 이미 위 setIsPublished로 전환됐으니, 그 칩에
+        // 잠깐 별빛 발광을 얹어 "띄워졌다"는 걸 알린다 - alert 대신.
+        setJustPublished(true);
+        setTimeout(() => setJustPublished(false), 2600);
+      }
     },
     [enqueueMutation]
   );
@@ -1289,6 +1299,12 @@ export default function NewConstellationPage() {
     [persistBins, finishBinFill]
   );
 
+  // 팔레트가 실제로 화면에 뜰지 - ColorPaletteBar의 렌더 조건과 정확히
+  // 같은 식이어야 한다(아래 세 곳에서 재사용). 모바일에서 팔레트는 항상
+  // 거의 전체 폭(92vw)으로 뜨므로, 열려 있는 동안은 편집/띄우기 버튼을
+  // <md에서 숨겨 겹침 자체를 없앤다.
+  const paletteOpen = editMode && !!paletteNodeId && !!nodes[paletteNodeId];
+
   return (
     // 그래프뷰 자체가 페이지의 배경 - 카드도 컬럼도 아니라 뷰포트를 꽉 채우는
     // 바닥이다. 레일/보관함 패널은 이 위에 뜨는 반투명 판(오버레이)일 뿐,
@@ -1322,7 +1338,8 @@ export default function NewConstellationPage() {
         className={cn(
           "paper-surface fixed z-20 flex items-center gap-1.5 rounded-lg border border-paper-line bg-paper-soft/95 px-3 py-2 font-sans text-xs font-medium text-paper-ink shadow-panel backdrop-blur-md transition-colors hover:bg-paper focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-1 focus-visible:outline-paper-ink",
           "right-3 top-3",
-          isPanelCollapsed ? "md:right-[68px] md:top-4" : "md:right-[304px] md:top-3"
+          isPanelCollapsed ? "md:right-[68px] md:top-4" : "md:right-[304px] md:top-3",
+          paletteOpen && "max-md:hidden"
         )}
       >
         <EditPencilIcon />
@@ -1330,12 +1347,15 @@ export default function NewConstellationPage() {
       </button>
 
       {/* "별자리 띄우기" - 우하단, 군집 패널·네비 섬과 안 겹치는 자리. 접힘
-          상태에서는 편집 버튼과 같은 규칙으로 안쪽으로 당긴다. */}
+          상태에서는 편집 버튼과 같은 규칙으로 안쪽으로 당긴다. 팔레트가 열린
+          동안은 <md에서 숨긴다 - 팔레트가 92vw 폭이라 이 CTA를 그대로
+          덮었었다(2026-08-28 검수). */}
       <div
         className={cn(
           "paper-surface fixed z-20",
           "right-3 bottom-[calc(var(--tabbar-h)+var(--safe-bottom)+46vh+24px)]",
-          isPanelCollapsed ? "md:right-[68px] md:bottom-4" : "md:right-[304px] md:bottom-4"
+          isPanelCollapsed ? "md:right-[68px] md:bottom-4" : "md:right-[304px] md:bottom-4",
+          paletteOpen && "max-md:hidden"
         )}
       >
         <button
@@ -1393,12 +1413,16 @@ export default function NewConstellationPage() {
         <span className="mx-0.5 h-4 w-px bg-paper-line" aria-hidden />
         <span
           className={cn(
-            "font-sans text-xs",
+            "font-sans text-xs transition-shadow duration-700",
             // lit(별빛)은 종이 위에서 거의 안 보이는 대비라(둘 다 밝은 색조)
             // 어두운 잉크 칩 위에 얹어 별빛이 실제로 빛나 보이게 한다.
             isPublished
               ? "rounded-full bg-paper-ink px-1.5 py-0.5 font-semibold text-lit"
-              : "text-paper-lo"
+              : "text-paper-lo",
+            // 방금 띄운 순간 - shadow-glow-bloom을 잠깐 얹었다 스스로 꺼진다
+            // (handleLaunchSubmit의 justPublished 타이머 참고). window.alert
+            // 클라이맥스를 대신하는 세계관 내 확인.
+            justPublished && "shadow-glow-bloom"
           )}
         >
           {isPublished ? "발행됨" : "비공개"}
