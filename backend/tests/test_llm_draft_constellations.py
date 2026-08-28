@@ -20,30 +20,29 @@ def _bins(item_count: int) -> list[dict]:
     return [{"id": "bin-1", "label": "테스트 보관함", "items": items}]
 
 
-def _mixed_bins() -> list[dict]:
-    """수업 6개 + 비교과 타입별 2개씩(자격증/학회/활동/네트워킹) 담은 bins_payload.
-
-    board 4(수업3 자격증1 학회1 활동1)처럼 실제로 섞여 나오는지 검증하기 위한 픽스처.
-    """
+def _bins_with_support(course_count: int, support_per_type: int = 2) -> list[dict]:
+    """course_count개 수업 + 비교과 타입별 support_per_type개씩 담은 bins_payload."""
     course_items = [
-        {"id": f"course:C{i:03d}", "label": f"과목{i}", "type": "course"} for i in range(6)
+        {"id": f"course:C{i:03d}", "label": f"과목{i}", "type": "course"}
+        for i in range(course_count)
     ]
-    support_items = (
-        [
-            {"id": f"support:cert{i}", "label": f"자격증{i}", "type": "certification"}
-            for i in range(2)
-        ]
-        + [{"id": f"support:org{i}", "label": f"학회{i}", "type": "organization"} for i in range(2)]
-        + [{"id": f"support:act{i}", "label": f"활동{i}", "type": "activity"} for i in range(2)]
-        + [
-            {"id": f"support:net{i}", "label": f"네트워킹{i}", "type": "networking"}
-            for i in range(2)
-        ]
-    )
+    support_items = [
+        {"id": f"support:{t}{i}", "label": f"{t}{i}", "type": t}
+        for t in ("certification", "organization", "activity", "networking")
+        for i in range(support_per_type)
+    ]
     return [
         {"id": "bin-course", "label": "수업 보관함", "items": course_items},
         {"id": "bin-support", "label": "비교과 보관함", "items": support_items},
     ]
+
+
+def _mixed_bins() -> list[dict]:
+    """수업 6개 + 비교과 타입별 2개씩(자격증/학회/활동/네트워킹) 담은 bins_payload.
+
+    타입별로 섞여 나오는지 검증하기 위한 픽스처.
+    """
+    return _bins_with_support(6, support_per_type=2)
 
 
 @pytest.mark.asyncio
@@ -67,23 +66,24 @@ async def test_suggest_draft_constellations_too_few_items_returns_no_drafts() ->
 
 @pytest.mark.asyncio
 async def test_suggest_draft_constellations_small_bins_yields_fewer_drafts() -> None:
-    """bins가 3개짜리 초안 하나만 채울 만큼 작으면(15개 -> 7+7+1) 초안은 2개로 준다."""
+    """수업이 초안 3개(각 3~4개)를 다 채울 만큼 없으면(7개 -> 4+3) 초안은 2개로 준다."""
     llm = MockClaudeClient()
 
-    result = await llm.suggest_draft_constellations(_GOAL, _bins(15))
+    result = await llm.suggest_draft_constellations(_GOAL, _bins(7))
 
     assert len(result.drafts) == 2
 
 
 @pytest.mark.asyncio
 async def test_suggest_draft_constellations_plenty_of_items_yields_exactly_three() -> None:
+    """수업이 충분하면(20개) 초안 3개가 나오고, 각 초안은 수업 3~4개를 받는다."""
     llm = MockClaudeClient()
 
     result = await llm.suggest_draft_constellations(_GOAL, _bins(20))
 
     assert len(result.drafts) == 3
-    # 20개가 7+7+6으로 남김없이 소진돼야 한다.
-    assert sum(len(d.item_ids) for d in result.drafts) == 20
+    for draft in result.drafts:
+        assert 3 <= len(draft.item_ids) <= 4
 
 
 @pytest.mark.asyncio
@@ -132,3 +132,43 @@ async def test_suggest_draft_constellations_is_deterministic() -> None:
 
     assert [d.item_ids for d in first.drafts] == [d.item_ids for d in second.drafts]
     assert [d.name for d in first.drafts] == [d.name for d in second.drafts]
+
+
+@pytest.mark.asyncio
+async def test_suggest_draft_constellations_courses_are_disjoint_across_drafts() -> None:
+    """세 초안은 서로 다른 수업 트랙이어야 한다 - 같은 course id가 두 초안에 겹치면 안 된다.
+
+    사용자 피드백: 예전엔 세 안이 같은 수업 풀을 그때그때 다르게 잘랐을 뿐이라
+    페르소나 이름만 다르고 실질적으로 상호 배타적이지 않았다. 지원 요소는
+    트랙과 무관해 공유해도 되므로 여기서는 course:* id만 검사한다.
+    """
+    llm = MockClaudeClient()
+
+    result = await llm.suggest_draft_constellations(
+        _GOAL, _bins_with_support(12, support_per_type=1)
+    )
+
+    assert len(result.drafts) == 3
+    seen_course_ids: set[str] = set()
+    for draft in result.drafts:
+        course_ids = {i for i in draft.item_ids if i.startswith("course:")}
+        assert course_ids, "각 초안은 수업 트랙을 가져야 한다"
+        assert not (course_ids & seen_course_ids), "수업 id가 두 초안에 겹치면 안 된다"
+        seen_course_ids |= course_ids
+
+
+@pytest.mark.asyncio
+async def test_support_elements_shared_across_drafts() -> None:
+    """비교과 요소는 트랙과 무관하게 모든 초안에 동일한 집합·순서로 붙어야 한다."""
+    llm = MockClaudeClient()
+
+    result = await llm.suggest_draft_constellations(
+        _GOAL, _bins_with_support(12, support_per_type=1)
+    )
+
+    assert len(result.drafts) >= 2
+    support_sequences = [
+        [i for i in draft.item_ids if i.startswith("support:")] for draft in result.drafts
+    ]
+    assert support_sequences[0], "비교과가 실제로 섞여 들어가야 한다"
+    assert all(seq == support_sequences[0] for seq in support_sequences)
