@@ -4,7 +4,7 @@
  * 오리지널 작곡 - 레퍼런스는 분위기만 참조(E단조 64BPM, 오르골 리프+허밍 훅).
  */
 
-export const BGM_TEMPO = 52;
+export const BGM_TEMPO = 46;
 export const BGM_BARS = 20;
 
 export interface ScoreNote {
