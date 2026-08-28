@@ -1,9 +1,22 @@
-"""프로필 사진 게시물(Post) API - 인스타식 사진+짧은 글 (prefix /api/posts).
+"""프로필 사진 게시물(Post) API - 인스타식 사진+짧은 글+좋아요·댓글 (prefix /api/posts).
 
-app/api/profiles.py와 동일한 관례(Firestore 클라이언트 의존성 주입, camelCase
-스키마, get_current_user/optional 사용)를 따른다. 이미지는 Cloud Storage 대신
-data URL(base64)로 Firestore 문서에 직접 저장하는 임시 구조다(app/domain/post.py
-docstring 참고) - Storage 이관 전까지 게시물당 이미지 하나, 문서 크기 제한 有.
+app/api/profiles.py/app/api/community.py와 동일한 관례(Firestore 클라이언트 의존성
+주입, camelCase 스키마, get_current_user/optional 사용, response_model_exclude_none=True)를
+따른다. 이미지는 Cloud Storage 대신 data URL(base64)로 Firestore 문서(부모 + images
+서브컬렉션)에 직접 저장하는 임시 구조다(app/domain/post.py docstring 참고).
+
+## SNS층은 익명이 없다
+
+커뮤니티 게시판(app/api/community.py)과 달리 게시물/댓글은 항상 실명(작성자 uid +
+표시 이름 스냅샷)으로 공개된다 - 그래서 여기엔 _to_post_out 같은 익명 차단
+직렬화 지점이 없다.
+
+## 라우트 선언 순서
+
+GET "/{post_id}"(단건, P3)는 두 세그먼트짜리 구체 경로(/user/{uid}, /{post_id}/images,
+/{post_id}/like, /{post_id}/comments)와 세그먼트 수 자체가 달라 실제로는 충돌하지
+않지만, community.py의 관례(구체 경로를 파라미터 경로보다 먼저 선언)를 그대로
+따라 헷갈리지 않게 배치한다.
 """
 
 from __future__ import annotations
@@ -16,58 +29,221 @@ from google.cloud.firestore import Client
 from app.auth.deps import get_current_user, get_current_user_optional
 from app.auth.firebase_auth import DecodedToken
 from app.core.rate_limit import rate_limit
-from app.domain.post import Post
-from app.firestore import post_repo
+from app.domain.post import Post, PostComment, PostImage
+from app.firestore import post_repo, user_repo
 from app.firestore.client import get_firestore_client
-from app.firestore.post_repo import PostNotFoundError, PostPermissionError
-from app.schemas.posts import PostCreateIn, PostOut
+from app.firestore.post_repo import (
+    CommentNotFoundError,
+    CommentPermissionError,
+    PostNotFoundError,
+    PostPermissionError,
+)
+from app.schemas.posts import (
+    PostCommentCreateIn,
+    PostCommentOut,
+    PostCreateIn,
+    PostDetailOut,
+    PostImageOut,
+    PostOut,
+)
 
 router = APIRouter(prefix="/api/posts", tags=["posts"])
 
 _POST_NOT_FOUND = HTTPException(status_code=404, detail="게시물을 찾을 수 없어요.")
 _POST_FORBIDDEN = HTTPException(status_code=403, detail="본인 게시물만 삭제할 수 있어요.")
+_COMMENT_NOT_FOUND = HTTPException(status_code=404, detail="댓글을 찾을 수 없어요.")
+_COMMENT_FORBIDDEN = HTTPException(status_code=403, detail="본인 댓글만 삭제할 수 있어요.")
 
 
-def _to_out(post: Post, *, viewer_uid: str | None) -> PostOut:
+def _now_ms() -> int:
+    return int(datetime.now(UTC).timestamp() * 1000)
+
+
+def _to_out(post: Post, *, viewer_uid: str | None, is_liked: bool | None) -> PostOut:
     return PostOut(
         id=post.id,
         owner_id=post.owner_id,
         image_data=post.image_data,
+        image_count=post.image_count,
         caption=post.caption,
+        like_count=post.like_count,
+        comment_count=post.comment_count,
+        is_liked=is_liked,
         created_at=post.created_at,
         is_mine=viewer_uid is not None and viewer_uid == post.owner_id,
     )
 
 
-@router.post("", response_model=PostOut, status_code=201)
+def _to_comment_out(comment: PostComment) -> PostCommentOut:
+    return PostCommentOut(
+        id=comment.id,
+        author_uid=comment.author_uid,
+        author_display_name=comment.author_display_name,
+        body=comment.body,
+        created_at=comment.created_at,
+    )
+
+
+def _to_image_out(image: PostImage) -> PostImageOut:
+    return PostImageOut(index=image.index, image_data=image.image_data)
+
+
+def _snapshot_display_name(db: Client, uid: str) -> str | None:
+    """댓글 작성 시점의 표시 이름을 프로필에서 읽어와 스냅샷으로 저장할 값으로 쓴다.
+
+    app/api/community.py의 동명 헬퍼와 동일하다.
+    """
+    profile = user_repo.get_user_profile(db, uid)
+    return (profile or {}).get("display_name")
+
+
+@router.post("", response_model=PostOut, response_model_exclude_none=True, status_code=201)
 async def create_post(
     payload: PostCreateIn,
     user: DecodedToken = Depends(get_current_user),
     db: Client = Depends(get_firestore_client),
     _: None = Depends(rate_limit("post-create", limit=10)),
 ) -> PostOut:
-    """본인 프로필에 사진 게시물을 올린다."""
-    created_at = int(datetime.now(UTC).timestamp() * 1000)
+    """본인 프로필에 사진 게시물을 올린다. 1~10장(images) 또는 imageData 1장(역호환)."""
+    created_at = _now_ms()
     post = post_repo.create_post(
         db,
         owner_id=user.uid,
-        image_data=payload.image_data,
+        images=payload.resolved_images(),
         caption=payload.caption,
         created_at=created_at,
     )
-    return _to_out(post, viewer_uid=user.uid)
+    return _to_out(post, viewer_uid=user.uid, is_liked=False)
 
 
-@router.get("/user/{uid}", response_model=list[PostOut])
+@router.get("/user/{uid}", response_model=list[PostOut], response_model_exclude_none=True)
 async def list_user_posts(
     uid: str,
     user: DecodedToken | None = Depends(get_current_user_optional),
     db: Client = Depends(get_firestore_client),
 ) -> list[PostOut]:
-    """uid의 게시물 목록을 최신순으로 반환한다 - 익명 열람 허용. isMine으로 본인 판별."""
+    """uid의 게시물 목록을 최신순으로 반환한다 - 익명 열람 허용. isMine/isLiked로 본인/좋아요 여부 판별.
+
+    목록은 부모 문서(썸네일 image_data)만 읽는다 - images 서브컬렉션은 조인하지
+    않는다(비용, 모듈 docstring 참고). 전체 이미지가 필요하면 GET .../images를
+    따로 부른다.
+    """
     posts = post_repo.list_by_owner(db, uid)
-    viewer_uid = user.uid if user is not None else None
-    return [_to_out(p, viewer_uid=viewer_uid) for p in posts]
+    if user is None:
+        return [_to_out(p, viewer_uid=None, is_liked=None) for p in posts]
+    liked_ids = post_repo.liked_post_ids(db, [p.id for p in posts], user.uid)
+    return [_to_out(p, viewer_uid=user.uid, is_liked=p.id in liked_ids) for p in posts]
+
+
+@router.get("/{post_id}/images", response_model=list[PostImageOut])
+async def list_post_images(
+    post_id: str,
+    db: Client = Depends(get_firestore_client),
+) -> list[PostImageOut]:
+    """게시물의 전체 이미지를 순서대로 반환한다 - 상세/캐러셀용, 익명 열람 허용.
+
+    다중 사진 기능 이전에 만들어진 게시물은 images 서브컬렉션이 비어 있다 - 그 경우
+    부모 문서의 image_data(썸네일 겸 유일한 사진)를 index 0 한 장으로 폴백한다.
+    """
+    post = post_repo.get_post(db, post_id)
+    if post is None:
+        raise _POST_NOT_FOUND
+    images = post_repo.list_post_images(db, post_id)
+    if not images:
+        return [PostImageOut(index=0, image_data=post.image_data)]
+    return [_to_image_out(img) for img in images]
+
+
+@router.post("/{post_id}/like", response_model=PostOut, response_model_exclude_none=True)
+async def like_post(
+    post_id: str,
+    user: DecodedToken = Depends(get_current_user),
+    db: Client = Depends(get_firestore_client),
+) -> PostOut:
+    """게시물에 좋아요를 남긴다. 응답은 갱신된 게시물(community.py의 like_post와 동일 관례)."""
+    try:
+        post_repo.like_post(db, post_id, user.uid)
+    except PostNotFoundError as e:
+        raise _POST_NOT_FOUND from e
+    post = post_repo.get_post(db, post_id)
+    if post is None:
+        raise _POST_NOT_FOUND
+    return _to_out(post, viewer_uid=user.uid, is_liked=True)
+
+
+@router.delete("/{post_id}/like", response_model=PostOut, response_model_exclude_none=True)
+async def unlike_post(
+    post_id: str,
+    user: DecodedToken = Depends(get_current_user),
+    db: Client = Depends(get_firestore_client),
+) -> PostOut:
+    """게시물 좋아요를 취소한다. 응답은 갱신된 게시물."""
+    post_repo.unlike_post(db, post_id, user.uid)
+    post = post_repo.get_post(db, post_id)
+    if post is None:
+        raise _POST_NOT_FOUND
+    return _to_out(post, viewer_uid=user.uid, is_liked=False)
+
+
+@router.post(
+    "/{post_id}/comments",
+    response_model=PostCommentOut,
+    status_code=201,
+)
+async def create_comment(
+    post_id: str,
+    payload: PostCommentCreateIn,
+    user: DecodedToken = Depends(get_current_user),
+    db: Client = Depends(get_firestore_client),
+    _: None = Depends(rate_limit("post-comment-create", limit=20)),
+) -> PostCommentOut:
+    """게시물에 댓글을 남긴다. 실명 고정(익명 옵션 없음) - 작성 시점 표시 이름을 스냅샷으로 저장."""
+    try:
+        comment = post_repo.create_comment(
+            db,
+            post_id,
+            author_uid=user.uid,
+            author_display_name=_snapshot_display_name(db, user.uid),
+            body=payload.body,
+            created_at=_now_ms(),
+        )
+    except PostNotFoundError as e:
+        raise _POST_NOT_FOUND from e
+    return _to_comment_out(comment)
+
+
+@router.delete("/{post_id}/comments/{comment_id}", status_code=204)
+async def delete_comment(
+    post_id: str,
+    comment_id: str,
+    user: DecodedToken = Depends(get_current_user),
+    db: Client = Depends(get_firestore_client),
+) -> None:
+    """본인 댓글을 삭제한다. 없으면 404, 작성자가 아니면 403."""
+    try:
+        post_repo.delete_comment(db, post_id, comment_id, user.uid)
+    except CommentNotFoundError as e:
+        raise _COMMENT_NOT_FOUND from e
+    except CommentPermissionError as e:
+        raise _COMMENT_FORBIDDEN from e
+
+
+@router.get("/{post_id}", response_model=PostDetailOut, response_model_exclude_none=True)
+async def get_post_detail(
+    post_id: str,
+    user: DecodedToken | None = Depends(get_current_user_optional),
+    db: Client = Depends(get_firestore_client),
+) -> PostDetailOut:
+    """게시물 단건(공유용) + 댓글 목록을 반환한다 - 열람은 익명 허용. 없으면 404."""
+    post = post_repo.get_post(db, post_id)
+    if post is None:
+        raise _POST_NOT_FOUND
+    is_liked = None if user is None else post_repo.is_liked_by(db, post_id, user.uid)
+    comments = post_repo.list_comments(db, post_id)
+    return PostDetailOut(
+        post=_to_out(post, viewer_uid=None if user is None else user.uid, is_liked=is_liked),
+        comments=[_to_comment_out(c) for c in comments],
+    )
 
 
 @router.delete("/{post_id}", status_code=204)

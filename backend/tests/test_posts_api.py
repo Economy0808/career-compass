@@ -154,3 +154,177 @@ async def test_invalid_image_data_returns_422(authed_as: Callable[[str], None]) 
     async with _client() as client:
         resp = await client.post("/api/posts", json={"imageData": "not-a-data-url", "caption": ""})
         assert resp.status_code == 422
+
+
+# ---------------------------------------------------------------------------
+# P1: 다중 사진
+# ---------------------------------------------------------------------------
+
+
+@pytest.mark.asyncio
+async def test_create_with_multiple_images_and_fetch_in_order(
+    authed_as: Callable[[str], None],
+) -> None:
+    authed_as("user-a")
+    images = [_TINY_PNG_DATA_URL] * 3
+    async with _client() as client:
+        create_resp = await client.post("/api/posts", json={"images": images, "caption": "3장"})
+        assert create_resp.status_code == 201
+        created = create_resp.json()
+        assert created["imageCount"] == 3
+        # 부모 문서는 첫 장을 썸네일로 유지한다(역호환).
+        assert created["imageData"] == _TINY_PNG_DATA_URL
+
+        images_resp = await client.get(f"/api/posts/{created['id']}/images")
+        assert images_resp.status_code == 200
+        image_list = images_resp.json()
+        assert [item["index"] for item in image_list] == [0, 1, 2]
+        assert all(item["imageData"] == _TINY_PNG_DATA_URL for item in image_list)
+
+
+@pytest.mark.asyncio
+async def test_create_with_more_than_ten_images_returns_422(
+    authed_as: Callable[[str], None],
+) -> None:
+    authed_as("user-a")
+    async with _client() as client:
+        resp = await client.post(
+            "/api/posts", json={"images": [_TINY_PNG_DATA_URL] * 11, "caption": ""}
+        )
+        assert resp.status_code == 422
+
+
+@pytest.mark.asyncio
+async def test_legacy_single_image_post_has_image_count_one(
+    authed_as: Callable[[str], None],
+) -> None:
+    """imageData 단일 필드(역호환 경로)로 만든 글은 imageCount=1이고 images 서브컬렉션이
+    비어 있어도 GET .../images가 부모 썸네일 한 장으로 폴백한다."""
+    authed_as("user-a")
+    async with _client() as client:
+        create_resp = await client.post(
+            "/api/posts", json={"imageData": _TINY_PNG_DATA_URL, "caption": ""}
+        )
+        assert create_resp.status_code == 201
+        created = create_resp.json()
+        assert created["imageCount"] == 1
+
+        images_resp = await client.get(f"/api/posts/{created['id']}/images")
+        assert images_resp.json() == [{"index": 0, "imageData": _TINY_PNG_DATA_URL}]
+
+
+@pytest.mark.asyncio
+async def test_create_without_images_or_image_data_returns_422(
+    authed_as: Callable[[str], None],
+) -> None:
+    authed_as("user-a")
+    async with _client() as client:
+        resp = await client.post("/api/posts", json={"caption": "사진 없음"})
+        assert resp.status_code == 422
+
+
+# ---------------------------------------------------------------------------
+# P2: 좋아요·댓글
+# ---------------------------------------------------------------------------
+
+
+@pytest.mark.asyncio
+async def test_like_then_duplicate_then_unlike(authed_as: Callable[[str], None]) -> None:
+    authed_as("user-a")
+    async with _client() as client:
+        create_resp = await client.post(
+            "/api/posts", json={"imageData": _TINY_PNG_DATA_URL, "caption": ""}
+        )
+        post_id = create_resp.json()["id"]
+
+    authed_as("user-b")
+    async with _client() as client:
+        like_resp = await client.post(f"/api/posts/{post_id}/like")
+        assert like_resp.status_code == 200
+        assert like_resp.json()["likeCount"] == 1
+        assert like_resp.json()["isLiked"] is True
+
+        # 중복 좋아요는 no-op - 카운트가 늘지 않는다.
+        dup_resp = await client.post(f"/api/posts/{post_id}/like")
+        assert dup_resp.json()["likeCount"] == 1
+
+        unlike_resp = await client.request("DELETE", f"/api/posts/{post_id}/like")
+        assert unlike_resp.status_code == 200
+        assert unlike_resp.json()["likeCount"] == 0
+        assert unlike_resp.json()["isLiked"] is False
+
+        # 바닥은 0 - 이미 안 누른 상태에서 다시 취소해도 음수로 내려가지 않는다.
+        floor_resp = await client.request("DELETE", f"/api/posts/{post_id}/like")
+        assert floor_resp.json()["likeCount"] == 0
+
+
+@pytest.mark.asyncio
+async def test_comment_create_updates_count_and_delete_by_others_forbidden(
+    authed_as: Callable[[str], None],
+) -> None:
+    authed_as("user-a")
+    async with _client() as client:
+        create_resp = await client.post(
+            "/api/posts", json={"imageData": _TINY_PNG_DATA_URL, "caption": ""}
+        )
+        post_id = create_resp.json()["id"]
+
+    authed_as("user-b")
+    async with _client() as client:
+        comment_resp = await client.post(f"/api/posts/{post_id}/comments", json={"body": "멋져요"})
+        assert comment_resp.status_code == 201
+        comment = comment_resp.json()
+        assert comment["authorUid"] == "user-b"
+        assert comment["body"] == "멋져요"
+        comment_id = comment["id"]
+
+        detail_resp = await client.get(f"/api/posts/{post_id}")
+        assert detail_resp.json()["post"]["commentCount"] == 1
+
+    authed_as("user-a")
+    async with _client() as client:
+        forbidden_resp = await client.delete(f"/api/posts/{post_id}/comments/{comment_id}")
+        assert forbidden_resp.status_code == 403
+
+    authed_as("user-b")
+    async with _client() as client:
+        ok_resp = await client.delete(f"/api/posts/{post_id}/comments/{comment_id}")
+        assert ok_resp.status_code == 204
+
+        detail_after_resp = await client.get(f"/api/posts/{post_id}")
+        assert detail_after_resp.json()["post"]["commentCount"] == 0
+
+
+# ---------------------------------------------------------------------------
+# P3: 공유용 단건 조회
+# ---------------------------------------------------------------------------
+
+
+@pytest.mark.asyncio
+async def test_get_post_detail_not_found_returns_404(authed_as: Callable[[str], None]) -> None:
+    authed_as("user-a")
+    async with _client() as client:
+        resp = await client.get("/api/posts/no-such-post-id")
+        assert resp.status_code == 404
+
+
+@pytest.mark.asyncio
+async def test_get_post_detail_anonymous_has_no_is_liked_key(
+    authed_as: Callable[[str], None],
+) -> None:
+    """익명 열람은 허용하되, isLiked는 로그인 시에만 채워지는 값이라 응답 JSON에
+    키 자체가 없어야 한다(response_model_exclude_none)."""
+    authed_as("user-a")
+    async with _client() as client:
+        create_resp = await client.post(
+            "/api/posts", json={"imageData": _TINY_PNG_DATA_URL, "caption": ""}
+        )
+        post_id = create_resp.json()["id"]
+
+    app.dependency_overrides.pop(get_current_user_optional, None)
+    async with _client() as client:
+        resp = await client.get(f"/api/posts/{post_id}")
+        assert resp.status_code == 200
+        body = resp.json()
+        assert "isLiked" not in body["post"]
+        assert body["comments"] == []
