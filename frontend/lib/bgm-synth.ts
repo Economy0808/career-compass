@@ -24,8 +24,8 @@ const TOTAL_BEATS = BGM_BARS * 4;
 const LOOP_GAP_BEATS = 4;
 
 interface ModeParams {
-  /** 오르골 배음(인덱스=배음 차수, 0번은 미사용). */
-  pluckHarmonics: number[];
+  /** 오르골 상부 배음 밝기 배수 - GM 뮤직박스 톤 근사(사용자: mid 오르골이 낫다). */
+  bellBrightness: number;
   /** 허밍 레이어 디튠 - 1개면 솔로, 2개면 합창풍. */
   voiceDetunes: number[];
   bassGain: number;
@@ -37,7 +37,7 @@ interface ModeParams {
 
 const PARAMS: Record<BgmMode, ModeParams> = {
   landing: {
-    pluckHarmonics: [0, 1, 0.26, 0.1, 0.035],
+    bellBrightness: 0.85,
     voiceDetunes: [1],
     bassGain: 1,
     padGain: 1,
@@ -46,7 +46,7 @@ const PARAMS: Record<BgmMode, ModeParams> = {
     master: 0.32,
   },
   canvas: {
-    pluckHarmonics: [0, 1, 0.38, 0.18, 0.07],
+    bellBrightness: 1.15,
     voiceDetunes: [0.9965, 1.0038],
     bassGain: 0.5,
     padGain: 0.8,
@@ -55,6 +55,17 @@ const PARAMS: Record<BgmMode, ModeParams> = {
     master: 0.24,
   },
 };
+
+/** 오르골(뮤직박스) 부분음 - 정수배가 아닌 종 특유의 반짝임(4배·5.4배)이
+ * 핵심이라 PeriodicWave 대신 부분음별 오실레이터+개별 감쇠로 가산 합성한다.
+ * a는 기본 진폭, tau는 감쇠 시간, bright=true면 모드별 밝기 배수를 탄다. */
+const BELL_PARTIALS: readonly { r: number; a: number; tau: number; bright?: boolean }[] = [
+  { r: 1, a: 1.0, tau: 0.9 },
+  { r: 1.0012, a: 0.55, tau: 0.9 },
+  { r: 2, a: 0.14, tau: 0.55, bright: true },
+  { r: 4, a: 0.3, tau: 0.4, bright: true },
+  { r: 5.4, a: 0.11, tau: 0.22, bright: true },
+];
 
 const PAD_HARMONICS = [0, 0.62, 0.24, 0.11, 0.05];
 const BASS_HARMONICS = [0, 1, 0.14];
@@ -95,7 +106,7 @@ function pingpong(ctx: AudioContext, input: AudioNode, out: AudioNode, delaySec:
 export class BgmPlayer {
   private ctx: AudioContext | null = null;
   private master: GainNode | null = null;
-  private waves: { pluck: PeriodicWave; pad: PeriodicWave; bass: PeriodicWave; voice: PeriodicWave } | null = null;
+  private waves: { pad: PeriodicWave; bass: PeriodicWave; voice: PeriodicWave } | null = null;
   private buses: { riff: GainNode; voice: GainNode; pad: GainNode; bass: GainNode } | null = null;
   private loopTimer: ReturnType<typeof setTimeout> | null = null;
   private stopped = false;
@@ -130,7 +141,6 @@ export class BgmPlayer {
       pingpong(ctx, this.buses.voice, master, BEAT, p.voiceFeedback);
 
       this.waves = {
-        pluck: makeWave(ctx, p.pluckHarmonics),
         pad: makeWave(ctx, PAD_HARMONICS),
         bass: makeWave(ctx, BASS_HARMONICS),
         voice: makeWave(ctx, VOICE_HARMONICS),
@@ -170,13 +180,7 @@ export class BgmPlayer {
       const dur = note.d * BEAT;
       const f = freqOf(note.n);
       if (note.t === "riff") {
-        for (const det of [0.9995, 1.0006]) {
-          this.tone(this.buses.riff, this.waves.pluck, f * det, t, Math.max(dur, 1.1) + 0.8, {
-            peak: note.a * 0.55,
-            attack: 0.007,
-            decayTau: 0.5,
-          });
-        }
+        this.bellTone(f, t, note.a * 0.75, p.bellBrightness);
       } else if (note.t === "pad") {
         for (const det of [0.9972, 1, 1.0031]) {
           this.tone(this.buses.pad, this.waves.pad, f * det, t, dur + 2, {
@@ -238,6 +242,25 @@ export class BgmPlayer {
     osc.connect(g).connect(bus);
     osc.start(t);
     osc.stop(t + life);
+  }
+
+  /** 오르골 한 음: 부분음별 사인 오실레이터 + 각자의 감쇠(가산 합성). */
+  private bellTone(freq: number, t: number, amp: number, brightness: number): void {
+    const ctx = this.ctx;
+    if (!ctx || !this.buses) return;
+    for (const partial of BELL_PARTIALS) {
+      const osc = ctx.createOscillator();
+      osc.type = "sine";
+      osc.frequency.setValueAtTime(freq * partial.r, t);
+      const g = ctx.createGain();
+      const peak = amp * partial.a * (partial.bright ? brightness : 1);
+      g.gain.setValueAtTime(0, t);
+      g.gain.linearRampToValueAtTime(peak, t + 0.003);
+      g.gain.setTargetAtTime(0, t + 0.003, partial.tau);
+      osc.connect(g).connect(this.buses.riff);
+      osc.start(t);
+      osc.stop(t + 3);
+    }
   }
 
   private voiceTone(freq: number, glideFrom: number | null, t: number, dur: number, amp: number): void {
