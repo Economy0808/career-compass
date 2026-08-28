@@ -43,6 +43,8 @@ from app.schemas.posts import (
     PostCommentOut,
     PostCreateIn,
     PostDetailOut,
+    PostFeedAuthorOut,
+    PostFeedItemOut,
     PostImageOut,
     PostOut,
 )
@@ -114,6 +116,44 @@ async def create_post(
         created_at=created_at,
     )
     return _to_out(post, viewer_uid=user.uid, is_liked=False)
+
+
+@router.get("/feed", response_model=list[PostFeedItemOut], response_model_exclude_none=True)
+async def get_feed(
+    user: DecodedToken | None = Depends(get_current_user_optional),
+    db: Client = Depends(get_firestore_client),
+) -> list[PostFeedItemOut]:
+    """전체 유저의 최신 게시물 피드(최신순, 최대 30개) - 익명 열람 허용, 부모 문서(썸네일)만.
+
+    ROUTE ORDER: 반드시 GET /user/{uid}·GET /{post_id}보다 먼저 선언해야 한다 -
+    그렇지 않으면 FastAPI가 "feed"를 uid/post_id 경로 파라미터로 매칭한다
+    (app/api/constellation.py의 GET /feed와 동일한 함정).
+
+    항목마다 작성자 프로필을 추가 조회한다(N+1) - limit 30 상한이 있어
+    constellation.py의 get_feed와 동일하게 허용되는 수준이다.
+    """
+    posts = post_repo.list_feed(db)
+    liked_ids: set[str] = (
+        set() if user is None else post_repo.liked_post_ids(db, [p.id for p in posts], user.uid)
+    )
+    items = []
+    for post in posts:
+        is_liked = None if user is None else post.id in liked_ids
+        profile = user_repo.get_user_profile(db, post.owner_id)
+        author = PostFeedAuthorOut(
+            uid=post.owner_id,
+            display_name=profile.get("display_name") if profile else None,
+            avatar_emoji=profile.get("avatar_emoji") if profile else None,
+        )
+        items.append(
+            PostFeedItemOut(
+                post=_to_out(
+                    post, viewer_uid=None if user is None else user.uid, is_liked=is_liked
+                ),
+                author=author,
+            )
+        )
+    return items
 
 
 @router.get("/user/{uid}", response_model=list[PostOut], response_model_exclude_none=True)

@@ -249,3 +249,46 @@ def prune_orphan_edges(nodes: dict[str, Node], edges: dict[str, Edge]) -> dict[s
         for edge_id, edge in edges.items()
         if edge.source_node_id in nodes and edge.target_node_id in nodes
     }
+
+
+# 관심사 태그 상위 몇 개를 users.interest_tags에 비정규화할지 (탐색 API 브리핑 명시).
+INTEREST_TAG_LIMIT = 5
+
+
+def compute_interest_tags(
+    constellations: list[Constellation], *, limit: int = INTEREST_TAG_LIMIT
+) -> list[str]:
+    """발행된 별자리 전체의 노드 라벨 빈도 상위 limit개를 관심사 태그로 계산한다.
+
+    호출부(app/api/constellation.py의 publish 핸들러)가 발행 상태가 바뀔 때마다
+    해당 owner의 list_published_by_owner 결과를 그대로 넘긴다 - 이 함수는
+    Firestore를 전혀 모르는 순수 함수라 단위 테스트만으로 규칙을 검증할 수 있다.
+
+    규칙 (단순하게 - 과설계 금지):
+    - 라벨은 앞뒤 공백만 트림해 집계한다. code(학정번호 등)는 Node에서 이미
+      별도 필드로 분리돼 있으므로 라벨 문자열에서 따로 벗겨낼 게 없다.
+    - 트림 후 빈 문자열인 라벨은 집계에서 제외한다.
+    - 동률(빈도 동일)은 그 라벨을 가진 별자리 중 가장 최근에 갱신된
+      (updated_at 최댓값) 쪽을 우선한다 - "최근 관심사"를 더 대표한다고 보는
+      단순 규칙.
+    - 별자리가 하나도 없으면(발행 0개) 빈 리스트.
+    """
+    frequency: dict[str, int] = {}
+    latest_updated_at: dict[str, datetime] = {}
+    for constellation in constellations:
+        for node in constellation.nodes.values():
+            label = node.label.strip()
+            if not label:
+                continue
+            frequency[label] = frequency.get(label, 0) + 1
+            if (
+                label not in latest_updated_at
+                or constellation.updated_at > latest_updated_at[label]
+            ):
+                latest_updated_at[label] = constellation.updated_at
+
+    ranked = sorted(
+        frequency,
+        key=lambda label: (-frequency[label], -latest_updated_at[label].timestamp()),
+    )
+    return ranked[:limit]

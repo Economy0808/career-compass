@@ -130,3 +130,23 @@ class PostDetailOut(_CamelModel):
 
     post: PostOut
     comments: list[PostCommentOut]
+
+
+# --- 피드 (전체 유저 최신 게시물) ---
+
+
+class PostFeedAuthorOut(_CamelModel):
+    """피드 카드의 작성자 표시 정보. users 문서가 없으면 표시 필드가 전부 None.
+
+    app/schemas/constellation.py의 FeedAuthorOut과 동일한 문법이지만, uid도
+    함께 내려준다 - 피드 카드가 작성자 프로필로 바로 이동할 수 있어야 한다.
+    """
+
+    uid: str
+    display_name: str | None = None
+    avatar_emoji: str | None = None
+
+
+class PostFeedItemOut(_CamelModel):
+    post: PostOut
+    author: PostFeedAuthorOut

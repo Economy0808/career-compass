@@ -4,12 +4,14 @@ import pytest
 from pydantic import ValidationError
 
 from app.domain.constellation import (
+    Constellation,
     Edge,
     Node,
     NodeTypes,
     Note,
     NoteAttachment,
     Position,
+    compute_interest_tags,
     compute_node_counts,
     compute_progress_pct,
     is_edge_lit,
@@ -33,6 +35,30 @@ def _make_node(
 
 def _make_edge(edge_id: str, source_id: str, target_id: str) -> Edge:
     return Edge(id=edge_id, source_node_id=source_id, target_node_id=target_id)
+
+
+def _make_constellation(cid: str, *, node_labels: list[str], updated_at: datetime) -> Constellation:
+    nodes = {
+        f"{cid}-{i}": Node(
+            id=f"{cid}-{i}",
+            label=label,
+            type=NodeTypes.CUSTOM,
+            position=Position(x=0.0, y=0.0),
+            origin="user_added",
+            created_at=updated_at,
+        )
+        for i, label in enumerate(node_labels)
+    }
+    return Constellation(
+        id=cid,
+        owner_id="user-1",
+        title=cid,
+        goal_raw_text="",
+        nodes=nodes,
+        is_published=True,
+        created_at=updated_at,
+        updated_at=updated_at,
+    )
 
 
 # --- compute_progress_pct ---
@@ -236,3 +262,50 @@ def test_note_round_trips_through_model_dump() -> None:
     dumped = note.model_dump()
     rebuilt = Note.model_validate(dumped)
     assert rebuilt == note
+
+
+# --- compute_interest_tags ---
+
+
+def test_compute_interest_tags_empty_constellations_returns_empty() -> None:
+    assert compute_interest_tags([]) == []
+
+
+def test_compute_interest_tags_ranks_by_frequency() -> None:
+    constellations = [
+        _make_constellation(
+            "c1", node_labels=["철학개론", "철학개론", "논리학"], updated_at=datetime(2026, 1, 1)
+        ),
+        _make_constellation("c2", node_labels=["철학개론"], updated_at=datetime(2026, 1, 2)),
+    ]
+    tags = compute_interest_tags(constellations)
+    assert tags[0] == "철학개론"  # 3회 > 논리학 1회
+    assert "논리학" in tags
+
+
+def test_compute_interest_tags_caps_at_limit() -> None:
+    constellations = [
+        _make_constellation(
+            "c1", node_labels=[f"라벨{i}" for i in range(8)], updated_at=datetime(2026, 1, 1)
+        )
+    ]
+    tags = compute_interest_tags(constellations, limit=5)
+    assert len(tags) == 5
+
+
+def test_compute_interest_tags_trims_whitespace_and_drops_blank() -> None:
+    constellations = [
+        _make_constellation("c1", node_labels=["  철학개론  ", ""], updated_at=datetime(2026, 1, 1))
+    ]
+    assert compute_interest_tags(constellations) == ["철학개론"]
+
+
+def test_compute_interest_tags_tie_prefers_most_recently_updated() -> None:
+    constellations = [
+        _make_constellation("old", node_labels=["오래된태그"], updated_at=datetime(2026, 1, 1)),
+        _make_constellation("new", node_labels=["최근태그"], updated_at=datetime(2026, 6, 1)),
+    ]
+    tags = compute_interest_tags(constellations)
+    # 둘 다 빈도 1회로 동률 - 더 최근에 갱신된 별자리의 라벨이 앞에 온다.
+    assert tags[0] == "최근태그"
+    assert tags[1] == "오래된태그"

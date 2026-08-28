@@ -40,6 +40,7 @@ from datetime import UTC, datetime
 from typing import Any
 
 from google.cloud.firestore import Client
+from google.cloud.firestore_v1.base_query import FieldFilter
 
 _COLLECTION = "users"
 
@@ -135,3 +136,57 @@ def get_user_profile(db: Client, uid: str) -> dict[str, Any] | None:
     if not snapshot.exists:
         return None
     return snapshot.to_dict()
+
+
+def set_interest_tags(db: Client, uid: str, interest_tags: list[str]) -> dict[str, Any]:
+    """유저의 관심사 태그(interest_tags) 캐시를 갈아끼운다.
+
+    별자리 발행 상태가 바뀔 때(app/api/constellation.py의 publish 핸들러)
+    호출되는 비정규화 필드다. 발행 트랜잭션 밖에서 별도로 계산·갱신하므로
+    계산 시점과 이 쓰기 사이에는 느슨한 일관성만 보장된다(동시에 다른 별자리를
+    발행/취소해도 이번 쓰기 직후에는 반영되지 않을 수 있음 - 다음 발행 때 다시
+    계산되며 자연 수렴한다, 과설계 금지).
+    """
+    doc_ref, data = _read_existing(db, uid)
+    now = datetime.now(UTC)
+    data["interest_tags"] = interest_tags
+    if "created_at" not in data or data.get("created_at") is None:
+        data["created_at"] = now
+    data["updated_at"] = now
+    doc_ref.set(data)
+    return data
+
+
+def list_users_with_interest_tags(db: Client) -> list[tuple[str, dict[str, Any]]]:
+    """interest_tags가 비어있지 않은 유저 전체를 (uid, 문서 dict)로 반환한다.
+
+    유저 규모가 아직 작은 프로토타입 단계라 컬렉션 전체를 스캔해 파이썬에서
+    필터링한다(app/firestore/post_repo.py list_by_owner와 동일한 판단 - 규모가
+    커지면 where(interest_tags, "!=", [])류 쿼리 필터로 승격할 것, ponytail).
+    정렬/절단/본인 제외는 요청자 컨텍스트가 필요해 API 계층(app/api/explore.py)
+    책임으로 남겨둔다.
+    """
+    return [
+        (doc.id, data)
+        for doc in db.collection(_COLLECTION).stream()
+        if (data := doc.to_dict() or {}).get("interest_tags")
+    ]
+
+
+def search_by_display_name_prefix(
+    db: Client, prefix: str, limit: int = 20
+) -> list[tuple[str, dict[str, Any]]]:
+    """display_name이 prefix로 시작하는 유저를 최대 limit명 반환한다.
+
+    where(">=", prefix) AND where("<", prefix + "\\uf8ff")는 Firestore 사전식
+    prefix 매치 표준 관용구다("\\uf8ff"는 유니코드 사용역의 마지막에 가까운 문자라
+    사실상 모든 문자열보다 뒤에 온다). display_name 필드가 없는 문서는 range
+    필터 자체가 자동으로 걸러주므로 별도 None 체크가 필요 없다.
+    """
+    query = (
+        db.collection(_COLLECTION)
+        .where(filter=FieldFilter("display_name", ">=", prefix))
+        .where(filter=FieldFilter("display_name", "<", prefix + ""))
+        .limit(limit)
+    )
+    return [(doc.id, doc.to_dict() or {}) for doc in query.stream()]

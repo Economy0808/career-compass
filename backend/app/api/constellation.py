@@ -19,7 +19,7 @@ from google.cloud.firestore import Client
 
 from app.auth.deps import get_current_user, get_current_user_optional
 from app.auth.firebase_auth import DecodedToken
-from app.domain.constellation import Constellation, Note, Position
+from app.domain.constellation import Constellation, Note, Position, compute_interest_tags
 from app.firestore import constellation_repo, note_repo, user_repo
 from app.firestore.client import get_firestore_client
 from app.firestore.constellation_repo import (
@@ -219,6 +219,13 @@ async def set_published(
     user: DecodedToken = Depends(get_current_user),
     db: Client = Depends(get_firestore_client),
 ) -> ConstellationOut:
+    """별자리의 공개 여부를 바꾸고, 그 참에 owner의 관심사 태그 캐시를 재계산한다.
+
+    관심사 태그(users.interest_tags)는 발행 상태가 바뀔 때마다 owner가 발행한
+    별자리 전체를 다시 읽어 통째로 재계산한다(app/domain/constellation.py의
+    compute_interest_tags 참고) - 발행 트랜잭션이 끝난 뒤, 트랜잭션 밖에서
+    수행하므로 느슨한 일관성만 보장한다(user_repo.set_interest_tags 참고).
+    """
     updated = _translate_repo_errors(constellation_repo.set_published)(
         db,
         constellation_id,
@@ -228,6 +235,8 @@ async def set_published(
         description=payload.description,
         contributors=payload.contributors,
     )
+    published = constellation_repo.list_published_by_owner(db, user.uid)
+    user_repo.set_interest_tags(db, user.uid, compute_interest_tags(published))
     return constellation_to_out(updated)
 
 

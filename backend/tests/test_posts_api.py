@@ -328,3 +328,50 @@ async def test_get_post_detail_anonymous_has_no_is_liked_key(
         body = resp.json()
         assert "isLiked" not in body["post"]
         assert body["comments"] == []
+
+
+# ---------------------------------------------------------------------------
+# E3: 전체 유저 피드
+# ---------------------------------------------------------------------------
+
+
+@pytest.mark.asyncio
+async def test_feed_route_is_not_shadowed_by_post_id_route(
+    authed_as: Callable[[str], None],
+) -> None:
+    """/feed가 /{post_id}보다 먼저 선언돼야 한다 - 아니면 "feed"가 post_id로
+    매칭돼 404가 난다(모듈 docstring의 라우트 순서 함정)."""
+    authed_as("user-a")
+    async with _client() as client:
+        resp = await client.get("/api/posts/feed")
+        assert resp.status_code == 200
+
+
+@pytest.mark.asyncio
+async def test_feed_returns_newest_first_with_author_and_allows_anonymous(
+    authed_as: Callable[[str], None],
+) -> None:
+    authed_as("feed-author")
+    async with _client() as client:
+        first_resp = await client.post(
+            "/api/posts", json={"imageData": _TINY_PNG_DATA_URL, "caption": "첫 글"}
+        )
+        first_id = first_resp.json()["id"]
+        second_resp = await client.post(
+            "/api/posts", json={"imageData": _TINY_PNG_DATA_URL, "caption": "둘째 글"}
+        )
+        second_id = second_resp.json()["id"]
+
+    # 익명 열람도 허용 - isLiked 키 자체가 없어야 한다.
+    app.dependency_overrides.pop(get_current_user_optional, None)
+    app.dependency_overrides.pop(get_current_user, None)
+    async with _client() as client:
+        resp = await client.get("/api/posts/feed")
+    assert resp.status_code == 200
+    items = resp.json()
+    ids_in_order = [item["post"]["id"] for item in items]
+    # 최신순 - 둘째 글이 첫 글보다 먼저 나와야 한다.
+    assert ids_in_order.index(second_id) < ids_in_order.index(first_id)
+    second_item = next(item for item in items if item["post"]["id"] == second_id)
+    assert second_item["author"]["uid"] == "feed-author"
+    assert "isLiked" not in second_item["post"]

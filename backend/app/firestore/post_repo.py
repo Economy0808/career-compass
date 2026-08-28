@@ -58,6 +58,7 @@ __all__ = [
     "liked_post_ids",
     "list_by_owner",
     "list_comments",
+    "list_feed",
     "list_post_images",
     "unlike_post",
 ]
@@ -174,6 +175,23 @@ def list_by_owner(db: Client, owner_id: str) -> list[Post]:
     posts = [Post.model_validate(doc.to_dict()) for doc in query.stream()]
     posts.sort(key=lambda p: p.created_at, reverse=True)
     return posts[:_LIST_LIMIT]
+
+
+def list_feed(db: Client, limit: int = _LIST_LIMIT) -> list[Post]:
+    """전체 유저의 최신 게시물을 최대 limit건 반환한다(소셜 피드용, 익명 열람 허용).
+
+    소유자 필터가 없는 전체 컬렉션 조회라 list_by_owner와 달리 파이썬 정렬로
+    회피할 필요가 없다 - order_by + limit만 걸린 단일 필드 쿼리는 Firestore가
+    created_at 단일 필드 인덱스를 자동 생성해준다(firestore.indexes.json에
+    손댈 필요 없음, constellation_repo.list_published와 동일한 판단이지만 그쪽은
+    등호 필터가 하나 더 있어 복합 인덱스가 필요했던 것과 다르다).
+    """
+    query = (
+        db.collection(_COLLECTION)
+        .order_by("created_at", direction=gcf.Query.DESCENDING)
+        .limit(limit)
+    )
+    return [Post.model_validate(doc.to_dict()) for doc in query.stream()]
 
 
 def delete_post(db: Client, post_id: str, owner_id: str) -> None:
