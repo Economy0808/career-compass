@@ -11,7 +11,7 @@
 | `frontend/tailwind.config.ts` | 같은 토큰의 Tailwind 노출 | ⚠️ **hex가 CSS 변수와 별개로 하드코딩돼 있다. 두 파일을 반드시 같이 고칠 것.** 여기만 고치면 `bg-ink-900`류가 옛 색으로 남는다. Tailwind 설정 변경은 dev 서버 재시작 필요 |
 | `frontend/app/layout.tsx` | 서체 로딩 (`next/font/google`) | Google Fonts만 사용 가능 |
 | `frontend/lib/element-colors.ts` | 요소 유형→색 매핑 (캔버스 노드·군집 칩·노트 패널 공용) | 값은 CSS 변수 참조 — 실값 변경은 globals.css + tailwind.config.ts에서 |
-| `frontend/components/SpaceBackdrop.tsx` | 캔버스 배경 장식(별밭) + 팬 시 비문증(eye-floater) 관성 드리프트 | **props 없는 순수 장식 컴포넌트 — 통째로 교체 가능한 스왑 포인트.** 그래픽 자체에는 로직이 없지만, `window`의 `"ourlab:canvas-pan"` CustomEvent(`{dx, dy}`, `ConstellationCanvas.tsx`의 팬 핸들러가 쏨)를 구독해 감쇠 스프링으로 아주 살짝 흔들리다 멎는 효과를 낸다. 캔버스는 이 파일의 내부를 몰라도 되고(디커플링), 통째로 교체할 때 이 이벤트 구독을 유지하면 드리프트 효과도 함께 유지된다 — 굳이 유지할 필요는 없고, 정적인 배경으로 되돌려도 무방(swap 자유) |
+| `frontend/components/SpaceBackdrop.tsx` | 캔버스 배경 장식(별밭) + 팬 시 비문증(eye-floater) 관성 드리프트 + 별 반짝임(`starTwinkle`) | **props 없는 순수 장식 컴포넌트 — 통째로 교체 가능한 스왑 포인트.** 그래픽 자체에는 로직이 없지만, `window`의 `"ourlab:canvas-pan"` CustomEvent(`{dx, dy}`, `ConstellationCanvas.tsx`의 팬 핸들러가 쏨)를 구독해 감쇠 스프링으로 아주 살짝 흔들리다 멎는 효과를 낸다. 캔버스는 이 파일의 내부를 몰라도 되고(디커플링), 통째로 교체할 때 이 이벤트 구독을 유지하면 드리프트 효과도 함께 유지된다 — 굳이 유지할 필요는 없고, 정적인 배경으로 되돌려도 무방(swap 자유). 별마다 CSS `starTwinkle` 애니메이션(상시, §3-4의 예외)이 걸려 있고 `animationDelay`는 음수로 줘서 마운트 즉시 주기 중간에서 시작한다(양수면 delay가 끝나는 순간 "툭" 튀어 보임) |
 
 ## 2. 컴포넌트 지도 — 장식 vs 로직
 
@@ -29,9 +29,16 @@
    "달성이 안 된다"는 버그가 재발한다.
 3. **배경 장식은 전부 `pointer-events: none`** + 그래프 뒤 레이어. 팬/드래그를 가로채면 안 된다.
 4. **배경에 상시 애니메이션 금지.** 모션은 의미 있는 곳(발광 엣지, 호버 위성)에만 쓴다는 것이
-   하우스 룰. 7,109개 과목이 실리면 프레임 비용도 실제 문제가 된다. 유일한 예외는 팬 제스처가
-   유발하는 비문증 드리프트(§1의 SpaceBackdrop 행) — 에너지가 있을 때만 rAF가 돌고 정착하면
-   루프가 끊겨 유휴 비용이 0이다. 새 상시 모션을 추가하지 말 것.
+   하우스 룰. 7,109개 과목이 실리면 프레임 비용도 실제 문제가 된다. 예외는 세 가지:
+   (1) 팬 제스처가 유발하는 비문증 드리프트(§1의 SpaceBackdrop 행) — 에너지가 있을 때만 rAF가
+   돌고 정착하면 루프가 끊겨 유휴 비용이 0이다.
+   (2) 배경 별의 `starTwinkle`(SpaceBackdrop.tsx) — 별마다 순수 CSS 애니메이션(`opacity`만
+   흔든다)으로 상시 재생된다.
+   (3) 달성 노드의 `spikeBreathe`(ConstellationCanvas.tsx, 십자 회절 스파이크) — 마찬가지로
+   `opacity`만 흔드는 순수 CSS 애니메이션.
+   (2)·(3)은 rAF가 아니라 CSS 애니메이션이므로 (1)과 달리 **유휴 비용이 0이 아니다** — 별/달성
+   노드 개수만큼 상시 재생되는 GPU 합성 레이어가 늘 존재한다(다만 `opacity` 단일 프로퍼티라
+   레이아웃/페인트를 다시 유발하지는 않는다). 이 세 가지 외에 새 상시 모션을 추가하지 말 것.
 5. **`prefers-reduced-motion` 존중.** 새 애니메이션을 넣으면 반드시 이 미디어쿼리로 끌 수 있어야 한다.
 6. **`font-mono`(IBM Plex Mono)를 한글에 쓰지 말 것.** 한글 글리프가 없다. 학정번호·숫자 전용.
 7. **키보드 접근성 유지**: 포커스 링을 제거하려면 대체 표시를 넣을 것. 노드는 Tab 도달

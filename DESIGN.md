@@ -251,11 +251,20 @@ Plex Sans KR이 한글 본문을 담백하게 받친다. 본문 전역에 `word-
 ### Constellation Canvas (signature)
 - SVG+CSS 그래프. 노드 색은 `lib/element-colors.ts`, 이어진 간선은 lit 색 +
   `edgeGlowPulse`(opacity만 애니메이션 — transform 금지, 실버그에서 나온 규칙).
+- 노드 상태: **미완료**는 분광형 색(`element-colors.ts`)으로 이미 켜진 보통 밝기의
+  별(글로우 없음) — 색이 완료의 보상이 아니라 유형 식별이다. **달성**은 더
+  밝아지고(opacity 1) + `const-glow` 발광 필터 + 십자 회절 스파이크
+  (`spikeBreathe`, opacity만 애니메이션, 노드 id로 시드된 위상/주기)가 붙는다 —
+  "승급"이 밝기 하나가 아니라 빛번짐이라는 눈에 띄는 사건으로 읽히는 것이 핵심.
 - 구조·핸들러 규칙 일체는 `docs/design-handoff-guide.md` §2~3이 권위.
 
 ### Motion (컴포넌트 공통 문법)
 - 의미 있는 순간에만: 발광 엣지, 호버 위성, 1회성 aperture 전환, 팬 제스처
-  유발 배경 드리프트. 새 상시 모션 금지.
+  유발 배경 드리프트. 상시 모션은 배경 별 `starTwinkle`과 달성 노드
+  `spikeBreathe` 둘만 예외(둘 다 opacity만 애니메이션) — 이 둘은 rAF가 아니라
+  CSS 애니메이션이라 팬 드리프트(에너지 있을 때만 rAF)와 달리 유휴 비용이
+  0이 아니다(별/달성 노드 수만큼 상시 재생되는 합성 레이어가 존재). 새 상시
+  모션은 더 추가하지 않는다.
 - 표준 이징: `cubic-bezier(.22,1,.36,1)` (sprout, celebratePop 등 등장 모션).
   aperture 전환만 material 표준 `cubic-bezier(0.4,0,0.2,1)` 650ms.
 - 전역 `prefers-reduced-motion` kill switch가 globals.css에 있다 — 새
@@ -272,8 +281,10 @@ Plex Sans KR이 한글 본문을 담백하게 받친다. 본문 전역에 `word-
 
 ### Don't:
 - **Don't** `font-mono`를 한글에 쓰지 않는다 — 글리프가 없다.
-- **Don't** 배경 상시 애니메이션을 추가하지 않는다. 예외 둘: 팬 유발 드리프트,
-  그리고 배경 별의 은은한 twinkle(`starTwinkle`, opacity만 애니메이션).
+- **Don't** 배경 상시 애니메이션을 추가하지 않는다. 예외 셋: 팬 유발 드리프트,
+  배경 별의 은은한 twinkle(`starTwinkle`, opacity만 애니메이션), 달성 노드의
+  십자 회절 스파이크 `spikeBreathe`(opacity만 애니메이션) — 뒤 둘은 CSS
+  애니메이션이라 유휴 비용이 0이 아니다.
 - **Don't** 마스코트·일러스트·게임적 장식·그라데이션 텍스트를 쓰지 않는다.
 - **Don't** `--paper-*`를 관측 표면(캔버스·노드·배경·모달)에 쓰지 않는다 —
   떠 있는 크롬(레일/탭바/패널/툴바) 전용이다.
