@@ -20,10 +20,10 @@ export interface AppShellProps {
 // 오버라이드로는 불가능해서 부득이 셸을 건드렸다. 다른 라우트(/schedule,
 // /profile, 인증 페이지 등)는 이 분기를 타지 않으므로 동작이 전혀 바뀌지 않는다.
 const IMMERSIVE_PREFIXES = ["/constellation"];
-// 메인(피드) 화면도 몰입형과 같은 "떠 있는 섬" 크롬을 쓴다(사용자 지시:
-// "네비도 메인페이지 진입할때는 떠 있어야"). 차이는 하나 - 캔버스처럼 main을
-// 뷰포트에 고정하지 않고, 콘텐츠가 자기 여백을 갖고 일반 스크롤한다.
-const ISLAND_CHROME_ROUTES = ["/", "/feed"];
+// 랜딩("/")만 몰입형과 같은 "떠 있는 섬" 크롬을 쓴다(콘텐츠는 일반 스크롤).
+// /feed는 한때 여기 있었지만 원복됨 - 사용자 지시: "소셜일때도 네비 띄워놔.
+// 서랍장형식으로 닫히는건 별자리 만들기 캔버스에서만이어야함".
+const ISLAND_CHROME_ROUTES = ["/"];
 
 export function AppShell({ children }: AppShellProps) {
   const pathname = usePathname();
