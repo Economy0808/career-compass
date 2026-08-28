@@ -1,4 +1,27 @@
-# 프론트엔드 세션 핸드오프 (2026-08-28 갱신 — 같은 세션 7차)
+# 프론트엔드 세션 핸드오프 (2026-08-29 갱신 — 같은 세션 8차)
+
+> **8차: 다중 사진 게시물 배치(F-P1~P3)** (사용자 원문 "사진 여러장 + 좋아요(노란색
+> 별모양) + 댓글 + 공유", 백엔드 세션 03-code-97과 협업 — 백엔드 정본 `8af3323`):
+> - `acf4df8` — **F-P1 업로드**: 다중 선택≤10(초과 안내·앞 10장), 장별 1080px 리사이즈,
+>   컴포저에 순서 스트립(클릭=미리보기 전환, ✕=장별 제외), 그리드 타일 겹침 배지.
+>   file input의 multiple은 상태 반영 전에 click이 나가서 **DOM에 직접 세팅**.
+> - **F-P2 `components/PostDetail.tsx`(신규 공용)**: 프로필 라이트박스와 퍼머링크가 같은
+>   본문 — 캐러셀(점 인디케이터, imageCount>1일 때만 GET /api/posts/{id}/images 지연
+>   로드 `[{index,imageData}]`→평탄화), **별 좋아요 lit 채움**(POST/DELETE 분리, 채움=
+>   내가 누름, 비로그인=login?next), 실명 댓글(폴백 "관측자", ≤500). 댓글 DELETE
+>   엔드포인트는 존재하나 UI 미배선(스코프 외).
+> - **F-P3 `/post/{postId}` 퍼머링크**: 익명 열람, 404 빈 상태, 작성자 줄(ownerId→프로필
+>   지연 조회), 공유=navigator.share→클립보드 폴백. 라이트박스에도 동일 공유 버튼.
+> - 계약 확정 diff 반영: 생성 `{images(1~10)|imageData}` 둘 중 하나(둘 다면 images 우선),
+>   PostOut+imageCount/likeCount/commentCount/isLiked?(로그인 시만), 상세 {post,comments}
+>   중첩, PostCommentOut에 isMine 없음.
+> - 실검증: 테스트 계정 API로 2장 생성→like→댓글→images(0,1)→상세 일치, 익명 브라우저
+>   퍼머링크 캐러셀·별 카운트·404 실측(검증 글 삭제 완료). ⚠️ PowerShell 5.1
+>   Invoke-RestMethod -Body는 한글을 ISO-8859-1로 깨뜨림 — 한글 body 테스트는 UTF-8
+>   바이트로 보낼 것.
+> - 사용자 QA 추가(로그인 게이트): 다중 선택→스트립→올리기 실사용 왕복.
+> - 세션·피어 모두 사용량 한도로 수차례 재시작됨 — 백엔드 8000(preview backend-mock)은
+>   그때마다 죽으니 재개 시 `preview_start backend-mock` + 라우트 스모크부터.
 
 > **7차: 통합 검수 대응 배치** (백엔드 세션 03-code-97 임페커블 재검수 인계분):
 > - 백엔드 8000 구코드 재시작(preview backend-mock) — C1/S1 라우터 라이브 확인.
