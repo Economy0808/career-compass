@@ -245,6 +245,24 @@ def list_published(db: Client, limit: int = 20) -> list[Constellation]:
     return [_snapshot_to_constellation(doc) for doc in query.stream()]
 
 
+def list_published_by_owner(db: Client, owner_id: str, limit: int = 30) -> list[Constellation]:
+    """특정 유저가 발행한 별자리만 최신 수정순으로 최대 limit개 반환한다 (프로필 갤러리용).
+
+    owner_id==X AND is_published==true 복합 등호 필터 + updated_at 정렬이라
+    firestore.indexes.json에 (owner_id ASC, is_published ASC, updated_at DESC)
+    복합 인덱스가 필요하다(추가해둠) - list_published(단일 등호 필터)와 달리
+    등호 필터가 두 개라 기존 (owner_id, updated_at) 인덱스로는 커버되지 않는다.
+    """
+    query = (
+        db.collection(_COLLECTION)
+        .where(filter=FieldFilter("owner_id", "==", owner_id))
+        .where(filter=FieldFilter("is_published", "==", True))
+        .order_by("updated_at", direction=gcf.Query.DESCENDING)
+        .limit(limit)
+    )
+    return [_snapshot_to_constellation(doc) for doc in query.stream()]
+
+
 def load_owned_in_transaction(
     transaction: Transaction,
     doc_ref: Any,
@@ -322,6 +340,30 @@ def update_node_position(
         constellation.updated_at = now
         update_data: dict[str, Any] = {
             _node_path(node_id, "position"): position.model_dump(),
+            "updated_at": now,
+        }
+        return constellation, update_data
+
+    return _run_owned_transaction(db, constellation_id, owner_id, _mutate)
+
+
+def update_node_color(
+    db: Client,
+    constellation_id: str,
+    node_id: str,
+    color: str | None,
+    owner_id: str,
+) -> Constellation:
+    """노드 색상만 dot-notation 부분 업데이트로 갱신한다 (update_node_position과 동일 패턴)."""
+
+    def _mutate(constellation: Constellation) -> tuple[Constellation, dict[str, Any]]:
+        if node_id not in constellation.nodes:
+            raise NodeNotFoundError(node_id)
+        now = datetime.now(UTC)
+        constellation.nodes[node_id].color = color
+        constellation.updated_at = now
+        update_data: dict[str, Any] = {
+            _node_path(node_id, "color"): color,
             "updated_at": now,
         }
         return constellation, update_data
@@ -453,12 +495,21 @@ def remove_edge(db: Client, constellation_id: str, edge_id: str, owner_id: str) 
 
 
 def set_published(
-    db: Client, constellation_id: str, is_published: bool, owner_id: str
+    db: Client,
+    constellation_id: str,
+    is_published: bool,
+    owner_id: str,
+    *,
+    title: str | None = None,
+    description: str | None = None,
+    contributors: list[str] | None = None,
 ) -> Constellation:
-    """별자리의 공개 여부를 설정한다.
+    """별자리의 공개 여부와 발행 메타(title/description/contributors)를 설정한다.
 
-    is_published를 True/False로 설정하고 updated_at을 현재 시각으로 갱신한다.
-    트랜잭션으로 원자성을 보장한다.
+    title/description/contributors는 None이면 기존 값을 그대로 두고, 값이 온
+    필드만 갱신한다(부분 갱신 의미론 - API 스키마 PublishPatchIn의 규약과 동일).
+    is_published는 항상 갱신 대상이다(이 필드 자체가 이 함수의 필수 인자이므로
+    "값이 왔는지"를 구분할 필요가 없다). 트랜잭션으로 원자성을 보장한다.
     """
 
     def _mutate(constellation: Constellation) -> tuple[Constellation, dict[str, Any]]:
@@ -469,6 +520,15 @@ def set_published(
             "is_published": is_published,
             "updated_at": now,
         }
+        if title is not None:
+            constellation.title = title
+            update_data["title"] = title
+        if description is not None:
+            constellation.description = description
+            update_data["description"] = description
+        if contributors is not None:
+            constellation.contributors = contributors
+            update_data["contributors"] = contributors
         return constellation, update_data
 
     return _run_owned_transaction(db, constellation_id, owner_id, _mutate)

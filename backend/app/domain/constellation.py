@@ -33,6 +33,13 @@ class NodeTypes:
 
 NodeOrigin = Literal["llm_suggested", "user_added"]
 
+# 노드 커스텀 색상 hex 패턴. 프론트 팔레트가 "#RRGGBB" 형식만 보내므로 그 외
+# 형식(짧은 hex, 색상명, alpha 채널 등)은 422로 거부한다. 스키마 계층(NodeCreateIn/
+# ColorPatchIn)과 이 도메인 모델 양쪽에 동일 패턴을 걸어둔다 - 스키마 쪽이 실제
+# HTTP 422 응답을 만들어내는 지점이고, 도메인 쪽은 Node를 직접 생성하는 다른
+# 호출부(테스트 등)에도 같은 불변식을 강제하기 위한 이중 방어선이다.
+NODE_COLOR_PATTERN = r"^#[0-9a-fA-F]{6}$"
+
 # 군집(bin)의 출처. NodeOrigin("llm_suggested"/"user_added")과는 값 집합이 다르다 -
 # 프론트엔드 Bin.origin 계약("llm"|"user")을 그대로 따른다. 두 Literal을 하나로
 # 합치면 안 된다: 노드와 빈은 서로 다른 프론트엔드 타입이고, 값 문자열 자체가
@@ -71,6 +78,8 @@ class Node(BaseModel):
     # notes 서브컬렉션 문서 수의 비정규화 캐시. note_repo가 노트 생성/삭제
     # 트랜잭션 안에서 함께 갱신해 정합성을 유지한다.
     note_count: int = 0
+    # 프론트 팔레트에서 고른 커스텀 색상. None이면 프론트가 타입별 기본 색을 쓴다.
+    color: str | None = Field(default=None, pattern=NODE_COLOR_PATTERN)
 
 
 class Edge(BaseModel):
@@ -140,6 +149,10 @@ class Constellation(BaseModel):
     # Pydantic 기본값으로 빈 리스트가 채워져야 한다(회귀 방지 - CRITICAL).
     bins: list[Bin] = Field(default_factory=list)
     is_published: bool = False
+    # 발행 시 부가 메타. 둘 다 이 필드 도입 이전 구 문서에는 키 자체가 없으므로
+    # 기본값(None/빈 리스트)으로 흡수되어야 한다(bins와 동일한 역호환 이유).
+    description: str | None = None
+    contributors: list[str] = Field(default_factory=list)
     created_at: datetime
     updated_at: datetime
 

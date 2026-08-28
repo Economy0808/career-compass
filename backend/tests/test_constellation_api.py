@@ -294,6 +294,72 @@ async def test_node_add_position_completion_flow(authed_as: Callable[[str], None
 
 
 @pytest.mark.asyncio
+async def test_node_color_saved_on_create_and_mutation_updates_it(
+    authed_as: Callable[[str], None],
+) -> None:
+    authed_as("user-a")
+    async with _client() as client:
+        cid = (
+            await client.post(
+                "/api/constellations", json={"title": "색상 흐름", "goalRawText": "x"}
+            )
+        ).json()["id"]
+
+        resp = await client.post(
+            f"/api/constellations/{cid}/nodes",
+            json={
+                "id": "n1",
+                "label": "n1",
+                "type": "course",
+                "position": {"x": 0, "y": 0},
+                "color": "#FF00AA",
+            },
+        )
+        assert resp.status_code == 201
+        assert resp.json()["nodes"]["n1"]["color"] == "#FF00AA"
+
+        resp = await client.patch(
+            f"/api/constellations/{cid}/nodes/n1/color",
+            json={"color": "#00ff00"},
+        )
+        assert resp.status_code == 200
+        assert resp.json()["nodes"]["n1"]["color"] == "#00ff00"
+
+
+@pytest.mark.asyncio
+async def test_node_color_invalid_pattern_returns_422(authed_as: Callable[[str], None]) -> None:
+    authed_as("user-a")
+    async with _client() as client:
+        cid = (
+            await client.post(
+                "/api/constellations", json={"title": "색상 검증", "goalRawText": "x"}
+            )
+        ).json()["id"]
+        await client.post(
+            f"/api/constellations/{cid}/nodes",
+            json={"id": "n1", "label": "n1", "type": "course", "position": {"x": 0, "y": 0}},
+        )
+
+        resp = await client.patch(
+            f"/api/constellations/{cid}/nodes/n1/color",
+            json={"color": "red"},
+        )
+        assert resp.status_code == 422
+
+        resp = await client.post(
+            f"/api/constellations/{cid}/nodes",
+            json={
+                "id": "n2",
+                "label": "n2",
+                "type": "course",
+                "position": {"x": 0, "y": 0},
+                "color": "#fff",
+            },
+        )
+        assert resp.status_code == 422
+
+
+@pytest.mark.asyncio
 async def test_remove_unknown_node_returns_404(authed_as: Callable[[str], None]) -> None:
     authed_as("user-a")
     async with _client() as client:
@@ -672,6 +738,97 @@ async def test_publish_by_owner_returns_200_with_is_published_true(
 
 
 @pytest.mark.asyncio
+async def test_publish_with_meta_sets_description_and_contributors(
+    authed_as: Callable[[str], None],
+) -> None:
+    authed_as("user-a")
+    async with _client() as client:
+        cid = (
+            await client.post(
+                "/api/constellations", json={"title": "메타 발행", "goalRawText": "x"}
+            )
+        ).json()["id"]
+
+        resp = await client.patch(
+            f"/api/constellations/{cid}/publish",
+            json={
+                "isPublished": True,
+                "title": "새 제목",
+                "description": "이 별자리는 이런 목표를 위한 것입니다.",
+                "contributors": ["철수", "영희"],
+            },
+        )
+        assert resp.status_code == 200
+        data = resp.json()
+        assert data["isPublished"] is True
+        assert data["title"] == "새 제목"
+        assert data["description"] == "이 별자리는 이런 목표를 위한 것입니다."
+        assert data["contributors"] == ["철수", "영희"]
+
+
+@pytest.mark.asyncio
+async def test_publish_without_meta_fields_keeps_existing_values(
+    authed_as: Callable[[str], None],
+) -> None:
+    """title/description/contributors를 안 보내면(None) 기존 값을 그대로 유지해야 한다."""
+    authed_as("user-a")
+    async with _client() as client:
+        cid = (
+            await client.post(
+                "/api/constellations", json={"title": "원래 제목", "goalRawText": "x"}
+            )
+        ).json()["id"]
+        await client.patch(
+            f"/api/constellations/{cid}/publish",
+            json={"isPublished": True, "description": "첫 설명", "contributors": ["철수"]},
+        )
+
+        # isPublished만 다시 보냄 - 나머지 필드는 유지되어야 한다.
+        resp = await client.patch(f"/api/constellations/{cid}/publish", json={"isPublished": True})
+        assert resp.status_code == 200
+        data = resp.json()
+        assert data["title"] == "원래 제목"
+        assert data["description"] == "첫 설명"
+        assert data["contributors"] == ["철수"]
+
+
+@pytest.mark.asyncio
+async def test_publish_contributor_too_long_returns_422(
+    authed_as: Callable[[str], None],
+) -> None:
+    authed_as("user-a")
+    async with _client() as client:
+        cid = (
+            await client.post("/api/constellations", json={"title": "긴 이름", "goalRawText": "x"})
+        ).json()["id"]
+
+        resp = await client.patch(
+            f"/api/constellations/{cid}/publish",
+            json={"isPublished": True, "contributors": ["가" * 41]},
+        )
+        assert resp.status_code == 422
+
+
+@pytest.mark.asyncio
+async def test_publish_too_many_contributors_returns_422(
+    authed_as: Callable[[str], None],
+) -> None:
+    authed_as("user-a")
+    async with _client() as client:
+        cid = (
+            await client.post(
+                "/api/constellations", json={"title": "너무 많음", "goalRawText": "x"}
+            )
+        ).json()["id"]
+
+        resp = await client.patch(
+            f"/api/constellations/{cid}/publish",
+            json={"isPublished": True, "contributors": [f"c{i}" for i in range(11)]},
+        )
+        assert resp.status_code == 422
+
+
+@pytest.mark.asyncio
 async def test_publish_by_non_owner_returns_403(
     authed_as: Callable[[str], None],
 ) -> None:
@@ -806,3 +963,81 @@ async def test_feed_allows_anonymous_access(authed_as: Callable[[str], None]) ->
         assert resp.status_code == 200
         ids = {item["constellation"]["id"] for item in resp.json()}
         assert cid in ids
+
+
+# --- 유저 갤러리 (프로필 화면용 발행 목록) ---
+
+
+@pytest.mark.asyncio
+async def test_user_gallery_returns_only_published_for_that_uid(
+    authed_as: Callable[[str], None],
+) -> None:
+    authed_as("user-a")
+    async with _client() as client:
+        published = (
+            await client.post("/api/constellations", json={"title": "발행됨", "goalRawText": "x"})
+        ).json()["id"]
+        unpublished = (
+            await client.post("/api/constellations", json={"title": "미발행", "goalRawText": "x"})
+        ).json()["id"]
+        await client.patch(f"/api/constellations/{published}/publish", json={"isPublished": True})
+
+    authed_as("user-b")
+    async with _client() as client:
+        other_published = (
+            await client.post(
+                "/api/constellations", json={"title": "다른 유저 발행", "goalRawText": "x"}
+            )
+        ).json()["id"]
+        await client.patch(
+            f"/api/constellations/{other_published}/publish", json={"isPublished": True}
+        )
+
+    async with _client() as client:
+        resp = await client.get("/api/constellations/user/user-a")
+        assert resp.status_code == 200
+        ids = {c["id"] for c in resp.json()}
+        assert published in ids
+        assert unpublished not in ids
+        assert other_published not in ids
+
+
+@pytest.mark.asyncio
+async def test_user_gallery_allows_anonymous_access(authed_as: Callable[[str], None]) -> None:
+    authed_as("user-a")
+    async with _client() as client:
+        cid = (
+            await client.post(
+                "/api/constellations", json={"title": "익명 갤러리", "goalRawText": "x"}
+            )
+        ).json()["id"]
+        await client.patch(f"/api/constellations/{cid}/publish", json={"isPublished": True})
+
+    app.dependency_overrides.clear()
+    async with _client() as client:
+        resp = await client.get("/api/constellations/user/user-a")
+        assert resp.status_code == 200
+        assert cid in {c["id"] for c in resp.json()}
+
+
+@pytest.mark.asyncio
+async def test_user_gallery_route_does_not_shadow_constellation_id_route(
+    authed_as: Callable[[str], None],
+) -> None:
+    """/user/{uid}가 /{constellation_id}보다 먼저 매칭되어야 한다 - constellation_id로
+    실제 문서 id를 넣었을 때 "user" 갤러리 라우트와 충돌 없이 정상 조회되어야 한다."""
+    authed_as("user-a")
+    async with _client() as client:
+        cid = (
+            await client.post(
+                "/api/constellations", json={"title": "라우트 충돌 확인", "goalRawText": "x"}
+            )
+        ).json()["id"]
+
+        resp = await client.get(f"/api/constellations/{cid}")
+        assert resp.status_code == 200
+        assert resp.json()["id"] == cid
+
+        resp = await client.get("/api/constellations/user/user-a")
+        assert resp.status_code == 200
+        assert isinstance(resp.json(), list)

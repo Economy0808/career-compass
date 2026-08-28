@@ -25,6 +25,7 @@ from pydantic import BaseModel, ConfigDict, Field, field_validator
 from pydantic.alias_generators import to_camel
 
 from app.domain.constellation import (
+    NODE_COLOR_PATTERN,
     Bin,
     BinItem,
     BinOrigin,
@@ -42,6 +43,10 @@ from app.domain.constellation import (
 # 규모를 벗어나면 성능이 저하된다).
 _MAX_BINS = 30
 _MAX_ITEMS_PER_BIN = 50
+
+# PublishPatchIn.contributors 용량 제한 - 닉네임 문자열 항목당 40자, 최대 10개.
+_MAX_CONTRIBUTORS = 10
+_MAX_CONTRIBUTOR_LEN = 40
 
 # NoteAttachment.url이 허용하는 스킴. 저장된 노트가 나중에 공개될 수 있으므로
 # javascript: 등 위험한 스킴은 거부한다.
@@ -134,6 +139,7 @@ class NodeCreateIn(_CamelModel):
     level: int | None = None
     source_ref: str | None = None
     position: PositionIn
+    color: str | None = Field(default=None, pattern=NODE_COLOR_PATTERN)
 
 
 class NodeOut(_CamelModel):
@@ -151,6 +157,7 @@ class NodeOut(_CamelModel):
     origin: NodeOrigin
     created_at: int
     note_count: int | None = None
+    color: str | None = None
 
 
 def node_to_out(node: Node) -> NodeOut:
@@ -168,6 +175,7 @@ def node_to_out(node: Node) -> NodeOut:
         created_at=to_epoch_ms(node.created_at),
         # 0이면 응답에서 아예 빼야 하므로 None으로 치환한다 (모듈 docstring 참고).
         note_count=node.note_count or None,
+        color=node.color,
     )
 
 
@@ -186,6 +194,7 @@ def node_from_create_in(payload: NodeCreateIn, *, created_at: datetime) -> Node:
         origin="user_added",
         created_at=created_at,
         note_count=0,
+        color=payload.color,
     )
 
 
@@ -357,6 +366,8 @@ class ConstellationOut(_CamelModel):
     edges: dict[str, EdgeOut]
     bins: list[BinOut]
     is_published: bool
+    description: str | None = None
+    contributors: list[str] = Field(default_factory=list)
     created_at: int
     updated_at: int
 
@@ -371,6 +382,8 @@ def constellation_to_out(constellation: Constellation) -> ConstellationOut:
         edges={eid: edge_to_out(e) for eid, e in constellation.edges.items()},
         bins=[bin_to_out(b) for b in constellation.bins],
         is_published=constellation.is_published,
+        description=constellation.description,
+        contributors=constellation.contributors,
         created_at=to_epoch_ms(constellation.created_at),
         updated_at=to_epoch_ms(constellation.updated_at),
     )
@@ -402,8 +415,30 @@ class CompletionPatchIn(_CamelModel):
     is_completed: bool
 
 
+class ColorPatchIn(_CamelModel):
+    """노드 색상 갱신 요청. 빈 문자열/색상명이 아니라 "#RRGGBB" hex만 허용한다."""
+
+    color: str = Field(pattern=NODE_COLOR_PATTERN)
+
+
 class PublishPatchIn(_CamelModel):
+    """발행 상태 + 메타 갱신 요청. title/description/contributors는 값이 온 필드만
+    반영한다 - None이면 기존 값을 그대로 유지한다(부분 갱신 의미론)."""
+
     is_published: bool
+    title: str | None = None
+    description: str | None = None
+    contributors: list[str] | None = Field(default=None, max_length=_MAX_CONTRIBUTORS)
+
+    @field_validator("contributors")
+    @classmethod
+    def _check_contributor_length(cls, v: list[str] | None) -> list[str] | None:
+        if v is None:
+            return v
+        for name in v:
+            if len(name) > _MAX_CONTRIBUTOR_LEN:
+                raise ValueError(f"contributor 이름은 {_MAX_CONTRIBUTOR_LEN}자를 넘을 수 없습니다.")
+        return v
 
 
 class BinsPutIn(_CamelModel):

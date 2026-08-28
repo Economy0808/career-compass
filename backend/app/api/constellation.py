@@ -31,6 +31,7 @@ from app.firestore.constellation_repo import (
 from app.firestore.note_repo import NoteNotFoundError
 from app.schemas.constellation import (
     BinsPutIn,
+    ColorPatchIn,
     CompletionPatchIn,
     ConstellationCreateIn,
     ConstellationOut,
@@ -166,6 +167,24 @@ async def get_feed(
     return items
 
 
+@router.get("/user/{uid}", response_model=list[ConstellationOut], response_model_exclude_none=True)
+async def list_user_gallery(
+    uid: str,
+    user: DecodedToken | None = Depends(get_current_user_optional),
+    db: Client = Depends(get_firestore_client),
+) -> list[ConstellationOut]:
+    """특정 유저가 발행한 별자리 갤러리 (프로필 화면용, 최신 수정순, 최대 30개).
+
+    발행된 별자리는 공개 데이터이므로 get_feed와 동일하게 익명 요청도 허용한다.
+
+    ROUTE ORDER: 반드시 GET /{constellation_id}보다 먼저 선언해야 한다 - 그렇지
+    않으면 FastAPI가 "user"를 constellation_id 경로 파라미터로 매칭한다
+    (get_feed의 "feed"와 동일한 함정).
+    """
+    constellations = constellation_repo.list_published_by_owner(db, uid, limit=30)
+    return [constellation_to_out(c) for c in constellations]
+
+
 @router.get(
     "/{constellation_id}", response_model=ConstellationOut, response_model_exclude_none=True
 )
@@ -199,7 +218,13 @@ async def set_published(
     db: Client = Depends(get_firestore_client),
 ) -> ConstellationOut:
     updated = _translate_repo_errors(constellation_repo.set_published)(
-        db, constellation_id, payload.is_published, user.uid
+        db,
+        constellation_id,
+        payload.is_published,
+        user.uid,
+        title=payload.title,
+        description=payload.description,
+        contributors=payload.contributors,
     )
     return constellation_to_out(updated)
 
@@ -274,6 +299,24 @@ async def update_node_position(
     position = Position(x=payload.position.x, y=payload.position.y)
     updated = _translate_repo_errors(constellation_repo.update_node_position)(
         db, constellation_id, node_id, position, user.uid
+    )
+    return constellation_to_out(updated)
+
+
+@router.patch(
+    "/{constellation_id}/nodes/{node_id}/color",
+    response_model=ConstellationOut,
+    response_model_exclude_none=True,
+)
+async def update_node_color(
+    constellation_id: str,
+    node_id: str,
+    payload: ColorPatchIn,
+    user: DecodedToken = Depends(get_current_user),
+    db: Client = Depends(get_firestore_client),
+) -> ConstellationOut:
+    updated = _translate_repo_errors(constellation_repo.update_node_color)(
+        db, constellation_id, node_id, payload.color, user.uid
     )
     return constellation_to_out(updated)
 
