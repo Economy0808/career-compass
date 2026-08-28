@@ -1,4 +1,37 @@
-# 백엔드 세션 핸드오프 (2026-08-27 작성, 2026-08-28 6차 갱신)
+# 백엔드 세션 핸드오프 (2026-08-27 작성, 2026-08-28 7차 갱신)
+
+> **7차 (저녁) — 신기능 4건: 섬 크롬 + Edit 색 모드 + 프로필 인스타화 + 띄우기/뷰어 (+팔로우 Firestore 이관)**
+> 두 세션 공동(백엔드=03-code-a0, 프론트=03-code-19, SendMessage 조정). 사용자 원칙 추가:
+> **"판단은 효율이 아니라 효과성"** — 팔로우 이관을 미루지 않고 이번에 포함(옵션 1 추천을 지적받음).
+> - **백엔드**: `a8fa8ab` Node.color(#RRGGBB 검증)+발행 메타(PublishPatchIn: title/description/
+>   contributors ≤10×40자, 생략=유지·[]=비움)+`GET /constellations/user/{uid}`(발행물, 익명,
+>   복합 인덱스 firestore.indexes.json 추가 — **배포 시 인덱스 반영 필요**) · `6765735` 팔로우
+>   이관: `/api/profiles` prefix(GET {uid}·PATCH me·POST/DELETE {uid}/follow, isFollowing은
+>   로그인+타인일 때만 키 존재), follows/{follower}_{followee}+카운트 비정규화. **레거시
+>   /api/users는 일정 전용으로 축소(살아있음), 구 팔로우/bio 데이터는 폐기 확정**.
+> - **프론트(이 세션)**: `86ed1eb` 섬 크롬 — 몰입형에서 SideRail 제거, 좌상단 로고+Yonsei
+>   Community, 좌하단 서랍→NavIsland(islandExpand 220ms), 패널 접기, 종이 paper-soft/95 톤다운,
+>   툴바 상단 중앙 · `165496f` F1 API 클라이언트 · `a544ffe`+`b768ccc` Edit 모드(onNodeActivate/
+>   suppressInfoCard prop, ColorPaletteBar 7색=기존 토큰 hex, 낙관적+patchNodeColor 큐, 미저장은
+>   생성 경로 color 관통)+LaunchModal(블러+섬 창, Contributor 칩, 비로그인 안내, **발행 행위를
+>   모달로 일원화** — 툴바 발행 토글 제거) · `f903f2e` 사문 삭제 · `8b9eb46` 검수 반영(모바일
+>   서랍 숨김, 스와치 잉크 링, 팔레트 열림 시 모바일 CTA 숨김, alert→발행 칩 glow-bloom 2.6s,
+>   인증 전 칩 paper 대비, readOnly aria-pressed 생략, **DESIGN.md 모달 이원화 명문화**: 섬 모달
+>   =paper/관측 모달=ink — 사용자 원문 "섬 스타일 창"이 근거).
+> - **프론트(피어 위임)**: `ff18afa` node.color 폴백 5곳 일원화 · `15b6657` 뷰어
+>   /constellation/{cid}(readOnly, 노트 UI 미포함 — 공개 노트 정책 미정) · `7a520f2` readOnly
+>   인터랙션(클릭→정보 카드 허용, activateNode TDZ로 위치 이동) · `a3b54e4` 프로필 인스타
+>   그리드 · `025d068` profiles-api.ts+팔로우 실배선+뷰어 작성자(profiles 조회, 404→"알 수 없는
+>   관측자") · `fc1964a` 뷰어 카드 모바일 클램프 · `ab1cac0` gitignore.
+> - **QA 실측(익명 범위, Playwright)**: 섬 크롬·네비 섬·편집⇄완성·팔레트(#FFA76B fill 검증)·
+>   스와치 링·띄우기 모달 로그인 안내·/feed 익명 200 전부 정상. **사용자 로그인 QA 목록**:
+>   ①프로필 인스타 그리드+팔로우 왕복 ②띄우기 모달 필드 입력→발행→프로필/피드/뷰어 노출
+>   ③뷰어 모바일 375px 정보 카드 ④기존 별자리 배지 ⑤발행 glow 모멘트.
+> - 함정 추가: 합성 pointerdown 디스패치는 setPointerCapture에서 죽음(실 클릭으로 테스트) ·
+>   next build가 tsconfig.json 재포맷(커밋 금지) · 서브에이전트가 남긴 전체 pytest 고아가
+>   에뮬레이터를 계속 초기화(발견 즉시 kill) · 피어 빌드는 .next-build(한 번 .next 오염 사고).
+> - 다음 후보: 공개 노트 뷰어 노출 정책, Contributor uid 연계+사용자 검색, 계정 삭제 Firebase
+>   이관(DangerZone 구 의존), firestore.indexes.json 배포, 실 LLM 스모크.
 
 > **6차 (오후) — 사용자 6건 배치: 전환 무깜빡임 + 소셜/feed + 별·노드 시각 언어 + 종이 크롬**
 > (커밋 `a6033b1`~`b5e6622` 8개, Playwright 실완주 검증 — 브라우저 패널 숨김 상태라
