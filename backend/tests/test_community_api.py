@@ -86,9 +86,9 @@ async def test_list_boards_returns_six_with_secret_forced_anonymous() -> None:
     boards = resp.json()
     assert {b["id"] for b in boards} == {"free", "secret", "question", "info", "career", "promo"}
     secret = next(b for b in boards if b["id"] == "secret")
-    assert secret["forceAnonymous"] is True
+    assert secret["forcedAnonymous"] is True
     free = next(b for b in boards if b["id"] == "free")
-    assert free["forceAnonymous"] is False
+    assert free["forcedAnonymous"] is False
 
 
 # --- 게시판 유효성 ---

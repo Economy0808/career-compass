@@ -27,12 +27,18 @@ class _CamelModel(BaseModel):
 
 
 class BoardOut(_CamelModel):
-    """게시판 상수 응답."""
+    """게시판 상수 응답.
+
+    와이어 필드명은 `forcedAnonymous`다(프론트 세션 합의 - 비밀 게시판의 실명 체크박스
+    제거 판정에 이 정확한 이름을 쓴다). 도메인 모델(app/domain/community.py)의 내부
+    필드명은 force_anonymous 그대로 두고, 여기서만 forced_anonymous로 이름을 맞춰
+    to_camel이 정확히 forcedAnonymous로 변환하게 한다.
+    """
 
     id: str
     name: str
     description: str
-    force_anonymous: bool
+    forced_anonymous: bool
 
 
 class CommunityPostCreateIn(_CamelModel):

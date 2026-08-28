@@ -105,7 +105,9 @@ def _to_comment_out(comment: CommunityComment, *, requester_uid: str | None) -> 
 async def list_boards() -> list[BoardOut]:
     """게시판 상수 목록을 반환한다. 인증 불요."""
     return [
-        BoardOut(id=b.id, name=b.name, description=b.description, force_anonymous=b.force_anonymous)
+        BoardOut(
+            id=b.id, name=b.name, description=b.description, forced_anonymous=b.force_anonymous
+        )
         for b in BOARDS
     ]
 
