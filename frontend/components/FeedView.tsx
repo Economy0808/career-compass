@@ -126,7 +126,7 @@ function FeedPostCard({
             disabled={liking}
             aria-label={post.isLiked ? "좋아요 취소" : "좋아요"}
             aria-pressed={post.isLiked === true}
-            className="flex items-center gap-1.5 rounded-md p-1.5 text-text-lo transition-colors hover:bg-ink-700 hover:text-text-hi focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-1 focus-visible:outline-spec-b"
+            className="flex min-h-11 items-center gap-1.5 rounded-md px-2 text-text-lo transition-colors hover:bg-ink-700 hover:text-text-hi focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-1 focus-visible:outline-spec-b"
           >
             <LikeStarIcon filled={post.isLiked === true} size={20} />
             <span className="font-mono text-body-sm">{post.likeCount ?? 0}</span>
@@ -135,7 +135,7 @@ function FeedPostCard({
             type="button"
             onClick={() => void handleShare()}
             aria-label="공유"
-            className="rounded-md p-1.5 text-text-lo transition-colors hover:bg-ink-700 hover:text-text-hi focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-1 focus-visible:outline-spec-b"
+            className="flex h-11 w-11 items-center justify-center rounded-md text-text-lo transition-colors hover:bg-ink-700 hover:text-text-hi focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-1 focus-visible:outline-spec-b"
           >
             <ShareIcon size={18} />
           </button>
@@ -210,9 +210,11 @@ export function FeedView() {
     <div className="mx-auto max-w-lg px-4 py-10 md:px-6">
       <header className="mb-6 flex flex-col gap-1.5">
         <h1 className="font-serif text-display font-bold text-text-hi">소셜</h1>
-        <span className="text-caption tracking-[0.14em] text-text-lo">
-          <span className="font-mono">FIELD NOTE · {posts.length}</span>
-          <span className="font-sans">개의 게시물</span>
+        {/* 검수 4·5번: tracking은 한글에 안 얹고, 영어 장식 어구 대신 수 메타만. */}
+        <span className="text-caption text-text-lo">
+          <span className="font-sans">게시물 </span>
+          <span className="font-mono tracking-[0.14em]">{posts.length}</span>
+          <span className="font-sans">개</span>
         </span>
       </header>
 

@@ -29,8 +29,14 @@ function CardSkeleton() {
   );
 }
 
+/** 카드당 칩 상한 - 좁은 카드(aspect-[3/4] 유지, 사용자 지시 형태)에서 칩이
+ * 넘치며 이름 span을 높이 0까지 압축하던 검수 버그의 방어선. */
+const CHIP_MAX = 4;
+
 function UserCard({ user }: { user: ExploreUserDto }) {
   const common = new Set(user.commonTags ?? []);
+  const shownTags = user.interestTags.slice(0, CHIP_MAX);
+  const hiddenCount = user.interestTags.length - shownTags.length;
   return (
     <Link
       href={`/profile/${user.uid}`}
@@ -39,18 +45,20 @@ function UserCard({ user }: { user: ExploreUserDto }) {
       <span className="flex h-16 w-16 shrink-0 items-center justify-center rounded-full border border-rule bg-ink-900 text-[30px] md:h-20 md:w-20 md:text-[34px]">
         {user.avatarEmoji ?? "🔭"}
       </span>
-      <span className="mt-3 w-full truncate text-center font-sans text-body-sm font-semibold text-text-hi">
+      {/* shrink-0: 내용이 넘칠 때 flex가 텍스트부터 압축해 이름이 사라지는
+          것 방지(검수 1번). */}
+      <span className="mt-3 w-full shrink-0 truncate text-center font-sans text-body-sm font-semibold text-text-hi">
         {user.displayName ?? "이름 없는 관측자"}
       </span>
       {user.bio && (
-        <span className="mt-1 line-clamp-2 w-full text-center text-caption leading-snug text-text-lo">
+        <span className="mt-1 line-clamp-2 w-full shrink-0 text-center text-caption leading-snug text-text-lo">
           {user.bio}
         </span>
       )}
       {/* 관심사 칩 - 발행 별자리 요소 빈도 상위. 공통 태그는 lit(새 별빛). */}
-      {user.interestTags.length > 0 && (
+      {shownTags.length > 0 && (
         <span className="mt-auto flex w-full flex-wrap justify-center gap-1 pt-3">
-          {user.interestTags.map((tag) => (
+          {shownTags.map((tag) => (
             <span
               key={tag}
               className={
@@ -63,6 +71,11 @@ function UserCard({ user }: { user: ExploreUserDto }) {
               {tag}
             </span>
           ))}
+          {hiddenCount > 0 && (
+            <span className="rounded-full border border-rule px-2 py-0.5 font-mono text-micro text-text-lo">
+              +{hiddenCount}
+            </span>
+          )}
         </span>
       )}
     </Link>

@@ -16,7 +16,7 @@
  */
 
 import { useRouter } from "next/navigation";
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { Button, EmptyState, Field } from "@/components/ui";
 import { useAuth } from "@/lib/auth-context";
 import { relativeTimeKo } from "@/lib/format";
@@ -103,30 +103,58 @@ export function PostImageCarousel({
 }) {
   const [index, setIndex] = useState(0);
   const current = slides[Math.min(index, slides.length - 1)];
+  // 모바일 터치 스와이프(검수 2번) - 40px 이상 가로 이동이면 넘김.
+  const touchStartX = useRef<number | null>(null);
+
+  function prev() {
+    setIndex((i) => Math.max(0, i - 1));
+  }
+  function next() {
+    setIndex((i) => Math.min(slides.length - 1, i + 1));
+  }
 
   return (
-    <div className="relative">
+    <div
+      className="relative"
+      onTouchStart={(e) => {
+        touchStartX.current = e.touches[0]?.clientX ?? null;
+      }}
+      onTouchEnd={(e) => {
+        const start = touchStartX.current;
+        touchStartX.current = null;
+        if (start === null || slides.length <= 1) return;
+        const dx = (e.changedTouches[0]?.clientX ?? start) - start;
+        if (Math.abs(dx) < 40) return;
+        if (dx < 0) next();
+        else prev();
+      }}
+    >
       {/* eslint-disable-next-line @next/next/no-img-element -- data URL은 next/image 최적화 대상이 아니다 */}
       <img src={current} alt={alt} className="max-h-[56vh] w-full rounded-md bg-ink-900 object-contain" />
       {slides.length > 1 && (
         <>
+          {/* 화살표: 44px 히트 영역(버튼) 안에 기존 시각 원(스팬) 유지(검수 2번). */}
           <button
             type="button"
             aria-label="이전 사진"
-            onClick={() => setIndex((i) => Math.max(0, i - 1))}
+            onClick={prev}
             disabled={index === 0}
-            className="absolute left-1.5 top-1/2 -translate-y-1/2 rounded-full bg-ink-900/70 p-1.5 text-text-hi backdrop-blur-sm transition-opacity disabled:opacity-30"
+            className="absolute left-0 top-1/2 flex h-11 w-11 -translate-y-1/2 items-center justify-center text-text-hi transition-opacity disabled:opacity-30"
           >
-            <svg width="16" height="16" viewBox="0 0 24 24" fill="transparent" stroke="currentColor" strokeWidth="2" strokeLinecap="round" aria-hidden><path d="M15 5 L8 12 L15 19" /></svg>
+            <span className="flex rounded-full bg-ink-900/70 p-1.5 backdrop-blur-sm">
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="transparent" stroke="currentColor" strokeWidth="2" strokeLinecap="round" aria-hidden><path d="M15 5 L8 12 L15 19" /></svg>
+            </span>
           </button>
           <button
             type="button"
             aria-label="다음 사진"
-            onClick={() => setIndex((i) => Math.min(slides.length - 1, i + 1))}
+            onClick={next}
             disabled={index >= slides.length - 1}
-            className="absolute right-1.5 top-1/2 -translate-y-1/2 rounded-full bg-ink-900/70 p-1.5 text-text-hi backdrop-blur-sm transition-opacity disabled:opacity-30"
+            className="absolute right-0 top-1/2 flex h-11 w-11 -translate-y-1/2 items-center justify-center text-text-hi transition-opacity disabled:opacity-30"
           >
-            <svg width="16" height="16" viewBox="0 0 24 24" fill="transparent" stroke="currentColor" strokeWidth="2" strokeLinecap="round" aria-hidden><path d="M9 5 L16 12 L9 19" /></svg>
+            <span className="flex rounded-full bg-ink-900/70 p-1.5 backdrop-blur-sm">
+              <svg width="16" height="16" viewBox="0 0 24 24" fill="transparent" stroke="currentColor" strokeWidth="2" strokeLinecap="round" aria-hidden><path d="M9 5 L16 12 L9 19" /></svg>
+            </span>
           </button>
           <div className="absolute inset-x-0 bottom-2 flex justify-center gap-1.5" aria-hidden>
             {slides.map((_, i) => (
@@ -298,7 +326,7 @@ export function PostDetail({ postId, initial, showDelete, onDeleted, onPostChang
           disabled={liking}
           aria-label={post.isLiked ? "좋아요 취소" : "좋아요"}
           aria-pressed={post.isLiked === true}
-          className="flex items-center gap-1.5 rounded-md p-1.5 text-text-lo transition-colors hover:bg-ink-700 hover:text-text-hi focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-1 focus-visible:outline-spec-b"
+          className="flex min-h-11 items-center gap-1.5 rounded-md px-2 text-text-lo transition-colors hover:bg-ink-700 hover:text-text-hi focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-1 focus-visible:outline-spec-b"
         >
           <LikeStarIcon filled={post.isLiked === true} />
           <span className="font-mono text-body-sm">{post.likeCount ?? 0}</span>
@@ -307,7 +335,7 @@ export function PostDetail({ postId, initial, showDelete, onDeleted, onPostChang
           type="button"
           onClick={() => void handleShare()}
           aria-label="공유"
-          className="rounded-md p-1.5 text-text-lo transition-colors hover:bg-ink-700 hover:text-text-hi focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-1 focus-visible:outline-spec-b"
+          className="flex h-11 w-11 items-center justify-center rounded-md text-text-lo transition-colors hover:bg-ink-700 hover:text-text-hi focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-1 focus-visible:outline-spec-b"
         >
           <ShareIcon />
         </button>
