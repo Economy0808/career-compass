@@ -86,6 +86,16 @@ export function ChevronLeftIcon({ size = 18, className, style }: IconProps) {
   return svg(size, className, style, <path d="M14.5 5.5L8 12l6.5 6.5" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />);
 }
 
+/** 돋보기 - 탐색 탭 전용(사용자 지시: "돋보기 아이콘으로 바꾸고 탐색으로"). */
+export function SearchIcon({ size = 18, className, style }: IconProps) {
+  return svg(size, className, style, (
+    <>
+      <circle cx="10.5" cy="10.5" r="6.5" stroke="currentColor" strokeWidth="2" fill="transparent" />
+      <path d="M15.5 15.5 20.5 20.5" stroke="currentColor" strokeWidth="2" strokeLinecap="round" />
+    </>
+  ));
+}
+
 /** 게시판 목록 아이콘 - 말풍선 안에 목록 줄(커뮤니티 네비 전용). */
 export function BoardIcon({ size = 18, className, style }: IconProps) {
   return svg(size, className, style, (

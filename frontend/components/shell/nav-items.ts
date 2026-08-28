@@ -1,5 +1,5 @@
 import type { ComponentType } from "react";
-import { BoardIcon, CalendarIcon, EagleIcon, ProfileIcon, SeedIcon } from "@/components/ui/icons";
+import { BoardIcon, CalendarIcon, EagleIcon, ProfileIcon, SearchIcon, SeedIcon } from "@/components/ui/icons";
 import type { AuthUser } from "@/lib/types";
 
 export interface NavItem {
@@ -15,6 +15,8 @@ export interface NavItem {
 }
 
 export const NAV_ITEMS: readonly NavItem[] = [
+  // 탐색: 관심사 기반 사람 찾기(사용자 지시 "돋보기 아이콘 + 탐색").
+  { key: "explore", label: "탐색", shortLabel: "탐색", Icon: SearchIcon, href: "/explore", requiresAuth: false },
   { key: "feed", label: "소셜", shortLabel: "소셜", Icon: EagleIcon, href: "/feed", requiresAuth: false },
   { key: "community", label: "커뮤니티", shortLabel: "커뮤니티", Icon: BoardIcon, href: "/community", requiresAuth: false },
   { key: "schedule", label: "일정", shortLabel: "일정", Icon: CalendarIcon, href: "/schedule", requiresAuth: true },
@@ -32,8 +34,9 @@ export const NAV_ITEMS: readonly NavItem[] = [
 ] as const;
 
 /** Tab-bar order puts the primary action in the centre, within thumb reach.
- * Five slots (IG-style bottom bar cap) - community joins on the left wing. */
-export const TAB_ORDER: readonly string[] = ["feed", "community", "new", "schedule", "mine"];
+ * Five slots (IG-style bottom bar cap). Schedule is desktop-rail-only now -
+ * explore took its mobile slot (user-approved trade-off). */
+export const TAB_ORDER: readonly string[] = ["explore", "feed", "new", "community", "mine"];
 
 /** Resolves where a nav item should navigate to for the current user. */
 export function navTarget(item: NavItem, user: AuthUser | null): string {
