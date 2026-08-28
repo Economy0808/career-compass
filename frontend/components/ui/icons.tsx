@@ -86,6 +86,22 @@ export function ChevronLeftIcon({ size = 18, className, style }: IconProps) {
   return svg(size, className, style, <path d="M14.5 5.5L8 12l6.5 6.5" stroke="currentColor" strokeWidth="2" strokeLinecap="round" strokeLinejoin="round" />);
 }
 
+/** 게시판 목록 아이콘 - 말풍선 안에 목록 줄(커뮤니티 네비 전용). */
+export function BoardIcon({ size = 18, className, style }: IconProps) {
+  return svg(size, className, style, (
+    <>
+      <path
+        d="M4 5.5h16v10H9.5L5.5 19V15.5H4Z"
+        stroke="currentColor"
+        strokeWidth="1.8"
+        strokeLinejoin="round"
+        fill="transparent"
+      />
+      <path d="M7.5 9h9M7.5 12h6" stroke="currentColor" strokeWidth="1.6" strokeLinecap="round" />
+    </>
+  ));
+}
+
 /** 서랍장(보관함) 아이콘 - 몰입형 캔버스의 네비 섬 토글 버튼 전용. */
 export function DrawerIcon({ size = 18, className, style }: IconProps) {
   return svg(size, className, style, (

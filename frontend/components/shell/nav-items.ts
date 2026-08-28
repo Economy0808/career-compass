@@ -1,5 +1,5 @@
 import type { ComponentType } from "react";
-import { CalendarIcon, EagleIcon, ProfileIcon, SeedIcon } from "@/components/ui/icons";
+import { BoardIcon, CalendarIcon, EagleIcon, ProfileIcon, SeedIcon } from "@/components/ui/icons";
 import type { AuthUser } from "@/lib/types";
 
 export interface NavItem {
@@ -16,6 +16,7 @@ export interface NavItem {
 
 export const NAV_ITEMS: readonly NavItem[] = [
   { key: "feed", label: "소셜", shortLabel: "소셜", Icon: EagleIcon, href: "/feed", requiresAuth: false },
+  { key: "community", label: "커뮤니티", shortLabel: "커뮤니티", Icon: BoardIcon, href: "/community", requiresAuth: false },
   { key: "schedule", label: "일정", shortLabel: "일정", Icon: CalendarIcon, href: "/schedule", requiresAuth: true },
   {
     key: "new",
@@ -30,8 +31,9 @@ export const NAV_ITEMS: readonly NavItem[] = [
   { key: "mine", label: "프로필", shortLabel: "프로필", Icon: ProfileIcon, href: null, requiresAuth: true },
 ] as const;
 
-/** Tab-bar order puts the primary action in the centre, within thumb reach. */
-export const TAB_ORDER: readonly string[] = ["feed", "schedule", "new", "mine"];
+/** Tab-bar order puts the primary action in the centre, within thumb reach.
+ * Five slots (IG-style bottom bar cap) - community joins on the left wing. */
+export const TAB_ORDER: readonly string[] = ["feed", "community", "new", "schedule", "mine"];
 
 /** Resolves where a nav item should navigate to for the current user. */
 export function navTarget(item: NavItem, user: AuthUser | null): string {
@@ -45,6 +47,10 @@ export function navTarget(item: NavItem, user: AuthUser | null): string {
 export function isNavActive(item: NavItem, pathname: string, user: AuthUser | null): boolean {
   if (item.key === "mine") {
     return user !== null && pathname === `/profile/${user.uid}`;
+  }
+  // 커뮤니티는 게시판/글 상세까지 하위 경로 전부를 "커뮤니티" 탭 활성으로 본다.
+  if (item.key === "community") {
+    return pathname.startsWith("/community");
   }
   return pathname === item.href;
 }
