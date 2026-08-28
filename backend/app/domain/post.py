@@ -28,6 +28,14 @@ MAX_IMAGE_DATA_LEN = 950_000
 MAX_CAPTION_LEN = 500
 
 
+def validate_image_data(v: str) -> str:
+    """data URL 형식 검증 - app/domain/story.py도 그대로 재사용한다(브리핑 지정:
+    스토리 이미지는 posts와 동일 제약·검증을 재사용)."""
+    if not _IMAGE_DATA_RE.match(v):
+        raise ValueError("image_data는 data:image/(jpeg|png|webp);base64,... 형식이어야 합니다.")
+    return v
+
+
 class Post(BaseModel):
     """프로필에 올리는 사진 게시물 한 건."""
 
@@ -40,8 +48,4 @@ class Post(BaseModel):
     @field_validator("image_data")
     @classmethod
     def _check_image_data(cls, v: str) -> str:
-        if not _IMAGE_DATA_RE.match(v):
-            raise ValueError(
-                "image_data는 data:image/(jpeg|png|webp);base64,... 형식이어야 합니다."
-            )
-        return v
+        return validate_image_data(v)

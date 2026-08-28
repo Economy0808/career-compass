@@ -8,6 +8,7 @@ from fastapi.responses import JSONResponse
 from app.api.auth import router as auth_router
 from app.api.auth_sync import router as auth_sync_router
 from app.api.beans import router as beans_router
+from app.api.community import router as community_router
 from app.api.constellation import router as constellation_router
 from app.api.constellation_intake import router as constellation_intake_router
 from app.api.goals import router as goals_router
@@ -16,6 +17,7 @@ from app.api.ncs import router as ncs_router
 from app.api.posts import router as posts_router
 from app.api.profiles import router as profiles_router
 from app.api.roadmap import router as roadmap_router
+from app.api.stories import router as stories_router
 from app.api.todos import router as todos_router
 from app.api.users import router as users_router
 from app.config import get_settings
@@ -72,6 +74,8 @@ def create_app() -> FastAPI:
     app.include_router(constellation_intake_router)
     app.include_router(profiles_router)
     app.include_router(posts_router)
+    app.include_router(stories_router)
+    app.include_router(community_router)
     return app
 
 

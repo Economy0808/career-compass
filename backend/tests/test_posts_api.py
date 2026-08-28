@@ -87,17 +87,42 @@ async def test_create_then_list_then_owner_delete(authed_as: Callable[[str], Non
         assert created["caption"] == "오늘의 한 컷"
         assert isinstance(created["id"], str) and created["id"]
         assert isinstance(created["createdAt"], int)
+        assert created["isMine"] is True
 
         list_resp = await client.get("/api/posts/user/user-a")
         assert list_resp.status_code == 200
         posts = list_resp.json()
-        assert any(p["id"] == created["id"] for p in posts)
+        assert any(p["id"] == created["id"] and p["isMine"] is True for p in posts)
 
         delete_resp = await client.delete(f"/api/posts/{created['id']}")
         assert delete_resp.status_code == 204
 
         list_after_resp = await client.get("/api/posts/user/user-a")
         assert all(p["id"] != created["id"] for p in list_after_resp.json())
+
+
+@pytest.mark.asyncio
+async def test_anonymous_and_other_user_see_is_mine_false(
+    authed_as: Callable[[str], None],
+) -> None:
+    authed_as("user-a")
+    async with _client() as client:
+        create_resp = await client.post(
+            "/api/posts", json={"imageData": _TINY_PNG_DATA_URL, "caption": ""}
+        )
+    assert create_resp.json()["isMine"] is True
+
+    # 익명 열람: isMine은 항상 False, 조회 자체는 허용된다.
+    async with _client() as client:
+        anon_resp = await client.get("/api/posts/user/user-a")
+    assert anon_resp.status_code == 200
+    assert all(p["isMine"] is False for p in anon_resp.json())
+
+    # 다른 로그인 유저가 봐도 isMine은 False.
+    authed_as("user-b")
+    async with _client() as client:
+        other_resp = await client.get("/api/posts/user/user-a")
+    assert all(p["isMine"] is False for p in other_resp.json())
 
 
 @pytest.mark.asyncio
@@ -119,7 +144,5 @@ async def test_other_user_delete_returns_403(authed_as: Callable[[str], None]) -
 async def test_invalid_image_data_returns_422(authed_as: Callable[[str], None]) -> None:
     authed_as("user-a")
     async with _client() as client:
-        resp = await client.post(
-            "/api/posts", json={"imageData": "not-a-data-url", "caption": ""}
-        )
+        resp = await client.post("/api/posts", json={"imageData": "not-a-data-url", "caption": ""})
         assert resp.status_code == 422

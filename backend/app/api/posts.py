@@ -28,13 +28,14 @@ _POST_NOT_FOUND = HTTPException(status_code=404, detail="게시물을 찾을 수
 _POST_FORBIDDEN = HTTPException(status_code=403, detail="본인 게시물만 삭제할 수 있어요.")
 
 
-def _to_out(post: Post) -> PostOut:
+def _to_out(post: Post, *, viewer_uid: str | None) -> PostOut:
     return PostOut(
         id=post.id,
         owner_id=post.owner_id,
         image_data=post.image_data,
         caption=post.caption,
         created_at=post.created_at,
+        is_mine=viewer_uid is not None and viewer_uid == post.owner_id,
     )
 
 
@@ -54,18 +55,19 @@ async def create_post(
         caption=payload.caption,
         created_at=created_at,
     )
-    return _to_out(post)
+    return _to_out(post, viewer_uid=user.uid)
 
 
 @router.get("/user/{uid}", response_model=list[PostOut])
 async def list_user_posts(
     uid: str,
-    _user: DecodedToken | None = Depends(get_current_user_optional),
+    user: DecodedToken | None = Depends(get_current_user_optional),
     db: Client = Depends(get_firestore_client),
 ) -> list[PostOut]:
-    """uid의 게시물 목록을 최신순으로 반환한다 - 익명 열람 허용."""
+    """uid의 게시물 목록을 최신순으로 반환한다 - 익명 열람 허용. isMine으로 본인 판별."""
     posts = post_repo.list_by_owner(db, uid)
-    return [_to_out(p) for p in posts]
+    viewer_uid = user.uid if user is not None else None
+    return [_to_out(p, viewer_uid=viewer_uid) for p in posts]
 
 
 @router.delete("/{post_id}", status_code=204)

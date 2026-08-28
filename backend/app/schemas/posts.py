@@ -30,10 +30,16 @@ class PostCreateIn(_CamelModel):
 
 
 class PostOut(_CamelModel):
-    """게시물 응답."""
+    """게시물 응답.
+
+    is_mine은 요청자가 로그인했고 owner_id와 uid가 같을 때만 True - 익명이거나
+    다른 유저의 게시물이면 False(app/schemas/profiles.py의 is_following과 달리
+    항상 값이 채워진다, None으로 숨기지 않는다).
+    """
 
     id: str
     owner_id: str
     image_data: str
     caption: str
     created_at: int
+    is_mine: bool = False
