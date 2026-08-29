@@ -821,6 +821,24 @@ export function ConstellationCanvas({
     animateTransformTo(restoreTarget);
   }, [diveGroupId, onGroupToggleCollapse, animateTransformTo]);
 
+  // 파국 상태 방어 - 다이브인 중 참조 그룹이 그룹 해제(X)로 사라지거나, 외부
+  // 경로(되돌리기 등)로 다시 collapsed=true가 되면, 위 격리 필터(diveMemberSet)가
+  // 요소를 전부 숨기는데 그 그룹의 칩까지 이미 숨겨진 상태라 "아무것도 안 보이고
+  // 나가기 버튼도 없는" 상태에 갇힌다. groups가 바뀔 때마다 다이브 대상이 여전히
+  // 살아서 펼쳐져 있는지 확인하고, 아니면 조용히 다이브아웃한다(diveOutOfGroup은
+  // 살아있는 그룹을 다시 접는 걸 전제해 groupId가 없어진 경우엔 못 쓴다 - 카메라
+  // 복귀만 직접 수행).
+  useEffect(() => {
+    if (!diveGroupId) return;
+    const g = groups[diveGroupId];
+    if (g && !g.collapsed) return; // 정상 - 다이브인 유지
+    const restoreTarget = preDiveTransformRef.current ?? transformRef.current;
+    setDiveGroupId(null);
+    setDiveLayoutOverride(null);
+    preDiveTransformRef.current = null;
+    animateTransformTo(restoreTarget);
+  }, [diveGroupId, groups, animateTransformTo]);
+
   // --- 성단 드래그 -----------------------------------------------------------
   // 열람 모드에서는 드래그가 없다 - pointerdown에서 곧바로 다이브인만 한다(노드
   // 클릭-선택과 동일한 패턴, beginNodeDrag 참고). 편집 모드에서는 이동 임계값
@@ -1744,22 +1762,20 @@ export function ConstellationCanvas({
 
       {/* 펼쳐진 그룹마다 뜨는 "성단 접기" 칩 - group.position(접힘/펼침과 무관한
           고정 앵커)에 뜬다. 이 칩이 곧 그룹의 유일한 선택 표면이라 이름 바꾸기/
-          해제도 여기서 한다(readOnly에서는 접기만 남기고 숨김). 지금 다이브인 중인
-          성단의 칩은 접기 버튼을 diveOutOfGroup으로 바꿔치기한다 - 그래야 라벨
-          클릭으로 나가도 카메라가 진입 전 뷰로 rAF 복귀한다(그냥 onGroupToggleCollapse만
-          부르면 카메라는 그대로 확대된 채 남아 자리를 잃는다). 라벨 에딧/해제
-          기능은 그대로 유지 - 새 칩을 따로 만들지 않았다. */}
+          해제도 여기서 한다(readOnly에서는 접기만 남기고 숨김). 다이브인 중에는
+          요소들 위에 라벨/편집/해제 칩이 떠 있으면 안 된다(사용자 지시) - 이름
+          표기는 우하단 표시 전용 칩이 맡고, 해제(X)가 다이브 중 그룹을 지워버리면
+          격리 필터가 전부 숨겨지는 파국 상태로 이어지므로 diveGroupId가 있는 동안은
+          완전히 숨긴다. 이름 변경/해제는 다이브아웃 후에 하면 된다. */}
       {Object.values(groups)
-        .filter((g) => !g.collapsed && (!diveGroupId || g.id === diveGroupId))
+        .filter((g) => !g.collapsed && !diveGroupId)
         .map((group) => (
           <GroupChip
             key={group.id}
             group={group}
             transform={transform}
             readOnly={readOnly}
-            onToggleCollapse={
-              diveGroupId === group.id ? diveOutOfGroup : (collapsed) => onGroupToggleCollapse?.(group.id, collapsed)
-            }
+            onToggleCollapse={(collapsed) => onGroupToggleCollapse?.(group.id, collapsed)}
             onLabelChange={onGroupLabelChange ? (label) => onGroupLabelChange(group.id, label) : undefined}
             onUngroup={onGroupUngroup ? () => onGroupUngroup(group.id) : undefined}
           />
@@ -1791,14 +1807,15 @@ export function ConstellationCanvas({
           이 칩까지 인터랙티브하게 만들 이유가 없다(제스처 하나에 출구 하나만).
           readOnly에서도 뜬다(상단 배너와 동일 조건). */}
       {diveGroupId && groups[diveGroupId] && (
-        // md+ 우측 320px대 「군집/노트」 섬 패널(위 FIT_RIGHT_PANEL_W 주석 참고)과
-        // 그 왼쪽에 뜨는 "별자리 띄우기" 플로팅 버튼(page.tsx, md:right-[324px]
-        // md:bottom-4)이 둘 다 z-20으로 이 캔버스 div보다 나중에 DOM에 와서,
-        // 순수 bottom-4 right-4만 쓰면 실측상 그 버튼 밑에 완전히 깔려 안
-        // 보인다. page.tsx와 같은 md:right-[324px]로 패널을 피하고, bottom을
-        // 그 버튼(높이 약 42px) 위로 한 단 더 띄워 겹치지 않게 한다.
-        <div className="pointer-events-none absolute bottom-20 right-4 z-20 md:right-[324px]">
-          <div className="rounded-full border border-rule bg-ink-800/90 px-3 py-1.5 font-serif text-xs text-text-hi shadow-lg">
+        // md+ 우측 320px대 「군집/노트」 섬 패널(위 FIT_RIGHT_PANEL_W 주석 참고),
+        // 그 왼쪽 "별자리 띄우기" 플로팅 버튼, 모바일 하단 바텀시트(항상 펼침
+        // 유지)까지 page.tsx의 뜨는 크롬은 전부 z-20이고 이 캔버스보다 나중에
+        // DOM에 와 위에 깔린다 - 패널 접힘/모바일 등 어떤 조합에서도 안 가려지게
+        // z-30으로 그 위에 고정한다(pointer-events-none이라 아래 버튼 클릭은
+        // 그대로 통과). md:right-[324px]는 패널이 펼쳐진 기본값 기준 위치일 뿐,
+        // 실제 겹침 방지는 z-index가 보장한다. 라벨이 길면 말줄임.
+        <div className="pointer-events-none absolute bottom-20 right-4 z-30 max-w-[calc(100vw-2rem)] md:right-[324px]">
+          <div className="max-w-[16rem] truncate rounded-full border border-rule bg-ink-800/90 px-3 py-1.5 font-serif text-xs text-text-hi shadow-lg">
             {groups[diveGroupId].label} 성운
           </div>
         </div>
