@@ -5,6 +5,14 @@ import os
 # (get_settings 최초 호출 전에 설정해야 하므로 import 최상단에서.)
 os.environ.setdefault("APP_ENV", "test")
 
+# 테스트는 절대 실데이터 프로젝트(demo-ourlab)를 건드리지 않는다: 아래
+# _reset_firestore_emulator / _reset_auth_emulator 픽스처가 매 테스트 후 프로젝트
+# 전체를 REST로 지우는데, 에뮬레이터를 켜둔 채 pytest를 돌리면 course_catalog
+# 7천여 건까지 통째로 날아갔다(2026-08-30 실사고). setdefault가 아닌 강제 대입 -
+# 셸에 demo-ourlab이 export돼 있어도 테스트가 실데이터를 지우는 일이 없어야 한다.
+# (에뮬레이터 singleProjectMode는 경고만 낼 뿐 별도 프로젝트 쓰기를 막지 않는다.)
+os.environ["FIRESTORE_PROJECT_ID"] = "demo-ourlab-test"
+
 # asyncpg + Windows + Python 3.14는 인터프리터 종료 시 이벤트 루프가 사라진 뒤
 # 커넥션을 finalize하다 세그폴트(exit 139)를 낼 수 있다 — 전체 스윗에서만, 그리고
 # 모든 테스트가 통과한 "뒤" 종료 단계에서. numpy가 로드돼 있으면 C 확장 finalizer
