@@ -174,8 +174,8 @@ function CanvasPlayground() {
   const edgeSeq = useRef(0);
 
   return (
-    <div className="flex w-full flex-col items-center gap-2">
-      <div className="relative h-[420px] w-full overflow-hidden rounded-lg border border-rule md:h-[560px]">
+    <div className="flex h-full min-h-0 w-full flex-col items-center gap-2">
+      <div className="relative min-h-0 w-full flex-1 overflow-hidden rounded-lg border border-rule">
         <ConstellationCanvas
           nodes={nodes}
           edges={edges}
@@ -214,7 +214,7 @@ function CanvasPlayground() {
           }
         />
       </div>
-      <p className="text-center text-caption leading-relaxed text-text-lo">
+      <p className="shrink-0 text-center text-caption leading-relaxed text-text-lo">
         별을 <b className="text-text-hi">더블클릭</b>하면 달성으로 빛나요 · 별 바깥 링에서 커서가{" "}
         <b className="text-text-hi">십자</b>로 바뀌면 끌어서 다른 별과 이어보세요 · 빈 곳을 끌면 하늘이 움직여요
       </p>
@@ -233,27 +233,32 @@ interface SlideLabel {
 
 function AnnotatedShot({ src, alt, labels }: { src: string; alt: string; labels: SlideLabel[] }) {
   return (
-    <div className="relative w-full overflow-hidden rounded-lg border border-rule">
-      <Image src={src} alt={alt} width={1440} height={900} className="h-auto w-full" unoptimized />
-      {/* 주석 라벨 - 버튼처럼 보여 눌린다는 지적으로 칩을 버리고 지시선+텍스트
-          톤으로. 레이어 전체 pointer-events 차단(비인터랙티브임이 읽히게). */}
-      <div className="pointer-events-none absolute inset-0" aria-hidden>
-        {labels.map((label, i) => (
-          <span
-            key={i}
-            className={cn(
-              "absolute flex max-w-[52%] -translate-y-1/2 items-center gap-1.5",
-              label.align === "right" && "-translate-x-full flex-row-reverse"
-            )}
-            style={{ left: `${label.x}%`, top: `${label.y}%` }}
-          >
-            <span className="h-2 w-2 shrink-0 rounded-full bg-lit shadow-[0_0_8px_rgba(255,243,196,0.8)]" />
-            <span className="h-px w-4 shrink-0 bg-lit/50" />
-            <span className="font-sans text-micro font-medium leading-snug text-text-hi [text-shadow:0_1px_4px_rgba(4,6,11,0.95),0_0_10px_rgba(4,6,11,0.8)]">
-              {label.text}
+    // 바깥 래퍼가 남는 공간(flex-1)을 다 차지하고, 안쪽 박스는 이미지 실비율
+    // (1440:900)로 고정해 그 안에서 최대한 크게 줄어든다 - 라벨은 이 박스에
+    // inset-0로 붙으므로 축소돼도 실제 이미지 경계와 항상 일치한다.
+    <div className="flex h-full w-full items-center justify-center">
+      <div className="relative aspect-[1440/900] max-h-full max-w-full overflow-hidden rounded-lg border border-rule">
+        <Image src={src} alt={alt} width={1440} height={900} className="h-full w-full object-contain" unoptimized />
+        {/* 주석 라벨 - 버튼처럼 보여 눌린다는 지적으로 칩을 버리고 지시선+텍스트
+            톤으로. 레이어 전체 pointer-events 차단(비인터랙티브임이 읽히게). */}
+        <div className="pointer-events-none absolute inset-0" aria-hidden>
+          {labels.map((label, i) => (
+            <span
+              key={i}
+              className={cn(
+                "absolute flex max-w-[52%] -translate-y-1/2 items-center gap-1.5",
+                label.align === "right" && "-translate-x-full flex-row-reverse"
+              )}
+              style={{ left: `${label.x}%`, top: `${label.y}%` }}
+            >
+              <span className="h-2 w-2 shrink-0 rounded-full bg-lit shadow-[0_0_8px_rgba(255,243,196,0.8)]" />
+              <span className="h-px w-4 shrink-0 bg-lit/50" />
+              <span className="font-sans text-micro font-medium leading-snug text-text-hi [text-shadow:0_1px_4px_rgba(4,6,11,0.95),0_0_10px_rgba(4,6,11,0.8)]">
+                {label.text}
+              </span>
             </span>
-          </span>
-        ))}
+          ))}
+        </div>
       </div>
     </div>
   );
@@ -296,9 +301,9 @@ const SLIDES: GuideSlide[] = [
         src="/guide/feed.png"
         alt="소셜 피드 화면"
         labels={[
-          { x: 9, y: 22, text: "소셜 탭" },
-          { x: 59, y: 27, text: "24시간 스토리 링이 여기 떠요" },
-          { x: 59, y: 55, text: "사진 게시물 스트림 — 별 모양 좋아요·댓글·공유" },
+          { x: 7, y: 16, text: "소셜 탭" },
+          { x: 50, y: 21.5, text: "작성자 이름과 올린 시각" },
+          { x: 50, y: 50, text: "사진 게시물 스트림 — 별 모양 좋아요·댓글·공유" },
         ]}
       />
     ),
@@ -344,7 +349,7 @@ function UsageGuideCarousel() {
 
   return (
     <div
-      className="flex w-full flex-col items-center gap-3"
+      className="flex min-h-0 w-full flex-1 flex-col items-center gap-3"
       onTouchStart={(e) => {
         touchStartX.current = e.touches[0]?.clientX ?? null;
       }}
@@ -357,7 +362,7 @@ function UsageGuideCarousel() {
         go(dx < 0 ? 1 : -1);
       }}
     >
-      <div className="flex w-full items-center justify-between gap-2">
+      <div className="flex w-full shrink-0 items-center justify-between gap-2">
         <button
           type="button"
           aria-label="이전 안내"
@@ -379,10 +384,12 @@ function UsageGuideCarousel() {
         </button>
       </div>
 
-      <div className="w-full">{slide.body}</div>
+      {/* 콘텐츠 영역 - 헤더/인디케이터를 뺀 남는 세로 공간을 전부 차지하고,
+          캔버스/스크린샷은 이 안에서 스스로 줄어든다(다이얼로그 스크롤 금지). */}
+      <div className="min-h-0 w-full flex-1">{slide.body}</div>
 
       {/* 점 인디케이터 - 활성 점만 lit(사용자 지시의 "작은 페이지" 문법). */}
-      <div className="flex items-center gap-2.5" role="tablist" aria-label="사용법 안내 페이지">
+      <div className="flex shrink-0 items-center gap-2.5" role="tablist" aria-label="사용법 안내 페이지">
         {SLIDES.map((s, i) => (
           <button
             key={s.key}
@@ -447,8 +454,8 @@ function TutorialDialog({ onClose }: { onClose: () => void }) {
       aria-label="OurLab 사용법"
       className="fixed inset-0 z-30 flex items-center justify-center bg-ink-900/85 p-3 backdrop-blur-sm md:p-8"
     >
-      <div className="relative flex max-h-full w-full max-w-4xl flex-col overflow-y-auto rounded-xl border border-rule bg-ink-800/95 px-4 pb-5 pt-4 shadow-panel md:px-8 md:pb-7 md:animate-[islandExpand_220ms_cubic-bezier(.22,1,.36,1)]">
-        <div className="mb-2 flex items-center justify-between">
+      <div className="relative flex max-h-[92vh] w-full max-w-4xl flex-col overflow-hidden rounded-xl border border-rule bg-ink-800/95 px-4 pb-5 pt-4 shadow-panel md:px-8 md:pb-7 md:animate-[islandExpand_220ms_cubic-bezier(.22,1,.36,1)]">
+        <div className="mb-2 flex shrink-0 items-center justify-between">
           <span className="font-serif text-lg font-bold text-text-hi">OurLab 사용법</span>
           <button
             type="button"
