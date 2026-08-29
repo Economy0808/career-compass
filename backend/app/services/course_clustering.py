@@ -31,7 +31,7 @@ from dataclasses import dataclass, field
 from google.cloud.firestore import Client
 
 from app.etl.yonsei_courses import MergedCourse
-from app.firestore.course_repo import list_by_department, search_by_college
+from app.firestore.course_repo import list_by_department, list_taxonomy, search_by_college
 from app.llm.base import CourseOption, LLMClient
 
 # 학정번호 첫 자리가 이 값 이상이면 대학원 과목으로 간주해 학부 추천에서 제외한다.
@@ -83,9 +83,18 @@ def _hierarchy_key(course: MergedCourse) -> tuple[int, int, int]:
     return (level_rank, kind_rank, years_rank)
 
 
-async def select_relevant_departments(llm: LLMClient, goal_text: str) -> list[str]:
-    """목표와 관련 있는 단과대/학과 이름을 고른다. 확신이 없으면 빈 리스트(정상 경로)."""
-    return await llm.select_relevant_departments(goal_text)
+async def select_relevant_departments(
+    llm: LLMClient,
+    goal_text: str,
+    known_departments: list[str] | None = None,
+    known_colleges: list[str] | None = None,
+) -> list[str]:
+    """목표와 관련 있는 단과대/학과 이름을 고른다. 확신이 없으면 빈 리스트(정상 경로).
+
+    known_departments/known_colleges는 그대로 llm.select_relevant_departments에
+    전달해 실제 카탈로그 값으로 그라운딩한다(base.py 독스트링 참조).
+    """
+    return await llm.select_relevant_departments(goal_text, known_departments, known_colleges)
 
 
 async def cluster_courses(
@@ -152,17 +161,22 @@ async def suggest_course_bin(
     db: Client,
     llm: LLMClient,
     goal_text: str,
-    fetch_limit: int = 100,
+    fetch_limit: int = 400,
     rules_context: str | None = None,
 ) -> CourseClusterResult:
-    """전체 파이프라인: 학과 선택 -> Firestore 좁혀 조회 -> 군집화.
+    """전체 파이프라인: 카탈로그 어휘 로드 -> 학과 선택 -> Firestore 좁혀 조회 -> 군집화.
 
     관련 학과가 하나도 없으면(목표가 애매하거나 이 학교 학과와 무관) 빈 결과를
     반환한다 — 예외를 던지지 않는다. 호출자는 이를 "제안할 수업 없음"으로 취급한다.
 
     rules_context: 학사 규정 발췌 — cluster_courses로 그대로 전달한다.
     """
-    departments = await select_relevant_departments(llm, goal_text)
+    # list_taxonomy는 동기 Firestore 호출이라 asyncio.to_thread로 감싼다 - 아래
+    # list_by_department/search_by_college와 같은 이유(이벤트 루프 블로킹 방지).
+    known_departments, known_colleges = await asyncio.to_thread(list_taxonomy, db)
+    departments = await select_relevant_departments(
+        llm, goal_text, known_departments, known_colleges
+    )
     if not departments:
         return CourseClusterResult(clusters=[])
 

@@ -180,3 +180,43 @@ def test_search_by_college_respects_limit(db: Client) -> None:
     result = repo.search_by_college(db, "문과대학", limit=4)
 
     assert len(result) == 4
+
+
+# --- list_taxonomy ---
+
+
+def test_list_taxonomy_returns_sorted_unique_departments_and_colleges(db: Client) -> None:
+    repo.upsert_courses(
+        db,
+        [
+            _make_course("TAX0001", department="응용통계학과", college="상경대학"),
+            _make_course("TAX0002", department="응용통계학과", college="상경대학"),
+            _make_course("TAX0003", department="철학과", college="문과대학"),
+        ],
+    )
+    # 모듈 레벨 캐시를 이 테스트의 upsert 이후 상태로 강제 리프레시한다 - 캐시가
+    # 프로세스 생애주기 동안 남아있으므로 다른 테스트가 먼저 채웠을 수 있다.
+    repo._taxonomy_cache = None
+
+    departments, colleges = repo.list_taxonomy(db)
+
+    assert "응용통계학과" in departments
+    assert "철학과" in departments
+    assert departments == sorted(departments)
+    assert "상경대학" in colleges
+    assert "문과대학" in colleges
+    assert colleges == sorted(colleges)
+
+
+def test_list_taxonomy_caches_after_first_call(db: Client) -> None:
+    repo._taxonomy_cache = None
+    repo.upsert_courses(db, [_make_course("TAX0010", department="캐시학과", college="캐시대학")])
+
+    first = repo.list_taxonomy(db)
+    # 캐시된 뒤 새 학과를 추가해도(재스캔 없이) 첫 호출 결과를 그대로 반환해야 한다.
+    repo.upsert_courses(db, [_make_course("TAX0011", department="새학과", college="새대학")])
+    second = repo.list_taxonomy(db)
+
+    assert first == second
+    assert "새학과" not in second[0]
+    repo._taxonomy_cache = None  # 다른 테스트에 영향 주지 않도록 정리.

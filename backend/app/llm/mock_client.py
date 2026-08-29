@@ -406,12 +406,21 @@ class MockClaudeClient:
             ],
         )
 
-    async def select_relevant_departments(self, goal_text: str) -> list[str]:
+    async def select_relevant_departments(
+        self,
+        goal_text: str,
+        known_departments: list[str] | None = None,
+        known_colleges: list[str] | None = None,
+    ) -> list[str]:
         """목표 텍스트에 포함된 키워드로 결정론적으로 학과/단과대를 고른다.
 
         매칭되는 키워드가 없으면 빈 리스트 — 실제 모델의 "확신 없으면 비워둔다"는
         계약과 같은 모양을 mock에서도 지킨다(억지 매칭 대신 폴백 경로 테스트용).
+
+        known_departments/known_colleges: mock은 고정 키워드 매핑을 쓰므로 실제
+        그라운딩에 쓰지 않는다 — 새 Protocol 시그니처를 맞추기 위한 파라미터일 뿐이다.
         """
+        del known_departments, known_colleges
         matched: list[str] = []
         for keyword, departments in _DEPARTMENT_KEYWORDS.items():
             if keyword in goal_text:

@@ -8,6 +8,27 @@ from app.services.course_clustering import (
 )
 
 
+class _RecordingLLM(MockClaudeClient):
+    """select_relevant_departments에 실제로 전달된 known_departments/colleges를
+    기록하는 스텁 - course_clustering.select_relevant_departments가 어휘를
+    llm.select_relevant_departments까지 그대로 전달하는지(카탈로그 그라운딩) 검증용.
+    """
+
+    def __init__(self) -> None:
+        self.received_departments: list[str] | None = None
+        self.received_colleges: list[str] | None = None
+
+    async def select_relevant_departments(
+        self,
+        goal_text: str,
+        known_departments: list[str] | None = None,
+        known_colleges: list[str] | None = None,
+    ) -> list[str]:
+        self.received_departments = known_departments
+        self.received_colleges = known_colleges
+        return ["응용통계학과"] if known_departments else []
+
+
 def _course(
     code: str,
     name: str = "테스트 과목",
@@ -124,6 +145,35 @@ async def test_cluster_courses_advice_propagates_from_base_to_view() -> None:
     for cluster in result.clusters:
         assert cluster.advice is not None
         assert "(mock advice)" in cluster.advice
+
+
+@pytest.mark.asyncio
+async def test_select_relevant_departments_forwards_known_vocabulary_to_llm() -> None:
+    """course_repo.list_taxonomy가 스캔한 실제 학과/단과대 목록이 그대로
+    llm.select_relevant_departments까지 전달돼야 한다(카탈로그 그라운딩)."""
+    llm = _RecordingLLM()
+    known_departments = ["응용통계학과", "컴퓨터과학과"]
+    known_colleges = ["상경대학", "공과대학"]
+
+    result = await select_relevant_departments(
+        llm, "데이터 사이언티스트가 되고 싶다", known_departments, known_colleges
+    )
+
+    assert llm.received_departments == known_departments
+    assert llm.received_colleges == known_colleges
+    assert result == ["응용통계학과"]
+
+
+@pytest.mark.asyncio
+async def test_select_relevant_departments_defaults_to_no_vocabulary() -> None:
+    """known_departments/colleges를 안 넘기는 기존 호출부도 그대로 동작해야 한다."""
+    llm = _RecordingLLM()
+
+    result = await select_relevant_departments(llm, "asdf 12345 !!!")
+
+    assert llm.received_departments is None
+    assert llm.received_colleges is None
+    assert result == []
 
 
 @pytest.mark.asyncio

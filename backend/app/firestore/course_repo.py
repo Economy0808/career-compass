@@ -34,6 +34,12 @@ _COLLECTION = "course_catalog"
 # Firestore가 한 배치(WriteBatch)에 허용하는 최대 오퍼레이션 수.
 _BATCH_LIMIT = 500
 
+# list_taxonomy 모듈 레벨 캐시 - 프로세스당 1회만 전체 스캔한다(7,109개 문서 기준
+# 수 초 소요). ponytail: 카탈로그가 갱신돼도 프로세스 재시작 전까지는 새 학과/단과대가
+# 안 보인다 - 지금 규모에서는 무해한 트레이드오프. 문서 수가 수십만으로 커지면 이
+# 전체 스캔 대신 학과/단과대 목록을 담은 별도 메타 문서로 승격할 것.
+_taxonomy_cache: tuple[list[str], list[str]] | None = None
+
 
 def _doc_id(course: MergedCourse) -> str:
     """학정번호(code)를 문서 id로 그대로 쓴다 - 대학 전체에서 유일하다."""
@@ -87,3 +93,29 @@ def search_by_college(db: Client, college: str, limit: int = 100) -> list[Merged
         db.collection(_COLLECTION).where(filter=FieldFilter("college", "==", college)).limit(limit)
     )
     return [MergedCourse.model_validate(doc.to_dict()) for doc in query.stream()]
+
+
+def list_taxonomy(db: Client) -> tuple[list[str], list[str]]:
+    """course_catalog에 실제로 존재하는 (학과 목록, 단과대 목록) 고유값을 정렬해 반환한다.
+
+    select_relevant_departments가 이름을 "지어내는" 대신 실제 카탈로그 값 중에서만
+    고르도록 어휘를 주입하기 위한 용도다. department/college 두 필드만
+    projection(.select)으로 가져와 페이로드를 최소화한다.
+
+    프로세스당 1회만 스캔하도록 모듈 레벨 캐시를 쓴다 - 위 _taxonomy_cache 주석 참고.
+    """
+    global _taxonomy_cache
+    if _taxonomy_cache is not None:
+        return _taxonomy_cache
+    departments: set[str] = set()
+    colleges: set[str] = set()
+    for doc in db.collection(_COLLECTION).select(["department", "college"]).stream():
+        data = doc.to_dict() or {}
+        dept = data.get("department")
+        college = data.get("college")
+        if dept:
+            departments.add(dept)
+        if college:
+            colleges.add(college)
+    _taxonomy_cache = (sorted(departments), sorted(colleges))
+    return _taxonomy_cache

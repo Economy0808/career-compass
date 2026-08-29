@@ -258,11 +258,21 @@ class LLMClient(Protocol):
         """의중 + NCS 능력단위 + 리서치를 종합해 소분류 로드맵 세트를 생성한다 (강한 모델)."""
         ...
 
-    async def select_relevant_departments(self, goal_text: str) -> list[str]:
+    async def select_relevant_departments(
+        self,
+        goal_text: str,
+        known_departments: list[str] | None = None,
+        known_colleges: list[str] | None = None,
+    ) -> list[str]:
         """진로 목표와 관련 있는 단과대/학과 이름을 고른다 (수업 후보 좁히기 1단계).
 
         임베딩 유사도 대신 카테고리로 후보를 좁힌 뒤 LLM이 판단하는 패턴 —
         select_ncs_job과 동일하게, 확신이 없으면 빈 리스트를 내는 것이 정상이다.
+
+        known_departments/known_colleges: course_repo.list_taxonomy가 스캔한 카탈로그의
+        실제 학과/단과대 이름 목록 - 주어지면 구현체가 이 목록에 있는 이름만 반환하도록
+        그라운딩해야 한다(그래야 이어지는 Firestore 조회가 실제로 문서를 찾는다).
+        기본값 None이라 기존 호출부와 호환된다.
         """
         ...
 

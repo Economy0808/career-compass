@@ -660,25 +660,51 @@ class AnthropicClaudeClient:
             source_urls=_web_search_domains(message),
         )
 
-    async def select_relevant_departments(self, goal_text: str) -> list[str]:
+    async def select_relevant_departments(
+        self,
+        goal_text: str,
+        known_departments: list[str] | None = None,
+        known_colleges: list[str] | None = None,
+    ) -> list[str]:
         """진로 목표를 보고 관련 단과대/학과를 고른다 (수업 후보 좁히기 1단계).
 
         임베딩 유사도는 쓰지 않는다 — "관련 있어 보임"과 "실제 그 학과 수업이 필요함"을
         구분 못 해 이전 NCS 매칭에서 폐기된 접근이다. 대신 넓게 카테고리를 좁힌 뒤
         cluster_courses에서 실제 과목 단위로 다시 판단한다.
+
+        known_departments/known_colleges가 주어지면(course_repo.list_taxonomy) 그
+        실제 목록을 프롬프트에 통째로 넣고 그 안에서만 고르게 그라운딩한다 — 그러지
+        않으면 모델이 "응용통계학과"를 "통계학과"처럼 그럴듯하지만 실제 카탈로그
+        필드값과 다르게 지어내 뒤이은 Firestore 조회가 0건이 되는 문제가 있었다.
         """
         system = (
             "너는 연세대학교 교과과정 전문가다. 학생의 진로 목표를 보고, 관련 수업이"
             " 있을 만한 단과대학/학과 이름을 한국어로 나열하라 (예: '경영대학',"
-            " '문과대학 사회학과', 'Underwood International College'). 실제로 관련"
-            " 수업이 있을 만한 곳은 폭넓게 포함하되, 명백히 무관한 곳은 넣지 마라."
+            " '문과대학 사회학과', 'Underwood International College')."
+        )
+        if known_departments or known_colleges:
+            vocab = "\n".join([*(known_departments or []), *(known_colleges or [])])
+            system += (
+                "\n\n아래는 실제 카탈로그에 존재하는 학과/단과대 이름 전체 목록이다."
+                " 반드시 이 목록에 있는 이름 그대로만 반환하라(지어내거나 표기를"
+                " 바꾸지 마라). 관련 가능성이 있는 학과는 좁게 고르지 말고 폭넓게"
+                " 여러 개 포함하라 — 예를 들어 데이터 분석이 목표라면 응용통계학과·"
+                "컴퓨터과학과·산업공학과·경영대학 등 인접 학과까지 전부 담아라.\n\n"
+                f"실제 학과/단과대 목록:\n{vocab}"
+            )
+        else:
+            system += (
+                " 실제로 관련 수업이 있을 만한 곳은 폭넓게 포함하되, 명백히 무관한 곳은 넣지 마라."
+            )
+        system += (
             " 목표가 너무 막연하거나 어떤 학과와도 관련짓기 어려우면 빈 배열을"
             " 반환하라 — 억지로 채우지 마라."
         )
         # 가벼운 카테고리 판단이라 thinking 불필요(다른 경량 호출과 동일 이유 — 잘림 방지).
+        # 어휘 목록이 실려 출력도 이전보다 넓게 나올 수 있어 max_tokens을 2048로 잡는다.
         resp = await self._client.messages.create(
             model=self._extract_model,
-            max_tokens=1024,
+            max_tokens=2048,
             thinking={"type": "disabled"},
             system=_cached_system(system),
             messages=[{"role": "user", "content": f"진로 목표: {goal_text}"}],
@@ -711,7 +737,10 @@ class AnthropicClaudeClient:
             " 분석'). 고정된 이름을 쓰지 마라.\n"
             "- 각 과목의 code는 후보 목록에 있는 그대로 정확히 써라(지어내지 마라).\n"
             "- '관련 있어 보임'이 아니라 실제로 이 목표에 필요한 수업만 골라라. 정말"
-            " 무관한 후보는 아예 빼도 된다 — 억지로 다 채우지 마라.\n"
+            " 무관한 후보는 아예 빼도 된다 — 억지로 다 채우지 마라. 단, 목표와"
+            " 연결되는 수업은 가능한 한 빠짐없이 담아라 — 관련 학과의 기초부터"
+            " 심화까지 커리큘럼 전체 그림이 보이도록, 군집 수와 군집당 과목 수에"
+            " 상한을 두지 마라(과목이 수십 개여도 좋다). 확실히 무관한 것만 빼라.\n"
             "- reason은 이 과목이 왜 이 목표에 맞는지 한 줄로.\n"
             "- level은 과목의 계층(1000~4000)이고 years는 수강 가능 학년이다 — 서로"
             " 다른 개념이니 혼동하지 마라. 1학년 수준의 목표라면 4000단위 수업으로"
@@ -740,7 +769,7 @@ class AnthropicClaudeClient:
         # 반복된 함정(작은 max_tokens + thinking = JSON 잘림), 절대 건드리지 말 것.
         resp = await self._client.messages.create(
             model=self._extract_model,
-            max_tokens=12000,
+            max_tokens=20000,
             thinking={"type": "disabled"},
             system=system_blocks,
             messages=[{"role": "user", "content": user}],
