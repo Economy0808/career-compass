@@ -20,6 +20,11 @@ import Image from "next/image";
 import { useEffect, useMemo, useRef, useState } from "react";
 import { cn } from "@/lib/cn";
 import { ChevronLeftIcon, ChevronRightIcon, CloseIcon } from "@/components/ui/icons";
+import {
+  ConstellationCanvas,
+  type CanvasEdge,
+  type CanvasNode,
+} from "@/components/ConstellationCanvas";
 
 /* ── 시드 난수 (SpaceBackdrop의 mulberry32 관례) ─────────────── */
 function mulberry32(seed: number): () => number {
@@ -152,159 +157,66 @@ function ConstellationLoader() {
   );
 }
 
-/* ── 2-1. 슬라이드 1: 미니 인터랙티브 플레이그라운드 ─────────── */
-const PG_W = 300;
-const PG_H = 150;
-const PG_NODES = [
-  { id: "a", x: 62, y: 96, label: "회계원리" },
-  { id: "b", x: 152, y: 46, label: "경영통계" },
-  { id: "c", x: 238, y: 100, label: "학회 활동" },
-] as const;
-const RING_R = 17;
-const CORE_R = 6.5;
+/* ── 2-1. 슬라이드 1: 실캔버스 연습장 ────────────────────────── */
+/* 흉내 SVG가 아니라 진짜 ConstellationCanvas를 로컬 state로 임베드한다
+ * (사용자 지적: "UI대충만들지 말고 메인페이지 캔버스랑 똑같이" — 핸들 링
+ * 히트 영역·십자 커서·달성 연출이 실물과 동일해야 한다). 저장/서버 호출은
+ * 없고 전부 이 컴포넌트의 로컬 상태다. */
+const PLAYGROUND_NODES: Record<string, CanvasNode> = {
+  "pg-a": { id: "pg-a", label: "회계원리", type: "course", isCompleted: false, position: { x: -130, y: 70 } },
+  "pg-b": { id: "pg-b", label: "경영통계", type: "course", isCompleted: false, position: { x: 10, y: -60 } },
+  "pg-c": { id: "pg-c", label: "학회 활동", type: "organization", isCompleted: false, position: { x: 150, y: 80 } },
+};
 
-function svgPoint(e: React.PointerEvent<SVGSVGElement>): { x: number; y: number } {
-  const rect = e.currentTarget.getBoundingClientRect();
-  return {
-    x: ((e.clientX - rect.left) / rect.width) * PG_W,
-    y: ((e.clientY - rect.top) / rect.height) * PG_H,
-  };
-}
-
-function MiniPlayground() {
-  const [completed, setCompleted] = useState<Set<string>>(new Set());
-  const [edges, setEdges] = useState<{ from: string; to: string }[]>([]);
-  const [linking, setLinking] = useState<{ from: string; x: number; y: number } | null>(null);
-
-  function nodeAt(x: number, y: number): (typeof PG_NODES)[number] | undefined {
-    return PG_NODES.find((n) => Math.hypot(n.x - x, n.y - y) <= RING_R + 4);
-  }
-
-  function toggleComplete(id: string): void {
-    setCompleted((prev) => {
-      const next = new Set(prev);
-      if (next.has(id)) next.delete(id);
-      else next.add(id);
-      return next;
-    });
-  }
-
-  function finishLink(x: number, y: number): void {
-    if (!linking) return;
-    const target = nodeAt(x, y);
-    if (
-      target &&
-      target.id !== linking.from &&
-      !edges.some(
-        (ed) =>
-          (ed.from === linking.from && ed.to === target.id) ||
-          (ed.from === target.id && ed.to === linking.from)
-      )
-    ) {
-      setEdges((prev) => [...prev, { from: linking.from, to: target.id }]);
-    }
-    setLinking(null);
-  }
-
-  const byId = (id: string) => PG_NODES.find((n) => n.id === id)!;
+function CanvasPlayground() {
+  const [nodes, setNodes] = useState<Record<string, CanvasNode>>(PLAYGROUND_NODES);
+  const [edges, setEdges] = useState<Record<string, CanvasEdge>>({});
+  const edgeSeq = useRef(0);
 
   return (
     <div className="flex w-full flex-col items-center gap-2">
-      <svg
-        viewBox={`0 0 ${PG_W} ${PG_H}`}
-        fill="transparent"
-        className="w-full max-w-[560px] touch-none select-none rounded-lg border border-rule bg-ink-900/70"
-        role="img"
-        aria-label="캔버스 연습장 - 별을 더블클릭하면 달성, 바깥 링을 끌면 연결"
-        onPointerMove={(e) => {
-          if (linking) {
-            const p = svgPoint(e);
-            setLinking({ ...linking, x: p.x, y: p.y });
+      <div className="relative h-[420px] w-full overflow-hidden rounded-lg border border-rule md:h-[560px]">
+        <ConstellationCanvas
+          nodes={nodes}
+          edges={edges}
+          fitRequest={1}
+          onNodeDrag={(nodeId, position) =>
+            setNodes((prev) => {
+              const cur = prev[nodeId];
+              return cur ? { ...prev, [nodeId]: { ...cur, position } } : prev;
+            })
           }
-        }}
-        onPointerUp={(e) => {
-          const p = svgPoint(e);
-          finishLink(p.x, p.y);
-        }}
-        onPointerLeave={() => setLinking(null)}
-      >
-        {edges.map((ed, i) => {
-          const f = byId(ed.from);
-          const t = byId(ed.to);
-          return (
-            <line key={i} x1={f.x} y1={f.y} x2={t.x} y2={t.y} stroke="var(--lit)" strokeWidth="1.4" opacity="0.85" />
-          );
-        })}
-        {linking && (
-          <line
-            x1={byId(linking.from).x}
-            y1={byId(linking.from).y}
-            x2={linking.x}
-            y2={linking.y}
-            stroke="var(--lit)"
-            strokeWidth="1.2"
-            strokeDasharray="3 4"
-            opacity="0.7"
-          />
-        )}
-        {PG_NODES.map((n) => {
-          const done = completed.has(n.id);
-          return (
-            <g key={n.id}>
-              {/* 바깥 점선 링 = 잇기 핸들(실캔버스와 동일 문법). crosshair 커서. */}
-              <circle
-                cx={n.x}
-                cy={n.y}
-                r={RING_R}
-                stroke="var(--rule)"
-                strokeDasharray="2 4"
-                strokeWidth="1"
-                fill="transparent"
-                className="cursor-crosshair"
-                style={{ pointerEvents: "stroke" }}
-                onPointerDown={(e) => {
-                  e.preventDefault();
-                  setLinking({ from: n.id, x: n.x, y: n.y });
-                }}
-              />
-              {done && (
-                <>
-                  <circle cx={n.x} cy={n.y} r={CORE_R + 6} fill="var(--lit)" opacity="0.22" style={{ transition: "opacity 300ms" }} />
-                  {/* 십자 회절 스파이크(달성 문법). */}
-                  <path
-                    d={`M ${n.x} ${n.y - 13} V ${n.y + 13} M ${n.x - 13} ${n.y} H ${n.x + 13}`}
-                    stroke="var(--lit)"
-                    strokeWidth="1"
-                    opacity="0.7"
-                  />
-                </>
-              )}
-              <circle
-                cx={n.x}
-                cy={n.y}
-                r={CORE_R}
-                fill={done ? "var(--lit)" : "var(--spec-b)"}
-                className="cursor-pointer"
-                style={{ transition: "fill 250ms" }}
-                onDoubleClick={() => toggleComplete(n.id)}
-              />
-              <text
-                x={n.x}
-                y={n.y + RING_R + 12}
-                textAnchor="middle"
-                fill="var(--text-lo)"
-                fontSize="9"
-                className="pointer-events-none font-sans"
-              >
-                {n.label}
-              </text>
-            </g>
-          );
-        })}
-      </svg>
+          onNodeToggleComplete={(nodeId) =>
+            setNodes((prev) => {
+              const cur = prev[nodeId];
+              return cur ? { ...prev, [nodeId]: { ...cur, isCompleted: !cur.isCompleted } } : prev;
+            })
+          }
+          onEdgeCreate={(sourceNodeId, targetNodeId) =>
+            setEdges((prev) => {
+              const exists = Object.values(prev).some(
+                (ed) =>
+                  (ed.sourceNodeId === sourceNodeId && ed.targetNodeId === targetNodeId) ||
+                  (ed.sourceNodeId === targetNodeId && ed.targetNodeId === sourceNodeId)
+              );
+              if (exists) return prev;
+              edgeSeq.current += 1;
+              const id = `pg-edge-${edgeSeq.current}`;
+              return { ...prev, [id]: { id, sourceNodeId, targetNodeId } };
+            })
+          }
+          onEdgeDelete={(edgeId) =>
+            setEdges((prev) => {
+              const next = { ...prev };
+              delete next[edgeId];
+              return next;
+            })
+          }
+        />
+      </div>
       <p className="text-center text-caption leading-relaxed text-text-lo">
-        별을 <b className="text-text-hi">더블클릭</b>하면 달성으로 빛나요 · 바깥 점선 링에서 커서가{" "}
-        <b className="text-text-hi">십자</b>로 바뀌면 끌어서 다른 별과 이어보세요
+        별을 <b className="text-text-hi">더블클릭</b>하면 달성으로 빛나요 · 별 바깥 링에서 커서가{" "}
+        <b className="text-text-hi">십자</b>로 바뀌면 끌어서 다른 별과 이어보세요 · 빈 곳을 끌면 하늘이 움직여요
       </p>
     </div>
   );
@@ -358,7 +270,7 @@ const SLIDES: GuideSlide[] = [
   {
     key: "canvas-control",
     title: "캔버스에서 별 다루기",
-    body: <MiniPlayground />,
+    body: <CanvasPlayground />,
   },
   {
     key: "canvas-tools",
