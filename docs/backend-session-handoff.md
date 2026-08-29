@@ -1,4 +1,39 @@
-# 백엔드 세션 핸드오프 (2026-08-27 작성, 2026-08-30 15차 갱신)
+# 백엔드 세션 핸드오프 (2026-08-27 작성, 2026-08-30 16차 갱신)
+
+> **16차 (8/30) — "과목 실종" 근본 확진 + 4중 방어 완성, 사용자 지적 4건 전부 랜드**:
+> - **과목 실종 확진(데이터는 무사, 소실 아님)**: ①course_repo `list_taxonomy` 프로세스 캐시가
+>   에뮬레이터 빈 시점 첫 호출의 **빈 목록을 영구 캐시** → 이후 전 잡이 조용히 수업 0개
+>   ②침묵 실패 3지점 무경고 ③파싱 쓰레기 학과명(college 필드에 설명 문장, 실측
+>   data/dept-check.txt) ④**tests/conftest.py autouse 픽스처가 매 테스트 후 에뮬레이터
+>   프로젝트 전체 삭제** — 에뮬레이터 켠 채 pytest 돌릴 때마다 7,109과목 전멸(실사고,
+>   e76bdad 에이전트가 발견·즉시 재적재).
+> - **4중 방어**: ⓐ자가치유 `e76bdad`(학과<3이면 미캐시+재스캔·경고, 쓰레기 학과명 필터
+>   — 실데이터 기준 college 19개 정확 제거·학과 159 전부 생존, 침묵 2지점 WARNING, "직접
+>   전공 없으면 인접·기반 학과" 프롬프트 원칙, 테스트 22통과) ⓑ원클릭 복구
+>   `backend/scripts/restore_emulator.ps1` `46fe76e`(-Backup=export, 기본=courses-2026.json
+>   재적재, 없으면 Downloads TXT 재파싱) ⓒ현 상태 data/emulator-backup export 완료 —
+>   에뮬레이터는 `firebase emulators:start --import=data/emulator-backup
+>   --export-on-exit=data/emulator-backup`로 기동 권장 ⓓ**pytest 격리 `8418993`**:
+>   conftest가 FIRESTORE_PROJECT_ID를 `demo-ourlab-test`로 강제 대입(setdefault 아님) —
+>   셸에 demo-ourlab export한 적대 조건에서 22테스트 완주 후 실데이터 7,109 생존 실증.
+>   **Blaze 결제 불필요**(로컬은 import/export로 충분, Storage 영상 업로드만 별개).
+> - **사용자 지적 4건 랜드**: ①인테이크 "선택 완료" 항상 가시 `8828df7`(입력창 위 고정 바,
+>   375px 칩 3줄 wrap에서도 좌표 실측 통과, 스크롤 useEffect 의존성 보강) ②튜토리얼 별 극소
+>   `1d9b2ed`(근본=flex-1 높이 collapse 828×150px + computeFitTransform의 768px↑ 가짜 우측
+>   패널 분기 → aspect-[1440/900]+max-w-[640px]로 k=1 복원, 더블클릭·간선 잇기 실측)
+>   ③다이브인 성단 칩 파국 `5d25781`(근본=칩 필터 `g.id===diveGroupId` 잔존 → X=그룹 해제
+>   → 격리 필터가 전부 숨김·복귀 불능. 수정=다이브인 중 칩 전면 숨김+그룹 소멸 시 자동
+>   diveOut 가드+우하단 칩 z-30·truncate. 파국 재현→자동 복구 실증) ④백엔드=ⓐ.
+> - **백엔드 재시작 완료**(taxonomy 캐시=프로세스 캐시라 필수): /prereqs 실 LLM 스모크 정상
+>   (BIZ1101→BIZ2110). ⚠️/health `db:error` — Docker Desktop 꺼져 있어 구 Postgres down
+>   (영향=일정 todos만, 필요 시 Docker 기동).
+> - **피어 협업 규칙 신설(사용자 지시, 메모리 저장)**: "프론트엔드 세션에 위임할 수 있는건
+>   위임해. 컨텍스트랑 내가 말한 본문도 반드시 같이 전달하고." → 위임 시 컨텍스트+지시
+>   원문 verbatim+파일 소유권 경계 동봉 의무. 실행: 피드 상세(피어가 잔여 범위 승인 진행 —
+>   Post.constellationId 계약 변경 시 이쪽 api/스키마 조정 예정), 구 test-observer uid 시드
+>   갱신(피어 grep 결과 리포 0건 — no-op 종결).
+> - 남은 확인: 로그인 QA 첫 저장 422 회귀 / 실 LLM 재완주 체감(경영류 주제로 과목 포함 확인)
+>   / 파서 근본 수정(college 문장 유입, app/etl) 백로그.
 
 > **15차 (8/30) — 캔버스 다이브인 완성판 + 인테이크 UX + 튜토리얼 맞춤** (사용자 지시 5건 반영):
 > - **캔버스 온디맨드 위계+격리+배율 `0953747`**: onDiveInGroup 콜백 → page.tsx가 다이브인
