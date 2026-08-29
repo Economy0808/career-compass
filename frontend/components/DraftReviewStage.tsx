@@ -19,13 +19,25 @@
  * bins 전체를 실제 노드+성단 그룹으로 한 번에 materialize한다(nodes/edges를
  * 이 화면에 미리 채워 둘 필요가 없다 - 그 책임이 이제 여기 하나로 모였다).
  *
- * 성운 입자 + 클릭 전개(포스 시뮬) - 이 화면만의 상태다. 확정 시
- * materialize되는 실제 좌표(binClusterCenter)와는 무관한 "미리보기 전용"
- * 연출이라, 접었다 펴도 확정 결과는 절대 바뀌지 않는다(handleAcceptDraft는
+ * 성운 다이브인 - 성단을 클릭하면 그 자리를 중심으로 하늘 전체가 확대되며
+ * (단일 wrapper의 transform CSS 전환, 요소별 애니메이션 아님) 풀뷰포트
+ * 내부 뷰로 전환된다. 내부에서는 멤버가 별자리 펼쳐지듯 스태거로 등장한다
+ * (computeExpandedLayout 포스 시뮬을 그대로 재사용 - 성단 미리보기와 내부
+ * 뷰가 "같은 모양, 다른 크기"로 보이게). 확정 시 materialize되는 실제
+ * 좌표(binClusterCenter)와는 무관한 "미리보기 전용" 연출이라, 다이브
+ * 인/아웃을 반복해도 확정 결과는 절대 바뀌지 않는다(handleAcceptDraft는
  * 여전히 bins 원본만 읽는다).
  *
- * Esc는 의도적으로 아무 것도 하지 않는다 - 사용자가 반드시 셋 중 하나를
- * 선택하게 한다(대화 오버레이의 onDismiss와 다른 지점).
+ * Esc: 하늘 전체 뷰에서는 의도적으로 아무 것도 하지 않는다(사용자가 반드시
+ * 좌하단 패널의 셋 중 하나를 선택하게 한다) - 성운 내부로 다이브인한
+ * 동안에만 "성운 밖으로"와 같은 동작(diveOut)을 한다.
+ *
+ * 성단 히트 타깃 버그(실통합 3중 검증 완료): 배경 팬 레이어가 모든
+ * pointerdown에서 조상에 setPointerCapture를 걸면 중첩된 성단의 네이티브
+ * click이 영영 발생하지 않는다. ConstellationCanvas의 beginGroupDrag와
+ * 같은 패턴으로 고쳤다 - 성단 자체 히트 타깃에서 pointerdown 시
+ * stopPropagation + 자기 자신에 캡처 + 이동 임계값(CLUSTER_CLICK_THRESHOLD)
+ * 으로 클릭/드래그를 분리한다.
  */
 
 import {
@@ -200,12 +212,13 @@ function buildNebulaParticles(bin: Bin, clusterIndex: number, diameter: number, 
   return particles;
 }
 
-// ---- 클릭 전개 - 옵시디언 그래프뷰풍 경량 포스 시뮬(외부 라이브러리 없이
-// 자체 반복 완화) ----
-// 전개의 1순위 목적은 "내용물 열람"이다(라벨을 항상 읽을 수 있어야 함) -
-// 그래서 최소 간격을 라벨 폭을 넉넉히 감안한 값으로 잡는다. 진짜 옵시디언처럼
-// 라벨 겹침을 감지해 지시선을 긋는 것까지는 하지 않는다(과한 스코프) - 대신
-// 간격 자체를 넓게 둬서 실용적으로 안 겹치게 한다.
+// ---- 성운 내부 전개 - 옵시디언 그래프뷰풍 경량 포스 시뮬(외부 라이브러리
+// 없이 자체 반복 완화). 성단 미리보기 원과 다이브인 내부 뷰가 모두 이 하나의
+// 순수 함수를 공유한다(스케일만 다르게 입힌다 - 아래 interiorLayoutFor) ----
+// 1순위 목적은 "내용물 열람"이다(라벨을 항상 읽을 수 있어야 함) - 그래서
+// 최소 간격을 라벨 폭을 넉넉히 감안한 값으로 잡는다. 진짜 옵시디언처럼 라벨
+// 겹침을 감지해 지시선을 긋는 것까지는 하지 않는다(과한 스코프) - 대신 간격
+// 자체를 넓게 둬서 실용적으로 안 겹치게 한다.
 // ponytail: 라벨 충돌 회피/지시선 미도입 - 넉넉한 척력 간격으로 대신한다.
 // 실측에서 라벨이 자주 겹치면 그때 추가한다.
 const EXPAND_MIN_DIST = 30; // 이 거리 안이면 척력 작동
@@ -220,8 +233,9 @@ interface Vec2 {
   y: number;
 }
 
-/** 성단 중심(0,0) 기준 최종 배치를 계산한다 - 순수 함수, count와 seed에만
- * 의존해 항상 같은 결과를 낸다. */
+/** 성단 중심(0,0) 기준 컴팩트한 상대 배치를 계산한다 - 순수 함수, count와
+ * seed에만 의존해 항상 같은 결과를 낸다(px 단위지만 작은 반경 - 실제 화면
+ * 크기로 펴는 건 interiorLayoutFor의 몫). */
 function computeExpandedLayout(count: number, seed: number): Vec2[] {
   if (count === 0) return [];
   const rand = mulberry32(seed);
@@ -268,9 +282,22 @@ function computeExpandedLayout(count: number, seed: number): Vec2[] {
   return pts;
 }
 
+// 다이브인 내부 뷰 전용 - computeExpandedLayout의 컴팩트 좌표를 뷰포트를
+// 채우도록 스케일만 키운다(포스 시뮬 재계산 없음 - 성단 미리보기와 내부 뷰가
+// "같은 모양, 다른 크기"로 보이게 하기 위함).
+const INTERIOR_FILL_RATIO = 0.34; // 뷰포트 짧은 변 대비 배치 반경 비율
+function interiorLayoutFor(count: number, seed: number, viewport: { width: number; height: number }): Vec2[] {
+  const raw = computeExpandedLayout(count, seed);
+  if (raw.length === 0) return raw;
+  const maxR = Math.max(...raw.map((p) => Math.hypot(p.x, p.y)), 1);
+  const targetR = Math.min(viewport.width, viewport.height) * INTERIOR_FILL_RATIO;
+  const scale = targetR / maxR;
+  return raw.map((p) => ({ x: p.x * scale, y: p.y * scale }));
+}
+
 // ---- rAF 스프링 - 접힌 성단 중심 -> 전개 좌표로 "튀어나오는" 전환 모션.
-// 상시 애니메이션이 아니라 전개/접힘 상호작용 순간에만 rAF 루프가 돈다
-// (안정되면 스스로 멈춘다).
+// 상시 애니메이션이 아니라 전개 상호작용 순간에만 rAF 루프가 돈다(안정되면
+// 스스로 멈춘다).
 const SPRING_STIFFNESS = 210;
 const SPRING_DAMPING = 26;
 const SPRING_SETTLE_DIST = 0.3;
@@ -301,6 +328,13 @@ function stepSpringNode(node: SpringNode, dt: number): boolean {
     Math.abs(node.vy) < SPRING_SETTLE_VEL;
   return !settled;
 }
+
+// ---- 다이브인 상수 ----
+const CLUSTER_CLICK_THRESHOLD = 5; // px - 이 안이면 클릭, 넘으면 드래그로 간주(pointerdown을 무효화)
+const DIVE_ZOOM_K = 16; // 하늘 wrapper가 클릭 지점을 중심으로 확대되는 배율
+const DIVE_DURATION_MS = 450;
+const DIVE_EASE = "cubic-bezier(.22,1,.36,1)";
+const INTERIOR_STAGGER_MS = 45; // 내부 멤버가 순서대로 튀어나오는 간격
 
 export function DraftReviewStage({
   drafts,
@@ -396,40 +430,40 @@ export function DraftReviewStage({
     panDragRef.current = null;
   }, []);
 
-  // ---- 클릭 전개 상태 ----------------------------------------------------
-  const [expandedBinIds, setExpandedBinIds] = useState<Set<string>>(new Set());
-  const expandedBinIdsRef = useRef(expandedBinIds);
-  useEffect(() => {
-    expandedBinIdsRef.current = expandedBinIds;
-  }, [expandedBinIds]);
-
-  const toggleExpand = useCallback((binId: string) => {
-    setExpandedBinIds((prev) => {
-      const next = new Set(prev);
-      if (next.has(binId)) next.delete(binId);
-      else next.add(binId);
-      return next;
-    });
-  }, []);
+  // ---- 다이브인 상태 ------------------------------------------------------
+  // diveBinId: 지금 "안으로 들어간" 성단(null이면 하늘 전체 뷰). insideActive는
+  // 줌 애니메이션이 다 끝나 내부 뷰가 실제로 보이는 시점(오버레이 페이드인
+  // 트리거) - 줌 도중(diveTransitioning만 true)엔 하늘 wrapper만 애니메이션
+  // 중이고 오버레이는 아직 투명하다. diveTransitioning은 in/out 두 방향
+  // 전환 내내 true이고, 어느 방향인지는 divePhaseRef(ref라 리렌더 없이도
+  // onTransitionEnd에서 읽을 수 있다)로 구분한다.
+  const [diveBinId, setDiveBinId] = useState<string | null>(null);
+  const [diveXY, setDiveXY] = useState<{ originXPct: number; originYPct: number } | null>(null);
+  const [diveTransitioning, setDiveTransitioning] = useState(false);
+  const [insideActive, setInsideActive] = useState(false);
+  const divePhaseRef = useRef<"in" | "out" | null>(null);
+  const staggerTimeoutsRef = useRef<ReturnType<typeof setTimeout>[]>([]);
+  // 오버레이는 줌 인 도중(디자인상 하늘 뒤에 숨어야 함)부터 줌 아웃이 끝날
+  // 때까지 DOM에 남아 있어야 opacity 트랜지션이 실제로 재생된다.
+  const showInterior = diveBinId !== null || diveTransitioning;
 
   const [hoveredKey, setHoveredKey] = useState<string | null>(null);
 
-  // 미리보기 박스의 실제 px 크기 - 포스 시뮬은 px 공간에서 계산해야 화면
-  // 비율(760x620 근사, 실제로는 반응형)에 관계없이 원처럼 고르게 퍼진다.
-  const previewBoxRef = useRef<HTMLDivElement>(null);
-  const [boxSize, setBoxSize] = useState({ width: 760, height: 620 });
+  // 뷰포트 크기 - 다이브인 내부 뷰는 미리보기 박스가 아니라 풀뷰포트를
+  // 채워야 하므로 별도로 추적한다(resize에도 즉시 반응).
+  const [viewportSize, setViewportSize] = useState(() => ({
+    width: typeof window === "undefined" ? 1280 : window.innerWidth,
+    height: typeof window === "undefined" ? 800 : window.innerHeight,
+  }));
   useEffect(() => {
-    const el = previewBoxRef.current;
-    if (!el) return;
-    const ro = new ResizeObserver((entries) => {
-      const entry = entries[0];
-      if (entry) setBoxSize({ width: entry.contentRect.width, height: entry.contentRect.height });
-    });
-    ro.observe(el);
-    return () => ro.disconnect();
+    function handleResize() {
+      setViewportSize({ width: window.innerWidth, height: window.innerHeight });
+    }
+    window.addEventListener("resize", handleResize);
+    return () => window.removeEventListener("resize", handleResize);
   }, []);
 
-  // item.id -> {item, bin, binIndex} - 전개된 노드를 렌더할 때 원본을 찾는다.
+  // item.id -> {item, bin, binIndex} - 다이브인 내부 뷰에서 원본을 찾는다.
   const itemLookup = useMemo(() => {
     const map = new Map<string, { item: BinItem; bin: Bin; binIndex: number }>();
     bins.forEach((bin, binIndex) => {
@@ -440,8 +474,13 @@ export function DraftReviewStage({
     return map;
   }, [bins]);
 
+  const diveBinIndex = diveBinId ? bins.findIndex((b) => b.id === diveBinId) : -1;
+  const diveBin = diveBinIndex >= 0 ? bins[diveBinIndex] : undefined;
+
   // rAF 스프링 - springsRef가 진짜 상태(위치/속도/목표)를 갖고, tick이
-  // 리렌더를 강제한다. 상호작용 순간에만 돌고 안정되면 스스로 멈춘다.
+  // 리렌더를 강제한다. 상호작용 순간에만 돌고 안정되면 스스로 멈춘다. 이
+  // Map은 다이브인 내부 뷰 전용(하늘 미리보기는 더 이상 제자리 전개를 하지
+  // 않는다 - 다이브인이 그 역할을 대신한다).
   const springsRef = useRef<Map<string, SpringNode>>(new Map());
   const rafRef = useRef<number | null>(null);
   const [, setTick] = useState(0);
@@ -449,15 +488,8 @@ export function DraftReviewStage({
   const stepAllSprings = useCallback((dt: number): boolean => {
     const springs = springsRef.current;
     let anyMoving = false;
-    springs.forEach((node, key) => {
-      const binId = key.split("::")[0];
-      const isFolding = !expandedBinIdsRef.current.has(binId);
-      const stillMoving = stepSpringNode(node, dt);
-      if (isFolding && !stillMoving) {
-        springs.delete(key); // 접힘 완료 - 중심으로 다 들어왔으니 지운다
-        return;
-      }
-      if (stillMoving) anyMoving = true;
+    springs.forEach((node) => {
+      if (stepSpringNode(node, dt)) anyMoving = true;
     });
     return anyMoving;
   }, []);
@@ -478,62 +510,119 @@ export function DraftReviewStage({
   useEffect(() => {
     return () => {
       if (rafRef.current != null) cancelAnimationFrame(rafRef.current);
+      staggerTimeoutsRef.current.forEach(clearTimeout);
     };
   }, []);
 
-  // expandedBinIds(또는 그 내용/박스 크기)가 바뀔 때마다 목표 좌표를 다시
-  // 계산한다 - 새로 펼쳐진 노드는 성단 중심에서 스폰, 접힌 성단의 노드는
-  // 목표만 중심으로 되돌려 stepAllSprings가 정리하게 둔다.
+  const diveIn = useCallback(
+    (bin: Bin, index: number) => {
+      if (diveBinId || diveTransitioning) return; // 전환 중 재진입 방지
+      if (bin.items.length === 0 || !toPct) return;
+      const pos = toPct(clusterCenters[index]);
+      setDiveXY({ originXPct: pos.left, originYPct: pos.top });
+      setDiveBinId(bin.id);
+      setDiveTransitioning(true);
+      divePhaseRef.current = "in";
+    },
+    [diveBinId, diveTransitioning, toPct, clusterCenters]
+  );
+
+  const diveOut = useCallback(() => {
+    if (!diveBinId) return;
+    divePhaseRef.current = "out";
+    setDiveTransitioning(true);
+    setInsideActive(false); // 오버레이 페이드아웃을 하늘 줌아웃과 동시에 시작
+    setDiveBinId(null); // 하늘 wrapper의 목표 transform이 scale(1)로 바뀐다
+  }, [diveBinId]);
+
+  // Esc는 하늘 전체 뷰에서는 여전히 아무 것도 하지 않는다(문서 상단 참고) -
+  // 성운 내부일 때만 diveOut과 같은 동작을 한다.
   useEffect(() => {
-    if (!toPct) return;
+    function handleKeyDown(e: KeyboardEvent) {
+      if (e.key !== "Escape") return;
+      if (diveBinId) diveOut();
+    }
+    window.addEventListener("keydown", handleKeyDown);
+    return () => window.removeEventListener("keydown", handleKeyDown);
+  }, [diveBinId, diveOut]);
+
+  // 내부 뷰가 활성화되면(줌 인 트랜지션이 끝나면) 멤버를 성단 중심(오프셋
+  // 0,0)에서 시작해 순서대로 목표 좌표로 스프링을 튕겨 보낸다 - "별자리
+  // 펼쳐지듯" 스태거 등장.
+  useEffect(() => {
+    staggerTimeoutsRef.current.forEach(clearTimeout);
+    staggerTimeoutsRef.current = [];
+    if (!insideActive || !diveBin) return;
     const springs = springsRef.current;
-    const activeKeys = new Set<string>();
-
-    const centerPxOf = (binIndex: number): Vec2 => {
-      const pct = toPct(clusterCenters[binIndex]);
-      return { x: (pct.left / 100) * boxSize.width, y: (pct.top / 100) * boxSize.height };
-    };
-
-    expandedBinIds.forEach((binId) => {
-      const binIndex = bins.findIndex((b) => b.id === binId);
-      if (binIndex < 0) return;
-      const bin = bins[binIndex];
-      const center = centerPxOf(binIndex);
-      const layout = computeExpandedLayout(bin.items.length, hashSeed(bin.id));
-      bin.items.forEach((item, i) => {
-        const key = `${binId}::${item.id}`;
-        activeKeys.add(key);
-        const target = { x: center.x + layout[i].x, y: center.y + layout[i].y };
-        const existing = springs.get(key);
-        if (existing) {
-          existing.tx = target.x;
-          existing.ty = target.y;
-        } else {
-          springs.set(key, { x: center.x, y: center.y, vx: 0, vy: 0, tx: target.x, ty: target.y });
-        }
-      });
+    springs.clear();
+    const positions = interiorLayoutFor(diveBin.items.length, hashSeed(diveBin.id), viewportSize);
+    diveBin.items.forEach((item, i) => {
+      const key = `${diveBin.id}::${item.id}`;
+      springs.set(key, { x: 0, y: 0, vx: 0, vy: 0, tx: 0, ty: 0 });
+      const timeout = setTimeout(() => {
+        const node = springsRef.current.get(key);
+        if (!node) return;
+        node.tx = positions[i].x;
+        node.ty = positions[i].y;
+        startSpringLoop();
+      }, i * INTERIOR_STAGGER_MS);
+      staggerTimeoutsRef.current.push(timeout);
     });
+    setTick((t) => t + 1); // 방금 clear한 springsRef를 즉시 반영(전부 중심에서 보이게)
+  }, [insideActive, diveBin, viewportSize, startSpringLoop]);
 
-    // 활성 목록에서 빠진(=접힌) 노드는 목표를 다시 중심으로 - 튀어나온
-    // 역순으로 스프링이 되돌아가며 사라진다.
-    springs.forEach((node, key) => {
-      if (activeKeys.has(key)) return;
-      const binId = key.split("::")[0];
-      const binIndex = bins.findIndex((b) => b.id === binId);
-      if (binIndex < 0) {
-        springs.delete(key);
-        return;
-      }
-      const center = centerPxOf(binIndex);
-      node.tx = center.x;
-      node.ty = center.y;
-    });
+  // ---- 성단 히트 타깃 - stopPropagation + 자기 캡처 + 이동 임계값으로
+  // 클릭/드래그를 분리한다(파일 상단 주석의 버그 수정 패턴). ----
+  const clusterDragRef = useRef<{
+    pointerId: number;
+    startClientX: number;
+    startClientY: number;
+    moved: boolean;
+    bin: Bin;
+    index: number;
+  } | null>(null);
 
-    startSpringLoop();
-    // eslint-disable-next-line react-hooks/exhaustive-deps
-  }, [expandedBinIds, bins, boxSize, toPct, clusterCenters, startSpringLoop]);
+  const handleClusterPointerDown = useCallback(
+    (bin: Bin, index: number) => (e: ReactPointerEvent<HTMLDivElement>) => {
+      if (e.button !== 0) return;
+      e.stopPropagation(); // 배경 팬 레이어가 조상에 캡처를 걸지 못하게 막는다
+      clusterDragRef.current = {
+        pointerId: e.pointerId,
+        startClientX: e.clientX,
+        startClientY: e.clientY,
+        moved: false,
+        bin,
+        index,
+      };
+      e.currentTarget.setPointerCapture(e.pointerId);
+    },
+    []
+  );
 
-  const clampPct = (v: number) => Math.min(Math.max(v, 2), 98);
+  const handleClusterPointerMove = useCallback((e: ReactPointerEvent<HTMLDivElement>) => {
+    const drag = clusterDragRef.current;
+    if (!drag || e.pointerId !== drag.pointerId) return;
+    if (Math.hypot(e.clientX - drag.startClientX, e.clientY - drag.startClientY) > CLUSTER_CLICK_THRESHOLD) {
+      drag.moved = true;
+    }
+  }, []);
+
+  const handleClusterPointerUp = useCallback(
+    (e: ReactPointerEvent<HTMLDivElement>) => {
+      const drag = clusterDragRef.current;
+      if (!drag || e.pointerId !== drag.pointerId) return;
+      clusterDragRef.current = null;
+      if (!drag.moved) diveIn(drag.bin, drag.index);
+    },
+    [diveIn]
+  );
+
+  // 하늘 wrapper의 단일 transform - 팬과 다이브 줌을 하나로 합친다(요소별
+  // transform 애니메이션 금지 원칙, ae48e73). transformOrigin은 다이브 시점의
+  // 클릭한 성단 위치(%)로 고정해 그 지점을 중심으로 확대되는 것처럼 보이게
+  // 한다. diveTransitioning일 때만 CSS transition을 건다 - 순수 팬 드래그는
+  // 여전히 즉시 반응해야(트랜지션 없이) 손맛이 그대로다.
+  const wrapperTransform = `translate(${pan.x}px, ${pan.y}px) scale(${diveBinId ? DIVE_ZOOM_K : 1})`;
 
   return (
     <div role="region" aria-label="별자리 초안 검토" className="fixed inset-0 z-40 overflow-hidden bg-ink-900">
@@ -541,19 +630,22 @@ export function DraftReviewStage({
       <SpaceBackdrop />
       <div className="bg-radec-grid pointer-events-none absolute inset-0" aria-hidden />
 
-      {/* 상단 중앙 배너 - 시안의 pill 형태. 이 화면은 정적 미리보기라
-          "끌어서 고친다"는 약속은 하지 않는다(그건 확정 후 캔버스의 일 -
-          여기서 말하면 거짓 어포던스가 된다). pointer-events-none이라 팬
-          서페이스보다 위(z-10)에 있어도 드래그를 가로채지 않는다. */}
-      <div
-        className="pointer-events-none fixed left-1/2 top-6 z-10 flex -translate-x-1/2 items-center gap-2.5 rounded-full border border-rule bg-ink-800/95 px-5 py-2.5 shadow-lg backdrop-blur-md"
-        role="status"
-      >
-        <StarGlyph size={14} />
-        <span className="font-sans text-body-sm text-text-hi">
-          대화를 바탕으로 별자리 초안을 그렸어요 — 마음에 드는 안을 골라 시작하세요
-        </span>
-      </div>
+      {/* 상단 중앙 배너 - 시안의 pill 형태. 다이브인 중에는 숨긴다(내부 뷰가
+          자체 배너를 갖는다). 이 화면은 정적 미리보기라 "끌어서 고친다"는
+          약속은 하지 않는다(그건 확정 후 캔버스의 일 - 여기서 말하면 거짓
+          어포던스가 된다). pointer-events-none이라 팬 서페이스보다 위(z-10)에
+          있어도 드래그를 가로채지 않는다. */}
+      {!diveBinId && (
+        <div
+          className="pointer-events-none fixed left-1/2 top-6 z-10 flex -translate-x-1/2 items-center gap-2.5 rounded-full border border-rule bg-ink-800/95 px-5 py-2.5 shadow-lg backdrop-blur-md"
+          role="status"
+        >
+          <StarGlyph size={14} />
+          <span className="font-sans text-body-sm text-text-hi">
+            대화를 바탕으로 별자리 초안을 그렸어요 — 마음에 드는 안을 골라 시작하세요
+          </span>
+        </div>
+      )}
 
       {/* 팬 드래그 서페이스 - 무대 전체를 덮되 배너/패널은 별도 형제 요소라
           위에서 자기 이벤트를 먼저 가로챈다(z-index로 항상 위). 확대는
@@ -572,9 +664,22 @@ export function DraftReviewStage({
         <div className="absolute inset-x-0 bottom-[calc(46vh+var(--tabbar-h))] top-20 flex items-center justify-center px-6 md:left-[26%] md:right-[10%] md:top-[12%] md:bottom-[12%] md:px-0">
           {toPct ? (
             <div
-              ref={previewBoxRef}
               className="relative h-full max-h-[620px] w-full max-w-[760px]"
-              style={{ transform: `translate(${pan.x}px, ${pan.y}px)` }}
+              style={{
+                transform: wrapperTransform,
+                transformOrigin: diveXY ? `${diveXY.originXPct}% ${diveXY.originYPct}%` : "50% 50%",
+                transition: diveTransitioning ? `transform ${DIVE_DURATION_MS}ms ${DIVE_EASE}` : undefined,
+              }}
+              onTransitionEnd={(e) => {
+                if (e.target !== e.currentTarget || e.propertyName !== "transform") return;
+                if (divePhaseRef.current === "in") {
+                  setInsideActive(true);
+                } else if (divePhaseRef.current === "out") {
+                  setDiveXY(null);
+                  setDiveTransitioning(false);
+                }
+                divePhaseRef.current = null;
+              }}
             >
               <svg className="absolute inset-0 h-full w-full" viewBox="0 0 100 100" preserveAspectRatio="none" aria-hidden>
                 {drawnEdges.map(([aIndex, bIndex]) => {
@@ -598,28 +703,6 @@ export function DraftReviewStage({
                     />
                   );
                 })}
-                {/* 전개된 노드 <- 성단 중심 지선(spoke) - "연결되어있는" 옵시디언
-                    그래프뷰 감성. %로 계산하려면 px 좌표를 다시 boxSize로
-                    나눠야 한다(springsRef가 px이므로). */}
-                {boxSize.width > 0 &&
-                  Array.from(springsRef.current.entries()).map(([key, node]) => {
-                    const info = itemLookup.get(key);
-                    if (!info || !expandedBinIds.has(info.bin.id)) return null;
-                    const center = toPct(clusterCenters[info.binIndex]);
-                    return (
-                      <line
-                        key={`spoke:${key}`}
-                        x1={center.left}
-                        y1={center.top}
-                        x2={(node.x / boxSize.width) * 100}
-                        y2={(node.y / boxSize.height) * 100}
-                        stroke={colorForType(info.item.type)}
-                        strokeWidth={0.25}
-                        opacity={0.45}
-                        vectorEffect="non-scaling-stroke"
-                      />
-                    );
-                  })}
               </svg>
 
               {bins.map((bin, index) => {
@@ -632,7 +715,6 @@ export function DraftReviewStage({
                 const color = sameType ? colorForType(dominantType) : "var(--text-hi)";
                 const diameter = clusterDiameterFor(count);
                 const particles = buildNebulaParticles(bin, index, diameter, color);
-                const isExpanded = expandedBinIds.has(bin.id);
                 return (
                   <div
                     key={bin.id}
@@ -642,17 +724,19 @@ export function DraftReviewStage({
                     <div
                       role="button"
                       tabIndex={0}
-                      aria-expanded={isExpanded}
-                      aria-label={`${bin.label} 성단, 요소 ${count}개 - ${isExpanded ? "접으려면" : "펼치려면"} 클릭`}
-                      onClick={() => toggleExpand(bin.id)}
+                      aria-label={`${bin.label} 성운으로 들어가기 - 요소 ${count}개`}
+                      onPointerDown={handleClusterPointerDown(bin, index)}
+                      onPointerMove={handleClusterPointerMove}
+                      onPointerUp={handleClusterPointerUp}
+                      onPointerCancel={handleClusterPointerUp}
                       onKeyDown={(e) => {
                         if (e.key === "Enter" || e.key === " ") {
                           e.preventDefault();
-                          toggleExpand(bin.id);
+                          diveIn(bin, index);
                         }
                       }}
                       className={cn(
-                        "relative cursor-pointer overflow-hidden rounded-full outline-none",
+                        "relative cursor-pointer overflow-hidden rounded-full outline-none touch-none",
                         isCore && "shadow-glow-bloom",
                         "focus-visible:ring-2 focus-visible:ring-spec-b"
                       )}
@@ -662,7 +746,7 @@ export function DraftReviewStage({
                         // 옅은 성운 안개 그라데이션 - 새 hex 없이 color-mix로
                         // 기존 토큰(color)을 투명도만 섞어 우려낸다.
                         background: `radial-gradient(circle, color-mix(in srgb, ${color} 75%, transparent) 0%, color-mix(in srgb, ${color} 30%, transparent) 55%, transparent 78%)`,
-                        opacity: isExpanded ? 0.5 : isCore ? 0.9 : 0.4,
+                        opacity: isCore ? 0.9 : 0.4,
                         border: `1px solid ${color}`,
                       }}
                     >
@@ -703,50 +787,6 @@ export function DraftReviewStage({
                   </div>
                 );
               })}
-
-              {/* 전개된 노드 - 성단 클릭 -> 포스 시뮬 결과 좌표로 rAF 스프링
-                  전환. 전개의 1순위 목적은 "내용물 열람"이므로 라벨은 호버
-                  전에도 항상 보인다(배경 pill로 별밭 위에서도 읽히게). */}
-              {boxSize.width > 0 &&
-                Array.from(springsRef.current.entries()).map(([key, node]) => {
-                  const info = itemLookup.get(key);
-                  if (!info) return null;
-                  const leftPct = clampPct((node.x / boxSize.width) * 100);
-                  const topPct = clampPct((node.y / boxSize.height) * 100);
-                  const { code, rest } = splitCourseCode(info.item.label);
-                  const isHovered = hoveredKey === key;
-                  const dotColor = colorForType(info.item.type);
-                  return (
-                    <div
-                      key={key}
-                      className="absolute flex -translate-x-1/2 -translate-y-1/2 flex-col items-center gap-0.5"
-                      style={{ left: `${leftPct}%`, top: `${topPct}%`, zIndex: isHovered ? 30 : 10 }}
-                      onMouseEnter={() => setHoveredKey(key)}
-                      onMouseLeave={() => setHoveredKey((k) => (k === key ? null : k))}
-                    >
-                      <span
-                        aria-hidden
-                        className="block rounded-full"
-                        style={{
-                          width: isHovered ? 8 : 6,
-                          height: isHovered ? 8 : 6,
-                          background: dotColor,
-                          boxShadow: `0 0 4px ${dotColor}`,
-                        }}
-                      />
-                      <span
-                        className={cn(
-                          "max-w-[110px] truncate whitespace-nowrap rounded bg-ink-800/85 px-1 py-0.5 text-center font-sans text-micro leading-tight",
-                          isHovered ? "text-text-hi" : "text-text-lo"
-                        )}
-                        title={info.item.label}
-                      >
-                        {code && <span className="mr-0.5 font-mono text-micro text-text-lo">{code}</span>}
-                        {rest}
-                      </span>
-                    </div>
-                  );
-                })}
             </div>
           ) : (
             <p className="font-sans text-sm text-text-lo">그릴 군집이 없어요</p>
@@ -756,64 +796,179 @@ export function DraftReviewStage({
 
       {/* 좌하단 "추천 별자리" 패널 - page.tsx의 옛 DraftOfferPanel과 같은
           레이아웃/문구/버튼 클래스를 그대로 옮겨왔다(승인된 시안 그대로).
-          팬 서페이스는 형제 요소라 이 패널 위에서 시작한 포인터는 원래
-          거기로 안 새지만(topmost hit-test), 혹시 몰라 명시적으로도 막는다. */}
-      <aside
-        role="region"
-        aria-label="추천 별자리"
-        onPointerDown={(e) => e.stopPropagation()}
-        className={cn(
-          "fixed z-20 flex flex-col overflow-hidden rounded-xl border border-rule bg-ink-800/95 shadow-lg backdrop-blur-md",
-          "inset-x-3 bottom-[calc(var(--tabbar-h)+var(--safe-bottom)+12px)] max-h-[46vh]",
-          "md:inset-x-auto md:bottom-6 md:left-4 md:top-auto md:h-auto md:max-h-none md:w-[300px]"
-        )}
-      >
-        <div className="flex items-baseline justify-between border-b border-rule px-4 py-3">
-          {/* 시안: 패널 제목은 별자리 이름과 같은 세리프(디스플레이) 어휘 */}
-          <h2 className="font-serif text-heading font-bold text-text-hi">추천 별자리</h2>
-          <span className="font-mono text-micro text-text-lo">{drafts.length}안</span>
-        </div>
+          다이브인 중에는 숨긴다(내부 뷰가 화면을 다 덮는다). 팬 서페이스는
+          형제 요소라 이 패널 위에서 시작한 포인터는 원래 거기로 안 새지만
+          (topmost hit-test), 혹시 몰라 명시적으로도 막는다. */}
+      {!diveBinId && (
+        <aside
+          role="region"
+          aria-label="추천 별자리"
+          onPointerDown={(e) => e.stopPropagation()}
+          className={cn(
+            "fixed z-20 flex flex-col overflow-hidden rounded-xl border border-rule bg-ink-800/95 shadow-lg backdrop-blur-md",
+            "inset-x-3 bottom-[calc(var(--tabbar-h)+var(--safe-bottom)+12px)] max-h-[46vh]",
+            "md:inset-x-auto md:bottom-6 md:left-4 md:top-auto md:h-auto md:max-h-none md:w-[300px]"
+          )}
+        >
+          <div className="flex items-baseline justify-between border-b border-rule px-4 py-3">
+            {/* 시안: 패널 제목은 별자리 이름과 같은 세리프(디스플레이) 어휘 */}
+            <h2 className="font-serif text-heading font-bold text-text-hi">추천 별자리</h2>
+            <span className="font-mono text-micro text-text-lo">{drafts.length}안</span>
+          </div>
 
-        <div className="canvas-scroll min-h-0 flex-1 space-y-1 overflow-y-auto p-2">
-          {drafts.map((draft, index) => {
-            const isSelected = index === selected;
+          <div className="canvas-scroll min-h-0 flex-1 space-y-1 overflow-y-auto p-2">
+            {drafts.map((draft, index) => {
+              const isSelected = index === selected;
+              return (
+                <button
+                  key={index}
+                  type="button"
+                  aria-pressed={isSelected}
+                  onClick={() => onSelect(index)}
+                  className={cn(
+                    "w-full rounded-md border-l-2 px-2.5 py-2 text-left transition-colors",
+                    "focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-1 focus-visible:outline-spec-b",
+                    // 시안: 선택된 안은 발광선(lit)과 같은 노란 좌측 보더로 표시
+                    isSelected ? "border-l-lit bg-ink-700/70" : "border-l-transparent hover:bg-ink-700/60"
+                  )}
+                >
+                  <div className="font-sans text-sm font-medium text-text-hi">{draft.name}</div>
+                  <div className="mt-0.5 text-micro leading-relaxed text-text-lo">{formatDraftBreakdown(draft, bins)}</div>
+                </button>
+              );
+            })}
+          </div>
+
+          <div className="flex flex-col gap-1.5 border-t border-rule p-3">
+            <button
+              type="button"
+              onClick={onConfirm}
+              className="rounded-md bg-spec-b px-3 py-1.5 font-sans text-sm font-medium text-ink-900 transition-colors hover:bg-spec-a focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-1 focus-visible:outline-spec-b"
+            >
+              이 별자리로 시작
+            </button>
+            <button
+              type="button"
+              onClick={onReject}
+              className="rounded-md border border-rule px-3 py-1.5 font-sans text-sm text-text-hi transition-colors hover:bg-ink-700 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-1 focus-visible:outline-spec-b"
+            >
+              직접 그릴래요
+            </button>
+          </div>
+        </aside>
+      )}
+
+      {/* 성운 내부 뷰 - 다이브인 중에만 마운트된다(줌 인 트랜지션이 시작되는
+          순간부터 줌 아웃 트랜지션이 끝날 때까지). 풀뷰포트를 덮고, 자신의
+          opacity 트랜지션으로 페이드인/아웃한다(insideActive가 방아쇠). */}
+      {showInterior && diveBin && (
+        <div
+          className={cn(
+            "fixed inset-0 z-30 overflow-hidden bg-ink-900 transition-opacity",
+            insideActive ? "opacity-100" : "opacity-0"
+          )}
+          style={{ transitionDuration: `${DIVE_DURATION_MS}ms` }}
+          role="region"
+          aria-label={`${diveBin.label} 성운 내부`}
+        >
+          <SpaceBackdrop />
+
+          {/* 확대된 성운 안개 - 성단 미리보기와 같은 buildNebulaParticles를
+              재사용하되, 지름을 뷰포트 짧은 변 기준으로 크게 잡는다. */}
+          {(() => {
+            const dominantType = diveBin.items[0]?.type;
+            const sameType = diveBin.items.every((item) => item.type === dominantType);
+            const color = sameType && dominantType ? colorForType(dominantType) : "var(--text-hi)";
+            const diameter = Math.min(viewportSize.width, viewportSize.height) * 0.9;
+            const particles = buildNebulaParticles(diveBin, diveBinIndex, diameter, color);
             return (
-              <button
-                key={index}
-                type="button"
-                aria-pressed={isSelected}
-                onClick={() => onSelect(index)}
-                className={cn(
-                  "w-full rounded-md border-l-2 px-2.5 py-2 text-left transition-colors",
-                  "focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-1 focus-visible:outline-spec-b",
-                  // 시안: 선택된 안은 발광선(lit)과 같은 노란 좌측 보더로 표시
-                  isSelected ? "border-l-lit bg-ink-700/70" : "border-l-transparent hover:bg-ink-700/60"
-                )}
+              <div
+                aria-hidden
+                className="pointer-events-none absolute left-1/2 top-1/2 -translate-x-1/2 -translate-y-1/2 rounded-full"
+                style={{
+                  width: diameter,
+                  height: diameter,
+                  background: `radial-gradient(circle, color-mix(in srgb, ${color} 55%, transparent) 0%, color-mix(in srgb, ${color} 22%, transparent) 55%, transparent 78%)`,
+                }}
               >
-                <div className="font-sans text-sm font-medium text-text-hi">{draft.name}</div>
-                <div className="mt-0.5 text-micro leading-relaxed text-text-lo">{formatDraftBreakdown(draft, bins)}</div>
-              </button>
+                {particles.map((p, pi) => (
+                  <span
+                    key={pi}
+                    className="absolute rounded-full"
+                    style={{
+                      left: diameter / 2 + p.x,
+                      top: diameter / 2 + p.y,
+                      width: p.size * 1.6,
+                      height: p.size * 1.6,
+                      background: p.color,
+                      transform: "translate(-50%, -50%)",
+                      animation: `starTwinkle ${p.twinkleDur.toFixed(2)}s ease-in-out -${p.twinkleDelay.toFixed(2)}s infinite`,
+                      ["--twinkle-lo" as string]: p.twinkleLo,
+                      ["--twinkle-hi" as string]: p.twinkleHi,
+                    }}
+                  />
+                ))}
+              </div>
             );
-          })}
-        </div>
+          })()}
 
-        <div className="flex flex-col gap-1.5 border-t border-rule p-3">
-          <button
-            type="button"
-            onClick={onConfirm}
-            className="rounded-md bg-spec-b px-3 py-1.5 font-sans text-sm font-medium text-ink-900 transition-colors hover:bg-spec-a focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-1 focus-visible:outline-spec-b"
-          >
-            이 별자리로 시작
-          </button>
-          <button
-            type="button"
-            onClick={onReject}
-            className="rounded-md border border-rule px-3 py-1.5 font-sans text-sm text-text-hi transition-colors hover:bg-ink-700 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-1 focus-visible:outline-spec-b"
-          >
-            직접 그릴래요
-          </button>
+          {/* 상단 필 - 성운 이름 + 밖으로 나가기. 하늘 뷰 배너와 같은 위치라
+              전환이 시각적으로 이어져 보인다. */}
+          <div className="pointer-events-auto fixed left-1/2 top-6 z-10 flex -translate-x-1/2 items-center gap-3 rounded-full border border-rule bg-ink-800/95 px-5 py-2.5 shadow-lg backdrop-blur-md">
+            <StarGlyph size={14} />
+            <span className="font-serif text-heading font-bold text-text-hi">{diveBin.label}</span>
+            <button
+              type="button"
+              onClick={diveOut}
+              className="ml-1 rounded-full border border-rule px-3 py-1 font-sans text-body-sm text-text-hi transition-colors hover:bg-ink-700 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-1 focus-visible:outline-spec-b"
+            >
+              ← 성운 밖으로
+            </button>
+          </div>
+
+          {/* 멤버 - 큰 별(라벨·학정번호·유형 점). springsRef가 성단 중심(0,0)
+              기준 오프셋을 들고 있어 뷰포트 중앙에서 offset만큼 이동해 그린다. */}
+          <div className="absolute inset-0">
+            {Array.from(springsRef.current.entries()).map(([key, node]) => {
+              const info = itemLookup.get(key);
+              if (!info || info.bin.id !== diveBin.id) return null;
+              const { code, rest } = splitCourseCode(info.item.label);
+              const isHovered = hoveredKey === key;
+              const dotColor = colorForType(info.item.type);
+              return (
+                <div
+                  key={key}
+                  className="absolute flex -translate-x-1/2 -translate-y-1/2 flex-col items-center gap-1"
+                  style={{ left: `calc(50% + ${node.x}px)`, top: `calc(50% + ${node.y}px)`, zIndex: isHovered ? 30 : 10 }}
+                  onMouseEnter={() => setHoveredKey(key)}
+                  onMouseLeave={() => setHoveredKey((k) => (k === key ? null : k))}
+                >
+                  <span
+                    aria-hidden
+                    className="block rounded-full"
+                    style={{
+                      width: isHovered ? 14 : 10,
+                      height: isHovered ? 14 : 10,
+                      background: dotColor,
+                      boxShadow: `0 0 8px ${dotColor}`,
+                    }}
+                  />
+                  <span
+                    className={cn(
+                      "max-w-[160px] truncate whitespace-nowrap rounded bg-ink-800/85 px-1.5 py-0.5 text-center font-sans text-body-sm leading-tight",
+                      isHovered ? "text-text-hi" : "text-text-lo"
+                    )}
+                    title={info.item.label}
+                  >
+                    {code && <span className="mr-1 font-mono text-micro text-text-lo">{code}</span>}
+                    {rest}
+                  </span>
+                </div>
+              );
+            })}
+          </div>
         </div>
-      </aside>
+      )}
     </div>
   );
 }
