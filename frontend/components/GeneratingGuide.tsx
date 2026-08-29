@@ -174,8 +174,19 @@ function CanvasPlayground() {
   const edgeSeq = useRef(0);
 
   return (
-    <div className="flex h-full min-h-0 w-full flex-col items-center gap-2">
-      <div className="relative min-h-0 w-full flex-1 overflow-hidden rounded-lg border border-rule">
+    // ebae632에서 h-[420px]/560px 고정 높이를 flex-1로 바꾼 뒤 별이 극소로
+    // 보이던 버그의 원인: 다이얼로그 패널이 max-h만 있고 자체 높이가 없어(콘텐츠
+    // 크기로 결정) flex-1/h-full 퍼센트 체인이 위쪽에서 내려줄 실제 높이가 없어
+    // 0에 가깝게 collapse했다(실측 152px→SVG 150px). AnnotatedShot의 스크린샷은
+    // aspect-ratio가 "너비만으로" 실높이를 만들어 이 collapse를 피해가는데,
+    // 캔버스 연습장도 같은 처방(aspect-ratio + 폭 상한)을 쓴다. 폭 상한(768
+    // 미만)은 별개 이유로도 필요: ConstellationCanvas.computeFitTransform이
+    // rect.width>=768이면 실캔버스의 우측 320px 군집 패널 몫을 fit 계산에서
+    // 빼버리는데, 이 미니 연습장엔 그 패널이 없어 가용 폭이 왜곡되게 줄어
+    // k가 최소치(0.35)로 바닥 찍혀 노드·히트링이 조그맣게 나왔었다(830px 폭
+    // 실측 시 재현). 720px 미만으로 캔버스 자체 컴포넌트 수정 없이 우회한다.
+    <div className="flex w-full flex-col items-center gap-2">
+      <div className="relative aspect-[1440/900] w-full max-w-[640px] overflow-hidden rounded-lg border border-rule">
         <ConstellationCanvas
           nodes={nodes}
           edges={edges}
