@@ -183,17 +183,19 @@ class SupportBinResult:
 
 @dataclass
 class DraftConstellation:
-    """LLM이 구성한 별자리 초안 하나 - 유저가 고를 3개 중 하나.
+    """LLM이 구성한 성단 전체 배치 초안 하나 - 유저가 고를 3개 중 하나.
 
-    item_ids는 반드시 suggest_all_bins가 만든 bins의 item id 중에서만 골라야
-    한다(환각 방지 - 구현체가 파싱 후 검증/제거한다). edges는 그 item_ids 사이의
-    연결 쌍이다.
+    시안은 더 이상 항목을 발췌하지 않는다 - suggest_all_bins가 만든 bins는
+    항상 전부(full load) 표시된다는 전제 위에서, 안별 차이는 강조와 경로뿐이다.
+    core_bin_labels/bin_edges는 반드시 그 bins의 label 그대로여야 한다(환각
+    방지 - 구현체가 파싱 후 검증/제거한다). id가 아니라 label 기반인 이유는
+    프론트가 보여주는 단위가 개별 item이 아니라 bin 전체이기 때문이다.
     """
 
     name: str  # 짧은 은유형 이름 (예: "관찰하는 사람")
     tagline: str  # 한 줄 설명
-    item_ids: list[str]
-    edges: list[tuple[str, str]] = field(default_factory=list)
+    core_bin_labels: list[str] = field(default_factory=list)  # 이 안의 핵심 군집 2~4개
+    bin_edges: list[tuple[str, str]] = field(default_factory=list)  # 군집 간 학습 경로
 
 
 @dataclass
@@ -312,12 +314,12 @@ class LLMClient(Protocol):
     async def suggest_draft_constellations(
         self, goal_text: str, bins_payload: list[dict]
     ) -> DraftResult:
-        """유저가 고를 별자리 초안 3개를 bins의 실제 item id로 구성한다.
+        """유저가 고를 성단 배치 초안 3개를, bins 전체를 다 띄운다는 전제로 구성한다.
 
         bins_payload는 bin_suggestion.suggest_all_bins가 이미 만든 wire-ready
-        bins 리스트(id/label/items, items는 id/label/type)다 - 새로 항목을
-        지어내지 않고 여기서 고른 id만 쓰도록 그라운딩한다. cluster_courses의
-        by_code 검증과 같은 이유로, 구현체는 파싱 후 목록에 없는 id/edge를
-        직접 제거해야 한다(환각 방어).
+        bins 리스트(id/label/items)다 - 항목을 발췌하지 않고, 각 안은 이 bins의
+        label 중 핵심 군집(core_bin_labels 2~4개)과 그 사이 학습 경로(bin_edges)만
+        다르게 고른다. cluster_courses의 by_code 검증과 같은 이유로, 구현체는
+        파싱 후 목록에 없는 label/edge를 직접 제거해야 한다(환각 방어).
         """
         ...

@@ -150,23 +150,27 @@ async def test_suggest_all_bins_unmatched_goal_has_no_course_bins(db: Client) ->
 
 
 @pytest.mark.asyncio
-async def test_suggest_all_bins_drafts_reference_only_bin_items(db: Client) -> None:
-    """drafts는 최대 3개, 모든 itemId/edge 끝점이 실제 bins의 item id 안에 있어야 한다."""
+async def test_suggest_all_bins_drafts_reference_only_bin_labels(db: Client) -> None:
+    """drafts는 최대 3개, coreBinLabels/binEdges 끝점이 실제 bins의 label 안에 있어야 한다.
+
+    새 계약(성단 전체 배치): drafts는 bins 항목을 발췌하지 않는다 - coreBinLabels는
+    안이 강조할 핵심 군집, binEdges는 그 사이 학습 경로다.
+    """
     _seed_business_courses(db)
     llm = MockClaudeClient()
 
     result = await suggest_all_bins(db, llm, _BUSINESS_GOAL)
 
     assert len(result["drafts"]) <= 3
-    known_ids = {item["id"] for b in result["bins"] for item in b["items"]}
+    known_labels = {b["label"] for b in result["bins"]}
     for draft in result["drafts"]:
         assert draft["name"]
-        assert draft["itemIds"]
-        item_id_set = set(draft["itemIds"])
-        assert item_id_set <= known_ids
-        for a, b in draft["edges"]:
-            assert a in item_id_set
-            assert b in item_id_set
+        assert draft["coreBinLabels"]
+        core_label_set = set(draft["coreBinLabels"])
+        assert core_label_set <= known_labels
+        for a, b in draft["binEdges"]:
+            assert a in known_labels
+            assert b in known_labels
 
 
 @pytest.mark.asyncio

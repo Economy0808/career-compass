@@ -27,21 +27,23 @@ job 워커의 백그라운드 asyncio 태스크 안에서 돌 것이므로, 순�
     ],
      "drafts": [
         {"name": str, "tagline": str,
-         "itemIds": [str, ...],           # 반드시 위 bins의 item id 중에서만 (4~7개, 방어 후 3개 미만이면 초안 자체를 버림)
-         "edges": [[str, str], ...]},     # itemIds 사이의 연결 쌍
+         "coreBinLabels": [str, ...],     # 반드시 위 bins의 label 중에서만 (2~4개, 방어 후 0개면 초안 자체를 버림)
+         "binEdges": [[str, str], ...]},  # bins label 사이의 학습 경로 쌍
         ...  # 목표가 뚜렷하면 최대 3개, bins가 너무 작으면 그보다 적거나 빈 리스트
      ]}
 
-### drafts (별자리 초안)
+### drafts (성단 전체 배치 초안)
 
-유저가 고를 3개의 별자리 초안 - "우주 확대" 보드(board 4)의 설계. bins가 다
-만들어진 뒤에 llm.suggest_draft_constellations(goal_text, bins)를 호출해
-실제 item id로만 구성하게 한다(환각 방지: 카탈로그 없는 자유 생성이라 코드
-검증이 불가능한 support 요소와 달리, 여기서는 bins라는 카탈로그가 있으므로
-cluster_courses와 같은 결의 검증이 가능하고 반드시 해야 한다). LLM 클라이언트
-구현체가 이미 한 번 걸러내지만, 이 함수에서도 값싼 set 검사로 한 번 더
-방어한다(defense in depth) - id 재사용 실수나 향후 구현체 버그가 프론트까지
-새어나가지 않도록.
+유저가 고를 3개의 초안 - "우주 확대" 보드(board 4)의 설계. 시안은 항목을
+발췌하지 않는다: bins는 항상 전부(full load) 표시되고, drafts는 그 위에서
+안별로 강조할 핵심 군집(coreBinLabels)과 군집 간 학습 경로(binEdges)만 다르게
+제시한다. bins가 다 만들어진 뒤에 llm.suggest_draft_constellations(goal_text,
+bins)를 호출해 실제 bin label로만 구성하게 한다(환각 방지: 카탈로그 없는 자유
+생성이라 코드 검증이 불가능한 support 요소와 달리, 여기서는 bins라는 카탈로그가
+있으므로 cluster_courses와 같은 결의 검증이 가능하고 반드시 해야 한다). LLM
+클라이언트 구현체가 이미 한 번 걸러내지만, 이 함수에서도 값싼 set 검사로 한 번
+더 방어한다(defense in depth) - label 재사용 실수나 향후 구현체 버그가 프론트
+까지 새어나가지 않도록.
 
 값이 None인 키는 아예 생략한다 — 프론트가 "키 없음"과 "null"을 구분하지 않고
 `item.level`처럼 optional-chaining 없이 접근하는 곳이 있어, undefined(키 없음)
@@ -153,24 +155,25 @@ def _support_bin(bin_view: SupportBin) -> dict[str, Any]:
     return bin_dict
 
 
-def _draft_dict(draft: DraftConstellation, known_ids: set[str]) -> dict[str, Any] | None:
+def _draft_dict(draft: DraftConstellation, known_labels: set[str]) -> dict[str, Any] | None:
     """DraftConstellation을 wire-ready dict로 변환한다.
 
     LLM 클라이언트 구현체(anthropic_client/mock_client)가 이미 bins에 없는
-    id/edge를 걸러내지만, 여기서 한 번 더 known_ids로 교차 검증한다(값싼 set
-    연산이라 비용이 거의 없다) - defense in depth. 방어 후 항목이 3개 미만으로
+    label/edge를 걸러내지만, 여기서 한 번 더 known_labels로 교차 검증한다(값싼
+    set 연산이라 비용이 거의 없다) - defense in depth. 방어 후 core가 0개로
     줄면 초안 자체가 의미 없으므로 None을 돌려줘 호출부에서 버리게 한다.
     """
-    item_ids = [i for i in draft.item_ids if i in known_ids]
-    item_id_set = set(item_ids)
-    edges = [(a, b) for a, b in draft.edges if a in item_id_set and b in item_id_set]
-    if len(item_ids) < 3:
+    core_bin_labels = [label for label in draft.core_bin_labels if label in known_labels]
+    bin_edges = [
+        (a, b) for a, b in draft.bin_edges if a in known_labels and b in known_labels and a != b
+    ]
+    if not core_bin_labels:
         return None
     return {
         "name": draft.name,
         "tagline": draft.tagline,
-        "itemIds": item_ids,
-        "edges": [list(e) for e in edges],
+        "coreBinLabels": core_bin_labels,
+        "binEdges": [list(e) for e in bin_edges],
     }
 
 
@@ -199,10 +202,12 @@ async def suggest_all_bins(db: Client, llm: LLMClient, goal_text: str) -> dict[s
     # LLM을 부를 이유가 없다) - 그래서 위 gather와 묶지 않고 순차로 이어 붙인다.
     drafts: list[dict[str, Any]] = []
     if bins:
-        known_ids = {item["id"] for b in bins for item in b["items"]}
+        known_labels = {b["label"] for b in bins}
         draft_result = await llm.suggest_draft_constellations(goal_text, bins)
         drafts = [
-            wire for raw in draft_result.drafts if (wire := _draft_dict(raw, known_ids)) is not None
+            wire
+            for raw in draft_result.drafts
+            if (wire := _draft_dict(raw, known_labels)) is not None
         ]
     return {"bins": bins, "drafts": drafts}
 

@@ -67,21 +67,18 @@ _SUPPORT_CERT_KEYWORDS: dict[str, str] = {
 }
 _SUPPORT_CERT_DEFAULT = "관련 분야 입문 자격증"
 
-# 별자리 초안 3개의 결정론적 이름/한줄소개 (시안 "우주 확대" 보드 4 문구 그대로).
-# 이름/한줄소개는 고정이다 - 사용자 피드백의 핵심은 "이름이 아니라 세 안이 실제로
-# 겹치는 수업으로 채워지는 것"이었으므로, 트랙(수업 구성)만 갈라내면 되고 페르소나
-# 이름을 트랙 내용에 맞춰 새로 짓는 건 오버엔지니어링이다.
+# 초안 3개의 결정론적 이름/한줄소개 (시안 "우주 확대" 보드 4 문구 그대로).
+# 이름/한줄소개는 고정이다 - 시안은 bins를 항상 전부(full load) 띄우므로, 세
+# 안의 실질적 차이는 이름이 아니라 core_bin_labels(강조할 핵심 군집)와
+# bin_edges(그 사이 경로)뿐이다.
 _DRAFT_SPECS: list[tuple[str, str]] = [
     ("관찰하는 사람", "데이터로 사람을 읽는 길"),
     ("기록하는 사람", "글과 미디어로 잇는 길"),
     ("연결하는 사람", "현장과 조직을 잇는 길"),
 ]
 _DRAFT_MAX_DRAFTS = 3
-_DRAFT_COURSE_MIN = 3  # 초안 하나에 배정할 수업 최소 개수 (시안: 3~4개)
-_DRAFT_COURSE_MAX = 4  # 초안 하나에 배정할 수업 최대 개수 (시안: 3~4개)
-_DRAFT_MIN_ITEMS = 3  # 수업 없이 비교과만으로 구성될 때 최소 항목 수 - 이보다 적으면 버린다
-# 비교과 요소 타입 - 이 순서대로 각 최대 1개씩, 트랙과 무관하게 모든 초안에 동일하게 붙인다.
-_SUPPORT_TYPES_ORDER = ["certification", "organization", "activity", "networking"]
+_DRAFT_CORE_MIN = 2  # 초안 하나가 강조할 핵심 군집 최소 개수 (시안: 2~4개)
+_DRAFT_CORE_MAX = 4  # 초안 하나가 강조할 핵심 군집 최대 개수 (시안: 2~4개)
 
 MIN_MILESTONES = 6
 MAX_MILESTONES = 12
@@ -233,28 +230,24 @@ _EXTRA_STEPS: list[_Step] = [
 ]
 
 
-def _segment_courses(course_items: list[dict]) -> list[list[dict]]:
-    """수업 항목을 초안 개수만큼 서로 겹치지 않는(MECE) 구간으로 나눈다.
+def _segment_bin_labels(labels: list[str]) -> list[list[str]]:
+    """bin label을 초안 개수만큼 서로 겹치지 않는(MECE) core 구간으로 나눈다.
 
-    예전엔 레벨끼리 교차시켜(_interleave_by_level) 앞에서부터 순서대로 나눠
-    담았는데, 그러면 세 초안이 사실상 같은 수업 풀에서 그때그때 다르게 자른
-    조각이라 "관찰/기록/연결" 페르소나가 이름만 다를 뿐 겹치는 요소를 재포장한
-    것에 불과했다(사용자 피드백). 그래서 지금은 각 초안에 서로 다른 수업
-    구간을 통째로 배정한다 - "마케팅 계열" vs "전략/경영 계열"처럼 실제 트랙이
-    갈리는 것의 mock 버전이다. 공급이 부족하면(초안당 3개도 못 돌아가면) 초안
-    개수를 줄인다 - cluster_courses/suggest_support_elements와 같은 "확신
-    없으면 적게" 결.
+    새 계약에서는 항목을 발췌하지 않고 bins가 전부 표시되므로, mock이 결정론적으로
+    갈라야 하는 건 "어느 항목을 넣을지"가 아니라 "어느 군집을 핵심으로 강조할지"다.
+    공급이 부족하면(초안당 최소 core 개수도 못 채우면) 초안 개수를 줄인다 -
+    cluster_courses/suggest_support_elements와 같은 "확신 없으면 적게" 결.
     """
-    total = len(course_items)
-    num_drafts = min(_DRAFT_MAX_DRAFTS, total // _DRAFT_COURSE_MIN)
+    total = len(labels)
+    num_drafts = min(_DRAFT_MAX_DRAFTS, total // _DRAFT_CORE_MIN)
     if num_drafts == 0:
         return []
     base, remainder = divmod(total, num_drafts)
-    segments: list[list[dict]] = []
+    segments: list[list[str]] = []
     idx = 0
     for i in range(num_drafts):
-        size = min(_DRAFT_COURSE_MAX, base + (1 if i < remainder else 0))
-        segments.append(course_items[idx : idx + size])
+        size = min(_DRAFT_CORE_MAX, base + (1 if i < remainder else 0))
+        segments.append(labels[idx : idx + size])
         idx += size
     return segments
 
@@ -533,58 +526,28 @@ class MockClaudeClient:
     async def suggest_draft_constellations(
         self, goal_text: str, bins_payload: list[dict]
     ) -> DraftResult:
-        """결정론적 mock: 초안마다 겹치지 않는 수업 트랙 + 모든 초안에 동일한 비교과.
+        """결정론적 mock: bins는 항상 전부 표시된다는 전제로, 초안마다 겹치지
+        않는 핵심 군집(core_bin_labels)과 그 경로(bin_edges)만 다르게 낸다.
 
-        사용자 피드백: 예전엔 같은 수업 풀을 그때그때 다르게 잘라 세 초안에
-        나눠 담았을 뿐이라 "관찰/기록/연결" 페르소나가 이름만 다르고 사실상 같은
-        요소를 재포장한 것이었다. 이제는 상호 배타적으로(MECE) 만든다: 수업은
-        각 bin 안에서 code순 정렬한 뒤 bin 순서대로 이어 붙이고, 그 목록을 초안
-        개수만큼 겹치지 않는 구간(3~4개씩)으로 잘라 하나씩 배정한다 - 실제 모델의
-        "마케팅 계열 vs 전략/경영 계열" 같은 트랙 구분의 mock 버전이다. 비교과
-        (자격증/학회/활동/네트워킹)는 트랙마다 다르게 줄 근거가 없으므로(계약상
-        타입별 후보가 하나뿐) 타입별 최대 1개씩을 모든 초안에 동일한 항목·순서로
-        붙인다(공유/고정).
-
-        실제 모델처럼 의미로 판단하지 않지만 계약(항목은 전부 bins에 있는 id,
-        각 초안은 3개 이상)은 동일하게 지킨다. 수업 공급이 부족하면(초안당 3개도
-        못 돌아가면) _segment_courses가 초안 개수를 줄이거나(3개 미만이면 아예
-        생성 안 함) - cluster_courses/suggest_support_elements와 같은 "확신
-        없으면 적게" 결. 수업이 하나도 없으면 비교과만으로 최소 3개를 채울 때만
-        초안 하나를 시도한다.
+        새 계약은 항목을 발췌하지 않으므로 mock도 더는 course/support 항목을
+        골라 담지 않는다 - bin label을 정렬해 초안 개수만큼 상호 배타적인(MECE)
+        구간으로 나누고(_segment_bin_labels), 각 구간 안에서 순서대로 이어
+        붙인 경로를 bin_edges로 낸다. 공급이 부족하면(초안당 최소 core 개수도
+        못 채우면) 초안 개수가 줄어든다 - cluster_courses 등과 같은 "확신
+        없으면 적게" 결.
         """
         del goal_text  # mock은 목표 텍스트로 갈래를 나누지 않는다 - bins만으로 결정.
-        course_items: list[dict] = []
-        support_by_type: dict[str, list[dict]] = {}
-        for b in bins_payload:
-            bin_courses = [item for item in b.get("items", []) if item.get("type") == "course"]
-            bin_courses.sort(key=lambda item: item["id"])
-            course_items.extend(bin_courses)
-            for item in b.get("items", []):
-                item_type = item.get("type")
-                if item_type and item_type != "course":
-                    support_by_type.setdefault(item_type, []).append(item)
-
-        # 비교과: 타입별 첫 항목만, 모든 초안에 동일하게(공유/고정).
-        shared_support = [
-            support_by_type[t][0] for t in _SUPPORT_TYPES_ORDER if support_by_type.get(t)
-        ]
-
-        course_segments = _segment_courses(course_items)
-        if not course_segments:
-            if len(shared_support) < _DRAFT_MIN_ITEMS:
-                return DraftResult(drafts=[])
-            course_segments = [[]]  # 수업 없이 비교과만으로 초안 1개 시도.
-
-        drafts: list[DraftConstellation] = []
-        for (name, tagline), courses in zip(_DRAFT_SPECS, course_segments, strict=False):
-            chunk = [*courses, *shared_support]
-            if len(chunk) < _DRAFT_MIN_ITEMS:
-                continue
-            item_ids = [item["id"] for item in chunk]
-            edges = [(item_ids[i], item_ids[i + 1]) for i in range(len(item_ids) - 1)]
-            drafts.append(
-                DraftConstellation(name=name, tagline=tagline, item_ids=item_ids, edges=edges)
+        labels = sorted({b.get("label", "") for b in bins_payload if b.get("label")})
+        segments = _segment_bin_labels(labels)
+        drafts = [
+            DraftConstellation(
+                name=name,
+                tagline=tagline,
+                core_bin_labels=core,
+                bin_edges=[(core[i], core[i + 1]) for i in range(len(core) - 1)],
             )
+            for (name, tagline), core in zip(_DRAFT_SPECS, segments, strict=False)
+        ]
         return DraftResult(drafts=drafts)
 
     async def research_job(

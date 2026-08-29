@@ -208,12 +208,12 @@ _DRAFT_SCHEMA = {
         "tagline": {"type": "string"},
         # 개수 제약(minItems)은 프롬프트로만 요구한다 - _ROADMAP_SCHEMA 주석 참고:
         # 이 API의 structured outputs는 minItems가 0/1만 허용되고 2 이상을 넣으면
-        # 요청 자체가 400으로 거부된다. edges 쌍의 길이(=2)도 같은 이유로 스키마가
-        # 아니라 파싱 후 코드에서 검증한다.
-        "item_ids": {"type": "array", "items": {"type": "string"}},
-        "edges": {"type": "array", "items": {"type": "array", "items": {"type": "string"}}},
+        # 요청 자체가 400으로 거부된다. bin_edges 쌍의 길이(=2)도 같은 이유로
+        # 스키마가 아니라 파싱 후 코드에서 검증한다.
+        "core_bin_labels": {"type": "array", "items": {"type": "string"}},
+        "bin_edges": {"type": "array", "items": {"type": "array", "items": {"type": "string"}}},
     },
-    "required": ["name", "tagline", "item_ids", "edges"],
+    "required": ["name", "tagline", "core_bin_labels", "bin_edges"],
 }
 _DRAFTS_SCHEMA = {
     "type": "object",
@@ -897,44 +897,37 @@ class AnthropicClaudeClient:
     async def suggest_draft_constellations(
         self, goal_text: str, bins_payload: list[dict]
     ) -> DraftResult:
-        """bins의 실제 item id로만 별자리 초안 3개를 구성한다.
+        """모든 bins가 이미 전부 표시된다는 전제 위에서, 안별로 강조할 핵심 군집과
+        그 사이 학습 경로만 다르게 골라준다(발췌가 아니라 강조).
 
-        cluster_courses의 by_code 검증과 동일한 이유로 여기서도 파싱 후 한 번 더
-        검증한다: bins에 없는 item_id는 버리고, 버려진 id를 참조하는 edge도 함께
-        버린다. 방어 후 항목이 3개 미만으로 줄어든 초안은 아예 버린다(호출자인
-        bin_suggestion이 wire dict로 바꾸기도 전에 여기서 먼저 걸러 둔다).
+        bins의 label을 그대로 그라운딩 카탈로그로 쓴다(item id가 아니라 label -
+        프론트가 보여주는 단위가 개별 item이 아니라 bin 전체이기 때문). 라벨은
+        프롬프트가 "그대로 쓰라"고 강제하므로, 이전 item_id 계약에서 필요했던
+        접미 별칭 복원(suffix_map) 로직은 이 계약에서는 불필요해 제거했다 -
+        레이블 문자열은 코드처럼 줄여 쓸 이유가 없다.
         """
-        all_ids = {item["id"] for b in bins_payload for item in b.get("items", [])}
-        if not all_ids:
+        all_labels = {b.get("label", "") for b in bins_payload if b.get("label")}
+        if not all_labels:
             return DraftResult(drafts=[])
         system = (
-            "너는 진로 탐색 별자리 설계자다. 아래 '원소 보관함(bins)' 안의 항목들로"
-            " 사용자가 고를 수 있는 별자리 초안 3개를 구성하라.\n\n"
-            "규칙:\n"
-            "- 각 초안 = name(짧은 은유형 이름, 예: '관찰하는 사람'), tagline(한 줄"
-            " 설명), item_ids(제공된 bins의 item id 중 4~7개), edges(그 item_ids"
-            " 사이의 연결 4~7쌍, 대체로 하나로 이어진 경로 형태).\n"
-            "- item_ids는 반드시 아래 카탈로그에 있는 id를 정확히 그대로 써라 - 절대"
-            " 지어내지 마라.\n"
-            "- edges의 각 쌍은 반드시 그 초안의 item_ids 안에 있는 두 id로만"
-            " 구성하라.\n"
-            "- 세 안은 서로 다른 **수업 트랙**으로 구분하라 - 같은 수업(item_ids 중"
-            " type이 course인 항목)이 두 안에 두 번 이상 등장하지 않게 하라(지원"
-            " 요소/비교과는 트랙과 무관하니 여러 안에 공유해도 된다). 예를 들어 한"
-            " 안은 마케팅 계열 수업 위주, 다른 안은 전략/경영 계열 수업 위주로"
-            " 짜는 식이다 - 페르소나 이름만 다르고 실제로는 같은 수업을 재포장한"
-            " 안이 되지 않게 하라.\n"
-            "- 안의 name/tagline은 그 안의 실제 수업 트랙 내용을 반영하라(예:"
-            " '마케팅 중심', '전략 중심') - 막연한 은유가 아니라 트랙이 무엇인지"
-            " 드러나야 한다."
+            "너는 진로 탐색 로드맵 설계자다. 아래 '군집 목록(bins)'은 유저에게 이미"
+            " 전부 표시된다 - 항목을 고르거나 발췌하지 마라.\n\n"
+            "각 안은 **모든 군집을 포함하는 전체 로드맵**이다. 대신 서로 다른"
+            " 관점에서 안 3개를 만들어라. 각 안 =\n"
+            "- name(짧은 은유형 이름), tagline(한 줄 설명)\n"
+            "- core_bin_labels: 이 관점에서 핵심이 되는 군집 2~4개 (아래 목록의"
+            " label을 정확히 그대로 - 절대 새로 짓거나 줄여 쓰지 마라)\n"
+            "- bin_edges: 군집 사이의 학습 경로 간선 3~8개 (기초 -> 심화 흐름이"
+            " 읽히도록 - label도 마찬가지로 목록에 있는 그대로 사용)\n\n"
+            "세 안은 core_bin_labels 조합과 bin_edges 경로가 서로 달라야 한다 -"
+            " 페르소나 이름만 다르고 실제로는 같은 강조를 재포장한 안이 되지"
+            " 않게 하라."
         )
-        catalog = "\n".join(
-            f"[보관함: {b.get('label', '')}] "
-            + ", ".join(f"{item['id']}={item['label']}" for item in b.get("items", []))
-            for b in bins_payload
-        )
-        user = f"진로 목표: {goal_text}\n\n원소 보관함:\n{catalog}"
+        catalog = "\n".join(f"- {label}" for label in sorted(all_labels))
+        user = f"진로 목표: {goal_text}\n\n군집 목록:\n{catalog}"
         # 가벼운 구성 판단이라 다른 경량 호출과 동일하게 thinking 비활성(JSON 잘림 방지).
+        # max_tokens는 이전 item_ids 계약과 동일하게 3000 유지 - 출력이 label
+        # 문자열뿐이라 실제로는 훨씬 적게 쓰지만, 군집 수가 많은 경우의 여유분이다.
         resp = await self._client.messages.create(
             model=self._extract_model,
             max_tokens=3000,
@@ -954,58 +947,44 @@ class AnthropicClaudeClient:
             )
             return DraftResult(drafts=[])
 
-        # 별칭 해석: 항목 수가 많아지면 모델이 "course:STA3102" 대신 "STA3102"처럼
-        # 접미 코드만 쓰는 경향이 실측됐다(13개 군집 실행에서 drafts 전멸). 접미가
-        # 유일하게 한 id로 역매핑되면 그 id로 복원하고, 모호하면 버린다.
-        suffix_map: dict[str, str | None] = {}
-        for full_id in all_ids:
-            suffix = full_id.rsplit(":", 1)[-1]
-            suffix_map[suffix] = None if suffix in suffix_map else full_id
-
-        def _resolve(raw_id: str) -> str | None:
-            if raw_id in all_ids:
-                return raw_id
-            return suffix_map.get(raw_id) or None
-
         drafts: list[DraftConstellation] = []
         dropped = 0
         for raw in data.get("drafts", []):
-            item_ids = [
-                resolved
-                for i in raw.get("item_ids", [])
-                if (resolved := _resolve(str(i))) is not None
-            ]  # 환각 방어 + 접미 별칭 복원
-            item_id_set = set(item_ids)
-            # 간선도 같은 별칭 해석을 거친다 - 항목이 접미로 복원됐다면 간선의
-            # 참조도 접미로 왔을 것이기 때문.
-            edges = []
-            for pair in raw.get("edges", []):
+            core_labels = [
+                label for label in raw.get("core_bin_labels", []) if label in all_labels
+            ]  # 환각 방어: 실제 bins에 없는 라벨은 버린다.
+            edges: list[tuple[str, str]] = []
+            seen_pairs: set[tuple[str, str]] = set()
+            for pair in raw.get("bin_edges", []):
                 if len(pair) != 2:
                     continue
-                a, b = _resolve(str(pair[0])), _resolve(str(pair[1]))
-                if a in item_id_set and b in item_id_set:
-                    edges.append((a, b))
-            if len(item_ids) < 3:
+                a, b = str(pair[0]), str(pair[1])
+                if a not in all_labels or b not in all_labels or a == b or (a, b) in seen_pairs:
+                    continue  # 카탈로그에 없는 라벨, 자기 자신 간선, 중복 간선 제거.
+                seen_pairs.add((a, b))
+                edges.append((a, b))
+            if not core_labels:
+                # 3개 미만이면 버리던 item_ids 규칙을 core 0개면 버리는 규칙으로 대체 -
+                # 라벨 기반이라 "너무 적음"보다 "핵심이 아예 없음"이 폐기 기준이다.
                 dropped += 1
                 continue
             drafts.append(
                 DraftConstellation(
                     name=str(raw.get("name", "")),
                     tagline=str(raw.get("tagline", "")),
-                    item_ids=item_ids,
-                    edges=edges,
+                    core_bin_labels=core_labels,
+                    bin_edges=edges,
                 )
             )
-        # 조용한 전멸을 로그로 드러낸다 - 카탈로그가 작을 때 MECE 분할과 3개 최소
-        # 검증이 겹치면 초안이 전부 버려지는데, 로그가 없으면 원인 추적이 안 됐다(실측).
+        # 조용한 전멸을 로그로 드러낸다 - 실측 때 원인 추적이 막혔던 지점이다.
         if drafts:
             logger.info("draft suggestion: kept=%d dropped=%d", len(drafts), dropped)
         else:
-            # 전멸은 warning으로 - uvicorn 기본 로깅에서 앱 INFO는 안 보여서
-            # 실측 때 원인 추적이 막혔던 지점이다. 모델이 낸 원본 id 샘플을 남긴다.
-            sample = [str(i) for raw in data.get("drafts", []) for i in raw.get("item_ids", [])][:6]
+            sample = [
+                str(lbl) for raw in data.get("drafts", []) for lbl in raw.get("core_bin_labels", [])
+            ][:6]
             logger.warning(
-                "draft suggestion: all %d drafts dropped by validation; raw id sample=%s",
+                "draft suggestion: all %d drafts dropped by validation; raw label sample=%s",
                 dropped,
                 sample,
             )
