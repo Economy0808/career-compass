@@ -21,7 +21,8 @@ const CONTROL =
   "focus-visible:border-spec-b";
 
 export function Field(props: FieldProps) {
-  const { id, label, error, hint, className, ...rest } = props;
+  // multiline은 분기 전용 판별자 - rest에 남기면 DOM 속성으로 새서 React 경고가 뜬다.
+  const { id, label, error, hint, className, multiline, ...rest } = props;
   const borderTone = error ? "border-spec-m/60" : "border-rule";
   const describedBy = error ? `${id}-error` : hint ? `${id}-hint` : undefined;
 
@@ -30,7 +31,7 @@ export function Field(props: FieldProps) {
       <label htmlFor={id} className="text-caption font-semibold text-text-lo">
         {label}
       </label>
-      {"multiline" in props && props.multiline ? (
+      {multiline ? (
         <textarea
           id={id}
           aria-invalid={Boolean(error)}
