@@ -954,16 +954,37 @@ class AnthropicClaudeClient:
             )
             return DraftResult(drafts=[])
 
+        # 별칭 해석: 항목 수가 많아지면 모델이 "course:STA3102" 대신 "STA3102"처럼
+        # 접미 코드만 쓰는 경향이 실측됐다(13개 군집 실행에서 drafts 전멸). 접미가
+        # 유일하게 한 id로 역매핑되면 그 id로 복원하고, 모호하면 버린다.
+        suffix_map: dict[str, str | None] = {}
+        for full_id in all_ids:
+            suffix = full_id.rsplit(":", 1)[-1]
+            suffix_map[suffix] = None if suffix in suffix_map else full_id
+
+        def _resolve(raw_id: str) -> str | None:
+            if raw_id in all_ids:
+                return raw_id
+            return suffix_map.get(raw_id) or None
+
         drafts: list[DraftConstellation] = []
         dropped = 0
         for raw in data.get("drafts", []):
-            item_ids = [i for i in raw.get("item_ids", []) if i in all_ids]  # 환각 방어
+            item_ids = [
+                resolved
+                for i in raw.get("item_ids", [])
+                if (resolved := _resolve(str(i))) is not None
+            ]  # 환각 방어 + 접미 별칭 복원
             item_id_set = set(item_ids)
-            edges = [
-                (pair[0], pair[1])
-                for pair in raw.get("edges", [])
-                if len(pair) == 2 and pair[0] in item_id_set and pair[1] in item_id_set
-            ]
+            # 간선도 같은 별칭 해석을 거친다 - 항목이 접미로 복원됐다면 간선의
+            # 참조도 접미로 왔을 것이기 때문.
+            edges = []
+            for pair in raw.get("edges", []):
+                if len(pair) != 2:
+                    continue
+                a, b = _resolve(str(pair[0])), _resolve(str(pair[1]))
+                if a in item_id_set and b in item_id_set:
+                    edges.append((a, b))
             if len(item_ids) < 3:
                 dropped += 1
                 continue
@@ -977,7 +998,17 @@ class AnthropicClaudeClient:
             )
         # 조용한 전멸을 로그로 드러낸다 - 카탈로그가 작을 때 MECE 분할과 3개 최소
         # 검증이 겹치면 초안이 전부 버려지는데, 로그가 없으면 원인 추적이 안 됐다(실측).
-        logger.info("draft suggestion: kept=%d dropped=%d", len(drafts), dropped)
+        if drafts:
+            logger.info("draft suggestion: kept=%d dropped=%d", len(drafts), dropped)
+        else:
+            # 전멸은 warning으로 - uvicorn 기본 로깅에서 앱 INFO는 안 보여서
+            # 실측 때 원인 추적이 막혔던 지점이다. 모델이 낸 원본 id 샘플을 남긴다.
+            sample = [str(i) for raw in data.get("drafts", []) for i in raw.get("item_ids", [])][:6]
+            logger.warning(
+                "draft suggestion: all %d drafts dropped by validation; raw id sample=%s",
+                dropped,
+                sample,
+            )
         return DraftResult(drafts=drafts)
 
     async def research_job(
