@@ -47,6 +47,10 @@ export interface ElementBinPanelProps {
   placedItemIds?: Set<string>;
   /** 있으면 패널 하단에 "새 별자리 만들기" 버튼을 보여준다. */
   onStartNewConstellation?: () => void;
+  /** "모두 추가"가 실제로 배치를 끝낸 뒤 알려준다 - 나선 배치의 기준점(base)과
+   * 보관함 전체(이미 캔버스에 있던 항목 포함)를 그대로 넘겨, 부모가 원하면
+   * 이 보관함을 하나의 성단(그룹)으로 묶을 수 있게 한다. */
+  onPlaceAll?: (bin: Bin, base: CanvasPosition) => void;
   className?: string;
 }
 
@@ -218,11 +222,13 @@ function BinSection({
   placedItemIds,
   onItemDragToCanvas,
   onAddItem,
+  onPlaceAll,
 }: {
   bin: Bin;
   placedItemIds: Set<string>;
   onItemDragToCanvas: (item: BinItem, position: CanvasPosition) => void;
   onAddItem: (binId: string, item: Omit<BinItem, "id">) => void;
+  onPlaceAll?: (bin: Bin, base: CanvasPosition) => void;
 }) {
   const groups = useMemo(() => groupByLevel(bin.items), [bin.items]);
   const [addLabel, setAddLabel] = useState("");
@@ -256,6 +262,7 @@ function BinSection({
     dropSeed += 1;
     const base = defaultDropPosition(dropSeed);
     unplaced.forEach((item, i) => onItemDragToCanvas(item, spiralPosition(i, base)));
+    onPlaceAll?.(bin, base);
   }
 
   // 보관함 섬 자체를 드래그해도 통째로 놓을 수 있게 - 헤더를 드래그 손잡이로
@@ -433,6 +440,7 @@ export function ElementBinPanel({
   onAddItem,
   placedItemIds,
   onStartNewConstellation,
+  onPlaceAll,
   className,
 }: ElementBinPanelProps) {
   const [newBinLabel, setNewBinLabel] = useState("");
@@ -476,6 +484,7 @@ export function ElementBinPanel({
               placedItemIds={resolvedPlaced}
               onItemDragToCanvas={onItemDragToCanvas}
               onAddItem={onAddItem}
+              onPlaceAll={onPlaceAll}
             />
           ))
         )}

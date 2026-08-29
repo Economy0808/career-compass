@@ -13,6 +13,7 @@ import { useRouter } from "next/navigation";
 import {
   ConstellationCanvas,
   type CanvasEdge,
+  type CanvasGroup,
   type CanvasNode,
   type CanvasPosition,
 } from "@/components/ConstellationCanvas";
@@ -35,13 +36,16 @@ import {
   addEdge,
   addNode,
   createConstellation,
+  createGroup,
   createNote,
   deleteEdge,
+  deleteGroup,
   deleteNode,
   deleteNote,
   getBinJob,
   listConstellations,
   listNotes,
+  patchGroup,
   patchNodeColor,
   patchNodeGlow,
   patchEdgeColor,
@@ -55,6 +59,7 @@ import {
   type BinItemDto,
   type DraftDto,
   type EdgeCreateInput,
+  type GroupDto,
   type NodeCreateInput,
 } from "@/lib/constellation-api";
 // 로컬 볼트(옵시디언처럼 로컬 폴더=원본) - 노트 CRUD를 서버 대신 여기로
@@ -334,6 +339,9 @@ export default function NewConstellationPage() {
   const [bins, setBins] = useState<Bin[]>(INITIAL_BINS);
   const [nodes, setNodes] = useState<Record<string, CanvasNode>>(INITIAL_NODES);
   const [edges, setEdges] = useState<Record<string, CanvasEdge>>(INITIAL_EDGES);
+  // 성단(그룹) - 데모 시드는 없다(요소가 많아진 뒤에야 생기는 개념이라 처음부터
+  // 빈 맵으로 시작). nodes/edges와 동일한 id-키 맵 관례.
+  const [groups, setGroups] = useState<Record<string, CanvasGroup>>({});
   const [notes, setNotes] = useState<Record<string, ElementNote>>(INITIAL_NOTES);
   // --- 로컬 볼트(노트 원본) ------------------------------------------------
   // 연결되면 이 handle이 노트의 "원본"이 된다 - 서버·볼트 동시 쓰기는 하지
@@ -441,6 +449,10 @@ export default function NewConstellationPage() {
   useEffect(() => {
     edgesRef.current = edges;
   }, [edges]);
+  const groupsRef = useRef(groups);
+  useEffect(() => {
+    groupsRef.current = groups;
+  }, [groups]);
   const notesRef = useRef(notes);
   useEffect(() => {
     notesRef.current = notes;
@@ -588,6 +600,16 @@ export default function NewConstellationPage() {
             color: dto.color,
           };
         }
+        const loadedGroups: Record<string, CanvasGroup> = {};
+        for (const dto of Object.values(latest.groups ?? ({} as Record<string, GroupDto>))) {
+          loadedGroups[dto.id] = {
+            id: dto.id,
+            label: dto.label,
+            memberNodeIds: dto.memberNodeIds,
+            collapsed: dto.collapsed,
+            position: dto.position,
+          };
+        }
         const loadedNotes: Record<string, ElementNote> = {};
         for (const dto of noteDtos) {
           loadedNotes[dto.id] = {
@@ -604,6 +626,7 @@ export default function NewConstellationPage() {
 
         setNodes(loadedNodes);
         setEdges(loadedEdges);
+        setGroups(loadedGroups);
         // 볼트=원본, 서버=유료 동기화 예정 - 볼트가 이미 연결/하이드레이트됐으면
         // (위 볼트 복원 이펙트) 서버에서 받은 노트로 덮어쓰지 않는다.
         if (!vaultHandleRef.current) setNotes(loadedNotes);
@@ -702,6 +725,18 @@ export default function NewConstellationPage() {
           enqueueMutation(() => patchNodeCompletion(created.id, node.id, true));
         }
       }
+      for (const group of Object.values(groupsRef.current)) {
+        anyEnqueued = true;
+        enqueueMutation(() =>
+          createGroup(created.id, {
+            id: group.id,
+            label: group.label,
+            memberNodeIds: group.memberNodeIds,
+            position: group.position,
+            collapsed: group.collapsed,
+          })
+        );
+      }
       for (const note of Object.values(notesRef.current)) {
         anyEnqueued = true;
         enqueueMutation(() =>
@@ -760,6 +795,70 @@ export default function NewConstellationPage() {
       );
       const cid = constellationIdRef.current;
       if (cid) enqueueMutation(() => patchEdgeColor(cid, edgeId, color));
+    },
+    [enqueueMutation]
+  );
+
+  // 성단(그룹) 생성 - "모두 추가"(handlePlaceAllGroup)가 유일한 호출부. 낙관적
+  // 로컬 우선 + 저장된 별자리면 뮤테이션 큐(handleNodeColorChange와 동일 패턴).
+  const handleGroupCreate = useCallback(
+    (group: CanvasGroup) => {
+      setGroups((prev) => ({ ...prev, [group.id]: group }));
+      const cid = constellationIdRef.current;
+      if (cid)
+        enqueueMutation(() =>
+          createGroup(cid, {
+            id: group.id,
+            label: group.label,
+            memberNodeIds: group.memberNodeIds,
+            position: group.position,
+            collapsed: group.collapsed,
+          })
+        );
+    },
+    [enqueueMutation]
+  );
+
+  // 성단 드래그(위치 이동) - handleNodeDrag와 동일 패턴.
+  const handleGroupDrag = useCallback(
+    (groupId: string, position: CanvasPosition) => {
+      setGroups((prev) => (prev[groupId] ? { ...prev, [groupId]: { ...prev[groupId], position } } : prev));
+      const cid = constellationIdRef.current;
+      if (cid) enqueueMutation(() => patchGroup(cid, groupId, { position }));
+    },
+    [enqueueMutation]
+  );
+
+  // 성단 펼치기/접기 - 캔버스의 성단 클릭 또는 GroupChip의 접기 칩에서 온다.
+  const handleGroupToggleCollapse = useCallback(
+    (groupId: string, collapsed: boolean) => {
+      setGroups((prev) => (prev[groupId] ? { ...prev, [groupId]: { ...prev[groupId], collapsed } } : prev));
+      const cid = constellationIdRef.current;
+      if (cid) enqueueMutation(() => patchGroup(cid, groupId, { collapsed }));
+    },
+    [enqueueMutation]
+  );
+
+  // 성단 이름 바꾸기 - GroupChip의 편집 UI 전용(readOnly에서는 렌더되지 않음).
+  const handleGroupLabelChange = useCallback(
+    (groupId: string, label: string) => {
+      setGroups((prev) => (prev[groupId] ? { ...prev, [groupId]: { ...prev[groupId], label } } : prev));
+      const cid = constellationIdRef.current;
+      if (cid) enqueueMutation(() => patchGroup(cid, groupId, { label }));
+    },
+    [enqueueMutation]
+  );
+
+  // 그룹 해제 - "성단만 삭제, 멤버 노드는 그대로 남는다"(deleteGroup 계약).
+  const handleGroupUngroup = useCallback(
+    (groupId: string) => {
+      setGroups((prev) => {
+        const next = { ...prev };
+        delete next[groupId];
+        return next;
+      });
+      const cid = constellationIdRef.current;
+      if (cid) enqueueMutation(() => deleteGroup(cid, groupId));
     },
     [enqueueMutation]
   );
@@ -854,6 +953,18 @@ export default function NewConstellationPage() {
             enqueueMutation(() => patchNodeCompletion(created.id, node.id, true));
           }
         }
+        for (const group of Object.values(groupsRef.current)) {
+          anyEnqueued = true;
+          enqueueMutation(() =>
+            createGroup(created.id, {
+              id: group.id,
+              label: group.label,
+              memberNodeIds: group.memberNodeIds,
+              position: group.position,
+              collapsed: group.collapsed,
+            })
+          );
+        }
         for (const note of Object.values(notesRef.current)) {
           anyEnqueued = true;
           enqueueMutation(() =>
@@ -905,6 +1016,7 @@ export default function NewConstellationPage() {
     setConstellationId(null);
     setNodes({});
     setEdges({});
+    setGroups({});
     setNotes({});
     setBins([]);
     setDraftOffer(null);
@@ -940,6 +1052,7 @@ export default function NewConstellationPage() {
       fillPollsRef.current.clear();
       constellationIdRef.current = null;
       setConstellationId(null);
+      setGroups({});
       setNotes({});
       setSaveState("unsaved");
       setIsPublished(false);
@@ -1116,6 +1229,21 @@ export default function NewConstellationPage() {
       placeItem(item, position);
     },
     [placeItem, bins, nodes]
+  );
+
+  // "모두 추가" 그룹화(사용자 지시) - ElementBinPanel이 나선 배치를 끝낸 뒤
+  // 그 기준점(base)과 보관함을 그대로 넘겨준다. 이미 캔버스에 있던 ✓ 멤버도
+  // bin.items에 포함되어 있으므로 그대로 memberNodeIds에 편입된다(재드롭은
+  // ElementBinPanel의 handlePlaceAll이 이미 걸러줌). 3개 미만이면 "성단"이라
+  // 부를 만큼 무겁지 않으니 그룹을 만들지 않는다.
+  const handlePlaceAllGroup = useCallback(
+    (bin: Bin, base: CanvasPosition) => {
+      if (bin.items.length < 3) return;
+      const memberNodeIds = bin.items.map((item) => nodeIdForItem(item.id));
+      const id = makeId("group");
+      handleGroupCreate({ id, label: bin.label, memberNodeIds, collapsed: true, position: base });
+    },
+    [handleGroupCreate]
   );
 
   // 보관함에 사용자가 직접 원소를 추가한다(모든 보관함에서 허용 - LLM이 놓친
@@ -1560,6 +1688,7 @@ export default function NewConstellationPage() {
       <ConstellationCanvas
         nodes={nodesWithNoteCounts}
         edges={edges}
+        groups={groups}
         onNodeDrag={handleNodeDrag}
         onNodeToggleComplete={handleNodeToggleComplete}
         onEdgeCreate={handleEdgeCreate}
@@ -1572,6 +1701,10 @@ export default function NewConstellationPage() {
         suppressInfoCard={editMode}
         focusRequest={focusRequest}
         fitRequest={fitRequest}
+        onGroupDrag={handleGroupDrag}
+        onGroupToggleCollapse={handleGroupToggleCollapse}
+        onGroupLabelChange={handleGroupLabelChange}
+        onGroupUngroup={handleGroupUngroup}
       />
 
       {/* 우상단 컨트롤 줄 - 저장 상태 · 공개 토글 · 편집을 한 줄로(사용자
@@ -1804,6 +1937,7 @@ export default function NewConstellationPage() {
             onAddItem={handleAddItem}
             placedItemIds={placedItemIds}
             onStartNewConstellation={handleStartNewConstellation}
+            onPlaceAll={handlePlaceAllGroup}
           />
         </div>
         {/* 볼트 연결 상태 줄 - ElementNotesPanel 바로 위, 「노트」 탭일 때만.
