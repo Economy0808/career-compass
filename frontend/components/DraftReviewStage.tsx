@@ -164,8 +164,12 @@ function mulberry32(seed: number): () => number {
   };
 }
 
-// FNV-1a 문자열 해시 - bin.id(문자열)를 정수 시드로 바꾼다.
-function hashSeed(str: string): number {
+// FNV-1a 문자열 해시 - bin.id/group.id(문자열)를 정수 시드로 바꾼다.
+// ConstellationCanvas의 접힌 성단도 이 함수로 그룹 id를 시드화해 쓴다(아래
+// export - "성운 안개+입자" 비주얼을 시안과 메인 캔버스가 공유하는 단일
+// 진실 공급원. 캔버스는 그룹 배열 순서가 고정돼 있지 않아(Record 순회) 이
+// 스테이지처럼 clusterIndex를 시드로 쓸 수 없어 id 해시가 필수다).
+export function hashSeed(str: string): number {
   let h = 2166136261;
   for (let i = 0; i < str.length; i++) {
     h ^= str.charCodeAt(i);
@@ -175,8 +179,13 @@ function hashSeed(str: string): number {
 }
 
 // ---- 성운 입자 - 성단 원 안에 흩뿌리는 "자글자글한" 미니 별들 ----
-const PARTICLE_CAP = 40; // 멤버가 아주 많아도 DOM 노드가 폭주하지 않게
-interface NebulaParticle {
+// ConstellationCanvas와 공유하기 위해 Bin에 묶이지 않은 최소 모양(멤버
+// 유형만 필요)으로 잡는다 - bin.items든 group의 memberNodes든 그대로 넘긴다.
+export interface NebulaMember {
+  type: string;
+}
+export const PARTICLE_CAP = 40; // 멤버가 아주 많아도 DOM 노드가 폭주하지 않게
+export interface NebulaParticle {
   x: number; // 원 중심 기준 px 오프셋
   y: number;
   size: number;
@@ -186,23 +195,31 @@ interface NebulaParticle {
   twinkleLo: number;
   twinkleHi: number;
 }
-function buildNebulaParticles(bin: Bin, clusterIndex: number, diameter: number, dominantColor: string): NebulaParticle[] {
-  const count = Math.min(bin.items.length, PARTICLE_CAP);
-  const mixed = !bin.items.every((it) => it.type === bin.items[0]?.type);
+/** seed는 호출자가 정한다 - 이 스테이지는 clusterIndex(안정적인 bins 배열
+ * 순서)를, ConstellationCanvas는 hashSeed(group.id)(순서 불안정한 Record라
+ * id 해시가 필요)를 넘긴다. */
+export function buildNebulaParticles(
+  seed: number,
+  members: NebulaMember[],
+  diameter: number,
+  dominantColor: string
+): NebulaParticle[] {
+  const count = Math.min(members.length, PARTICLE_CAP);
+  const mixed = !members.every((m) => m.type === members[0]?.type);
   const maxR = diameter / 2 - 2; // 테두리 살짝 안쪽까지만
   const particles: NebulaParticle[] = [];
   for (let i = 0; i < count; i++) {
-    // 성단 index와 아이템 index를 서로 다른 소수로 섞어 시드를 뽑는다 -
-    // 옆 성단·옆 입자끼리 같은 패턴으로 뭉쳐 보이지 않게(hashNodeId 주석과
+    // 성단 seed와 아이템 index를 서로 다른 소수로 섞어 시드를 뽑는다 - 옆
+    // 성단·옆 입자끼리 같은 패턴으로 뭉쳐 보이지 않게(hashNodeId 주석과
     // 같은 이유로 축을 분리).
-    const rand = mulberry32((clusterIndex * 7919 + i * 104729) >>> 0);
+    const rand = mulberry32((seed * 7919 + i * 104729) >>> 0);
     const angle = rand() * Math.PI * 2;
     const radius = Math.sqrt(rand()) * maxR; // 균일 원반 분포(가장자리에 쏠리지 않게)
     particles.push({
       x: Math.cos(angle) * radius,
       y: Math.sin(angle) * radius,
       size: 1.6 + rand() * 1.4,
-      color: mixed ? colorForType(bin.items[i].type) : dominantColor,
+      color: mixed ? colorForType(members[i].type) : dominantColor,
       twinkleDur: 2.4 + rand() * 2.4,
       twinkleDelay: rand() * 3,
       twinkleLo: 0.15 + rand() * 0.15,
@@ -714,7 +731,7 @@ export function DraftReviewStage({
                 const sameType = bin.items.every((item) => item.type === dominantType);
                 const color = sameType ? colorForType(dominantType) : "var(--text-hi)";
                 const diameter = clusterDiameterFor(count);
-                const particles = buildNebulaParticles(bin, index, diameter, color);
+                const particles = buildNebulaParticles(index, bin.items, diameter, color);
                 return (
                   <div
                     key={bin.id}
@@ -880,7 +897,7 @@ export function DraftReviewStage({
             const sameType = diveBin.items.every((item) => item.type === dominantType);
             const color = sameType && dominantType ? colorForType(dominantType) : "var(--text-hi)";
             const diameter = Math.min(viewportSize.width, viewportSize.height) * 0.9;
-            const particles = buildNebulaParticles(diveBin, diveBinIndex, diameter, color);
+            const particles = buildNebulaParticles(diveBinIndex, diveBin.items, diameter, color);
             return (
               <div
                 aria-hidden

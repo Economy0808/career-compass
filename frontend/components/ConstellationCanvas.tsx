@@ -26,6 +26,12 @@ import {
 import { cn } from "@/lib/cn";
 import { colorForType } from "@/lib/element-colors";
 import { SpaceBackdrop } from "@/components/SpaceBackdrop";
+// 성단(접힌 그룹) 성운 비주얼(안개+입자) - DraftReviewStage의 시안 렌더와
+// 이 캔버스가 같은 시각 문법을 쓰도록 시드/입자 생성을 그 파일에서 export해
+// 공유한다(복붙 금지 - 프로젝트 관례상 이미 binClusterCenter 등도 이렇게
+// 파일 간 공유한다). 역방향 import는 없다(DraftReviewStage는 이 파일의
+// CanvasPosition 타입만 가져간다) - 순환 없음.
+import { buildNebulaParticles, hashSeed } from "@/components/DraftReviewStage";
 
 export interface CanvasPosition {
   x: number;
@@ -984,6 +990,52 @@ export function ConstellationCanvas({
   // 접힌 그룹만 멤버를 숨긴다 - 펼친 그룹은 멤버 노드가 자기 자리에 그대로
   // 보통 노드처럼 그려진다("전개/접기에 노드 위치는 불변" - 사용자 지시).
   const collapsedGroupList = useMemo(() => Object.values(groups).filter((g) => g.collapsed), [groups]);
+  // 성단 성운 비주얼용 "가벼운" 서명 - 위치(position)는 일부러 뺀다. 노드
+  // 드래그는 매 프레임 nodes를 갈아치우지만 성운 입자는 유형/완료 여부/멤버
+  // 구성에만 좌우돼야 하므로(아래 groupNebula), 이 서명이 안 바뀌면 무거운
+  // buildNebulaParticles 재계산도 건너뛴다.
+  const groupMemberSignature = useMemo(
+    () =>
+      collapsedGroupList
+        .map(
+          (g) =>
+            `${g.id}:${g.memberNodeIds.map((m) => `${m}=${nodes[m]?.type}=${nodes[m]?.isCompleted}`).join(",")}`
+        )
+        .join("|"),
+    [collapsedGroupList, nodes]
+  );
+  // 성단 성운 비주얼(안개 색/반지름/입자) - group.id -> 파생값. groups는
+  // Record라 순회 순서가 안정적이지 않으므로(DraftReviewStage의 bins 배열
+  // index와 달리) 입자 시드는 hashSeed(group.id)로 잡는다(리렌더·그룹 순서
+  // 변화에도 자리가 안 흔들리게). groupMemberSignature(그룹 id·멤버 구성)에만
+  // 의존해 멤버 드래그 중 매 프레임 재계산되지 않는다.
+  const groupNebula = useMemo(() => {
+    const map = new Map<
+      string,
+      {
+        color: string;
+        radius: number;
+        allCompleted: boolean;
+        memberCount: number;
+        particles: ReturnType<typeof buildNebulaParticles>;
+      }
+    >();
+    for (const group of collapsedGroupList) {
+      const memberNodes = group.memberNodeIds.map((m) => nodes[m]).filter((n): n is CanvasNode => !!n);
+      if (memberNodes.length === 0) continue;
+      const firstType = memberNodes[0].type;
+      const color = memberNodes.every((n) => n.type === firstType) ? colorForType(firstType) : "var(--text-hi)";
+      const allCompleted = memberNodes.every((n) => n.isCompleted);
+      const radius = Math.min(
+        CLUSTER_MAX_RADIUS,
+        CLUSTER_BASE_RADIUS + Math.log2(memberNodes.length + 1) * CLUSTER_RADIUS_SCALE
+      );
+      const particles = buildNebulaParticles(hashSeed(group.id), memberNodes, radius * 2, color);
+      map.set(group.id, { color, radius, allCompleted, memberCount: memberNodes.length, particles });
+    }
+    return map;
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, [groupMemberSignature]);
   // 숨겨진 멤버 nodeId -> 그 그룹 id. 존재하지 않는 노드는 매핑하지 않는다(정합 방어).
   const memberGroupId = useMemo(() => {
     const map = new Map<string, string>();
@@ -1098,6 +1150,18 @@ export function ConstellationCanvas({
             <stop offset="50%" stopColor="currentColor" stopOpacity="0.9" />
             <stop offset="100%" stopColor="currentColor" stopOpacity="0" />
           </linearGradient>
+          {/* 성단(접힌 그룹) 성운 안개 - DraftReviewStage 시안의
+              `radial-gradient(circle, color-mix(... 75%) 0%, color-mix(... 30%) 55%,
+              transparent 78%)`와 같은 스탑을 SVG 페인트 서버로 옮긴 것(SVG fill은
+              CSS radial-gradient() 함수를 직접 못 받아 <radialGradient> 참조가
+              필요하다). const-spike-h/v와 같은 이유로 currentColor를 써서 성단마다
+              그라디언트를 새로 만들 필요 없이 적용하는 <g>의 style.color 하나로
+              색만 바꿔 재사용한다. */}
+          <radialGradient id="const-nebula">
+            <stop offset="0%" stopColor="currentColor" stopOpacity="0.75" />
+            <stop offset="55%" stopColor="currentColor" stopOpacity="0.3" />
+            <stop offset="78%" stopColor="currentColor" stopOpacity="0" />
+          </radialGradient>
         </defs>
         {/* 배경 격자는 SVG가 아니라 컨테이너의 .bg-radec-grid(적경/적위 좌표선,
             globals.css)로 깐다 - "차트 위에 찍는 중"이라는 인상만 아주 옅게. */}
@@ -1383,26 +1447,17 @@ export function ConstellationCanvas({
               그룹은 여기 그려지지 않는다 - 멤버 노드가 각자 자기 자리에
               보통 노드로 그려지고, 대신 "성단 접기" 칩이 뜬다(아래 GroupChip). */}
           {collapsedGroupList.map((group) => {
-            const memberNodes = group.memberNodeIds.map((m) => nodes[m]).filter((n): n is CanvasNode => !!n);
-            if (memberNodes.length === 0) return null; // 멤버가 전부 사라진 빈 그룹 - 방어적으로 숨긴다
+            const nebula = groupNebula.get(group.id);
+            if (!nebula) return null; // 멤버가 전부 사라진 빈 그룹 - 방어적으로 숨긴다
             const pos = groupPositionOf(group.id);
-            // 멤버 유형이 전부 같으면 그 유형색, 섞여 있으면 특정 유형 하나로
-            // 대표할 수 없으므로 중립 악센트(별빛/text-hi 계열)로 강등한다 -
-            // "새 hex 없이" 규칙(유형 혼합 시 --text-hi/--lit 판단).
-            const firstType = memberNodes[0].type;
-            const color = memberNodes.every((n) => n.type === firstType) ? colorForType(firstType) : "var(--text-hi)";
-            const allCompleted = memberNodes.every((n) => n.isCompleted);
-            const radius = Math.min(
-              CLUSTER_MAX_RADIUS,
-              CLUSTER_BASE_RADIUS + Math.log2(memberNodes.length + 1) * CLUSTER_RADIUS_SCALE
-            );
+            const { color, radius, allCompleted, memberCount, particles } = nebula;
             return (
               <g
                 key={`group:${group.id}`}
                 transform={`translate(${pos.x} ${pos.y})`}
                 tabIndex={0}
                 role="button"
-                aria-label={`${group.label} 성단, 요소 ${memberNodes.length}개 - 펼치려면 Enter`}
+                aria-label={`${group.label} 성단, 요소 ${memberCount}개 - 펼치려면 Enter`}
                 onKeyDown={(e) => {
                   if (e.key === "Enter" || e.key === " ") {
                     e.preventDefault();
@@ -1420,15 +1475,36 @@ export function ConstellationCanvas({
                     transform: scale(1)이 attribute의 translate를 영구히
                     대체해 모든 성단이 원점(0,0)에 겹쳐 그려진다(실측 버그).
                     안쪽 <g>는 자기 transform이 없으므로 scale 애니메이션이
-                    부모의 위치 위에 얹힐 뿐 아무것도 지우지 않는다. */}
-                <g style={{ animation: "sprout 420ms cubic-bezier(.22,1,.36,1) both" }}>
+                    부모의 위치 위에 얹힐 뿐 아무것도 지우지 않는다. style.color는
+                    #const-nebula 그라디언트의 currentColor를 이 성단 색으로
+                    입힌다(const-spike-h/v와 같은 관례). */}
+                <g style={{ animation: "sprout 420ms cubic-bezier(.22,1,.36,1) both", color }}>
+                  {/* 성운 안개 - DraftReviewStage 시안과 같은 시각 문법
+                      (opacity 0.9/0.4 = 시안의 isCore 대응). */}
                   <circle
                     r={radius}
-                    fill={color}
-                    opacity={allCompleted ? 0.85 : 0.45}
+                    fill="url(#const-nebula)"
+                    opacity={allCompleted ? 0.9 : 0.4}
                     filter={allCompleted ? "url(#const-glow)" : undefined}
                   />
                   <circle r={radius} fill="transparent" stroke="var(--rule)" strokeWidth={1} opacity={0.7} />
+                  {/* 자글자글한 성운 입자 - hashSeed(group.id) 결정론, Math.random
+                      없음(리렌더·드래그마다 자리가 안 흔들린다). */}
+                  {particles.map((p, pi) => (
+                    <circle
+                      key={pi}
+                      aria-hidden="true"
+                      cx={p.x}
+                      cy={p.y}
+                      r={p.size}
+                      fill={p.color}
+                      style={{
+                        animation: `starTwinkle ${p.twinkleDur.toFixed(2)}s ease-in-out -${p.twinkleDelay.toFixed(2)}s infinite`,
+                        ["--twinkle-lo" as string]: p.twinkleLo,
+                        ["--twinkle-hi" as string]: p.twinkleHi,
+                      }}
+                    />
+                  ))}
                   {/* 멤버 수 배지 - 숫자이므로 font-mono(한글 아님, No-Korean-Mono 규칙과 무관). */}
                   <circle cx={radius * 0.6} cy={-radius * 0.6} r={8.5} fill="var(--ink-800)" stroke="var(--rule)" strokeWidth={1} />
                   <text
@@ -1439,7 +1515,7 @@ export function ConstellationCanvas({
                     className="font-mono"
                     fill="var(--text-hi)"
                   >
-                    {memberNodes.length}
+                    {memberCount}
                   </text>
                   <text
                     x={0}
