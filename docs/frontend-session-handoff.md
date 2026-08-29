@@ -1,4 +1,36 @@
-# 프론트엔드 세션 핸드오프 (2026-08-29 갱신 — 같은 세션 9차)
+# 프론트엔드 세션 핸드오프 (2026-08-30 갱신 — 같은 세션 10차)
+
+> **10차: BGM·랜딩 HUD·대기창·피드 상세 배치** (사용자 직접 지시 + 백엔드 세션
+> 03-code-dd 위임 혼합):
+> - **BGM(Web Audio 실시간 합성, 자산 0)**: `lib/bgm-score.ts`(악보 164노트,
+>   BGM_TEMPO=**47** — 사용자가 템포를 6회 미세 조정한 최종값) +
+>   `lib/bgm-synth.ts`(BgmPlayer: 오르골=비정수배 부분음 가산 합성 BELL_PARTIALS,
+>   어택 1.5ms, 핑퐁 딜레이, PARAMS.landing/canvas 모드) + `components/BgmToggle.tsx`
+>   (제스처 후 resume, `localStorage["ourlab-bgm-muted"]`). 랜딩 네비·캔버스 컨트롤 줄 배선.
+>   ⚠️ **자동화 브라우저 주행 전 음소거 선주입 필수**(검증 패널 소리가 사용자
+>   스피커로 샌 실사고 1회), 검증 후 소리 나는 탭 방치 금지.
+> - **랜딩 HUD 모션**(TelescopeLanding): 점선 링 landingSpin 12마디/아크 링 역회전
+>   8마디/요소 둥둥 landingFloat(진폭 7~11px, 위상차, **한 방향 1마디**=BGM 마디 동기,
+>   LANDING_BAR_S=(60/BGM_TEMPO)*4). globals.css 키프레임은 상시 모션 금지의 명시적
+>   예외(사용자 지시 주석 있음). 3px/10초는 지각 불가였음 — 진폭 줄이지 말 것.
+> - **대기창 개편**(GeneratingGuide.tsx): 정중앙 별자리 로더(시드 6~9노드 점등) +
+>   "사용법 익히기" 버튼 → TutorialDialog(캐러셀 5장 + **실 ConstellationCanvas 임베드
+>   연습장**, 서버 호출 0). 폴링 상한 400회=10분(실 LLM 3~5분 실측). ⚠️ 이 파일은
+>   현재 백엔드 세션이 WIP 수정 중 — 소유권 그쪽.
+> - **feed.png 교체**(`e9bf662`): 가이드 소셜 슬라이드를 실 게시물 캡처로.
+> - **피드 상세(위임)**: F-E3 피봇으로 스펙 대부분 기랜드 판정 → 사용자 승인 스코프
+>   "작성자 별자리 미리보기, 미니 SVG 말고 메인 캔버스처럼 크게"만 구현(`e4eea37`).
+>   `components/AuthorConstellationPreview.tsx`(최신 발행 별자리를 readOnly 실캔버스
+>   26rem 임베드 + 전면 투명 링크→뷰어, 없으면 미렌더) + DTO→캔버스 매퍼
+>   `lib/constellation-canvas-map.ts` 공용화(뷰어 페이지도 사용). Post 계약 변경 불요.
+> - `4c73793` Field.tsx가 multiline 판별자를 rest 스프레드로 DOM에 흘리던 React 경고 수정.
+> - **데이터 소실 미스터리 종결**(백엔드 `8418993`): 범인=conftest autouse 픽스처의
+>   demo-ourlab 전체 DELETE(pytest마다). 테스트 프로젝트 "demo-ourlab-test" 강제 분리로
+>   차단. 에뮬레이터는 `--import=data/emulator-backup --export-on-exit=…` 기동 권장.
+> - **test-observer 재생성**: uid `pILuT7z1jkPbhybfNhEOJyc2v5u2`(이메일/비번 불변),
+>   프로필 "별 보는 경영학도"🌌/"무전공 2학년, 별자리 잇는 중". 데모 시드([데모] 표기):
+>   게시물 `b514694a`/`02bcbc59`, 발행 별자리 `4e7c4f2c`. 전부 백업에 포함됨.
+>   구 uid 리포 참조는 0건(grep 확증) — 시드 갱신 no-op 종결.
 
 > **9차: 탐색/소셜 개편 배치(F-E1~E3)** (사용자 원문 "소셜 탭 유명무실 → 돋보기
 > '탐색'으로 사람 찾기 + 소셜은 인스타처럼 게시물·동영상·스토리", 백엔드 세션
