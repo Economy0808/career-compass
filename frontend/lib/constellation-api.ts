@@ -59,6 +59,15 @@ export interface EdgeDto {
   color?: string;
 }
 
+/** 백엔드 GroupOut과 1:1 대응 - 캔버스 성단(요소가 많아진 노드 묶음). */
+export interface GroupDto {
+  id: string;
+  label: string;
+  memberNodeIds: string[];
+  collapsed: boolean;
+  position: PositionDto;
+}
+
 /** 백엔드 ConstellationOut과 1:1 대응. nodes/edges는 id를 key로 하는 맵 -
  * Firestore 점 표기 부분 업데이트와 형태를 맞춘 것이므로 배열로 바꾸지 않는다
  * (ConstellationCanvas.tsx의 동일한 관례 참고).
@@ -76,6 +85,7 @@ export interface ConstellationDto {
   createdAt: number;
   updatedAt: number;
   bins?: BinDto[];
+  groups?: Record<string, GroupDto>;
 }
 
 /** 백엔드 NodeCreateIn과 1:1 대응. id는 클라이언트가 생성한다(예: "element:phil-101"). */
@@ -325,6 +335,39 @@ export function patchEdgeColor(
   return request<ConstellationDto>(
     `/api/constellations/${encodeURIComponent(constellationId)}/edges/${encodeURIComponent(edgeId)}/color`,
     jsonInit("PATCH", { color })
+  );
+}
+
+// ---------- 성단(그룹) ----------
+
+/** 성단 생성 요청. id는 클라이언트가 생성한다. collapsed 기본값은 서버가 true로 채운다. */
+export function createGroup(
+  constellationId: string,
+  input: { id: string; label: string; memberNodeIds: string[]; position: PositionDto; collapsed?: boolean }
+): Promise<ConstellationDto> {
+  return request<ConstellationDto>(
+    `/api/constellations/${encodeURIComponent(constellationId)}/groups`,
+    jsonInit("POST", input)
+  );
+}
+
+/** 성단 부분 갱신 - 넘기지 않은 필드는 서버가 기존 값을 유지한다. */
+export function patchGroup(
+  constellationId: string,
+  groupId: string,
+  patch: { label?: string; collapsed?: boolean; memberNodeIds?: string[]; position?: PositionDto }
+): Promise<ConstellationDto> {
+  return request<ConstellationDto>(
+    `/api/constellations/${encodeURIComponent(constellationId)}/groups/${encodeURIComponent(groupId)}`,
+    jsonInit("PATCH", patch)
+  );
+}
+
+/** 성단만 삭제한다("해제") - 멤버 노드는 그대로 남는다. */
+export function deleteGroup(constellationId: string, groupId: string): Promise<ConstellationDto> {
+  return request<ConstellationDto>(
+    `/api/constellations/${encodeURIComponent(constellationId)}/groups/${encodeURIComponent(groupId)}`,
+    { method: "DELETE" }
   );
 }
 

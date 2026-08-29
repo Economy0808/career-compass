@@ -70,6 +70,18 @@ export interface CanvasEdge {
   color?: string;
 }
 
+/** 백엔드 Group 모델과 1:1로 대응 - 요소가 많아진 노드들을 하나로 묶는 성단.
+ * collapsed=true면 멤버 노드/내부 간선을 숨기고 이 그룹 자리에 성단 하나만
+ * 그린다(아래 렌더 로직 참고). position은 접힘/펼침과 무관하게 항상 이
+ * 그룹만의 고정 앵커 - 멤버 노드 위치는 절대 바뀌지 않는다. */
+export interface CanvasGroup {
+  id: string;
+  label: string;
+  memberNodeIds: string[];
+  collapsed: boolean;
+  position: CanvasPosition;
+}
+
 /** 달성 연출 프리셋 - 팔레트(ColorPaletteBar)와 렌더가 공유하는 단일 목록.
  * 서버는 id 문자열만 저장하고 시각 정의는 전부 여기 있다. */
 export const GLOW_PRESETS: { id: string; name: string }[] = [
@@ -84,6 +96,9 @@ export interface ConstellationCanvasProps {
   /** id를 key로 하는 맵. Firestore 점 표기 부분 업데이트와 형태를 맞춘 것이므로 배열로 바꾸지 않는다. */
   nodes: Record<string, CanvasNode>;
   edges: Record<string, CanvasEdge>;
+  /** id를 key로 하는 맵(nodes/edges와 동일 관례). 생략하면 성단 없이 기존과
+   * 동일하게 그린다. */
+  groups?: Record<string, CanvasGroup>;
   onNodeDrag: (nodeId: string, position: CanvasPosition) => void;
   onNodeToggleComplete: (nodeId: string) => void;
   onEdgeCreate: (sourceNodeId: string, targetNodeId: string) => void;
@@ -127,7 +142,21 @@ export interface ConstellationCanvasProps {
    * 반응해야 하므로 boolean이 아니라 카운터). */
   fitRequest?: number | null;
   className?: string;
+  /** 성단 드래그(위치 이동) - 노드 드래그와 동일한 낙관적 패턴. */
+  onGroupDrag?: (groupId: string, position: CanvasPosition) => void;
+  /** 성단 클릭(펼치기) / 접기 칩 클릭(접기). */
+  onGroupToggleCollapse?: (groupId: string, collapsed: boolean) => void;
+  /** 성단 이름 바꾸기 - readOnly에서는 렌더되지 않는 편집 UI 전용. */
+  onGroupLabelChange?: (groupId: string, label: string) => void;
+  /** 그룹 해제("성단만 삭제, 멤버는 남음") - readOnly에서는 렌더되지 않는다. */
+  onGroupUngroup?: (groupId: string) => void;
 }
+
+// 성단(집합 노드)의 시각 반지름 - 멤버 수가 늘어도 log 스케일로만 커지고
+// CLUSTER_MAX_RADIUS를 넘지 않는다("은은하게 크게" - 사용자 지시).
+const CLUSTER_BASE_RADIUS = 16;
+const CLUSTER_RADIUS_SCALE = 5;
+const CLUSTER_MAX_RADIUS = 34;
 
 const NODE_RADIUS = 9;
 const HANDLE_RADIUS = 22;
@@ -317,11 +346,22 @@ interface DragEdgeState {
   sourceNodeId: string;
 }
 
-type DragState = DragNodeState | DragPanState | DragEdgeState | null;
+interface DragGroupState {
+  kind: "group";
+  groupId: string;
+  pointerId: number;
+  startClientX: number;
+  startClientY: number;
+  startWorld: CanvasPosition;
+  moved: boolean;
+}
+
+type DragState = DragNodeState | DragPanState | DragEdgeState | DragGroupState | null;
 
 export function ConstellationCanvas({
   nodes,
   edges,
+  groups = {},
   onNodeDrag,
   onNodeToggleComplete,
   onEdgeCreate,
@@ -336,6 +376,10 @@ export function ConstellationCanvas({
   focusRequest,
   fitRequest,
   className,
+  onGroupDrag,
+  onGroupToggleCollapse,
+  onGroupLabelChange,
+  onGroupUngroup,
 }: ConstellationCanvasProps) {
   const svgRef = useRef<SVGSVGElement>(null);
   const dragRef = useRef<DragState>(null);
@@ -345,6 +389,9 @@ export function ConstellationCanvas({
   // 드래그 중인 노드 하나만 낙관적으로 덮어쓴다. 부모의 영속화는 디바운스될 수
   // 있으므로, 실제 props가 따라올 때까지 로컬 좌표를 계속 신뢰한다.
   const [dragPosition, setDragPosition] = useState<{ nodeId: string; position: CanvasPosition } | null>(null);
+  // 성단 드래그 중 낙관적 위치 - dragPosition(노드)과 같은 패턴이지만 groups
+  // 맵을 참조하는 groupPositionOf가 따로 있어 별도 state로 둔다.
+  const [dragGroupPosition, setDragGroupPosition] = useState<{ groupId: string; position: CanvasPosition } | null>(null);
   const [edgeCursor, setEdgeCursor] = useState<CanvasPosition | null>(null);
   const [hoveredNodeId, setHoveredNodeId] = useState<string | null>(null);
   const [focusedNodeId, setFocusedNodeId] = useState<string | null>(null);
@@ -363,6 +410,15 @@ export function ConstellationCanvas({
       return n ? n.position : { x: 0, y: 0 };
     },
     [nodes, dragPosition]
+  );
+
+  const groupPositionOf = useCallback(
+    (groupId: string): CanvasPosition => {
+      if (dragGroupPosition && dragGroupPosition.groupId === groupId) return dragGroupPosition.position;
+      const g = groups[groupId];
+      return g ? g.position : { x: 0, y: 0 };
+    },
+    [groups, dragGroupPosition]
   );
 
   const clientToWorld = useCallback(
@@ -505,6 +561,34 @@ export function ConstellationCanvas({
     [nodes, readOnly, activateNode]
   );
 
+  // --- 성단 드래그 -----------------------------------------------------------
+  // 열람 모드에서는 드래그가 없다 - pointerdown에서 곧바로 펼치기만 한다(노드
+  // 클릭-선택과 동일한 패턴, beginNodeDrag 참고). 편집 모드에서는 이동 임계값
+  // 이내(클릭)면 펼치기, 넘으면 드래그로 갈린다(handlePointerUp에서 분기).
+  const beginGroupDrag = useCallback(
+    (groupId: string) => (e: ReactPointerEvent<SVGGElement>) => {
+      if (e.button !== 0) return;
+      e.stopPropagation();
+      if (readOnly) {
+        onGroupToggleCollapse?.(groupId, false);
+        return;
+      }
+      const g = groups[groupId];
+      if (!g) return;
+      dragRef.current = {
+        kind: "group",
+        groupId,
+        pointerId: e.pointerId,
+        startClientX: e.clientX,
+        startClientY: e.clientY,
+        startWorld: g.position,
+        moved: false,
+      };
+      (e.currentTarget as Element).setPointerCapture(e.pointerId);
+    },
+    [readOnly, groups, onGroupToggleCollapse]
+  );
+
   // --- 엣지 생성 ---------------------------------------------------------
   // 노드 몸통을 드래그하면 이동이므로, 엣지는 노드 가장자리를 감싸는 별도의
   // 투명 "핸들 링"(HANDLE_RADIUS)에서 드래그를 시작해야 생성된다. 두 제스처가
@@ -630,6 +714,13 @@ export function ConstellationCanvas({
       } else if (drag.kind === "edge") {
         if (e.pointerId !== drag.pointerId) return;
         setEdgeCursor(clientToWorld(e.clientX, e.clientY));
+      } else if (drag.kind === "group") {
+        if (e.pointerId !== drag.pointerId) return;
+        const dxScreen = e.clientX - drag.startClientX;
+        const dyScreen = e.clientY - drag.startClientY;
+        if (Math.hypot(dxScreen, dyScreen) > CLICK_THRESHOLD) drag.moved = true;
+        const world = clientToWorld(e.clientX, e.clientY);
+        setDragGroupPosition({ groupId: drag.groupId, position: world });
       }
     },
     [clientToWorld]
@@ -662,10 +753,20 @@ export function ConstellationCanvas({
           // 빈 캔버스 클릭 - 선택을 닫는다(토글 아님).
           setSelectedNodeId(null);
         }
+      } else if (drag.kind === "group") {
+        if (drag.moved) {
+          const world = clientToWorld(e.clientX, e.clientY);
+          onGroupDrag?.(drag.groupId, world);
+        } else {
+          // 임계값 이내 = 클릭 -> 펼치기(사용자 지시: "클릭하면 확대되면서
+          // 연결된 요소들이 다 드러나도록"). 접기는 펼침 상태의 칩 전용 제스처.
+          onGroupToggleCollapse?.(drag.groupId, false);
+        }
+        setDragGroupPosition(null);
       }
       // pan의 transform 자체는 별도 처리 불필요 - 이미 최신 상태.
     },
-    [activateNode, clientToWorld, findNodeNear, onEdgeCreate, onNodeDrag]
+    [activateNode, clientToWorld, findNodeNear, onEdgeCreate, onNodeDrag, onGroupDrag, onGroupToggleCollapse]
   );
 
   const handleNodeKeyDown = useCallback(
@@ -759,6 +860,59 @@ export function ConstellationCanvas({
     [edges, nodes]
   );
 
+  // --- 성단(그룹) 파생 데이터 -------------------------------------------------
+  // 접힌 그룹만 멤버를 숨긴다 - 펼친 그룹은 멤버 노드가 자기 자리에 그대로
+  // 보통 노드처럼 그려진다("전개/접기에 노드 위치는 불변" - 사용자 지시).
+  const collapsedGroupList = useMemo(() => Object.values(groups).filter((g) => g.collapsed), [groups]);
+  // 숨겨진 멤버 nodeId -> 그 그룹 id. 존재하지 않는 노드는 매핑하지 않는다(정합 방어).
+  const memberGroupId = useMemo(() => {
+    const map = new Map<string, string>();
+    for (const g of collapsedGroupList) {
+      for (const m of g.memberNodeIds) if (nodes[m]) map.set(m, g.id);
+    }
+    return map;
+  }, [collapsedGroupList, nodes]);
+  const hiddenNodeIds = useMemo(() => new Set(memberGroupId.keys()), [memberGroupId]);
+
+  interface EdgeEndpoint {
+    key: string;
+    position: CanvasPosition;
+    isCompleted: boolean;
+  }
+  // 엣지 끝점 하나를 해석한다 - 접힌 그룹의 멤버를 가리키면 그 그룹으로
+  // 대체한다(성단↔외부 간선의 "대표 연결"). 그룹의 완료 여부는 멤버 전원
+  // 완료일 때만 true로 쳐서, 다 이룬 성단으로 이어진 엣지도 계속 발광한다.
+  const resolveEndpoint = useCallback(
+    (nodeId: string): EdgeEndpoint | null => {
+      const groupId = memberGroupId.get(nodeId);
+      if (groupId) {
+        const g = groups[groupId];
+        if (!g) return null;
+        const members = g.memberNodeIds.filter((m) => nodes[m]);
+        const isCompleted = members.length > 0 && members.every((m) => nodes[m].isCompleted);
+        return { key: `group:${groupId}`, position: groupPositionOf(groupId), isCompleted };
+      }
+      const n = nodes[nodeId];
+      if (!n) return null;
+      return { key: nodeId, position: positionOf(nodeId), isCompleted: n.isCompleted };
+    },
+    [memberGroupId, groups, nodes, groupPositionOf, positionOf]
+  );
+
+  // 표시용 엣지 - 그룹으로 대체된 끝점끼리 중복되는 쌍은 하나로 합친다(같은
+  // 그룹을 향하는 여러 멤버 간선이 전부 "성단↔외부" 한 줄로 보이게).
+  const displayEdgeList = useMemo(() => {
+    const seen = new Map<string, { edge: CanvasEdge; source: EdgeEndpoint; target: EdgeEndpoint }>();
+    for (const edge of validEdges) {
+      const source = resolveEndpoint(edge.sourceNodeId);
+      const target = resolveEndpoint(edge.targetNodeId);
+      if (!source || !target || source.key === target.key) continue; // 그룹 내부 간선은 완전히 숨긴다
+      const key = source.key < target.key ? `${source.key}|${target.key}` : `${target.key}|${source.key}`;
+      if (!seen.has(key)) seen.set(key, { edge, source, target });
+    }
+    return Array.from(seen.values());
+  }, [validEdges, resolveEndpoint]);
+
   const dragEdgeSource = dragRef.current?.kind === "edge" ? dragRef.current.sourceNodeId : null;
 
   return (
@@ -829,14 +983,12 @@ export function ConstellationCanvas({
             globals.css)로 깐다 - "차트 위에 찍는 중"이라는 인상만 아주 옅게. */}
 
         <g transform={`translate(${transform.x} ${transform.y}) scale(${transform.k})`}>
-          {/* 엣지 */}
-          {validEdges.map((edge) => {
-            const source = nodes[edge.sourceNodeId];
-            const target = nodes[edge.targetNodeId];
-            if (!source || !target) return null;
-            const sp = positionOf(edge.sourceNodeId);
-            const tp = positionOf(edge.targetNodeId);
-            // 인접 발광 규칙: 양 끝 노드가 모두 완료일 때만 "빛나는" 스타일.
+          {/* 엣지 - 접힌 그룹의 멤버를 가리키는 끝점은 성단으로 대체된다
+              (displayEdgeList, 위 성단 파생 데이터 참고). */}
+          {displayEdgeList.map(({ edge, source, target }) => {
+            const sp = source.position;
+            const tp = target.position;
+            // 인접 발광 규칙: 양 끝(노드 또는 성단)이 모두 완료일 때만 "빛나는" 스타일.
             // backend/app/domain/constellation.py의 is_edge_lit과 동일한 규칙.
             const lit = source.isCompleted && target.isCompleted;
             const drawing = lit ? drawingEdges[edge.id] : undefined;
@@ -929,8 +1081,8 @@ export function ConstellationCanvas({
             />
           )}
 
-          {/* 노드 */}
-          {Object.values(nodes).map((node) => {
+          {/* 노드 - 접힌 그룹의 멤버는 숨긴다(대신 아래 성단 하나로 대표된다). */}
+          {Object.values(nodes).filter((node) => !hiddenNodeIds.has(node.id)).map((node) => {
             const pos = positionOf(node.id);
             const color = node.color ?? colorForType(node.type);
             const isHovered = hoveredNodeId === node.id;
@@ -1105,6 +1257,74 @@ export function ConstellationCanvas({
               </g>
             );
           })}
+
+          {/* 성단(접힌 그룹) - 요소가 많아진 노드 묶음을 별 하나로 요약해
+              그린다. 클릭(드래그 아님)하면 펼쳐진다(handlePointerUp). 펼쳐진
+              그룹은 여기 그려지지 않는다 - 멤버 노드가 각자 자기 자리에
+              보통 노드로 그려지고, 대신 "성단 접기" 칩이 뜬다(아래 GroupChip). */}
+          {collapsedGroupList.map((group) => {
+            const memberNodes = group.memberNodeIds.map((m) => nodes[m]).filter((n): n is CanvasNode => !!n);
+            if (memberNodes.length === 0) return null; // 멤버가 전부 사라진 빈 그룹 - 방어적으로 숨긴다
+            const pos = groupPositionOf(group.id);
+            // 멤버 유형이 전부 같으면 그 유형색, 섞여 있으면 특정 유형 하나로
+            // 대표할 수 없으므로 중립 악센트(별빛/text-hi 계열)로 강등한다 -
+            // "새 hex 없이" 규칙(유형 혼합 시 --text-hi/--lit 판단).
+            const firstType = memberNodes[0].type;
+            const color = memberNodes.every((n) => n.type === firstType) ? colorForType(firstType) : "var(--text-hi)";
+            const allCompleted = memberNodes.every((n) => n.isCompleted);
+            const radius = Math.min(
+              CLUSTER_MAX_RADIUS,
+              CLUSTER_BASE_RADIUS + Math.log2(memberNodes.length + 1) * CLUSTER_RADIUS_SCALE
+            );
+            return (
+              <g
+                key={`group:${group.id}`}
+                transform={`translate(${pos.x} ${pos.y})`}
+                tabIndex={0}
+                role="button"
+                aria-label={`${group.label} 성단, 요소 ${memberNodes.length}개 - 펼치려면 Enter`}
+                onKeyDown={(e) => {
+                  if (e.key === "Enter" || e.key === " ") {
+                    e.preventDefault();
+                    onGroupToggleCollapse?.(group.id, false);
+                  }
+                }}
+                onPointerDown={beginGroupDrag(group.id)}
+                style={{ cursor: "pointer", outline: "none", animation: "sprout 420ms cubic-bezier(.22,1,.36,1) both" }}
+              >
+                <circle
+                  r={radius}
+                  fill={color}
+                  opacity={allCompleted ? 0.85 : 0.45}
+                  filter={allCompleted ? "url(#const-glow)" : undefined}
+                />
+                <circle r={radius} fill="transparent" stroke="var(--rule)" strokeWidth={1} opacity={0.7} />
+                {/* 멤버 수 배지 - 숫자이므로 font-mono(한글 아님, No-Korean-Mono 규칙과 무관). */}
+                <circle cx={radius * 0.6} cy={-radius * 0.6} r={8.5} fill="var(--ink-800)" stroke="var(--rule)" strokeWidth={1} />
+                <text
+                  x={radius * 0.6}
+                  y={-radius * 0.6 + 3.5}
+                  textAnchor="middle"
+                  fontSize={9}
+                  className="font-mono"
+                  fill="var(--text-hi)"
+                >
+                  {memberNodes.length}
+                </text>
+                <text
+                  x={0}
+                  y={radius + 16}
+                  textAnchor="middle"
+                  fontSize={12}
+                  className="font-serif"
+                  fill="var(--text-hi)"
+                  style={{ paintOrder: "stroke", stroke: "var(--ink-900)", strokeWidth: 3, strokeOpacity: 0.75 }}
+                >
+                  {group.label}
+                </text>
+              </g>
+            );
+          })}
         </g>
       </svg>
 
@@ -1150,6 +1370,23 @@ export function ConstellationCanvas({
       {readOnly && (
         <div className="pointer-events-none absolute inset-0" aria-hidden />
       )}
+
+      {/* 펼쳐진 그룹마다 뜨는 "성단 접기" 칩 - group.position(접힘/펼침과 무관한
+          고정 앵커)에 뜬다. 이 칩이 곧 그룹의 유일한 선택 표면이라 이름 바꾸기/
+          해제도 여기서 한다(readOnly에서는 접기만 남기고 숨김). */}
+      {Object.values(groups)
+        .filter((g) => !g.collapsed)
+        .map((group) => (
+          <GroupChip
+            key={group.id}
+            group={group}
+            transform={transform}
+            readOnly={readOnly}
+            onToggleCollapse={(collapsed) => onGroupToggleCollapse?.(group.id, collapsed)}
+            onLabelChange={onGroupLabelChange ? (label) => onGroupLabelChange(group.id, label) : undefined}
+            onUngroup={onGroupUngroup ? () => onGroupUngroup(group.id) : undefined}
+          />
+        ))}
     </div>
   );
 }
@@ -1279,6 +1516,103 @@ function ElementPopover({
         <span>{node.noteCount !== undefined ? `노트 ${node.noteCount}개` : "노트 추가"}</span>
         <span aria-hidden>{"›"}</span>
       </button>
+    </div>
+  );
+}
+
+interface GroupChipProps {
+  group: CanvasGroup;
+  transform: Transform;
+  readOnly: boolean;
+  onToggleCollapse: (collapsed: boolean) => void;
+  onLabelChange?: (label: string) => void;
+  onUngroup?: () => void;
+}
+
+/**
+ * 펼쳐진 성단 옆에 뜨는 작은 라벨 칩 - 접기 컨트롤이자 그룹의 유일한 편집
+ * 표면(이름 바꾸기/해제). 접힌 성단은 캔버스 <g>로 그려지지만(위 성단 렌더
+ * 참고) 펼치면 그 자리엔 멤버 노드들만 남으므로, 그룹 자체를 계속 가리키고
+ * 조작할 대상이 필요해서 이 칩을 별도 HTML 오버레이로 띄운다 - ElementPopover와
+ * 같은 방식(world 좌표 -> transform 적용 -> 화면 좌표)이지만, 노드 개수만큼
+ * 늘어나는 팝오버가 아니라 "펼쳐진 그룹당 하나"라 화면 클램프는 생략했다
+ * (ponytail: 화면 밖으로 나가는 극단적 케이스는 팬으로 되돌아오면 그만).
+ */
+function GroupChip({ group, transform, readOnly, onToggleCollapse, onLabelChange, onUngroup }: GroupChipProps) {
+  const [editing, setEditing] = useState(false);
+  const [draft, setDraft] = useState(group.label);
+
+  useEffect(() => {
+    setDraft(group.label);
+  }, [group.label]);
+
+  function commitLabel() {
+    setEditing(false);
+    const next = draft.trim();
+    if (next && next !== group.label) onLabelChange?.(next);
+    else setDraft(group.label);
+  }
+
+  const screenX = transform.x + group.position.x * transform.k;
+  const screenY = transform.y + group.position.y * transform.k;
+
+  return (
+    <div
+      className="absolute z-10 flex items-center gap-1.5 rounded-full border border-rule bg-ink-800/90 px-2.5 py-1 font-sans text-xs text-text-hi shadow-lg"
+      style={{ left: screenX + 16, top: screenY - 14 }}
+    >
+      {editing ? (
+        <input
+          autoFocus
+          value={draft}
+          maxLength={60}
+          onChange={(e) => setDraft(e.target.value)}
+          onBlur={commitLabel}
+          onKeyDown={(e) => {
+            if (e.key === "Enter") {
+              e.preventDefault();
+              commitLabel();
+            } else if (e.key === "Escape") {
+              e.preventDefault();
+              setDraft(group.label);
+              setEditing(false);
+            }
+          }}
+          className="w-28 rounded bg-ink-900 px-1.5 py-0.5 font-serif text-xs text-text-hi outline-none focus-visible:ring-1 focus-visible:ring-spec-b"
+        />
+      ) : (
+        <button
+          type="button"
+          className="font-serif hover:text-spec-b"
+          title="성단 접기"
+          onClick={() => onToggleCollapse(true)}
+        >
+          {group.label}
+        </button>
+      )}
+      {!readOnly && !editing && (
+        <>
+          <button
+            type="button"
+            aria-label="성단 이름 바꾸기"
+            className="text-text-lo hover:text-text-hi focus-visible:outline focus-visible:outline-2 focus-visible:outline-spec-b"
+            onClick={() => setEditing(true)}
+          >
+            {"✎"}
+          </button>
+          {onUngroup && (
+            <button
+              type="button"
+              aria-label="그룹 해제"
+              title="그룹 해제 - 멤버는 그대로 남습니다"
+              className="text-text-lo hover:text-spec-m focus-visible:outline focus-visible:outline-2 focus-visible:outline-spec-b"
+              onClick={onUngroup}
+            >
+              {"✕"}
+            </button>
+          )}
+        </>
+      )}
     </div>
   );
 }
