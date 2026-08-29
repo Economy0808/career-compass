@@ -43,6 +43,7 @@ import {
   deleteNode,
   deleteNote,
   getBinJob,
+  inferPrereqs,
   listConstellations,
   listNotes,
   patchGroup,
@@ -1310,6 +1311,66 @@ export default function NewConstellationPage() {
     [enqueueMutation]
   );
 
+  // 세션 내 "이미 이 성단은 선수관계를 물어봤다" 표시(빈 결과 포함) - 같은
+  // 성단을 여러 번 다이브인해도 /prereqs를 다시 부르지 않는다. state가 아니라
+  // ref인 이유: 이 자체가 리렌더를 유발할 이유가 없는 순수 "한 번만" 가드다.
+  const resolvedPrereqGroupsRef = useRef<Set<string>>(new Set());
+
+  // 메인 캔버스 다이브인 시점의 온디맨드 선수관계 조회(사용자 지시: "선수과목
+  // 대원칙을 세워놓고 api가 그때그때 적용"). DraftReviewStage의 시안 다이브인
+  // (094d929)과 같은 원칙을 실제 캔버스에도 적용한 것 - 과목마다 미리
+  // 이어두지 않고, 위계 기능 이전에 만들어진 성단이라도 지금 들어가는 순간
+  // 채워진다. 실패는 장식(위계) 취급이라 콘솔 경고만 남기고 편집 흐름을
+  // 절대 막지 않는다.
+  const handleDiveInGroup = useCallback(
+    (groupId: string) => {
+      if (resolvedPrereqGroupsRef.current.has(groupId)) return; // 세션 내 1회(빈 결과도 캐시)
+      resolvedPrereqGroupsRef.current.add(groupId);
+      const group = groupsRef.current[groupId];
+      if (!group) return;
+      const memberIds = group.memberNodeIds;
+      // 수업 노드(학정번호 code가 있는 노드)만 위계 조회 대상 - 자격증/대외활동
+      // 등은 아직 백엔드가 다루지 않는다.
+      const courseNodes = memberIds
+        .map((id) => nodesRef.current[id])
+        .filter((n): n is CanvasNode => !!n && !!n.code);
+      if (courseNodes.length < 2) return;
+      const memberIdSet = new Set(memberIds);
+      // 내부 간선이 이미 하나라도 있으면(사용자가 직접 정리했거나 예전
+      // handlePlaceAllGroup 캐시 경로로 이미 이어진 성단) 다시 어지럽히지 않는다.
+      const hasInternalEdge = Object.values(edgesRef.current).some(
+        (e) => memberIdSet.has(e.sourceNodeId) && memberIdSet.has(e.targetNodeId)
+      );
+      if (hasInternalEdge) return;
+
+      const codeToNodeId = new Map(courseNodes.map((n) => [n.code as string, n.id]));
+      inferPrereqs(
+        courseNodes.map((n) => ({
+          code: n.code as string,
+          name: n.label,
+          // 캔버스 노드 level은 1000단위(1000/2000/3000/4000) - 백엔드가 기대하는
+          // 학정번호 첫 자리(1~4)로 나눠 변환한다.
+          level: typeof n.level === "number" ? Math.floor(n.level / 1000) : null,
+          kind: null,
+        }))
+      )
+        .then((prereqEdges) => {
+          for (const e of prereqEdges) {
+            const beforeCode = e.before.startsWith("course:") ? e.before.slice(7) : e.before;
+            const afterCode = e.after.startsWith("course:") ? e.after.slice(7) : e.after;
+            const sourceNodeId = codeToNodeId.get(beforeCode);
+            const targetNodeId = codeToNodeId.get(afterCode);
+            if (!sourceNodeId || !targetNodeId || sourceNodeId === targetNodeId) continue;
+            handleEdgeCreate(sourceNodeId, targetNodeId);
+          }
+        })
+        .catch((err: unknown) => {
+          console.warn("[constellation] 다이브인 선수관계 조회 실패 - 위계는 장식이므로 무시", err);
+        });
+    },
+    [handleEdgeCreate]
+  );
+
   const placeItem = useCallback(
     (item: BinItem, position: CanvasPosition) => {
       const nodeId = nodeIdForItem(item.id);
@@ -1821,6 +1882,7 @@ export default function NewConstellationPage() {
         onGroupToggleCollapse={handleGroupToggleCollapse}
         onGroupLabelChange={handleGroupLabelChange}
         onGroupUngroup={handleGroupUngroup}
+        onDiveInGroup={handleDiveInGroup}
       />
 
       {/* 우상단 컨트롤 줄 - 저장 상태 · 공개 토글 · 편집을 한 줄로(사용자

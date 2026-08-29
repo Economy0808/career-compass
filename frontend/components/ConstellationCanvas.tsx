@@ -156,6 +156,11 @@ export interface ConstellationCanvasProps {
   onGroupLabelChange?: (groupId: string, label: string) => void;
   /** 그룹 해제("성단만 삭제, 멤버는 남음") - readOnly에서는 렌더되지 않는다. */
   onGroupUngroup?: (groupId: string) => void;
+  /** 성단 다이브인이 완료된 시점(카메라 줌 종료 직후) 1회 호출 - 부모가 그
+   * 성단 멤버에 온디맨드로 선수관계를 조회해 채워 넣을 수 있는 훅. 이
+   * 캔버스는 선수관계의 의미를 모른다 - "지금 이 성단 속으로 들어왔다"는
+   * 사실만 알린다(onGroupToggleCollapse와 같은 역할 분리). */
+  onDiveInGroup?: (groupId: string) => void;
 }
 
 // 성단(집합 노드)의 시각 반지름 - 멤버 수가 늘어도 log 스케일로만 커지고
@@ -309,7 +314,11 @@ interface Transform {
  * 이 함수 하나를 공유한다 - 두 곳 다 "지금 그래프 전체를 보여줘라"는 같은
  * 요청이기 때문. k는 [MIN_ZOOM, FIT_MAX_ZOOM] 사이로 클램프한다(과하게 당기지
  * 않음 + 너무 멀어지지도 않음). */
-function computeFitTransform(nodeList: CanvasNode[], rect: { width: number; height: number }): Transform {
+function computeFitTransform(
+  nodeList: CanvasNode[],
+  rect: { width: number; height: number },
+  maxZoom: number = FIT_MAX_ZOOM
+): Transform {
   const xs = nodeList.map((n) => n.position.x);
   const ys = nodeList.map((n) => n.position.y);
   const minX = Math.min(...xs);
@@ -324,8 +333,114 @@ function computeFitTransform(nodeList: CanvasNode[], rect: { width: number; heig
   const rightPad = rect.width >= 768 ? FIT_PADDING_X + FIT_RIGHT_PANEL_W : FIT_PADDING_X;
   const availW = Math.max(1, rect.width - FIT_PADDING_X - rightPad);
   const availH = Math.max(1, rect.height - FIT_PADDING_Y * 2);
-  const k = Math.min(FIT_MAX_ZOOM, Math.max(MIN_ZOOM, Math.min(availW / bboxW, availH / bboxH)));
+  const k = Math.min(maxZoom, Math.max(MIN_ZOOM, Math.min(availW / bboxW, availH / bboxH)));
   return { x: FIT_PADDING_X + availW / 2 - cx * k, y: rect.height / 2 - cy * k, k };
+}
+
+// 다이브인 전용 줌 상한 - 기본 FIT_MAX_ZOOM(1)은 "전체를 과하게 당기지 않기"
+// 위한 값이라, 멤버 몇 개가 world 좌표상 서로 가깝게(나선 배치 등) 놓인
+// 성단에 그대로 쓰면 화면 한구석에 조그맣게 뭉친 채로 보인다("반영이
+// 안 됐다"던 실제 원인의 절반). 다이브인은 "그 안으로 들어간다"는 연출이므로
+// 전역 MAX_ZOOM(2.5)까지는 아니어도 더 당겨도 된다.
+const DIVE_FIT_MAX_ZOOM = 1.8;
+// 멤버 간 이 거리(월드 단위) 밑이면 라벨이 겹칠 만큼 뭉쳐 있다고 보고
+// 자동 재배치한다(아래 computeDiveLayout).
+const DIVE_MIN_SPACING = 90;
+const DIVE_TIER_ROW_GAP = 130;
+const DIVE_TIER_COL_GAP = 110;
+
+function minPairDistance(positions: CanvasPosition[]): number {
+  let min = Infinity;
+  for (let i = 0; i < positions.length; i++) {
+    for (let j = i + 1; j < positions.length; j++) {
+      const d = Math.hypot(positions[i].x - positions[j].x, positions[i].y - positions[j].y);
+      if (d < min) min = d;
+    }
+  }
+  return min;
+}
+
+/** 캔버스 간선(source->target)으로 최장경로 rank를 구한다 - DraftReviewStage의
+ * interiorLayoutFor(prereqIds 그래프판)와 같은 알고리즘을 CanvasNode/Edge
+ * 모양에 맞춰 다시 쓴 것(파일이 다르고 입력 형태도 달라 그 함수를 그대로
+ * import할 수 없다 - export도 안 되어 있다. 복붙이 아니라 같은 규칙의
+ * 재구현). 순환 방어를 위해 visiting set으로 0을 반환한다. */
+function longestPathRank(ids: string[], edges: { source: string; target: string }[]): Map<string, number> {
+  const idSet = new Set(ids);
+  const parentsOf = new Map<string, string[]>();
+  for (const id of ids) parentsOf.set(id, []);
+  for (const e of edges) {
+    if (e.source === e.target) continue;
+    if (!idSet.has(e.target) || !idSet.has(e.source)) continue;
+    parentsOf.get(e.target)!.push(e.source);
+  }
+  const memo = new Map<string, number>();
+  const visiting = new Set<string>();
+  function rankOf(id: string): number {
+    const cached = memo.get(id);
+    if (cached !== undefined) return cached;
+    if (visiting.has(id)) return 0;
+    visiting.add(id);
+    let maxParent = -1;
+    for (const p of parentsOf.get(id) ?? []) {
+      const pr = rankOf(p);
+      if (pr > maxParent) maxParent = pr;
+    }
+    visiting.delete(id);
+    const r = maxParent + 1;
+    memo.set(id, r);
+    return r;
+  }
+  const result = new Map<string, number>();
+  for (const id of ids) result.set(id, rankOf(id));
+  return result;
+}
+
+/** 다이브인 멤버가 서로 너무 뭉쳐 있을 때(minPairDistance < DIVE_MIN_SPACING)
+ * 다시 배치한다: 간선이 있으면 위계 층형(rank), 없으면 level 폴백, 그마저
+ * 없으면(지원요소류) centroid 둘레 원형. centroid 기준 상대좌표를 절대좌표로
+ * 변환해 돌려준다("과목=위계 층형, 아니면 원형" - 사용자 지시). */
+function computeDiveLayout(
+  members: CanvasNode[],
+  edgesAmong: { source: string; target: string }[],
+  centroid: CanvasPosition
+): Map<string, CanvasPosition> {
+  const ids = members.map((m) => m.id);
+  const idSet = new Set(ids);
+  const anyEdges = edgesAmong.some((e) => idSet.has(e.source) && idSet.has(e.target) && e.source !== e.target);
+  const anyLevel = members.some((m) => typeof m.level === "number");
+  const positions = new Map<string, CanvasPosition>();
+
+  if (!anyEdges && !anyLevel) {
+    const n = members.length;
+    const radius = Math.max(DIVE_MIN_SPACING, (n * DIVE_MIN_SPACING) / (2 * Math.PI));
+    members.forEach((m, i) => {
+      const angle = (i / n) * Math.PI * 2;
+      positions.set(m.id, { x: centroid.x + Math.cos(angle) * radius, y: centroid.y + Math.sin(angle) * radius });
+    });
+    return positions;
+  }
+
+  const levelById = new Map(members.map((m) => [m.id, m.level]));
+  const ranks = anyEdges
+    ? longestPathRank(ids, edgesAmong)
+    : new Map(ids.map((id) => [id, Math.floor((levelById.get(id) ?? 2000) / 1000) - 1]));
+  const maxRank = Math.max(...Array.from(ranks.values()), 0);
+  const byRank = new Map<number, string[]>();
+  for (const id of ids) {
+    const r = ranks.get(id) ?? 0;
+    if (!byRank.has(r)) byRank.set(r, []);
+    byRank.get(r)!.push(id);
+  }
+  byRank.forEach((idsInRank, rank) => {
+    const count = idsInRank.length;
+    idsInRank.forEach((id, i) => {
+      const x = centroid.x + (count === 1 ? 0 : (i - (count - 1) / 2) * DIVE_TIER_COL_GAP);
+      const y = centroid.y + (rank - maxRank / 2) * DIVE_TIER_ROW_GAP;
+      positions.set(id, { x, y });
+    });
+  });
+  return positions;
 }
 
 interface DragNodeState {
@@ -386,6 +501,7 @@ export function ConstellationCanvas({
   onGroupToggleCollapse,
   onGroupLabelChange,
   onGroupUngroup,
+  onDiveInGroup,
 }: ConstellationCanvasProps) {
   const svgRef = useRef<SVGSVGElement>(null);
   const dragRef = useRef<DragState>(null);
@@ -403,6 +519,12 @@ export function ConstellationCanvas({
   // 다이브인 진입 직전의 뷰 transform - "성운 밖으로"/Esc에서 여기로 복귀한다.
   const preDiveTransformRef = useRef<Transform | null>(null);
   const diveRafRef = useRef<number | null>(null);
+  // readOnly 뷰어 전용 임시 배치 오프셋 - 뭉친 멤버를 다이브인 때 재배치해도
+  // 뷰어는 onNodeDrag로 영속화할 수 없으므로(편집 권한 없음) 여기 로컬
+  // state로만 덮어써 보여준다. 다이브아웃 시 지운다(positionOf가 원래
+  // nodes[id].position으로 되돌아감). 편집 캔버스는 이 state를 쓰지 않고
+  // onNodeDrag로 바로 영속화한다(아래 diveIntoGroup).
+  const [diveLayoutOverride, setDiveLayoutOverride] = useState<Record<string, CanvasPosition> | null>(null);
 
   // 언마운트 시 진행 중이던 다이브 애니메이션 루프를 반드시 끊는다(호버 위성과
   // 동일한 정리 규칙).
@@ -476,10 +598,11 @@ export function ConstellationCanvas({
   const positionOf = useCallback(
     (nodeId: string): CanvasPosition => {
       if (dragPosition && dragPosition.nodeId === nodeId) return dragPosition.position;
+      if (diveLayoutOverride && diveLayoutOverride[nodeId]) return diveLayoutOverride[nodeId];
       const n = nodes[nodeId];
       return n ? n.position : { x: 0, y: 0 };
     },
-    [nodes, dragPosition]
+    [nodes, dragPosition, diveLayoutOverride]
   );
 
   const groupPositionOf = useCallback(
@@ -645,18 +768,43 @@ export function ConstellationCanvas({
       if (diveGroupId) return; // 이미 다이브인 상태 - 중첩 없음(항상 접힌 성단에서만 시작되므로 정상 흐름에선 발생 안 함)
       const group = groups[groupId];
       if (!group) return;
-      const memberNodes = group.memberNodeIds.map((m) => nodes[m]).filter((n): n is CanvasNode => !!n);
+      let memberNodes = group.memberNodeIds.map((m) => nodes[m]).filter((n): n is CanvasNode => !!n);
       if (memberNodes.length === 0) return;
       const rect = svgRef.current?.getBoundingClientRect();
       if (!rect || rect.width === 0 || rect.height === 0) return;
       preDiveTransformRef.current = transformRef.current;
-      const target = computeFitTransform(memberNodes, rect);
+
+      // 멤버가 서로 너무 뭉쳐 있으면(나선 배치 등 - 바깥 성운 미리보기용
+      // 좌표라 실제 편집엔 너무 촘촘하다) 다이브인 순간 정리한다. 위계
+      // 간선/level이 있으면 층형, 없으면 원형(computeDiveLayout).
+      if (memberNodes.length > 1 && minPairDistance(memberNodes.map((n) => n.position)) < DIVE_MIN_SPACING) {
+        const centroid = {
+          x: memberNodes.reduce((s, n) => s + n.position.x, 0) / memberNodes.length,
+          y: memberNodes.reduce((s, n) => s + n.position.y, 0) / memberNodes.length,
+        };
+        const memberIdSet = new Set(memberNodes.map((n) => n.id));
+        const edgesAmong = Object.values(edges)
+          .filter((e) => memberIdSet.has(e.sourceNodeId) && memberIdSet.has(e.targetNodeId))
+          .map((e) => ({ source: e.sourceNodeId, target: e.targetNodeId }));
+        const laidOut = computeDiveLayout(memberNodes, edgesAmong, centroid);
+        memberNodes = memberNodes.map((n) => ({ ...n, position: laidOut.get(n.id) ?? n.position }));
+        if (readOnly) {
+          // 뷰어는 영속화 권한이 없다 - 로컬 오버레이로만 보여준다.
+          setDiveLayoutOverride(Object.fromEntries(memberNodes.map((n) => [n.id, n.position])));
+        } else {
+          // 편집 캔버스는 기존 노드 이동 경로를 그대로 태워 실제로 정리한다.
+          for (const n of memberNodes) onNodeDrag(n.id, n.position);
+        }
+      }
+
+      const target = computeFitTransform(memberNodes, rect, DIVE_FIT_MAX_ZOOM);
       animateTransformTo(target, () => {
         onGroupToggleCollapse?.(groupId, false);
         setDiveGroupId(groupId);
+        onDiveInGroup?.(groupId);
       });
     },
-    [diveGroupId, groups, nodes, animateTransformTo, onGroupToggleCollapse]
+    [diveGroupId, groups, nodes, edges, readOnly, onNodeDrag, animateTransformTo, onGroupToggleCollapse, onDiveInGroup]
   );
 
   // "성운 밖으로"/Esc - 먼저 되접고(collapsed=true), 그다음 진입 전 뷰로 rAF
@@ -668,6 +816,7 @@ export function ConstellationCanvas({
     const restoreTarget = preDiveTransformRef.current ?? transformRef.current;
     onGroupToggleCollapse?.(groupId, true);
     setDiveGroupId(null);
+    setDiveLayoutOverride(null);
     preDiveTransformRef.current = null;
     animateTransformTo(restoreTarget);
   }, [diveGroupId, onGroupToggleCollapse, animateTransformTo]);
@@ -1045,6 +1194,12 @@ export function ConstellationCanvas({
     return map;
   }, [collapsedGroupList, nodes]);
   const hiddenNodeIds = useMemo(() => new Set(memberGroupId.keys()), [memberGroupId]);
+  // 다이브인 격리 - 지금 들어와 있는 성단의 멤버만 보여준다(그 외 노드·간선·
+  // 다른 성단은 전부 숨김). null이면 격리 없음(하늘 전체 뷰).
+  const diveMemberIds = useMemo(
+    () => (diveGroupId ? new Set(groups[diveGroupId]?.memberNodeIds ?? []) : null),
+    [diveGroupId, groups]
+  );
 
   interface EdgeEndpoint {
     key: string;
@@ -1076,6 +1231,11 @@ export function ConstellationCanvas({
   const displayEdgeList = useMemo(() => {
     const seen = new Map<string, { edge: CanvasEdge; source: EdgeEndpoint; target: EdgeEndpoint }>();
     for (const edge of validEdges) {
+      // 다이브인 중이면 두 끝점 모두 이 성단의 멤버일 때만 그린다(외부로
+      // 나가는 간선까지 보이면 격리가 깨진다).
+      if (diveMemberIds && (!diveMemberIds.has(edge.sourceNodeId) || !diveMemberIds.has(edge.targetNodeId))) {
+        continue;
+      }
       const source = resolveEndpoint(edge.sourceNodeId);
       const target = resolveEndpoint(edge.targetNodeId);
       if (!source || !target || source.key === target.key) continue; // 그룹 내부 간선은 완전히 숨긴다
@@ -1083,7 +1243,7 @@ export function ConstellationCanvas({
       if (!seen.has(key)) seen.set(key, { edge, source, target });
     }
     return Array.from(seen.values());
-  }, [validEdges, resolveEndpoint]);
+  }, [validEdges, resolveEndpoint, diveMemberIds]);
 
   const dragEdgeSource = dragRef.current?.kind === "edge" ? dragRef.current.sourceNodeId : null;
 
@@ -1265,8 +1425,11 @@ export function ConstellationCanvas({
             />
           )}
 
-          {/* 노드 - 접힌 그룹의 멤버는 숨긴다(대신 아래 성단 하나로 대표된다). */}
-          {Object.values(nodes).filter((node) => !hiddenNodeIds.has(node.id)).map((node) => {
+          {/* 노드 - 접힌 그룹의 멤버는 숨긴다(대신 아래 성단 하나로 대표된다).
+              다이브인 중이면 그 성단 멤버가 아닌 노드도 전부 숨긴다(격리). */}
+          {Object.values(nodes)
+            .filter((node) => !hiddenNodeIds.has(node.id) && (!diveMemberIds || diveMemberIds.has(node.id)))
+            .map((node) => {
             const pos = positionOf(node.id);
             const color = node.color ?? colorForType(node.type);
             const isHovered = hoveredNodeId === node.id;
@@ -1446,7 +1609,8 @@ export function ConstellationCanvas({
               그린다. 클릭(드래그 아님)하면 펼쳐진다(handlePointerUp). 펼쳐진
               그룹은 여기 그려지지 않는다 - 멤버 노드가 각자 자기 자리에
               보통 노드로 그려지고, 대신 "성단 접기" 칩이 뜬다(아래 GroupChip). */}
-          {collapsedGroupList.map((group) => {
+          {/* 다이브인 중에는 다른(접힌) 성단도 전부 숨긴다 - 격리. */}
+          {!diveGroupId && collapsedGroupList.map((group) => {
             const nebula = groupNebula.get(group.id);
             if (!nebula) return null; // 멤버가 전부 사라진 빈 그룹 - 방어적으로 숨긴다
             const pos = groupPositionOf(group.id);
@@ -1586,7 +1750,7 @@ export function ConstellationCanvas({
           부르면 카메라는 그대로 확대된 채 남아 자리를 잃는다). 라벨 에딧/해제
           기능은 그대로 유지 - 새 칩을 따로 만들지 않았다. */}
       {Object.values(groups)
-        .filter((g) => !g.collapsed)
+        .filter((g) => !g.collapsed && (!diveGroupId || g.id === diveGroupId))
         .map((group) => (
           <GroupChip
             key={group.id}
