@@ -56,9 +56,11 @@ const INTRO_GREETING =
 const MAX_MESSAGES = 40;
 /** 입력창 글자수 제한 - 서버 쪽 cap과 동일. */
 const MAX_INPUT_LENGTH = 2000;
-/** 잡 폴링 주기(ms)와 최대 시도 횟수 - 120회 * 1.5초 = 3분. */
+/** 잡 폴링 주기(ms)와 최대 시도 횟수 - 400회 * 1.5초 = 10분. 실 LLM 전환 후
+ * 초안 생성이 5분을 넘기도 해서(사용자 실측) 구 상한 3분은 완료 전에 만료
+ * 화면을 띄웠다. 서버 잡 TTL보다는 짧게 유지. */
 const POLL_INTERVAL_MS = 1500;
-const MAX_POLL_ATTEMPTS = 120;
+const MAX_POLL_ATTEMPTS = 400;
 /** 진행 표시가 채울 총 질문 칸 수(시안 보드 3: "Q n / 6"). */
 const TOTAL_QUESTION_SLOTS = 6;
 
