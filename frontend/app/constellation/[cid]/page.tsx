@@ -19,12 +19,13 @@
  * 좁혀서만 읽는다(아래 readDescription/readContributors).
  */
 
-import { useEffect, useMemo, useRef, useState } from "react";
+import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useParams } from "next/navigation";
 import Link from "next/link";
 import {
   ConstellationCanvas,
   type CanvasEdge,
+  type CanvasGroup,
   type CanvasNode,
 } from "@/components/ConstellationCanvas";
 import { EmptyState, Avatar } from "@/components/ui";
@@ -73,6 +74,14 @@ function mapEdges(dto: ConstellationDto): Record<string, CanvasEdge> {
   return edges;
 }
 
+function mapGroups(dto: ConstellationDto): Record<string, CanvasGroup> {
+  const groups: Record<string, CanvasGroup> = {};
+  for (const g of Object.values(dto.groups ?? {})) {
+    groups[g.id] = { id: g.id, label: g.label, memberNodeIds: g.memberNodeIds, collapsed: g.collapsed, position: g.position };
+  }
+  return groups;
+}
+
 // no-op 편집 콜백 - readOnly=true라 실제로 호출되지 않지만, ConstellationCanvas의
 // props 계약은 이 셋을 필수로 요구한다(캔버스는 "새 원소 놓기 화면"과 이
 // 뷰어가 공유하는 컴포넌트라 여기서 새로 optional로 바꾸지 않는다 - 수정 금지 파일).
@@ -92,10 +101,15 @@ export default function ConstellationViewerPage() {
   // 작성자 표시 - 뷰어 렌더를 막지 않는 별도 상태. undefined=조회 중/실패(자리표시
   // 유지), ProfileDto=로드 성공.
   const [author, setAuthor] = useState<ProfileDto | undefined>(undefined);
+  // 성단 펼침/접힘의 로컬 전용 오버라이드 - 이 화면은 남의 별자리를 구경만
+  // 하는 뷰어라 서버 PATCH를 절대 보내지 않는다(편집 화면의 handleGroupToggleCollapse와
+  // 달리 큐가 아예 없다). groupId -> collapsed로만 base 맵을 덮어써 렌더한다.
+  const [groupOverrides, setGroupOverrides] = useState<Record<string, boolean>>({});
 
   useEffect(() => {
     let cancelled = false;
     setState({ kind: "loading" });
+    setGroupOverrides({});
     getConstellation(cid)
       .then((data) => {
         if (cancelled) return;
@@ -143,6 +157,21 @@ export default function ConstellationViewerPage() {
 
   const nodes = useMemo(() => (state.kind === "loaded" ? mapNodes(state.data) : {}), [state]);
   const edges = useMemo(() => (state.kind === "loaded" ? mapEdges(state.data) : {}), [state]);
+  const baseGroups = useMemo(() => (state.kind === "loaded" ? mapGroups(state.data) : {}), [state]);
+  // base 위에 로컬 오버라이드만 얹는다 - 서버 응답은 절대 덮어쓰지 않는다.
+  const groups = useMemo(() => {
+    const overrideIds = Object.keys(groupOverrides);
+    if (overrideIds.length === 0) return baseGroups;
+    const next = { ...baseGroups };
+    for (const id of overrideIds) {
+      if (next[id]) next[id] = { ...next[id], collapsed: groupOverrides[id] };
+    }
+    return next;
+  }, [baseGroups, groupOverrides]);
+
+  const handleGroupToggleCollapse = useCallback((groupId: string, collapsed: boolean) => {
+    setGroupOverrides((prev) => ({ ...prev, [groupId]: collapsed }));
+  }, []);
 
   if (state.kind === "loading") {
     return (
@@ -180,11 +209,13 @@ export default function ConstellationViewerPage() {
       <ConstellationCanvas
         nodes={nodes}
         edges={edges}
+        groups={groups}
         readOnly
         fitRequest={fitRequest}
         onNodeDrag={noop}
         onNodeToggleComplete={noop}
         onEdgeCreate={noop}
+        onGroupToggleCollapse={handleGroupToggleCollapse}
       />
 
       {/* 상단 정보 카드 - 이름 + 작성자(+ description/contributors가 있으면).

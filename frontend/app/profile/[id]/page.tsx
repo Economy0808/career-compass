@@ -94,7 +94,12 @@ function ConstellationTile({ item }: { item: ConstellationDto }) {
       className="group relative block aspect-square overflow-hidden bg-ink-900 no-underline transition-transform duration-150 hover:scale-[1.02]"
     >
       <div className="bg-radec-grid pointer-events-none absolute inset-0" aria-hidden />
-      <MiniConstellation nodes={item.nodes} edges={item.edges} className="absolute inset-0 h-full w-full p-3" />
+      <MiniConstellation
+        nodes={item.nodes}
+        edges={item.edges}
+        groups={item.groups}
+        className="absolute inset-0 h-full w-full p-3"
+      />
       {/* 인스타 타일처럼 캡션은 밖에 안 두고 hover 오버레이로만 */}
       <span className="absolute inset-x-0 bottom-0 truncate bg-gradient-to-t from-ink-900/85 to-transparent px-2 pb-1.5 pt-5 text-caption text-text-hi opacity-0 transition-opacity group-hover:opacity-100">
         {item.title}
