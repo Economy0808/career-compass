@@ -824,9 +824,11 @@ class AnthropicClaudeClient:
                 }
             )
         # 가벼운 판단이라 thinking 비활성(다른 경량 호출과 동일 이유 — JSON 잘림 방지).
+        # max_tokens 2000은 Sonnet 5의 서술형 description이 붙으면 실제로 잘렸다
+        # (실키 스모크 실측: stop_reason=max_tokens -> 지원 요소 전멸). 4000으로 상향.
         resp = await self._client.messages.create(
             model=self._extract_model,
-            max_tokens=2000,
+            max_tokens=4000,
             thinking={"type": "disabled"},
             system=system_blocks,
             messages=[{"role": "user", "content": f"진로 목표: {goal_text}"}],
@@ -924,6 +926,7 @@ class AnthropicClaudeClient:
             return DraftResult(drafts=[])
 
         drafts: list[DraftConstellation] = []
+        dropped = 0
         for raw in data.get("drafts", []):
             item_ids = [i for i in raw.get("item_ids", []) if i in all_ids]  # 환각 방어
             item_id_set = set(item_ids)
@@ -933,6 +936,7 @@ class AnthropicClaudeClient:
                 if len(pair) == 2 and pair[0] in item_id_set and pair[1] in item_id_set
             ]
             if len(item_ids) < 3:
+                dropped += 1
                 continue
             drafts.append(
                 DraftConstellation(
@@ -942,6 +946,9 @@ class AnthropicClaudeClient:
                     edges=edges,
                 )
             )
+        # 조용한 전멸을 로그로 드러낸다 - 카탈로그가 작을 때 MECE 분할과 3개 최소
+        # 검증이 겹치면 초안이 전부 버려지는데, 로그가 없으면 원인 추적이 안 됐다(실측).
+        logger.info("draft suggestion: kept=%d dropped=%d", len(drafts), dropped)
         return DraftResult(drafts=drafts)
 
     async def research_job(
