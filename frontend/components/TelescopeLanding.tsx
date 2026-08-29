@@ -36,9 +36,11 @@ const LANDING_BAR_S = (60 / BGM_TEMPO) * 4;
  * 통째로 2마디 주기 둥둥(선이 별을 따라가야 하므로 그룹 단위), 못 이은 빈 별
  * 셋은 각자 다른 위상으로 둥둥. reduced-motion이면 전역 킬 스위치가 끈다. */
 function ReticleFigure({ width }: { width: number }) {
+  // 한 방향에 한 마디(alternate라 왕복 2마디). 진폭이 3px일 땐 초당 0.6px라
+  // 사실상 안 보였다(사용자 지적) - 7~11px로 키워 "둥둥"이 실제로 읽히게.
   const floatStyle = (amp: number, delayBars: number): CSSProperties => ({
     ["--float-amp" as string]: `${amp}px`,
-    animation: `landingFloat ${LANDING_BAR_S * 2}s ease-in-out ${-delayBars * LANDING_BAR_S}s infinite alternate`,
+    animation: `landingFloat ${LANDING_BAR_S}s ease-in-out ${-delayBars * LANDING_BAR_S}s infinite alternate`,
   });
   return (
     <svg
@@ -79,7 +81,7 @@ function ReticleFigure({ width }: { width: number }) {
         <line x1="514" y1="280" x2="526" y2="280" />
       </g>
       {/* 이어진 별자리(선+별)는 한 몸으로 둥둥 - 따로 띄우면 선이 끊긴다. */}
-      <g style={floatStyle(3, 0)}>
+      <g style={floatStyle(7, 0)}>
         <g stroke="var(--rule)" strokeWidth="1.2" opacity="0.55">
           <line x1="150" y1="368" x2="238" y2="292" />
           <line x1="238" y1="292" x2="330" y2="330" />
@@ -98,9 +100,9 @@ function ReticleFigure({ width }: { width: number }) {
       </g>
       {/* 아직 못 이은 빈 별 - 선이 없으니 각자 자유 위상으로 둥둥. */}
       <g stroke="var(--rule)" fill="transparent" strokeWidth="1.2" opacity="0.6">
-        <circle cx="192" cy="180" r="4.5" style={floatStyle(5, 0.7)} />
-        <circle cx="430" cy="352" r="4.5" style={floatStyle(4, 1.3)} />
-        <circle cx="168" cy="452" r="4.5" style={floatStyle(5, 1.8)} />
+        <circle cx="192" cy="180" r="4.5" style={floatStyle(11, 0.35)} />
+        <circle cx="430" cy="352" r="4.5" style={floatStyle(9, 0.65)} />
+        <circle cx="168" cy="452" r="4.5" style={floatStyle(10, 0.9)} />
       </g>
     </svg>
   );
