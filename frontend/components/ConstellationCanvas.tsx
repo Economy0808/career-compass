@@ -1601,9 +1601,10 @@ export function ConstellationCanvas({
           />
         ))}
 
-      {/* 다이브인 내부 상태 상단 배너 - 성운 이름 + 밖으로 나가기(클릭 또는 Esc,
-          위 diveOutOfGroup 이펙트). readOnly에서도 뜬다(뷰어도 다이브인/아웃은
-          가능 - 로컬 토글만, PATCH 없음). */}
+      {/* 다이브인 내부 상태 상단 배너 - 밖으로 나가기(클릭 또는 Esc, 위
+          diveOutOfGroup 이펙트)만 남는다. 성운 이름은 우하단 칩(아래)으로
+          옮겼다(사용자 지시) - 상단 배너는 복귀 동작 전용. readOnly에서도
+          뜬다(뷰어도 다이브인/아웃은 가능 - 로컬 토글만, PATCH 없음). */}
       {diveGroupId && groups[diveGroupId] && (
         <div className="pointer-events-none absolute inset-x-0 top-4 z-20 flex justify-center">
           <div className="pointer-events-auto flex items-center gap-2 rounded-full border border-rule bg-ink-800/90 px-3 py-1.5 font-sans text-xs text-text-hi shadow-lg">
@@ -1615,10 +1616,26 @@ export function ConstellationCanvas({
               <span aria-hidden>{"←"}</span>
               성운 밖으로
             </button>
-            <span className="text-text-lo" aria-hidden>
-              {"·"}
-            </span>
-            <span className="font-serif">{groups[diveGroupId].label}</span>
+          </div>
+        </div>
+      )}
+
+      {/* 다이브인 중 우하단 성운 이름 칩 - "지금 어느 성운 안에 들어와 있는지"만
+          알려주는 표시 전용 칩(사용자 지시: 우하단에 "OOO 성운"). GroupChip과
+          같은 종이 크롬(pill)이지만 world 좌표에 묶이지 않고 화면에 고정되며,
+          클릭해도 아무 동작이 없다 - 복귀는 위 상단 배너 버튼이나 Esc의 몫이라
+          이 칩까지 인터랙티브하게 만들 이유가 없다(제스처 하나에 출구 하나만).
+          readOnly에서도 뜬다(상단 배너와 동일 조건). */}
+      {diveGroupId && groups[diveGroupId] && (
+        // md+ 우측 320px대 「군집/노트」 섬 패널(위 FIT_RIGHT_PANEL_W 주석 참고)과
+        // 그 왼쪽에 뜨는 "별자리 띄우기" 플로팅 버튼(page.tsx, md:right-[324px]
+        // md:bottom-4)이 둘 다 z-20으로 이 캔버스 div보다 나중에 DOM에 와서,
+        // 순수 bottom-4 right-4만 쓰면 실측상 그 버튼 밑에 완전히 깔려 안
+        // 보인다. page.tsx와 같은 md:right-[324px]로 패널을 피하고, bottom을
+        // 그 버튼(높이 약 42px) 위로 한 단 더 띄워 겹치지 않게 한다.
+        <div className="pointer-events-none absolute bottom-20 right-4 z-20 md:right-[324px]">
+          <div className="rounded-full border border-rule bg-ink-800/90 px-3 py-1.5 font-serif text-xs text-text-hi shadow-lg">
+            {groups[diveGroupId].label} 성운
           </div>
         </div>
       )}
