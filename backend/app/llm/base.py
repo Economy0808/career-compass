@@ -294,6 +294,18 @@ class LLMClient(Protocol):
         """
         ...
 
+    async def infer_prerequisites(self, courses: list[CourseOption]) -> list[tuple[str, str]]:
+        """한 군집 안에서 (선수과목 code, 후수과목 code) 쌍을 뽑는다.
+
+        cluster_courses에 얹지 않고 군집별로 쪼갠 경량 호출인 이유: cluster 호출은
+        이미 max_tokens=20000을 쓰고, 이 리포에서 "잘리면 부분이 아니라 전멸"이
+        세 번 반복 검증된 함정이다(anthropic_client.cluster_courses 주석 참고).
+
+        code는 반드시 courses에 있던 것 그대로여야 한다(환각 방지 - 구현체가
+        파싱 후 검증한다). 확신이 없으면 빈 리스트가 정상 경로다.
+        """
+        ...
+
     async def suggest_support_elements(
         self, goal_text: str, rules_context: str | None = None
     ) -> SupportBinResult:

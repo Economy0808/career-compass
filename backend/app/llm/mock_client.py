@@ -462,6 +462,23 @@ class MockClaudeClient:
         ]
         return CourseClusterResult(clusters=clusters)
 
+    async def infer_prerequisites(self, courses: list[CourseOption]) -> list[tuple[str, str]]:
+        """레벨 인접 결선 - 실제 모델의 의미 판단 대신 학정번호 첫 자리 순서를 쓴다.
+
+        level이 없는 과목은 아예 뺀다(cluster_courses/select_ncs_job과 같은
+        "확신 없으면 비운다" 계약) - 같은 레벨끼리는 잇지 않는다 - 위계가 아니라
+        나열이기 때문.
+        """
+        leveled = sorted(
+            ((c.level, c.code) for c in courses if c.level is not None),
+            key=lambda t: (t[0], t[1]),
+        )
+        return [
+            (a_code, b_code)
+            for (a_lv, a_code), (b_lv, b_code) in zip(leveled, leveled[1:], strict=False)
+            if a_lv < b_lv
+        ]
+
     async def suggest_support_elements(
         self, goal_text: str, rules_context: str | None = None
     ) -> SupportBinResult:

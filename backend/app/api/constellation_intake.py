@@ -27,7 +27,7 @@ from app.auth.firebase_auth import DecodedToken
 from app.core.rate_limit import rate_limit
 from app.firestore.client import get_firestore_client
 from app.llm import get_llm_client
-from app.llm.base import ChatMessage, LLMClient
+from app.llm.base import ChatMessage, CourseOption, LLMClient
 from app.schemas.constellation_intake import (
     BinFillIn,
     BinSuggestIn,
@@ -36,6 +36,9 @@ from app.schemas.constellation_intake import (
     IntakeChatOut,
     JobStartOut,
     JobStatusOut,
+    PrereqEdgeOut,
+    PrereqsIn,
+    PrereqsOut,
 )
 from app.services import bin_jobs, bin_suggestion
 
@@ -78,6 +81,42 @@ async def chat(
         messages=[ChatMessageOut(role=m.role, content=m.content) for m in updated_messages],
         hint=turn.hint,
         options=turn.options,
+    )
+
+
+@router.post("/prereqs", response_model=PrereqsOut)
+async def infer_prereqs(
+    payload: PrereqsIn,
+    user: DecodedToken | None = Depends(get_current_user_optional),
+    llm: LLMClient = Depends(get_llm_client),
+    _: None = Depends(rate_limit("intake-prereqs", limit=30)),
+) -> PrereqsOut:
+    """군집(bin) 하나의 과목 목록을 받아 선후수 위계 간선을 즉시 계산해 돌려준다.
+
+    /bins처럼 잡 폴링(202)이 아니라 즉답이다 - infer_prerequisites는 cluster_courses
+    (max_tokens=20000)보다 훨씬 가벼운 호출(4000)이고, 성운을 열 때마다(군집 클릭 시)
+    호출될 수 있어 폴링 왕복을 더할 이유가 없다. 프론트는 응답을 그때그때 받아
+    BinItem.prereqIds에 캐시로 저장해 재사용한다.
+    """
+    del user  # 인증 여부와 무관하게 동작 - /chat과 동일.
+    options = [
+        CourseOption(
+            code=item.code,
+            name=item.name,
+            description=None,
+            level=item.level,
+            years=[],
+            kind=item.kind,
+            department=None,
+        )
+        for item in payload.items
+    ]
+    edges = await llm.infer_prerequisites(options)
+    return PrereqsOut(
+        edges=[
+            PrereqEdgeOut(before=f"course:{before}", after=f"course:{after}")
+            for before, after in edges
+        ]
     )
 
 

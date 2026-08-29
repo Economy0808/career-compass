@@ -1,7 +1,7 @@
 import pytest
 
 from app.llm import get_llm_client
-from app.llm.base import AbilityUnitRef, ChatMessage, RoadmapContext
+from app.llm.base import AbilityUnitRef, ChatMessage, CourseOption, RoadmapContext
 from app.llm.mock_client import (
     FIXED_QUESTIONS,
     MAX_MILESTONES,
@@ -98,6 +98,27 @@ async def test_research_job_returns_canned_without_network() -> None:
     assert result.summary
     assert result.academic_societies  # 학회 포함
     assert result.source_urls == []  # Mock은 출처 없음
+
+
+def _opt(code: str, level: int | None) -> CourseOption:
+    return CourseOption(
+        code=code, name=code, description=None, level=level, years=[], kind=None, department=None
+    )
+
+
+@pytest.mark.asyncio
+async def test_infer_prerequisites_links_levels_in_ascending_order() -> None:
+    client = MockClaudeClient()
+    courses = [_opt("C300", 3), _opt("C100", 1), _opt("C200", 2), _opt("C900", None)]
+    edges = await client.infer_prerequisites(courses)
+    # 레벨 없는 과목은 빠지고, 오름차순 인접 쌍만 남는다.
+    assert edges == [("C100", "C200"), ("C200", "C300")]
+
+
+@pytest.mark.asyncio
+async def test_infer_prerequisites_needs_at_least_two_courses() -> None:
+    client = MockClaudeClient()
+    assert await client.infer_prerequisites([_opt("C100", 1)]) == []
 
 
 def test_factory_returns_mock_without_key() -> None:

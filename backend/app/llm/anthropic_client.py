@@ -170,6 +170,22 @@ _COURSE_CLUSTER_SCHEMA = {
     },
     "required": ["clusters"],
 }
+_PREREQ_SCHEMA = {
+    "type": "object",
+    "additionalProperties": False,
+    "properties": {
+        "edges": {
+            "type": "array",
+            "items": {
+                "type": "object",
+                "additionalProperties": False,
+                "properties": {"before": {"type": "string"}, "after": {"type": "string"}},
+                "required": ["before", "after"],
+            },
+        }
+    },
+    "required": ["edges"],
+}
 _SUPPORT_ELEMENT_SCHEMA = {
     "type": "object",
     "additionalProperties": False,
@@ -811,6 +827,68 @@ class AnthropicClaudeClient:
                 )
         return CourseClusterResult(clusters=clusters)
 
+    async def infer_prerequisites(self, courses: list[CourseOption]) -> list[tuple[str, str]]:
+        """한 군집 안에서 선후수 관계 간선을 뽑는다. 확신 없으면 빈 리스트가 정상 경로."""
+        if len(courses) < 2:
+            return []
+        system = (
+            "너는 커리큘럼 어드바이저다. 아래 과목 목록만 보고 '이 과목을 듣기 전에"
+            " 저 과목을 먼저 듣는 것이 자연스럽다'는 선수관계만 뽑아라. 특정 학과나"
+            " 분야를 안다고 가정하지 말고, 아래 대원칙만으로 모든 과목에 똑같이"
+            " 적용해 판단하라(하드코딩된 분야 지식 없이 일반화되는 원칙이다):\n\n"
+            "대원칙:\n"
+            "1) level(학정번호 첫 자리)이 낮은 과목이 선수 후보다 - level 오름차순이"
+            " 기본 방향이고, 역방향(높은 level이 낮은 level의 선수) 간선은 만들지"
+            " 마라.\n"
+            "2) kind(과목 구분)가 있다면 전공기초 -> 전공필수 -> 전공선택 순서로"
+            " 위계를 따른다 - 더 이른 단계의 kind가 더 늦은 단계 kind의 선수 후보다.\n"
+            "3) 이름에 '개론/원론/기초/입문' 등이 들어간 과목은 같은 계열에서 이름에"
+            " '심화/실무/캡스톤/응용/특강' 등이 들어간 과목의 선수 후보다.\n"
+            "4) 위 신호들이 서로 부딪히거나 근거가 약하면 잇지 마라 - 확신 없는 간선을"
+            " 억지로 만드는 것보다 빈 배열이 낫다.\n\n"
+            "형식 규칙:\n"
+            "- code는 목록에 있는 그대로 정확히 써라(지어내지 마라).\n"
+            "- before는 먼저 듣는 과목, after는 나중에 듣는 과목이다.\n"
+            "- 순환(A->B, B->A)을 만들지 마라.\n"
+            "- 단순히 '같은 분야'라는 이유만으로 잇지 마라."
+        )
+        catalog = "\n".join(
+            f"{c.code} | {c.name} | level={c.level} | kind={c.kind}" for c in courses
+        )
+        user = f"과목 목록:\n{catalog}"
+        # 출력이 코드 쌍뿐이라 실제 사용량은 훨씬 적지만, 잘리면 전멸이므로
+        # suggest_support_elements와 같은 4000으로 여유를 둔다. thinking은 끈다 -
+        # 이 코드베이스에서 반복된 함정(작은 max_tokens + thinking = JSON 잘림).
+        resp = await self._client.messages.create(
+            model=self._extract_model,
+            max_tokens=4000,
+            thinking={"type": "disabled"},
+            system=_cached_system(system),
+            messages=[{"role": "user", "content": user}],
+            output_config={"format": {"type": "json_schema", "schema": _PREREQ_SCHEMA}},
+        )
+        if _refused(resp) or getattr(resp, "stop_reason", None) == "max_tokens":
+            logger.warning("prerequisite inference truncated or refused; returning empty")
+            return []
+        try:
+            data = json.loads(_first_text(resp))
+        except json.JSONDecodeError:
+            logger.warning("prerequisite inference returned unparsable JSON; returning empty")
+            return []
+
+        known = {c.code for c in courses}
+        seen: set[tuple[str, str]] = set()
+        edges: list[tuple[str, str]] = []
+        for raw_edge in data.get("edges", []):
+            before, after = raw_edge.get("before"), raw_edge.get("after")
+            if before not in known or after not in known or before == after:
+                continue  # 환각 방어: 후보에 없는 code, 자기간선은 버린다.
+            if (before, after) in seen:
+                continue
+            seen.add((before, after))
+            edges.append((before, after))
+        return _drop_cycles(edges)
+
     async def suggest_support_elements(
         self, goal_text: str, rules_context: str | None = None
     ) -> SupportBinResult:
@@ -1048,6 +1126,35 @@ class AnthropicClaudeClient:
             expert_insights=[str(x) for x in data.get("expert_insights", [])],
             source_urls=source_urls[:20],
         )
+
+
+def _drop_cycles(edges: list[tuple[str, str]]) -> list[tuple[str, str]]:
+    """간선을 순서대로 넣되 이미 역경로가 있으면 버린다 - 결과는 항상 DAG.
+
+    최적 피드백 아크 집합이 아니라 그리디다. 군집 하나는 과목 수십 개 규모라
+    O(V*E)면 충분하고, 프론트가 위상 깊이를 계산할 때 무한루프만 안 나면 된다.
+    """
+    adj: dict[str, set[str]] = {}
+    kept: list[tuple[str, str]] = []
+
+    def reaches(src: str, dst: str) -> bool:
+        stack, seen = [src], {src}
+        while stack:
+            cur = stack.pop()
+            if cur == dst:
+                return True
+            for nxt in adj.get(cur, ()):
+                if nxt not in seen:
+                    seen.add(nxt)
+                    stack.append(nxt)
+        return False
+
+    for a, b in edges:
+        if reaches(b, a):
+            continue  # 이 간선을 넣으면 순환이 생긴다
+        adj.setdefault(a, set()).add(b)
+        kept.append((a, b))
+    return kept
 
 
 def _lenient_json(text: str) -> dict:

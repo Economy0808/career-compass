@@ -375,3 +375,43 @@ async def test_fill_bin_job_returns_one_bin_with_requested_label(
         assert len(bins) == 1
         assert bins[0]["label"] == bin_label
         assert bins[0]["origin"] == "user"
+
+
+# --- 선수관계 추론 (/prereqs) ---
+
+
+@pytest.mark.asyncio
+async def test_prereqs_links_courses_by_ascending_level(
+    authed_as: Callable[[str], None],
+) -> None:
+    """mock의 infer_prerequisites는 level 오름차순 인접 쌍만 잇는다."""
+    authed_as("user-a")
+    async with _client() as client:
+        resp = await client.post(
+            "/api/constellation-intake/prereqs",
+            json={
+                "items": [
+                    {"code": "C300", "name": "심화", "level": 3, "kind": None},
+                    {"code": "C100", "name": "기초", "level": 1, "kind": None},
+                    {"code": "C200", "name": "중급", "level": 2, "kind": None},
+                ]
+            },
+        )
+        assert resp.status_code == 200
+        assert resp.json()["edges"] == [
+            {"before": "course:C100", "after": "course:C200"},
+            {"before": "course:C200", "after": "course:C300"},
+        ]
+
+
+@pytest.mark.asyncio
+async def test_prereqs_with_single_item_returns_empty(authed_as: Callable[[str], None]) -> None:
+    """항목이 2개 미만이면 판단 자체를 하지 않는다(확신 없으면 빈 결과 계약)."""
+    authed_as("user-a")
+    async with _client() as client:
+        resp = await client.post(
+            "/api/constellation-intake/prereqs",
+            json={"items": [{"code": "C100", "name": "기초", "level": 1, "kind": None}]},
+        )
+        assert resp.status_code == 200
+        assert resp.json()["edges"] == []

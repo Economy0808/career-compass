@@ -123,6 +123,9 @@ class BinItem(BaseModel):
     level: int | None = None
     subtitle: str | None = None
     description: str | None = None
+    # 이 항목의 선수 항목 id 목록(예: ["course:PHI1001"]). 같은 bin 안에서 LLM이
+    # 추론한 선후수 위계 - 없으면 None(빈 리스트 아님, base.py 계약과 동일한 결).
+    prereq_ids: list[str] | None = None
 
 
 class Bin(BaseModel):

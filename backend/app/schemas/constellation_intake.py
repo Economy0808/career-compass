@@ -76,6 +76,39 @@ class BinFillIn(_CamelModel):
     bin_label: str = Field(min_length=1, max_length=60)
 
 
+# POST /prereqs 요청 용량 제한 - 군집 하나 규모(과목 수십 개 이내)를 전제로 한다.
+_MAX_PREREQ_ITEMS = 50
+
+
+class PrereqItemIn(_CamelModel):
+    """POST /prereqs 요청 항목 하나 - 한 군집 안 과목의 판단용 메타만 담는다."""
+
+    code: str = Field(min_length=1, max_length=32)
+    name: str = Field(min_length=1, max_length=200)
+    level: int | None = None
+    kind: str | None = None
+
+
+class PrereqsIn(_CamelModel):
+    """POST /prereqs 요청 - 같은 군집(bin) 안 과목 목록을 통째로 보내 선후수 간선을 받는다."""
+
+    items: list[PrereqItemIn] = Field(default_factory=list, max_length=_MAX_PREREQ_ITEMS)
+
+
+class PrereqEdgeOut(_CamelModel):
+    """선후수 간선 하나. before/after는 BinItem.id 규약(course:CODE) 그대로라 프론트가
+    바로 이어 쓸 수 있다."""
+
+    before: str
+    after: str
+
+
+class PrereqsOut(_CamelModel):
+    """POST /prereqs 응답. 확신 없으면 edges가 빈 배열인 것이 정상 경로다."""
+
+    edges: list[PrereqEdgeOut] = Field(default_factory=list)
+
+
 class JobStartOut(_CamelModel):
     """POST /bins, /bins/fill 접수 응답(202) - job_id로 GET /jobs/{job_id}를 폴링한다."""
 

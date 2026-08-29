@@ -17,6 +17,7 @@ _SCHEMAS = {
     "chat": ac._CHAT_SCHEMA,
     "job_select": ac._JOB_SELECT_SCHEMA,
     "roadmap": ac._ROADMAP_SCHEMA,
+    "prereq": ac._PREREQ_SCHEMA,
 }
 
 
