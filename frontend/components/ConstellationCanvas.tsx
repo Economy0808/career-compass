@@ -386,6 +386,70 @@ export function ConstellationCanvas({
   const didAutoCenterRef = useRef(false);
 
   const [transform, setTransform] = useState<Transform>({ x: 0, y: 0, k: 1 });
+  // 최신 transform을 rAF 루프/이벤트 핸들러가 리렌더 없이 읽기 위한 미러 -
+  // selectedNodeIdRef와 같은 관례.
+  const transformRef = useRef<Transform>(transform);
+  transformRef.current = transform;
+  // 성단 다이브인 - 지금 "안에 들어와 있는" 성단 id. null이면 하늘 전체 뷰.
+  // 다이브인은 항상 접힌 성단 클릭에서만 시작되므로(펼쳐지면 그 성단은
+  // collapsedGroupList에서 빠져 다시 클릭할 수 없다) 중첩을 걱정할 필요가 없다.
+  const [diveGroupId, setDiveGroupId] = useState<string | null>(null);
+  // 다이브인 진입 직전의 뷰 transform - "성운 밖으로"/Esc에서 여기로 복귀한다.
+  const preDiveTransformRef = useRef<Transform | null>(null);
+  const diveRafRef = useRef<number | null>(null);
+
+  // 언마운트 시 진행 중이던 다이브 애니메이션 루프를 반드시 끊는다(호버 위성과
+  // 동일한 정리 규칙).
+  useEffect(() => {
+    return () => {
+      if (diveRafRef.current != null) cancelAnimationFrame(diveRafRef.current);
+    };
+  }, []);
+
+  // 뷰 transform을 목표까지 rAF로 보간한다(cubic-bezier(.22,1,.36,1)의 근사인
+  // easeOutQuint) - 노드별 transform이 아니라 pan/zoom 루트 <g> 하나만
+  // 움직이므로 몇 백 개 노드가 있어도 매 프레임 리렌더 비용은 동일하다.
+  // 숨겨진 탭에서는 rAF가 거의 멈췄다가 탭이 다시 보일 때 한 번에 몰아
+  // 실행되는데, t를 [0,1]로 clamp해 두면 그 몰림 프레임에서 그냥 목표값으로
+  // "스냅"될 뿐 값이 튀거나 넘어가지 않는다(별도 스로틀 불필요).
+  const animateTransformTo = useCallback((target: Transform, onDone?: () => void) => {
+    if (diveRafRef.current != null) cancelAnimationFrame(diveRafRef.current);
+    const reduceMotion = window.matchMedia("(prefers-reduced-motion: reduce)").matches;
+    if (reduceMotion) {
+      setTransform(target);
+      onDone?.();
+      return;
+    }
+    const from = transformRef.current;
+    const duration = 450;
+    const start = performance.now();
+    const tick = (now: number) => {
+      const t = Math.min(1, (now - start) / duration);
+      const eased = 1 - Math.pow(1 - t, 5);
+      setTransform({
+        x: from.x + (target.x - from.x) * eased,
+        y: from.y + (target.y - from.y) * eased,
+        k: from.k + (target.k - from.k) * eased,
+      });
+      if (t < 1) {
+        diveRafRef.current = requestAnimationFrame(tick);
+      } else {
+        diveRafRef.current = null;
+        onDone?.();
+      }
+    };
+    diveRafRef.current = requestAnimationFrame(tick);
+  }, []);
+
+  // 사용자가 팬/휠줌을 직접 시작하면 진행 중이던 다이브 카메라 애니메이션은
+  // 더 이상 맞지 않으므로 끊는다(안 그러면 rAF가 매 프레임 사용자 입력을
+  // 덮어써 버벅임으로 보인다).
+  const cancelDiveAnimation = useCallback(() => {
+    if (diveRafRef.current != null) {
+      cancelAnimationFrame(diveRafRef.current);
+      diveRafRef.current = null;
+    }
+  }, []);
   // 드래그 중인 노드 하나만 낙관적으로 덮어쓴다. 부모의 영속화는 디바운스될 수
   // 있으므로, 실제 props가 따라올 때까지 로컬 좌표를 계속 신뢰한다.
   const [dragPosition, setDragPosition] = useState<{ nodeId: string; position: CanvasPosition } | null>(null);
@@ -478,6 +542,7 @@ export function ConstellationCanvas({
   const handleWheel = useCallback(
     (e: WheelEvent) => {
       e.preventDefault();
+      cancelDiveAnimation();
       const rect = svgRef.current?.getBoundingClientRect();
       const px = e.clientX - (rect?.left ?? 0);
       const py = e.clientY - (rect?.top ?? 0);
@@ -494,7 +559,7 @@ export function ConstellationCanvas({
       // 아래에서는 계속 자잘하게 흔들리는 배경이 오히려 거슬릴 위험이 더 크다고
       // 판단해 팬만 임펄스를 준다.
     },
-    []
+    [cancelDiveAnimation]
   );
 
   // handleWheel을 non-passive로 등록한다(위 주석 참고). svg가 마운트된 동안만.
@@ -509,6 +574,7 @@ export function ConstellationCanvas({
   const handleBackgroundPointerDown = useCallback(
     (e: ReactPointerEvent<SVGSVGElement>) => {
       if (e.button !== 0) return;
+      cancelDiveAnimation();
       dragRef.current = {
         kind: "pan",
         pointerId: e.pointerId,
@@ -518,7 +584,7 @@ export function ConstellationCanvas({
       };
       (e.target as Element).setPointerCapture(e.pointerId);
     },
-    [transform]
+    [transform, cancelDiveAnimation]
   );
 
   // --- 노드 드래그 -----------------------------------------------------------
@@ -561,16 +627,55 @@ export function ConstellationCanvas({
     [nodes, readOnly, activateNode]
   );
 
+  // --- 성단 다이브인/아웃 ----------------------------------------------------
+  // 성단 클릭 = "그 성단 속으로 들어가는 확대 애니메이션"(사용자 지시). 카메라가
+  // 멤버 bounds에 맞춰 rAF로 줌인한 뒤에야 실제로 펼친다(collapsed=false) -
+  // 순서를 반대로 하면 카메라가 다가가기도 전에 멤버가 팝인해 버려 "성단이
+  // 확대된다"는 느낌이 안 산다. collapsed=false 전환은 기존
+  // onGroupToggleCollapse 그대로라 저장본 PATCH/뷰어 로컬 분기는 부모가 이미
+  // 처리한다(page.tsx handleGroupToggleCollapse / [cid] groupOverrides).
+  const diveIntoGroup = useCallback(
+    (groupId: string) => {
+      if (diveGroupId) return; // 이미 다이브인 상태 - 중첩 없음(항상 접힌 성단에서만 시작되므로 정상 흐름에선 발생 안 함)
+      const group = groups[groupId];
+      if (!group) return;
+      const memberNodes = group.memberNodeIds.map((m) => nodes[m]).filter((n): n is CanvasNode => !!n);
+      if (memberNodes.length === 0) return;
+      const rect = svgRef.current?.getBoundingClientRect();
+      if (!rect || rect.width === 0 || rect.height === 0) return;
+      preDiveTransformRef.current = transformRef.current;
+      const target = computeFitTransform(memberNodes, rect);
+      animateTransformTo(target, () => {
+        onGroupToggleCollapse?.(groupId, false);
+        setDiveGroupId(groupId);
+      });
+    },
+    [diveGroupId, groups, nodes, animateTransformTo, onGroupToggleCollapse]
+  );
+
+  // "성운 밖으로"/Esc - 먼저 되접고(collapsed=true), 그다음 진입 전 뷰로 rAF
+  // 복귀한다(다이브인의 역순: 여긴 재접힘이 먼저라 카메라가 빠지는 동안
+  // 이미 별 하나로 뭉친 성단이 점점 멀어지는 것처럼 보인다).
+  const diveOutOfGroup = useCallback(() => {
+    if (!diveGroupId) return;
+    const groupId = diveGroupId;
+    const restoreTarget = preDiveTransformRef.current ?? transformRef.current;
+    onGroupToggleCollapse?.(groupId, true);
+    setDiveGroupId(null);
+    preDiveTransformRef.current = null;
+    animateTransformTo(restoreTarget);
+  }, [diveGroupId, onGroupToggleCollapse, animateTransformTo]);
+
   // --- 성단 드래그 -----------------------------------------------------------
-  // 열람 모드에서는 드래그가 없다 - pointerdown에서 곧바로 펼치기만 한다(노드
+  // 열람 모드에서는 드래그가 없다 - pointerdown에서 곧바로 다이브인만 한다(노드
   // 클릭-선택과 동일한 패턴, beginNodeDrag 참고). 편집 모드에서는 이동 임계값
-  // 이내(클릭)면 펼치기, 넘으면 드래그로 갈린다(handlePointerUp에서 분기).
+  // 이내(클릭)면 다이브인, 넘으면 드래그로 갈린다(handlePointerUp에서 분기).
   const beginGroupDrag = useCallback(
     (groupId: string) => (e: ReactPointerEvent<SVGGElement>) => {
       if (e.button !== 0) return;
       e.stopPropagation();
       if (readOnly) {
-        onGroupToggleCollapse?.(groupId, false);
+        diveIntoGroup(groupId);
         return;
       }
       const g = groups[groupId];
@@ -586,7 +691,7 @@ export function ConstellationCanvas({
       };
       (e.currentTarget as Element).setPointerCapture(e.pointerId);
     },
-    [readOnly, groups, onGroupToggleCollapse]
+    [readOnly, groups, diveIntoGroup]
   );
 
   // --- 엣지 생성 ---------------------------------------------------------
@@ -673,6 +778,21 @@ export function ConstellationCanvas({
     return () => window.removeEventListener("keydown", onKeyDown);
   }, [readOnly, onNodeDelete]);
 
+  // 다이브인 상태에서만 Esc를 가로채 "성운 밖으로"와 동일하게 나간다. 이
+  // 리스너는 diveGroupId가 있을 때만 등록되므로(effect deps), 위 카드/선택
+  // 닫기 리스너나 palette(ColorPaletteBar)·노트 패널의 각자 Esc 리스너와
+  // 경합하지 않는다 - 다들 stopPropagation 없이 독립적으로 자기 몫만 처리하는
+  // 기존 관례를 그대로 따른 것뿐이라(같은 Esc 한 번에 선택 카드도 닫히고
+  // 다이브아웃도 되는 것은 정상 동작), 별도 우선순위 스택을 새로 만들지 않았다.
+  useEffect(() => {
+    if (!diveGroupId) return;
+    function onKeyDown(e: KeyboardEvent) {
+      if (e.key === "Escape") diveOutOfGroup();
+    }
+    window.addEventListener("keydown", onKeyDown);
+    return () => window.removeEventListener("keydown", onKeyDown);
+  }, [diveGroupId, diveOutOfGroup]);
+
   // 외부 선택 요청(노트 패널의 [[위키링크]] 클릭) 처리 - token이 바뀔 때마다
   // 한 번 실행되어 selectedNodeId를 그 노드로 옮긴다. 존재하지 않는 nodeId는
   // 조용히 무시한다(방어적 - 위키링크 해석은 호출부에서 이미 검증하지만).
@@ -758,15 +878,15 @@ export function ConstellationCanvas({
           const world = clientToWorld(e.clientX, e.clientY);
           onGroupDrag?.(drag.groupId, world);
         } else {
-          // 임계값 이내 = 클릭 -> 펼치기(사용자 지시: "클릭하면 확대되면서
-          // 연결된 요소들이 다 드러나도록"). 접기는 펼침 상태의 칩 전용 제스처.
-          onGroupToggleCollapse?.(drag.groupId, false);
+          // 임계값 이내 = 클릭 -> 다이브인(사용자 지시: "성운 하나 클릭하면 그
+          // 성운 속으로 들어가는 확대 애니메이션"). 접기는 펼침 상태의 칩 전용 제스처.
+          diveIntoGroup(drag.groupId);
         }
         setDragGroupPosition(null);
       }
       // pan의 transform 자체는 별도 처리 불필요 - 이미 최신 상태.
     },
-    [activateNode, clientToWorld, findNodeNear, onEdgeCreate, onNodeDrag, onGroupDrag, onGroupToggleCollapse]
+    [activateNode, clientToWorld, findNodeNear, onEdgeCreate, onNodeDrag, onGroupDrag, diveIntoGroup]
   );
 
   const handleNodeKeyDown = useCallback(
@@ -1286,7 +1406,7 @@ export function ConstellationCanvas({
                 onKeyDown={(e) => {
                   if (e.key === "Enter" || e.key === " ") {
                     e.preventDefault();
-                    onGroupToggleCollapse?.(group.id, false);
+                    diveIntoGroup(group.id);
                   }
                 }}
                 onPointerDown={beginGroupDrag(group.id)}
@@ -1384,7 +1504,11 @@ export function ConstellationCanvas({
 
       {/* 펼쳐진 그룹마다 뜨는 "성단 접기" 칩 - group.position(접힘/펼침과 무관한
           고정 앵커)에 뜬다. 이 칩이 곧 그룹의 유일한 선택 표면이라 이름 바꾸기/
-          해제도 여기서 한다(readOnly에서는 접기만 남기고 숨김). */}
+          해제도 여기서 한다(readOnly에서는 접기만 남기고 숨김). 지금 다이브인 중인
+          성단의 칩은 접기 버튼을 diveOutOfGroup으로 바꿔치기한다 - 그래야 라벨
+          클릭으로 나가도 카메라가 진입 전 뷰로 rAF 복귀한다(그냥 onGroupToggleCollapse만
+          부르면 카메라는 그대로 확대된 채 남아 자리를 잃는다). 라벨 에딧/해제
+          기능은 그대로 유지 - 새 칩을 따로 만들지 않았다. */}
       {Object.values(groups)
         .filter((g) => !g.collapsed)
         .map((group) => (
@@ -1393,11 +1517,35 @@ export function ConstellationCanvas({
             group={group}
             transform={transform}
             readOnly={readOnly}
-            onToggleCollapse={(collapsed) => onGroupToggleCollapse?.(group.id, collapsed)}
+            onToggleCollapse={
+              diveGroupId === group.id ? diveOutOfGroup : (collapsed) => onGroupToggleCollapse?.(group.id, collapsed)
+            }
             onLabelChange={onGroupLabelChange ? (label) => onGroupLabelChange(group.id, label) : undefined}
             onUngroup={onGroupUngroup ? () => onGroupUngroup(group.id) : undefined}
           />
         ))}
+
+      {/* 다이브인 내부 상태 상단 배너 - 성운 이름 + 밖으로 나가기(클릭 또는 Esc,
+          위 diveOutOfGroup 이펙트). readOnly에서도 뜬다(뷰어도 다이브인/아웃은
+          가능 - 로컬 토글만, PATCH 없음). */}
+      {diveGroupId && groups[diveGroupId] && (
+        <div className="pointer-events-none absolute inset-x-0 top-4 z-20 flex justify-center">
+          <div className="pointer-events-auto flex items-center gap-2 rounded-full border border-rule bg-ink-800/90 px-3 py-1.5 font-sans text-xs text-text-hi shadow-lg">
+            <button
+              type="button"
+              className="flex items-center gap-1 hover:text-spec-b focus-visible:outline focus-visible:outline-2 focus-visible:outline-spec-b"
+              onClick={diveOutOfGroup}
+            >
+              <span aria-hidden>{"←"}</span>
+              성운 밖으로
+            </button>
+            <span className="text-text-lo" aria-hidden>
+              {"·"}
+            </span>
+            <span className="font-serif">{groups[diveGroupId].label}</span>
+          </div>
+        </div>
+      )}
     </div>
   );
 }
