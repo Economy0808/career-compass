@@ -1,4 +1,38 @@
-# 백엔드 세션 핸드오프 (2026-08-27 작성, 2026-08-29 13차 갱신)
+# 백엔드 세션 핸드오프 (2026-08-27 작성, 2026-08-30 14차 갱신)
+
+> **14차 (8/30) — 선수과목 위계(온디맨드 대원칙) + 성운 마감** (사용자 지시 3건:
+> "선수과목 순으로 위계가 한눈에 들어오도록 노드가 연결" / "과목마다 미리 이어놓는다기보다는
+> 대원칙을 세워놓고 api가 그때그때 적용" + "핵심적인건 이어놔도 좋지만 일반화된 규칙 필요" /
+> "메인캔버스에서 확대 애니메이션 + 'ㅇㅇㅇ성운' 우하단 + 성운 안 별자리 잇기, 시안 모션 불변"):
+> - **아키텍처**: 잡 시점 선계산이 아니라 **일반 대원칙을 시스템 프롬프트에 명문화**(레벨
+>   오름차순·전공기초→필수→선택·개론/원론→심화/실무 명칭·확신 없으면 안 이음, 학과 하드코딩
+>   없음)하고 `POST /api/constellation-intake/prereqs`가 **그때그때 적용**(익명 허용,
+>   rate limit 30/min). 프론트는 시안 다이브인 순간 1회 lazy 호출→`BinItem.prereqIds`
+>   (string[], 같은 bin 안 선수 항목 id) 캐시→저장 시 영속. ⚠️Opus 검증이 잡은 원계획 결함:
+>   `[[from,to]]` 중첩 배열은 **Firestore가 거부**(배열 안 배열 금지) — 항목별 prereqIds로 설계.
+> - **백엔드 `92d36d7`**: LLMClient.infer_prerequisites(base/anthropic/mock — mock=레벨 인접
+>   결선), _PREREQ_SCHEMA(쌍은 문자열 배열 아닌 {before,after} object — required가 길이 검증
+>   대체), 멤버십 검증+_drop_cycles(그리디 DAG), max_tokens 4000·thinking off,
+>   BinItemIn/Out `prereq_ids`(**기본 None 필수 — []면 exclude_none이 못 거름**, 마지막 필드
+>   선언 — validator 순서 의존). 테스트 84통과. 실스모크: 경영학입문→마케팅원론 정확.
+> - **프론트 `094d929`**(스테이지): interiorLayoutFor(items,seed,viewport) — rank=prereqIds
+>   최장경로(순환 안전·dangling 무시), 폴백=level(1000단위→층), 지원요소=기존 포스 폴백.
+>   간선 SVG는 px attribute만(CSS transform 금지 함정), 스프링 좌표 추적. 진입 모션·입자 불변.
+> - **프론트 `4815b0f`**(materialize): 매퍼 prereqIds 통과(유실 방지 — Opus가 잡은 치명 누락),
+>   prereqEdgesFor(같은 bin+존재 노드만 — dangling이면 첫 저장 422 전멸 방어), 확정 시 레벨
+>   층형 배치(rowGap×rows≤500px 클램프), "모두 추가"/bin 통째 드롭 경로도 간선 생성.
+>   ⚠️함정 2건: handleEdgeCreate 선언 순서 TDZ, **placeItem 직후 nodesRef는 미갱신**(ref는
+>   커밋 후 useEffect) → 존재 검사를 bin.items로.
+> - **캔버스 UX `2675abf`**: 상단 배너=복귀 버튼만, 우하단 "{라벨} 성운" 표시 칩(우측 패널·
+>   띄우기 버튼과 겹침 실측 회피 bottom-20 right-4 md:right-[324px]). **성운 안 간선 잇기는
+>   이미 정상**(멤버=일반 노드, 기존 캡처 방어 유효 — 실 포인터 검증만 필요했음).
+> - **캔버스 성운 비주얼 `c481ab3`**: 접힌 성단=시안과 같은 안개+입자(buildNebulaParticles/
+>   hashSeed를 DraftReviewStage에서 export 공유, 시드=group.id — Record라 인덱스 금지),
+>   radialGradient 1개+currentColor 트릭. ⚠️**git 사고 전례: 평범한 커밋이 타 에이전트 스테이지
+>   분까지 쓸어담음 → 모든 에이전트 `git commit -- <pathspec>` 스코프 커밋 의무화.**
+> - **미검증 잔여**: ①첫 저장 422 회귀(로그인 필요라 익명 실측 불가 — 코드 검사만. 로그인 QA
+>   때 제목 확정 통과 확인) ②스테이지 다이브인 실통합(실 LLM 대화 필요 — 실 LLM 1완주 때 확인)
+>   ③캐시 없는 bin은 캔버스 다이브인 시점 lazy 적용 미구현(다음 후보).
 
 > **13차 (8/29 밤) — 성운 다이브인(제자리 전개 → 진입형 편집으로 교체)** (사용자 지시:
 > "성운 하나 클릭하면 그 성운 속으로 들어가는(확대되는) 애니메이션으로 해서 해당 성운 안에서
