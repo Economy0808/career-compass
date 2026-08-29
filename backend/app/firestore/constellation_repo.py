@@ -69,6 +69,7 @@ from app.domain.constellation import (
     Bin,
     Constellation,
     Edge,
+    Group,
     Node,
     Position,
     compute_node_counts,
@@ -108,6 +109,27 @@ def _edge_path(edge_id: str, *rest: str) -> str:
     return FieldPath("edges", edge_id, *rest).to_api_repr()
 
 
+def _group_path(group_id: str, *rest: str) -> str:
+    """ "groups.{group_id}[.rest...]" dot-notation 경로를 안전하게 이스케이프해 만든다.
+
+    _node_path/_edge_path와 동일한 이유(임의 형식의 id) 때문에 필요하다.
+    """
+    return FieldPath("groups", group_id, *rest).to_api_repr()
+
+
+def _filter_existing_member_ids(
+    constellation: Constellation, member_node_ids: list[str]
+) -> list[str]:
+    """존재하지 않는 node id를 조용히 걸러낸다.
+
+    LLM 환각이나 노드 삭제와의 경합(그룹 갱신 요청이 만들어질 때는 존재했지만
+    요청이 도달하기 전에 다른 요청이 그 노드를 지운 경우) 양쪽을 방어한다 - 422로
+    거부하지 않고 조용히 걸러 저장하는 이유는, 존재하는 다른 멤버들의 그룹핑
+    자체는 여전히 유효한 정보라 실패시킬 이유가 없기 때문이다.
+    """
+    return [nid for nid in member_node_ids if nid in constellation.nodes]
+
+
 def node_note_count_path(node_id: str) -> str:
     """공개 버전: "nodes.{node_id}.note_count" dot-notation 경로.
 
@@ -137,6 +159,10 @@ class NodeNotFoundError(ConstellationRepoError):
 
 class EdgeNotFoundError(ConstellationRepoError):
     """지정한 edge_id가 별자리 안에 없을 때."""
+
+
+class GroupNotFoundError(ConstellationRepoError):
+    """지정한 group_id가 별자리 안에 없을 때."""
 
 
 def _doc_ref(db: Client, constellation_id: str) -> Any:
@@ -600,6 +626,90 @@ def replace_bins(
         constellation.updated_at = now
         update_data: dict[str, Any] = {
             "bins": [b.model_dump() for b in bins],
+            "updated_at": now,
+        }
+        return constellation, update_data
+
+    return _run_owned_transaction(db, constellation_id, owner_id, _mutate)
+
+
+def create_group(db: Client, constellation_id: str, group: Group, owner_id: str) -> Constellation:
+    """새 성단(group)을 추가한다 (dot-notation 부분 업데이트).
+
+    member_node_ids 중 존재하지 않는 node id는 조용히 걸러 저장한다
+    (_filter_existing_member_ids 참고).
+    """
+
+    def _mutate(constellation: Constellation) -> tuple[Constellation, dict[str, Any]]:
+        now = datetime.now(UTC)
+        filtered = group.model_copy(
+            update={
+                "member_node_ids": _filter_existing_member_ids(constellation, group.member_node_ids)
+            }
+        )
+        constellation.groups[filtered.id] = filtered
+        constellation.updated_at = now
+        update_data: dict[str, Any] = {
+            _group_path(filtered.id): filtered.model_dump(),
+            "updated_at": now,
+        }
+        return constellation, update_data
+
+    return _run_owned_transaction(db, constellation_id, owner_id, _mutate)
+
+
+def update_group(
+    db: Client,
+    constellation_id: str,
+    group_id: str,
+    owner_id: str,
+    *,
+    label: str | None = None,
+    collapsed: bool | None = None,
+    member_node_ids: list[str] | None = None,
+    position: Position | None = None,
+) -> Constellation:
+    """성단을 부분 갱신한다 - None이 아닌 필드만 반영한다(다른 부분 갱신 함수들과 동일 의미론).
+
+    member_node_ids가 오면 존재하지 않는 node id를 조용히 걸러 저장한다.
+    """
+
+    def _mutate(constellation: Constellation) -> tuple[Constellation, dict[str, Any]]:
+        if group_id not in constellation.groups:
+            raise GroupNotFoundError(group_id)
+        now = datetime.now(UTC)
+        group = constellation.groups[group_id]
+        update_data: dict[str, Any] = {"updated_at": now}
+        if label is not None:
+            group.label = label
+            update_data[_group_path(group_id, "label")] = label
+        if collapsed is not None:
+            group.collapsed = collapsed
+            update_data[_group_path(group_id, "collapsed")] = collapsed
+        if member_node_ids is not None:
+            filtered = _filter_existing_member_ids(constellation, member_node_ids)
+            group.member_node_ids = filtered
+            update_data[_group_path(group_id, "member_node_ids")] = filtered
+        if position is not None:
+            group.position = position
+            update_data[_group_path(group_id, "position")] = position.model_dump()
+        constellation.updated_at = now
+        return constellation, update_data
+
+    return _run_owned_transaction(db, constellation_id, owner_id, _mutate)
+
+
+def delete_group(db: Client, constellation_id: str, group_id: str, owner_id: str) -> Constellation:
+    """성단만 삭제한다("해제") - 멤버 노드/엣지는 전혀 건드리지 않는다."""
+
+    def _mutate(constellation: Constellation) -> tuple[Constellation, dict[str, Any]]:
+        if group_id not in constellation.groups:
+            raise GroupNotFoundError(group_id)
+        now = datetime.now(UTC)
+        del constellation.groups[group_id]
+        constellation.updated_at = now
+        update_data: dict[str, Any] = {
+            _group_path(group_id): gcf.DELETE_FIELD,
             "updated_at": now,
         }
         return constellation, update_data

@@ -26,6 +26,7 @@ from app.firestore.constellation_repo import (
     ConstellationNotFoundError,
     ConstellationPermissionError,
     EdgeNotFoundError,
+    GroupNotFoundError,
     NodeNotFoundError,
 )
 from app.firestore.note_repo import NoteNotFoundError
@@ -40,6 +41,8 @@ from app.schemas.constellation import (
     FeedAuthorOut,
     FeedItemOut,
     GlowPatchIn,
+    GroupCreateIn,
+    GroupPatchIn,
     NodeCreateIn,
     NoteCreateIn,
     NoteOut,
@@ -50,6 +53,7 @@ from app.schemas.constellation import (
     bin_from_in,
     constellation_to_out,
     edge_from_create_in,
+    group_from_in,
     node_from_create_in,
     note_to_out,
 )
@@ -75,6 +79,7 @@ def _translate_repo_errors(fn: Callable[_P, _R]) -> Callable[_P, _R]:
             ConstellationNotFoundError,
             NodeNotFoundError,
             EdgeNotFoundError,
+            GroupNotFoundError,
             NoteNotFoundError,
         ) as e:
             raise HTTPException(status_code=404, detail=str(e)) from e
@@ -418,6 +423,71 @@ async def remove_edge(
 ) -> ConstellationOut:
     updated = _translate_repo_errors(constellation_repo.remove_edge)(
         db, constellation_id, edge_id, user.uid
+    )
+    return constellation_to_out(updated)
+
+
+@router.post(
+    "/{constellation_id}/groups",
+    status_code=201,
+    response_model=ConstellationOut,
+    response_model_exclude_none=True,
+)
+async def create_group(
+    constellation_id: str,
+    payload: GroupCreateIn,
+    user: DecodedToken = Depends(get_current_user),
+    db: Client = Depends(get_firestore_client),
+) -> ConstellationOut:
+    """캔버스 성단(group)을 만든다. 요소가 많아진 노드들을 하나로 묶는다."""
+    group = group_from_in(payload)
+    updated = _translate_repo_errors(constellation_repo.create_group)(
+        db, constellation_id, group, user.uid
+    )
+    return constellation_to_out(updated)
+
+
+@router.patch(
+    "/{constellation_id}/groups/{group_id}",
+    response_model=ConstellationOut,
+    response_model_exclude_none=True,
+)
+async def update_group(
+    constellation_id: str,
+    group_id: str,
+    payload: GroupPatchIn,
+    user: DecodedToken = Depends(get_current_user),
+    db: Client = Depends(get_firestore_client),
+) -> ConstellationOut:
+    """성단을 부분 갱신한다 - label/collapsed/memberNodeIds/position 중 온 필드만 반영한다."""
+    position = Position(x=payload.position.x, y=payload.position.y) if payload.position else None
+    updated = _translate_repo_errors(constellation_repo.update_group)(
+        db,
+        constellation_id,
+        group_id,
+        user.uid,
+        label=payload.label,
+        collapsed=payload.collapsed,
+        member_node_ids=payload.member_node_ids,
+        position=position,
+    )
+    return constellation_to_out(updated)
+
+
+@router.delete(
+    "/{constellation_id}/groups/{group_id}",
+    response_model=ConstellationOut,
+    response_model_exclude_none=True,
+)
+async def delete_group(
+    constellation_id: str,
+    group_id: str,
+    user: DecodedToken = Depends(get_current_user),
+    db: Client = Depends(get_firestore_client),
+) -> ConstellationOut:
+    """성단만 삭제한다("해제") - 멤버 노드는 그대로 남는다."""
+    updated = _translate_repo_errors(constellation_repo.delete_group)(
+        db, constellation_id, group_id, user.uid
     )
     return constellation_to_out(updated)
 

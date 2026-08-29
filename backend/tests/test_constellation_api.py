@@ -23,6 +23,7 @@ from collections.abc import Callable, Iterator
 
 import pytest
 import requests
+from google.cloud import firestore
 from httpx import ASGITransport, AsyncClient
 
 from app.auth.deps import get_current_user
@@ -859,6 +860,242 @@ async def test_put_bins_exceeding_cap_returns_422(authed_as: Callable[[str], Non
             json={"bins": too_many_bins},
         )
         assert resp.status_code == 422
+
+
+# --- 성단(Group) ---
+
+
+@pytest.mark.asyncio
+async def test_create_group_returns_201_and_appears_in_get(
+    authed_as: Callable[[str], None],
+) -> None:
+    authed_as("user-a")
+    async with _client() as client:
+        cid = (
+            await client.post(
+                "/api/constellations",
+                json={
+                    "title": "성단 목표",
+                    "goalRawText": "x",
+                    "nodes": [
+                        {
+                            "id": "n1",
+                            "label": "노드1",
+                            "type": "course",
+                            "position": {"x": 0, "y": 0},
+                        },
+                        {
+                            "id": "n2",
+                            "label": "노드2",
+                            "type": "course",
+                            "position": {"x": 1, "y": 1},
+                        },
+                    ],
+                },
+            )
+        ).json()["id"]
+
+        resp = await client.post(
+            f"/api/constellations/{cid}/groups",
+            json={
+                "id": "g1",
+                "label": "1학년 교양",
+                "memberNodeIds": ["n1", "n2"],
+                "position": {"x": 5.0, "y": 6.0},
+            },
+        )
+        assert resp.status_code == 201
+        group = resp.json()["groups"]["g1"]
+        assert group["label"] == "1학년 교양"
+        assert group["memberNodeIds"] == ["n1", "n2"]
+        assert group["collapsed"] is True  # 기본값
+        assert group["position"] == {"x": 5.0, "y": 6.0}
+
+        resp = await client.get(f"/api/constellations/{cid}")
+        assert resp.json()["groups"]["g1"]["label"] == "1학년 교양"
+
+
+@pytest.mark.asyncio
+async def test_create_group_silently_drops_unknown_member_node_ids(
+    authed_as: Callable[[str], None],
+) -> None:
+    """존재하지 않는 node id는 422가 아니라 조용히 걸러져 저장된다."""
+    authed_as("user-a")
+    async with _client() as client:
+        cid = (
+            await client.post(
+                "/api/constellations",
+                json={
+                    "title": "환각 방어",
+                    "goalRawText": "x",
+                    "nodes": [
+                        {
+                            "id": "n1",
+                            "label": "노드1",
+                            "type": "course",
+                            "position": {"x": 0, "y": 0},
+                        }
+                    ],
+                },
+            )
+        ).json()["id"]
+
+        resp = await client.post(
+            f"/api/constellations/{cid}/groups",
+            json={
+                "id": "g1",
+                "label": "부분 존재",
+                "memberNodeIds": ["n1", "no-such-node"],
+                "position": {"x": 0.0, "y": 0.0},
+            },
+        )
+        assert resp.status_code == 201
+        assert resp.json()["groups"]["g1"]["memberNodeIds"] == ["n1"]
+
+
+@pytest.mark.asyncio
+async def test_patch_group_partial_update_only_touches_given_fields(
+    authed_as: Callable[[str], None],
+) -> None:
+    authed_as("user-a")
+    async with _client() as client:
+        cid = (
+            await client.post(
+                "/api/constellations",
+                json={
+                    "title": "부분 갱신",
+                    "goalRawText": "x",
+                    "nodes": [
+                        {
+                            "id": "n1",
+                            "label": "노드1",
+                            "type": "course",
+                            "position": {"x": 0, "y": 0},
+                        }
+                    ],
+                },
+            )
+        ).json()["id"]
+        await client.post(
+            f"/api/constellations/{cid}/groups",
+            json={
+                "id": "g1",
+                "label": "원래 라벨",
+                "memberNodeIds": ["n1"],
+                "position": {"x": 0.0, "y": 0.0},
+            },
+        )
+
+        resp = await client.patch(
+            f"/api/constellations/{cid}/groups/g1",
+            json={"collapsed": False},
+        )
+        assert resp.status_code == 200
+        group = resp.json()["groups"]["g1"]
+        assert group["collapsed"] is False
+        assert group["label"] == "원래 라벨"  # 안 건드린 필드는 유지
+        assert group["memberNodeIds"] == ["n1"]
+
+
+@pytest.mark.asyncio
+async def test_patch_unknown_group_returns_404(authed_as: Callable[[str], None]) -> None:
+    authed_as("user-a")
+    async with _client() as client:
+        cid = (
+            await client.post(
+                "/api/constellations", json={"title": "그룹 없음", "goalRawText": "x"}
+            )
+        ).json()["id"]
+        resp = await client.patch(
+            f"/api/constellations/{cid}/groups/no-such-group",
+            json={"collapsed": False},
+        )
+        assert resp.status_code == 404
+
+
+@pytest.mark.asyncio
+async def test_delete_group_removes_group_but_keeps_member_nodes(
+    authed_as: Callable[[str], None],
+) -> None:
+    authed_as("user-a")
+    async with _client() as client:
+        cid = (
+            await client.post(
+                "/api/constellations",
+                json={
+                    "title": "그룹 해제",
+                    "goalRawText": "x",
+                    "nodes": [
+                        {
+                            "id": "n1",
+                            "label": "노드1",
+                            "type": "course",
+                            "position": {"x": 0, "y": 0},
+                        }
+                    ],
+                },
+            )
+        ).json()["id"]
+        await client.post(
+            f"/api/constellations/{cid}/groups",
+            json={
+                "id": "g1",
+                "label": "해제될 그룹",
+                "memberNodeIds": ["n1"],
+                "position": {"x": 0.0, "y": 0.0},
+            },
+        )
+
+        resp = await client.delete(f"/api/constellations/{cid}/groups/g1")
+        assert resp.status_code == 200
+        data = resp.json()
+        assert "g1" not in data["groups"]
+        assert "n1" in data["nodes"]  # 멤버 노드는 살아남는다
+
+
+@pytest.mark.asyncio
+async def test_group_mutation_by_non_owner_returns_403(
+    authed_as: Callable[[str], None],
+) -> None:
+    authed_as("user-a")
+    async with _client() as client:
+        cid = (
+            await client.post(
+                "/api/constellations", json={"title": "남의 그룹", "goalRawText": "x"}
+            )
+        ).json()["id"]
+
+    authed_as("user-b")
+    async with _client() as client:
+        resp = await client.post(
+            f"/api/constellations/{cid}/groups",
+            json={
+                "id": "g1",
+                "label": "침입",
+                "memberNodeIds": [],
+                "position": {"x": 0.0, "y": 0.0},
+            },
+        )
+        assert resp.status_code == 403
+
+
+@pytest.mark.asyncio
+async def test_get_constellation_without_groups_field_backfills_empty_dict(
+    authed_as: Callable[[str], None],
+) -> None:
+    """groups 필드 자체가 없는 구 문서(역호환) - Pydantic 기본값으로 빈 dict가 채워져야 한다."""
+    authed_as("user-a")
+    async with _client() as client:
+        cid = (
+            await client.post("/api/constellations", json={"title": "구 문서", "goalRawText": "x"})
+        ).json()["id"]
+
+        db = get_firestore_client()
+        db.collection("constellations").document(cid).update({"groups": firestore.DELETE_FIELD})
+
+        resp = await client.get(f"/api/constellations/{cid}")
+        assert resp.status_code == 200
+        assert resp.json()["groups"] == {}
 
 
 # --- 공개 / 비공개 ---

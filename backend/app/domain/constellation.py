@@ -141,6 +141,23 @@ class Bin(BaseModel):
     items: list[BinItem] = Field(default_factory=list)
 
 
+class Group(BaseModel):
+    """캔버스 성단(cluster) - 노드 여러 개를 묶어 접힌 상태로 표시하는 그룹.
+
+    요소가 너무 많아지면 프론트가 이걸 노드 하나처럼 렌더한다(접힘=collapsed).
+    클릭하면 펼쳐지며 member_node_ids가 가리키는 실제 노드/엣지가 드러난다 -
+    그 펼침 애니메이션과 레이아웃은 순전히 프론트 책임이고, 서버는 멤버십과
+    접힘 상태만 영속화한다.
+    """
+
+    id: str
+    label: str = Field(max_length=60)
+    member_node_ids: list[str] = Field(default_factory=list)
+    collapsed: bool = True
+    # 접힌 성단이 노드 하나처럼 캔버스에 놓일 좌표. Node.position과 동일한 타입.
+    position: Position
+
+
 class Constellation(BaseModel):
     """별자리 전체."""
 
@@ -161,6 +178,11 @@ class Constellation(BaseModel):
     # 필드 도입 이전에 저장된 구 문서는 bins 키 자체가 없으므로, 역직렬화 시
     # Pydantic 기본값으로 빈 리스트가 채워져야 한다(회귀 방지 - CRITICAL).
     bins: list[Bin] = Field(default_factory=list)
+    # 캔버스 성단(group). dict인 이유는 nodes/edges와 동일 - Firestore 점 표기
+    # 부분 업데이트("groups.{gid}.collapsed")로 그룹 하나만 갱신하기 위함이다.
+    # 기본값 default_factory=dict: 이 필드 도입 이전 구 문서는 groups 키 자체가
+    # 없으므로, 역직렬화 시 빈 dict로 채워져야 한다(bins와 동일한 역호환 이유).
+    groups: dict[str, Group] = Field(default_factory=dict)
     is_published: bool = False
     # 발행 시 부가 메타. 둘 다 이 필드 도입 이전 구 문서에는 키 자체가 없으므로
     # 기본값(None/빈 리스트)으로 흡수되어야 한다(bins와 동일한 역호환 이유).

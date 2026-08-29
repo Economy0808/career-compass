@@ -32,6 +32,7 @@ from app.domain.constellation import (
     BinOrigin,
     Constellation,
     Edge,
+    Group,
     Node,
     NodeOrigin,
     NodeType,
@@ -39,6 +40,11 @@ from app.domain.constellation import (
     NoteAttachment,
     Position,
 )
+
+# GroupCreateIn/GroupOut.label 최대 길이 - 도메인 모델 Group.label과 동일 제한.
+_MAX_GROUP_LABEL_LEN = 60
+# GroupCreateIn.member_node_ids 용량 제한 - 성단 하나가 무한정 커지는 것을 막는다.
+_MAX_GROUP_MEMBERS = 200
 
 # BinsPutIn 용량 제한 - 보관함이 무한정 커지는 것을 막는다(프론트 UI도 이 정도
 # 규모를 벗어나면 성능이 저하된다).
@@ -334,6 +340,65 @@ def bin_from_in(payload: BinIn) -> Bin:
     )
 
 
+# --- Group (캔버스 성단) ---
+
+
+class GroupCreateIn(_CamelModel):
+    """성단 생성 요청. id는 클라이언트 생성. collapsed 기본값은 True(접힘)."""
+
+    id: str = Field(min_length=1, max_length=200)
+    label: str = Field(max_length=_MAX_GROUP_LABEL_LEN)
+    member_node_ids: list[str] = Field(default_factory=list, max_length=_MAX_GROUP_MEMBERS)
+    position: PositionIn
+    collapsed: bool = True
+
+
+class GroupPatchIn(_CamelModel):
+    """성단 부분 갱신 요청. None인 필드는 기존 값을 그대로 유지한다."""
+
+    label: str | None = Field(default=None, max_length=_MAX_GROUP_LABEL_LEN)
+    collapsed: bool | None = None
+    member_node_ids: list[str] | None = Field(default=None, max_length=_MAX_GROUP_MEMBERS)
+    position: PositionIn | None = None
+
+
+class GroupOut(_CamelModel):
+    """성단 응답."""
+
+    id: str
+    label: str
+    member_node_ids: list[str]
+    collapsed: bool
+    position: PositionOut
+
+
+def group_from_in(payload: GroupCreateIn) -> Group:
+    return Group(
+        id=payload.id,
+        label=payload.label,
+        member_node_ids=payload.member_node_ids,
+        collapsed=payload.collapsed,
+        position=Position(x=payload.position.x, y=payload.position.y),
+    )
+
+
+def group_to_out(group: Group, *, valid_node_ids: set[str]) -> GroupOut:
+    """Group을 응답으로 변환한다.
+
+    valid_node_ids에 없는 멤버는 응답에서 걸러낸다(직렬화 시 필터) - 노드 삭제 시
+    그룹 멤버 목록에서도 제거하는 정합 유지는 이번 작업 범위에서 프론트 책임으로
+    두었고, 서버는 저장된 값을 건드리지 않은 채 "지금 존재하는 멤버만" 보여주는
+    간단한 표시용 필터만 적용한다.
+    """
+    return GroupOut(
+        id=group.id,
+        label=group.label,
+        member_node_ids=[nid for nid in group.member_node_ids if nid in valid_node_ids],
+        collapsed=group.collapsed,
+        position=position_to_out(group.position),
+    )
+
+
 # --- Constellation ---
 
 
@@ -380,6 +445,7 @@ class ConstellationOut(_CamelModel):
     nodes: dict[str, NodeOut]
     edges: dict[str, EdgeOut]
     bins: list[BinOut]
+    groups: dict[str, GroupOut]
     is_published: bool
     description: str | None = None
     contributors: list[str] = Field(default_factory=list)
@@ -388,6 +454,7 @@ class ConstellationOut(_CamelModel):
 
 
 def constellation_to_out(constellation: Constellation) -> ConstellationOut:
+    valid_node_ids = set(constellation.nodes)
     return ConstellationOut(
         id=constellation.id,
         owner_id=constellation.owner_id,
@@ -396,6 +463,10 @@ def constellation_to_out(constellation: Constellation) -> ConstellationOut:
         nodes={nid: node_to_out(n) for nid, n in constellation.nodes.items()},
         edges={eid: edge_to_out(e) for eid, e in constellation.edges.items()},
         bins=[bin_to_out(b) for b in constellation.bins],
+        groups={
+            gid: group_to_out(g, valid_node_ids=valid_node_ids)
+            for gid, g in constellation.groups.items()
+        },
         is_published=constellation.is_published,
         description=constellation.description,
         contributors=constellation.contributors,
