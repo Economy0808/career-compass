@@ -10,6 +10,7 @@ import Link from "next/link";
 import { useParams } from "next/navigation";
 import { useRef, useState } from "react";
 import { PostDetail } from "@/components/PostDetail";
+import { AuthorConstellationPreview } from "@/components/AuthorConstellationPreview";
 import { getProfile } from "@/lib/profiles-api";
 import type { PostDto } from "@/lib/posts-api";
 
@@ -44,6 +45,10 @@ export default function PostPermalinkPage() {
         </Link>
       )}
       <PostDetail postId={postId} onPostChange={handlePostChange} />
+      {/* 작성자의 최신 발행 별자리 - 실캔버스 임베드(사용자 지시: "미니 프리뷰인데
+          그냥 SVG로 대충 만들지 말고 메인 캔버스처럼 멋있게 크게 띄워").
+          발행 별자리가 없으면 컴포넌트가 스스로 아무것도 렌더하지 않는다. */}
+      {owner && <AuthorConstellationPreview uid={owner.uid} />}
     </div>
   );
 }

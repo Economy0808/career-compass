@@ -22,14 +22,10 @@
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
 import { useParams } from "next/navigation";
 import Link from "next/link";
-import {
-  ConstellationCanvas,
-  type CanvasEdge,
-  type CanvasGroup,
-  type CanvasNode,
-} from "@/components/ConstellationCanvas";
+import { ConstellationCanvas } from "@/components/ConstellationCanvas";
 import { EmptyState, Avatar } from "@/components/ui";
 import { getConstellation, type ConstellationDto } from "@/lib/constellation-api";
+import { mapEdges, mapGroups, mapNodes } from "@/lib/constellation-canvas-map";
 import { getProfile, type ProfileDto } from "@/lib/profiles-api";
 import { ApiError } from "@/lib/api";
 
@@ -46,41 +42,8 @@ function readContributors(data: ConstellationDto): string[] {
   return value.filter((v): v is string => typeof v === "string");
 }
 
-function mapNodes(dto: ConstellationDto): Record<string, CanvasNode> {
-  const nodes: Record<string, CanvasNode> = {};
-  for (const n of Object.values(dto.nodes)) {
-    nodes[n.id] = {
-      id: n.id,
-      label: n.label,
-      type: n.type,
-      isCompleted: n.isCompleted,
-      position: n.position,
-      level: n.level,
-      code: n.code,
-      description: n.description,
-      color: n.color,
-      glowEffect: n.glowEffect,
-      // noteCount는 일부러 매핑하지 않는다 - 이 뷰어는 노트를 다루지 않는다.
-    };
-  }
-  return nodes;
-}
-
-function mapEdges(dto: ConstellationDto): Record<string, CanvasEdge> {
-  const edges: Record<string, CanvasEdge> = {};
-  for (const e of Object.values(dto.edges)) {
-    edges[e.id] = { id: e.id, sourceNodeId: e.sourceNodeId, targetNodeId: e.targetNodeId, color: e.color };
-  }
-  return edges;
-}
-
-function mapGroups(dto: ConstellationDto): Record<string, CanvasGroup> {
-  const groups: Record<string, CanvasGroup> = {};
-  for (const g of Object.values(dto.groups ?? {})) {
-    groups[g.id] = { id: g.id, label: g.label, memberNodeIds: g.memberNodeIds, collapsed: g.collapsed, position: g.position };
-  }
-  return groups;
-}
+// DTO→캔버스 매핑은 lib/constellation-canvas-map.ts 공용(게시물 상세의 작성자
+// 별자리 미리보기와 공유). noteCount를 매핑하지 않는 이유도 그 파일 참고.
 
 // no-op 편집 콜백 - readOnly=true라 실제로 호출되지 않지만, ConstellationCanvas의
 // props 계약은 이 셋을 필수로 요구한다(캔버스는 "새 원소 놓기 화면"과 이
