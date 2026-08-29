@@ -38,6 +38,13 @@
  * 같은 패턴으로 고쳤다 - 성단 자체 히트 타깃에서 pointerdown 시
  * stopPropagation + 자기 자신에 캡처 + 이동 임계값(CLUSTER_CLICK_THRESHOLD)
  * 으로 클릭/드래그를 분리한다.
+ *
+ * 성운 내부 위계 레이아웃(사용자 지시: "선수과목 순으로 위계가 한눈에
+ * 들어오도록"): 내부 뷰는 선수관계 위계로 층을 쌓는다. 과목마다 미리
+ * 이어두지 않고, 다이브인 순간 온디맨드로 백엔드(/api/constellation-intake/
+ * prereqs)를 호출해 그 bin의 선수관계를 받아 items에 캐시한다(대원칙 -
+ * API가 그때그때 적용). 간선이 하나도 없으면 level(학정번호 앞자리) 층으로
+ * 폴백하고, 그마저도 없는 지원요소 bin은 기존 포스 시뮬 배치를 그대로 쓴다.
  */
 
 import {
@@ -53,7 +60,7 @@ import { colorForType } from "@/lib/element-colors";
 import { SpaceBackdrop } from "@/components/SpaceBackdrop";
 import { splitCourseCode, type Bin, type BinItem } from "@/components/ElementBinPanel";
 import type { CanvasPosition } from "@/components/ConstellationCanvas";
-import type { DraftDto } from "@/lib/constellation-api";
+import { inferPrereqs, type DraftDto } from "@/lib/constellation-api";
 
 export interface DraftReviewStageProps {
   drafts: DraftDto[];
@@ -62,6 +69,10 @@ export interface DraftReviewStageProps {
   onSelect: (index: number) => void;
   onConfirm: () => void;
   onReject: () => void;
+  /** 온디맨드 선수관계 조회(/prereqs)가 끝나면 알려준다 - key는 후수(after)
+   * 항목 id, value는 그 항목의 선수(before) id 배열. bins state는 여기서
+   * 직접 바꾸지 않는다(page.tsx가 소유) - 부모가 불변 업데이트로 병합한다. */
+  onPrereqsResolved?: (binId: string, prereqsByItemId: Record<string, string[]>) => void;
 }
 
 // ---- 군집(bin) 배치 - 결정론적 황금각 나선(시드=인덱스, Math.random 없음).
@@ -299,17 +310,106 @@ function computeExpandedLayout(count: number, seed: number): Vec2[] {
   return pts;
 }
 
-// 다이브인 내부 뷰 전용 - computeExpandedLayout의 컴팩트 좌표를 뷰포트를
-// 채우도록 스케일만 키운다(포스 시뮬 재계산 없음 - 성단 미리보기와 내부 뷰가
-// "같은 모양, 다른 크기"로 보이게 하기 위함).
+// 다이브인 내부 뷰 전용(위계 정보가 전무한 지원요소 bin의 폴백) -
+// computeExpandedLayout의 컴팩트 좌표를 뷰포트를 채우도록 스케일만 키운다
+// (포스 시뮬 재계산 없음 - 성단 미리보기와 내부 뷰가 "같은 모양, 다른
+// 크기"로 보이게 하기 위함).
 const INTERIOR_FILL_RATIO = 0.34; // 뷰포트 짧은 변 대비 배치 반경 비율
-function interiorLayoutFor(count: number, seed: number, viewport: { width: number; height: number }): Vec2[] {
+function interiorForceLayoutFallback(
+  count: number,
+  seed: number,
+  viewport: { width: number; height: number }
+): Vec2[] {
   const raw = computeExpandedLayout(count, seed);
   if (raw.length === 0) return raw;
   const maxR = Math.max(...raw.map((p) => Math.hypot(p.x, p.y)), 1);
   const targetR = Math.min(viewport.width, viewport.height) * INTERIOR_FILL_RATIO;
   const scale = targetR / maxR;
   return raw.map((p) => ({ x: p.x * scale, y: p.y * scale }));
+}
+
+// ---- 선수과목 위계 레이아웃 - "과목마다 미리 이어놓지 않고, 대원칙(최장경로
+// 랭크)을 세워 API가 그때그때 채운 prereqIds에 적용한다"(사용자 지시) ----
+
+/** items 안에서 유효한 선수 간선(같은 bin에 있는 id만, 자기참조 제외)이
+ * 하나라도 있는지 - 간선이 전무하면 rank는 level 폴백으로 넘어간다. */
+function hasAnyPrereqEdge(items: BinItem[], idSet: Set<string>): boolean {
+  return items.some((item) => (item.prereqIds ?? []).some((pid) => idSet.has(pid) && pid !== item.id));
+}
+
+/** prereqIds 그래프에서 item의 최장경로 깊이(rank) - memo + visiting set으로
+ * 순환 시 0을 반환한다(백엔드가 DAG를 보장하지만 UI는 절대 멈추면 안 된다).
+ * 같은 bin에 없는 id(dangling - 항목 삭제 시 청소 안 하는 게으름을 여기서
+ * 흡수)는 무시한다. */
+function computeRank(
+  item: BinItem,
+  byId: Map<string, BinItem>,
+  memo: Map<string, number>,
+  visiting: Set<string>
+): number {
+  const cached = memo.get(item.id);
+  if (cached !== undefined) return cached;
+  if (visiting.has(item.id)) return 0; // 순환 방어 - 렌더가 절대 멈추면 안 된다.
+  visiting.add(item.id);
+  let maxParentRank = -1;
+  for (const pid of item.prereqIds ?? []) {
+    const parent = byId.get(pid);
+    if (!parent || parent.id === item.id) continue; // dangling/자기참조 무시
+    const parentRank = computeRank(parent, byId, memo, visiting);
+    if (parentRank > maxParentRank) maxParentRank = parentRank;
+  }
+  visiting.delete(item.id);
+  const rank = maxParentRank + 1;
+  memo.set(item.id, rank);
+  return rank;
+}
+
+const ROW_GAP_MAX = 140; // 층 사이 최대 간격(px)
+const ROW_GAP_VIEWPORT_RATIO = 0.72; // 뷰포트 세로 대비 전체 층 배치가 차지할 비율
+const ROW_X_FILL_RATIO = INTERIOR_FILL_RATIO * 2; // 기존 가로 채움 비율(폴백과 동일 스케일 감각)을 재사용
+
+/** 다이브인 내부 뷰의 멤버 배치 - items 순서로 좌표를 돌려준다(호출부가
+ * items[i] <-> positions[i]로 인덱싱).
+ *
+ * 1. prereqIds 그래프에 유효한 간선이 있으면 최장경로 rank로 층을 쌓는다.
+ * 2. 간선이 없으면 level(학정번호 앞자리)만으로 층을 쌓는다.
+ * 3. rank도 level도 전무하면(지원요소 bin) 기존 포스 시뮬 배치로 폴백한다.
+ */
+function interiorLayoutFor(items: BinItem[], seed: number, viewport: { width: number; height: number }): Vec2[] {
+  const idSet = new Set(items.map((item) => item.id));
+  const anyEdges = hasAnyPrereqEdge(items, idSet);
+  const anyLevel = items.some((item) => typeof item.level === "number");
+  if (!anyEdges && !anyLevel) {
+    return interiorForceLayoutFallback(items.length, seed, viewport);
+  }
+
+  const byId = new Map(items.map((item) => [item.id, item]));
+  const memo = new Map<string, number>();
+  const visiting = new Set<string>();
+  const ranks = items.map((item) =>
+    anyEdges ? computeRank(item, byId, memo, visiting) : Math.floor((item.level ?? 2000) / 1000) - 1
+  );
+  const maxRank = Math.max(...ranks, 0);
+  const rowGap = Math.min((viewport.height * ROW_GAP_VIEWPORT_RATIO) / (maxRank + 1), ROW_GAP_MAX);
+  const rowWidth = viewport.width * ROW_X_FILL_RATIO;
+
+  // 같은 rank끼리 모아 가로로 균등 분산 + 중앙 정렬.
+  const indicesByRank = new Map<number, number[]>();
+  ranks.forEach((rank, index) => {
+    if (!indicesByRank.has(rank)) indicesByRank.set(rank, []);
+    indicesByRank.get(rank)!.push(index);
+  });
+
+  const positions: Vec2[] = new Array(items.length);
+  indicesByRank.forEach((indices, rank) => {
+    const count = indices.length;
+    indices.forEach((itemIndex, i) => {
+      const x = count === 1 ? 0 : (i / (count - 1) - 0.5) * rowWidth;
+      const y = (rank - maxRank / 2) * rowGap;
+      positions[itemIndex] = { x, y };
+    });
+  });
+  return positions;
 }
 
 // ---- rAF 스프링 - 접힌 성단 중심 -> 전개 좌표로 "튀어나오는" 전환 모션.
@@ -360,6 +460,7 @@ export function DraftReviewStage({
   onSelect,
   onConfirm,
   onReject,
+  onPrereqsResolved,
 }: DraftReviewStageProps) {
   const currentDraft = drafts[selected] as DraftDto | undefined;
 
@@ -531,6 +632,12 @@ export function DraftReviewStage({
     };
   }, []);
 
+  // 온디맨드 선수관계 조회(POST /api/constellation-intake/prereqs) - bin당
+  // 한 번만. 결과가 빈 배열이어도 다시 조회하지 않는다(fetched set). 위계는
+  // 장식이라 실패는 콘솔 경고로만 남기고 조용히 무시한다 - 레이아웃은 이미
+  // level 폴백으로 즉시 그려져 있다.
+  const fetchedPrereqBinsRef = useRef<Set<string>>(new Set());
+
   const diveIn = useCallback(
     (bin: Bin, index: number) => {
       if (diveBinId || diveTransitioning) return; // 전환 중 재진입 방지
@@ -540,8 +647,38 @@ export function DraftReviewStage({
       setDiveBinId(bin.id);
       setDiveTransitioning(true);
       divePhaseRef.current = "in";
+
+      const courseItems = bin.items.filter((item) => item.id.startsWith("course:"));
+      const alreadyHasPrereqs = bin.items.some((item) => (item.prereqIds?.length ?? 0) > 0);
+      if (
+        onPrereqsResolved &&
+        courseItems.length >= 2 &&
+        !alreadyHasPrereqs &&
+        !fetchedPrereqBinsRef.current.has(bin.id)
+      ) {
+        fetchedPrereqBinsRef.current.add(bin.id);
+        inferPrereqs(
+          courseItems.map((item) => ({
+            code: item.id.slice("course:".length),
+            name: item.label,
+            level: typeof item.level === "number" ? Math.floor(item.level / 1000) : null,
+            kind: null,
+          }))
+        )
+          .then((edges) => {
+            if (edges.length === 0) return;
+            const prereqsByItemId: Record<string, string[]> = {};
+            for (const edge of edges) {
+              (prereqsByItemId[edge.after] ??= []).push(edge.before);
+            }
+            onPrereqsResolved(bin.id, prereqsByItemId);
+          })
+          .catch((err) => {
+            console.warn("[constellation] 선수관계 조회 실패 - level 폴백 레이아웃을 유지한다", err);
+          });
+      }
     },
-    [diveBinId, diveTransitioning, toPct, clusterCenters]
+    [diveBinId, diveTransitioning, toPct, clusterCenters, onPrereqsResolved]
   );
 
   const diveOut = useCallback(() => {
@@ -572,7 +709,7 @@ export function DraftReviewStage({
     if (!insideActive || !diveBin) return;
     const springs = springsRef.current;
     springs.clear();
-    const positions = interiorLayoutFor(diveBin.items.length, hashSeed(diveBin.id), viewportSize);
+    const positions = interiorLayoutFor(diveBin.items, hashSeed(diveBin.id), viewportSize);
     diveBin.items.forEach((item, i) => {
       const key = `${diveBin.id}::${item.id}`;
       springs.set(key, { x: 0, y: 0, vx: 0, vy: 0, tx: 0, ty: 0 });
@@ -942,6 +1079,43 @@ export function DraftReviewStage({
               ← 성운 밖으로
             </button>
           </div>
+
+          {/* 선수관계 간선 - 별(멤버) 컨테이너보다 먼저 그려 선이 별 아래로
+              깔린다. springsRef를 직접 읽으므로 스태거 등장 중에도 선이 따라
+              온다(setTick이 매 프레임 리렌더를 강제). CSS transform 금지 -
+              px 좌표를 attribute로만 준다(SVG에서 CSS transform이 attribute
+              transform을 덮어써 버리는 함정). */}
+          <svg
+            className="pointer-events-none absolute inset-0 h-full w-full"
+            viewBox={`0 0 ${viewportSize.width} ${viewportSize.height}`}
+            aria-hidden
+          >
+            {diveBin.items.map((item, itemIndex) => {
+              const toNode = springsRef.current.get(`${diveBin.id}::${item.id}`);
+              if (!toNode) return null;
+              return (item.prereqIds ?? []).map((prereqId) => {
+                const fromNode = springsRef.current.get(`${diveBin.id}::${prereqId}`);
+                if (!fromNode) return null; // dangling(같은 bin에 없는 id) - 그릴 게 없다.
+                return (
+                  <line
+                    key={`${item.id}<-${prereqId}`}
+                    x1={viewportSize.width / 2 + fromNode.x}
+                    y1={viewportSize.height / 2 + fromNode.y}
+                    x2={viewportSize.width / 2 + toNode.x}
+                    y2={viewportSize.height / 2 + toNode.y}
+                    pathLength={1}
+                    strokeDasharray="1"
+                    stroke="rgb(255 243 196 / 0.45)"
+                    strokeWidth={1.2}
+                    style={{
+                      animation: "edgeDrawOn 550ms cubic-bezier(.22,1,.36,1) forwards",
+                      animationDelay: `${itemIndex * INTERIOR_STAGGER_MS}ms`,
+                    }}
+                  />
+                );
+              });
+            })}
+          </svg>
 
           {/* 멤버 - 큰 별(라벨·학정번호·유형 점). springsRef가 성단 중심(0,0)
               기준 오프셋을 들고 있어 뷰포트 중앙에서 offset만큼 이동해 그린다. */}

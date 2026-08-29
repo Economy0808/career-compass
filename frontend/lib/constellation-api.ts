@@ -187,6 +187,7 @@ export interface BinItemDto {
   level?: number;
   subtitle?: string;
   description?: string;
+  prereqIds?: string[];
 }
 
 export interface BinDto {
@@ -436,6 +437,23 @@ export function getBinJob(jobId: string): Promise<BinJobStatusResponse> {
   return request<BinJobStatusResponse>(
     `/api/constellation-intake/jobs/${encodeURIComponent(jobId)}`
   );
+}
+
+/** POST /api/constellation-intake/prereqs 응답 - before가 선수, after가
+ * 후수(둘 다 "course:CODE" 형식, BinItem.id와 동일). 성운 다이브인 시점에
+ * 온디맨드로만 호출한다(과목마다 미리 이어두지 않는다 - 사용자 지시). */
+export interface PrereqEdgeDto {
+  before: string;
+  after: string;
+}
+
+export function inferPrereqs(
+  items: { code: string; name: string; level: number | null; kind: string | null }[]
+): Promise<PrereqEdgeDto[]> {
+  return request<{ edges: PrereqEdgeDto[] }>(
+    "/api/constellation-intake/prereqs",
+    jsonInit("POST", { items })
+  ).then((res) => res.edges);
 }
 
 export function putBins(

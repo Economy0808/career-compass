@@ -23,6 +23,8 @@ export interface BinItem {
   level?: number | null;
   subtitle?: string;
   description?: string;
+  /** 이 항목의 선수 항목 id들(같은 bin 안). 온디맨드 선수관계 API 결과를 캐시한다. */
+  prereqIds?: string[];
 }
 
 export interface Bin {

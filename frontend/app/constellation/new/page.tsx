@@ -109,8 +109,23 @@ const INITIAL_BINS: Bin[] = [
     origin: "llm",
     items: [
       { id: "course-accounting-1", label: "회계원리(1)", type: "course", level: 1000, subtitle: "전공 기초" },
-      { id: "course-org-behavior", label: "조직행동론", type: "course", level: 2000 },
-      { id: "course-marketing", label: "마케팅원론", type: "course", level: 2000 },
+      {
+        id: "course-org-behavior",
+        label: "조직행동론",
+        type: "course",
+        level: 2000,
+        // 데모용 프리셋 간선 - LLM 없이도 성운 내부 위계 레이아웃을 눈으로
+        // 검증하기 위함(온디맨드 API는 이 항목처럼 이미 prereqIds가 있으면
+        // 다시 조회하지 않는다).
+        prereqIds: ["course-accounting-1"],
+      },
+      {
+        id: "course-marketing",
+        label: "마케팅원론",
+        type: "course",
+        level: 2000,
+        prereqIds: ["course-accounting-1"],
+      },
     ],
   },
   {
@@ -1040,6 +1055,27 @@ export default function NewConstellationPage() {
     [persistBins]
   );
 
+  // 성운 다이브인 시 온디맨드로 받아온 선수관계를 bins state에 병합한다
+  // (DraftReviewStage는 bins를 소유하지 않으므로 여기서만 갱신) - 불변
+  // 업데이트, prereqsByItemId 키는 후수(after) 항목 id.
+  const handlePrereqsResolved = useCallback(
+    (binId: string, prereqsByItemId: Record<string, string[]>) => {
+      setBins((prev) =>
+        prev.map((bin) =>
+          bin.id !== binId
+            ? bin
+            : {
+                ...bin,
+                items: bin.items.map((item) =>
+                  prereqsByItemId[item.id] ? { ...item, prereqIds: prereqsByItemId[item.id] } : item
+                ),
+              }
+        )
+      );
+    },
+    []
+  );
+
   // "추천 별자리" 패널에서 다른 안을 고른다 - 군집 좌표(binClusterCenter)는
   // bins 개수에만 의존해 안마다 절대 안 바뀌므로, DraftReviewStage가 core
   // 강조/간선만 다시 그리도록 선택 인덱스만 바꾸면 된다(캔버스 state는
@@ -1854,6 +1890,7 @@ export default function NewConstellationPage() {
           onSelect={handleSelectDraft}
           onConfirm={handleAcceptDraft}
           onReject={handleRejectDrafts}
+          onPrereqsResolved={handlePrereqsResolved}
         />
       )}
 
