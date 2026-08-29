@@ -210,9 +210,20 @@ def test_list_taxonomy_returns_sorted_unique_departments_and_colleges(db: Client
 
 def test_list_taxonomy_caches_after_first_call(db: Client) -> None:
     repo._taxonomy_cache = None
-    repo.upsert_courses(db, [_make_course("TAX0010", department="캐시학과", college="캐시대학")])
+    # 캐시 자가 치유 임계값(_MIN_DEPARTMENTS_TO_CACHE=3) 이상을 심어야 이 스캔이
+    # 실제로 캐시에 저장된다 - 1개짜리 스캔은 의도적으로 캐시되지 않는다(자가 치유
+    # 테스트 참고).
+    repo.upsert_courses(
+        db,
+        [
+            _make_course("TAX0010", department="캐시학과", college="캐시대학"),
+            _make_course("TAX0012", department="캐시학과2", college="캐시대학2"),
+            _make_course("TAX0013", department="캐시학과3", college="캐시대학3"),
+        ],
+    )
 
     first = repo.list_taxonomy(db)
+    assert len(first[0]) >= 3  # 캐시 조건을 실제로 충족했는지 확인.
     # 캐시된 뒤 새 학과를 추가해도(재스캔 없이) 첫 호출 결과를 그대로 반환해야 한다.
     repo.upsert_courses(db, [_make_course("TAX0011", department="새학과", college="새대학")])
     second = repo.list_taxonomy(db)
@@ -220,3 +231,107 @@ def test_list_taxonomy_caches_after_first_call(db: Client) -> None:
     assert first == second
     assert "새학과" not in second[0]
     repo._taxonomy_cache = None  # 다른 테스트에 영향 주지 않도록 정리.
+
+
+# --- list_taxonomy 캐시 자가 치유 (빈/극소 스캔은 캐시에 담지 않는다) ---
+
+
+class _FakeStream:
+    def __init__(self, docs: list[dict[str, str]]) -> None:
+        self._docs = docs
+
+    def stream(self):
+        return iter(_FakeDoc(d) for d in self._docs)
+
+
+class _FakeDoc:
+    def __init__(self, data: dict[str, str]) -> None:
+        self._data = data
+
+    def to_dict(self) -> dict[str, str]:
+        return self._data
+
+
+class _FakeCollection:
+    def __init__(self, docs: list[dict[str, str]]) -> None:
+        self._docs = docs
+
+    def select(self, _fields: list[str]) -> _FakeStream:
+        return _FakeStream(self._docs)
+
+
+class _FakeDb:
+    """list_taxonomy가 쓰는 db.collection(...).select(...).stream() 인터페이스만 흉내낸다.
+
+    실제 에뮬레이터를 비우지 않고(7,109개 실데이터 보존) "스캔이 비었다"는 상황만
+    재현하기 위한 용도 - 이 테스트들은 에뮬레이터 유무와 무관하게 동작한다.
+    """
+
+    def __init__(self, docs: list[dict[str, str]]) -> None:
+        self._docs = docs
+
+    def collection(self, _name: str) -> _FakeCollection:
+        return _FakeCollection(self._docs)
+
+
+def test_list_taxonomy_does_not_cache_empty_scan_and_reheals_on_next_call() -> None:
+    repo._taxonomy_cache = None
+    try:
+        empty_result = repo.list_taxonomy(_FakeDb([]))
+        assert empty_result == ([], [])
+        assert repo._taxonomy_cache is None  # 캐시에 담기지 않았어야 한다.
+
+        populated = _FakeDb(
+            [
+                {"department": "철학과", "college": "문과대학"},
+                {"department": "경제학과", "college": "상경대학"},
+                {"department": "컴퓨터과학과", "college": "공과대학"},
+            ]
+        )
+        healed = repo.list_taxonomy(populated)
+        assert healed == (
+            ["경제학과", "철학과", "컴퓨터과학과"],
+            ["공과대학", "문과대학", "상경대학"],
+        )
+        assert repo._taxonomy_cache == healed  # 정상 결과는 캐시에 담긴다.
+    finally:
+        repo._taxonomy_cache = None
+
+
+def test_list_taxonomy_filters_sentence_junk_but_keeps_real_long_names() -> None:
+    """data/dept-check.txt 실측 예시 기준 위생 필터 검증."""
+    repo._taxonomy_cache = None
+    try:
+        fake_db = _FakeDb(
+            [
+                # 실제 파싱 쓰레기(문장형 텍스트가 college에 섞여 들어옴).
+                {
+                    "college": (
+                        "교 강의 수강을 위한 글쓰기와 발표가 무엇인지를 배우고, 이를 효과적으로"
+                        " 수행하기 위한 방법을 배운다. 학술적 글쓰기의"
+                    ),
+                    "department": "글로벌기초교육학부",
+                },
+                # 레이블 텍스트가 통째로 섞여 들어온 파싱 아티팩트.
+                {"college": "문과대학              학과/전공  철학", "department": "문헌정보학"},
+                # 정상적으로 긴 명칭 - 걸러지면 안 된다.
+                {
+                    "college": "Underwood International College",
+                    "department": "Quantitative Risk Management",
+                },
+                {"college": "경영대학", "department": "경영학과"},
+            ]
+        )
+
+        departments, colleges = repo.list_taxonomy(fake_db)
+
+        assert "글로벌기초교육학부" in departments
+        assert "문헌정보학" in departments
+        assert "Quantitative Risk Management" in departments
+        assert "Underwood International College" in colleges
+        assert "경영대학" in colleges
+        # 쓰레기 college 값은 둘 다 걸러졌어야 한다.
+        assert not any("학과/전공" in c for c in colleges)
+        assert not any(len(c) > 20 and c.count(" ") >= 6 for c in colleges)
+    finally:
+        repo._taxonomy_cache = None

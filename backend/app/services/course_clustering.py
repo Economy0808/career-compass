@@ -26,6 +26,7 @@
 from __future__ import annotations
 
 import asyncio
+import logging
 from dataclasses import dataclass, field
 
 from google.cloud.firestore import Client
@@ -33,6 +34,8 @@ from google.cloud.firestore import Client
 from app.etl.yonsei_courses import MergedCourse
 from app.firestore.course_repo import list_by_department, list_taxonomy, search_by_college
 from app.llm.base import CourseOption, LLMClient
+
+logger = logging.getLogger(__name__)
 
 # 학정번호 첫 자리가 이 값 이상이면 대학원 과목으로 간주해 학부 추천에서 제외한다.
 _GRADUATE_LEVEL_MIN = 5
@@ -154,6 +157,15 @@ async def cluster_courses(
                 advice=raw_cluster.advice,
             )
         )
+    if not clusters:
+        # 입력 후보는 있었는데 군집이 하나도 안 나왔다 - LLM이 전부 무관하다고
+        # 판단했거나(정상일 수 있음) 환각 code만 내서 by_code 검증에서 전부 걸러졌을
+        # 수도 있다(비정상). 계약(빈 결과 반환)은 그대로 두고 원인 추적용 로그만 남긴다.
+        logger.warning(
+            "cluster_courses: 후보 과목 %d개가 있었는데 군집 결과가 0개 - 목표: %r",
+            len(undergrad_courses),
+            goal_text[:80],
+        )
     return CourseClusterResult(clusters=clusters)
 
 
@@ -178,6 +190,11 @@ async def suggest_course_bin(
         llm, goal_text, known_departments, known_colleges
     )
     if not departments:
+        logger.warning(
+            "suggest_course_bin: 학과 선택 결과가 0개 - 목표: %r (카탈로그 학과 수: %d)",
+            goal_text[:80],
+            len(known_departments),
+        )
         return CourseClusterResult(clusters=[])
 
     seen_codes: set[str] = set()
