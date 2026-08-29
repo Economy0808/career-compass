@@ -31,6 +31,9 @@ class Settings(BaseSettings):
     # LLM (roadmap generation). Real key comes from env (.env), never committed.
     # Empty key -> factory falls back to the deterministic Mock client ($0).
     anthropic_api_key: str = ""
+    # identity-linked API 키(개인 계정 연동형)는 모든 요청에 anthropic-workspace-id
+    # 헤더가 필요하다(없으면 400). 워크스페이스 스코프 키를 쓰면 비워둬도 된다.
+    anthropic_workspace_id: str = ""
     # Sonnet 5 across the pipeline (user choice). LLM_EXTRACT_MODEL can be set to
     # claude-haiku-4-5 in .env to run the two lightweight steps (intake chat +
     # keyword extraction) cheaper; synthesis stays on Sonnet for quality.

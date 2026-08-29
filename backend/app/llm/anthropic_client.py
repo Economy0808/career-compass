@@ -289,7 +289,18 @@ class AnthropicClaudeClient:
                 socket_options=[(socket.SOL_SOCKET, socket.SO_KEEPALIVE, 1)],
             ),
         )
-        self._client = AsyncAnthropic(api_key=settings.anthropic_api_key, http_client=http_client)
+        # identity-linked 키는 anthropic-workspace-id 헤더가 필수(없으면 400) -
+        # .env에 ANTHROPIC_WORKSPACE_ID가 있으면 모든 요청에 실어 보낸다.
+        default_headers = (
+            {"anthropic-workspace-id": settings.anthropic_workspace_id}
+            if settings.anthropic_workspace_id
+            else None
+        )
+        self._client = AsyncAnthropic(
+            api_key=settings.anthropic_api_key,
+            http_client=http_client,
+            default_headers=default_headers,
+        )
         self._extract_model = settings.llm_extract_model
         self._synthesis_model = settings.llm_synthesis_model
         self._synthesis_web_search = settings.llm_synthesis_web_search
