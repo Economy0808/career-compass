@@ -51,6 +51,10 @@ export interface ConstellationIntakeChatProps {
 const INTRO_GREETING =
   '안녕하세요! 어떤 진로를 그려보고 싶으신가요?\n예: "AI 개발자가 되고 싶은데 뭘 준비해야 할지 모르겠어요"';
 
+/** 서버가 준 칩 목록 뒤에 항상 덧붙이는 "직접 입력" 칩 - 서버 계약(options)에는
+ * 없는, 프론트 전용 UX 보조 칩이다. 이 라벨 자체는 메시지에 포함되지 않는다. */
+const OTHER_CHIP_LABEL = "기타(직접 입력)";
+
 /** 서버도 같은 값으로 히스토리를 자른다(문서 참고) - 프론트도 같은 지점에서
  * 더 이상의 질문을 기다리지 않고 강제로 done 경로로 넘어간다. */
 const MAX_MESSAGES = 40;
@@ -111,6 +115,12 @@ export function ConstellationIntakeChat({
   // 지금 질문에 딸린 입력 보조 힌트/칩 - 서버 응답 밖(messages와 별개)이라 따로 든다.
   const [hint, setHint] = useState<string | null>(null);
   const [options, setOptions] = useState<string[]>([]);
+  // 지금 질문의 칩 중 사용자가 골라둔 것들(복수 선택) - "선택 완료" 전송 전까지는
+  // 로컬 상태로만 들고 있다가, 전송 시 ", "로 이어 하나의 메시지로 보낸다.
+  const [selectedOptions, setSelectedOptions] = useState<string[]>([]);
+  // "기타(직접 입력)" 칩 선택 여부 - 이 칩 자체는 메시지에 실리지 않고, 텍스트
+  // 입력에 포커스 + placeholder 안내만 트리거한다.
+  const [otherSelected, setOtherSelected] = useState(false);
 
   // --- 구간 생성 잡 상태 ------------------------------------------------------
   const [jobError, setJobError] = useState<string | null>(null);
@@ -218,6 +228,8 @@ export function ConstellationIntakeChat({
     // 아직 답 안 한 다음 질문에 엉뚱한 칩이 붙어 보인다.
     setHint(null);
     setOptions([]);
+    setSelectedOptions([]);
+    setOtherSelected(false);
 
     try {
       const res = await intakeChat({ goalRawText: goal, messages: nextMessages });
@@ -225,6 +237,8 @@ export function ConstellationIntakeChat({
       // 구버전 서버(hint/options 미지원)와도 안전하게 - 신뢰 경계에서 기본값 방어.
       setHint(res.done ? null : (res.hint ?? null));
       setOptions(res.done ? [] : (res.options ?? []));
+      setSelectedOptions([]);
+      setOtherSelected(false);
       setPending(false);
       if (res.done || res.messages.length >= MAX_MESSAGES) {
         beginGenerating(goal);
@@ -241,9 +255,33 @@ export function ConstellationIntakeChat({
     }
   }
 
+  /** 선택된 일반 칩들 + (있다면) 텍스트 입력 내용을 ", "로 이어 한 메시지로
+   * 합친다. "기타" 칩 자체의 라벨은 포함하지 않는다 - 타이핑한 내용만 실린다.
+   * 칩 완료 버튼과 입력창 전송 버튼이 이 함수 하나로 같은 조합 규칙을 탄다. */
+  function composeMessage(): string {
+    const parts = [...selectedOptions];
+    const typed = draft.trim();
+    if (typed) parts.push(typed);
+    return parts.join(", ");
+  }
+
   function handleSubmit(e: FormEvent) {
     e.preventDefault();
-    void sendMessage(draft);
+    void sendMessage(composeMessage());
+  }
+
+  function toggleOption(opt: string) {
+    setSelectedOptions((prev) =>
+      prev.includes(opt) ? prev.filter((o) => o !== opt) : [...prev, opt]
+    );
+  }
+
+  function toggleOther() {
+    setOtherSelected((prev) => {
+      const next = !prev;
+      if (next) inputRef.current?.focus();
+      return next;
+    });
   }
 
   function handleResend() {
@@ -331,18 +369,40 @@ export function ConstellationIntakeChat({
                         <p className="whitespace-pre-wrap text-[13.5px] text-text-lo">{hint}</p>
                       )}
                       {options.length > 0 && (
-                        <div className="flex flex-wrap gap-2.5">
-                          {options.map((opt) => (
+                        <div className="flex flex-wrap items-center gap-2.5">
+                          {[...options, OTHER_CHIP_LABEL].map((opt) => {
+                            const isOther = opt === OTHER_CHIP_LABEL;
+                            const selected = isOther
+                              ? otherSelected
+                              : selectedOptions.includes(opt);
+                            return (
+                              <button
+                                key={opt}
+                                type="button"
+                                disabled={inputDisabled}
+                                aria-pressed={selected}
+                                onClick={() => (isOther ? toggleOther() : toggleOption(opt))}
+                                className={cn(
+                                  "rounded-full border px-4 py-2 text-[13.5px] transition-colors disabled:pointer-events-none disabled:opacity-50",
+                                  selected
+                                    ? "border-lit bg-lit/15 text-text-hi"
+                                    : "border-rule text-text-lo hover:border-text-hi/30 hover:text-text-hi"
+                                )}
+                              >
+                                {opt}
+                              </button>
+                            );
+                          })}
+                          {(selectedOptions.length > 0 || otherSelected) && (
                             <button
-                              key={opt}
                               type="button"
-                              disabled={inputDisabled}
-                              onClick={() => void sendMessage(opt)}
-                              className="rounded-full border border-rule px-4 py-2 text-[13.5px] text-text-lo transition-colors hover:border-text-hi/30 hover:text-text-hi disabled:pointer-events-none disabled:opacity-50"
+                              disabled={inputDisabled || composeMessage() === ""}
+                              onClick={() => void sendMessage(composeMessage())}
+                              className="rounded-full border border-lit bg-lit/15 px-4 py-2 text-[13.5px] font-medium text-text-hi transition-colors hover:bg-lit/25 disabled:pointer-events-none disabled:opacity-50"
                             >
-                              {opt}
+                              선택 완료
                             </button>
-                          ))}
+                          )}
                         </div>
                       )}
                     </div>
@@ -379,13 +439,13 @@ export function ConstellationIntakeChat({
                   onChange={(e) => setDraft(e.target.value)}
                   maxLength={MAX_INPUT_LENGTH}
                   disabled={inputDisabled}
-                  placeholder="답을 입력하세요…"
+                  placeholder={otherSelected ? "직접 입력해줘…" : "답을 입력하세요…"}
                   aria-label="메시지 입력"
                   className="min-w-0 flex-1 rounded-full border border-rule bg-ink-800 px-[22px] py-[15px] font-sans text-[15px] text-text-hi placeholder:text-text-lo focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-spec-b disabled:opacity-50"
                 />
                 <button
                   type="submit"
-                  disabled={inputDisabled || !draft.trim()}
+                  disabled={inputDisabled || composeMessage() === ""}
                   aria-label="보내기"
                   className="flex h-12 w-12 shrink-0 items-center justify-center rounded-full border border-rule bg-ink-700 text-text-hi transition-colors hover:border-lit focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-spec-b disabled:opacity-50 disabled:pointer-events-none"
                 >
