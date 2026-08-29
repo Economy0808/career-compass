@@ -197,14 +197,18 @@ export interface BinDto {
   items: BinItemDto[];
 }
 
-/** LLM이 대화 내용을 바탕으로 미리 짜 준 별자리 초안 하나. itemIds/edges는
- * bins의 원소 id(`course:{CODE}` 또는 `support:{uuid}`)를 참조한다 - 아직
- * 캔버스 노드가 아니므로 이 시점엔 `element:` 접두어가 붙어 있지 않다. */
+/** LLM이 대화 내용을 바탕으로 미리 짜 준 별자리 초안 하나(c368bb5 계약).
+ * 시안은 더 이상 항목을 발췌하지 않는다 - bins는 항상 전부(full load)
+ * 표시된다는 전제 위에서, 안별 차이는 강조(coreBinLabels)와 성단 간 학습
+ * 경로(binEdges)뿐이다. 둘 다 bins의 label 그대로를 가리킨다(id가 아님 -
+ * 프론트가 보여주는 단위가 개별 item이 아니라 bin 전체이므로). */
 export interface DraftDto {
   name: string;
   tagline: string;
-  itemIds: string[];
-  edges: [string, string][];
+  /** 이 안의 핵심 군집 2~4개 - bins[].label과 정확히 일치. */
+  coreBinLabels: string[];
+  /** 군집 간 학습 경로 3~8개 - 각 튜플은 bins[].label 쌍. */
+  binEdges: [string, string][];
 }
 
 export interface BinJobStatusResponse {
