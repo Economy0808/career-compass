@@ -1290,38 +1290,49 @@ export function ConstellationCanvas({
                   }
                 }}
                 onPointerDown={beginGroupDrag(group.id)}
-                style={{ cursor: "pointer", outline: "none", animation: "sprout 420ms cubic-bezier(.22,1,.36,1) both" }}
+                style={{ cursor: "pointer", outline: "none" }}
               >
-                <circle
-                  r={radius}
-                  fill={color}
-                  opacity={allCompleted ? 0.85 : 0.45}
-                  filter={allCompleted ? "url(#const-glow)" : undefined}
-                />
-                <circle r={radius} fill="transparent" stroke="var(--rule)" strokeWidth={1} opacity={0.7} />
-                {/* 멤버 수 배지 - 숫자이므로 font-mono(한글 아님, No-Korean-Mono 규칙과 무관). */}
-                <circle cx={radius * 0.6} cy={-radius * 0.6} r={8.5} fill="var(--ink-800)" stroke="var(--rule)" strokeWidth={1} />
-                <text
-                  x={radius * 0.6}
-                  y={-radius * 0.6 + 3.5}
-                  textAnchor="middle"
-                  fontSize={9}
-                  className="font-mono"
-                  fill="var(--text-hi)"
-                >
-                  {memberNodes.length}
-                </text>
-                <text
-                  x={0}
-                  y={radius + 16}
-                  textAnchor="middle"
-                  fontSize={12}
-                  className="font-serif"
-                  fill="var(--text-hi)"
-                  style={{ paintOrder: "stroke", stroke: "var(--ink-900)", strokeWidth: 3, strokeOpacity: 0.75 }}
-                >
-                  {group.label}
-                </text>
+                {/* sprout 등장 애니메이션은 반드시 이 안쪽 <g>에만 건다 - 바깥
+                    <g>는 위치(translate) attribute를 갖고 있는데, SVG에서
+                    CSS transform(애니메이션 포함)은 attribute transform을
+                    "합성"이 아니라 통째로 덮어써 버린다. sprout가 바깥 <g>에
+                    있으면 애니메이션이 끝난 뒤(fill-mode both)에도
+                    transform: scale(1)이 attribute의 translate를 영구히
+                    대체해 모든 성단이 원점(0,0)에 겹쳐 그려진다(실측 버그).
+                    안쪽 <g>는 자기 transform이 없으므로 scale 애니메이션이
+                    부모의 위치 위에 얹힐 뿐 아무것도 지우지 않는다. */}
+                <g style={{ animation: "sprout 420ms cubic-bezier(.22,1,.36,1) both" }}>
+                  <circle
+                    r={radius}
+                    fill={color}
+                    opacity={allCompleted ? 0.85 : 0.45}
+                    filter={allCompleted ? "url(#const-glow)" : undefined}
+                  />
+                  <circle r={radius} fill="transparent" stroke="var(--rule)" strokeWidth={1} opacity={0.7} />
+                  {/* 멤버 수 배지 - 숫자이므로 font-mono(한글 아님, No-Korean-Mono 규칙과 무관). */}
+                  <circle cx={radius * 0.6} cy={-radius * 0.6} r={8.5} fill="var(--ink-800)" stroke="var(--rule)" strokeWidth={1} />
+                  <text
+                    x={radius * 0.6}
+                    y={-radius * 0.6 + 3.5}
+                    textAnchor="middle"
+                    fontSize={9}
+                    className="font-mono"
+                    fill="var(--text-hi)"
+                  >
+                    {memberNodes.length}
+                  </text>
+                  <text
+                    x={0}
+                    y={radius + 16}
+                    textAnchor="middle"
+                    fontSize={12}
+                    className="font-serif"
+                    fill="var(--text-hi)"
+                    style={{ paintOrder: "stroke", stroke: "var(--ink-900)", strokeWidth: 3, strokeOpacity: 0.75 }}
+                  >
+                    {group.label}
+                  </text>
+                </g>
               </g>
             );
           })}

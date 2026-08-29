@@ -48,11 +48,13 @@ export interface DraftReviewStageProps {
 // 갈아타도(onSelect) 이 좌표는 절대 다시 계산하지 않는다 - 그래야 core 강조와
 // 간선만 바뀌는 게 "같은 하늘, 다른 별자리"로 읽힌다.
 const CLUSTER_GOLDEN_ANGLE_RAD = 137.5 * (Math.PI / 180);
-const CLUSTER_BASE_DISTANCE = 220;
-const CLUSTER_DISTANCE_STEP = 130;
+// 반경은 √index(필로택시스)로 키운다 - index 선형 증가(220+130i)는 17군집이면
+// 반경 2,300px까지 퍼져 확정 후 캔버스 fit 줌이 극단으로 축소됐다(실측: 성단
+// 17개가 한 덩어리로 보임). √ 스케일은 군집 수와 무관하게 밀도가 균일하다.
+const CLUSTER_RADIUS_STEP = 240;
 export function binClusterCenter(index: number): CanvasPosition {
   const angle = index * CLUSTER_GOLDEN_ANGLE_RAD;
-  const radius = CLUSTER_BASE_DISTANCE + index * CLUSTER_DISTANCE_STEP;
+  const radius = CLUSTER_RADIUS_STEP * Math.sqrt(index + 0.6);
   return { x: Math.round(Math.cos(angle) * radius), y: Math.round(Math.sin(angle) * radius) };
 }
 
