@@ -136,10 +136,12 @@ export function ConstellationIntakeChat({
     inputRef.current?.focus();
   }, []);
 
-  // 메시지가 늘어날 때마다 맨 아래로 스크롤.
+  // 메시지가 늘어날 때마다(+ 새 칩/힌트가 뜨거나 칩 선택으로 내용 높이가
+  // 바뀔 때마다) 맨 아래로 스크롤 - 칩이 여러 줄로 wrap돼도 방금 뜬 내용이
+  // 스크롤 영역 밖에 묻히지 않게 한다.
   useEffect(() => {
     messagesEndRef.current?.scrollIntoView({ block: "end" });
-  }, [messages, pending]);
+  }, [messages, pending, hint, options, selectedOptions, otherSelected]);
 
   function stopPolling() {
     if (pollTimerRef.current) {
@@ -393,16 +395,6 @@ export function ConstellationIntakeChat({
                               </button>
                             );
                           })}
-                          {(selectedOptions.length > 0 || otherSelected) && (
-                            <button
-                              type="button"
-                              disabled={inputDisabled || composeMessage() === ""}
-                              onClick={() => void sendMessage(composeMessage())}
-                              className="rounded-full border border-lit bg-lit/15 px-4 py-2 text-[13.5px] font-medium text-text-hi transition-colors hover:bg-lit/25 disabled:pointer-events-none disabled:opacity-50"
-                            >
-                              선택 완료
-                            </button>
-                          )}
                         </div>
                       )}
                     </div>
@@ -417,6 +409,20 @@ export function ConstellationIntakeChat({
 
           <div className="fixed inset-x-0 bottom-[72px] z-10 flex justify-center px-4">
             <div className="w-[min(720px,92vw)]">
+              {/* 칩 wrap과 무관하게 항상 온전히 보이는 "선택 완료" - 칩이 여러
+                  줄로 늘어나도 이 자리는 입력창 바로 위에 고정돼 잘리지 않는다. */}
+              {(selectedOptions.length > 0 || otherSelected) && (
+                <div className="mb-2 flex justify-end">
+                  <button
+                    type="button"
+                    disabled={inputDisabled || composeMessage() === ""}
+                    onClick={() => void sendMessage(composeMessage())}
+                    className="rounded-full border border-lit bg-lit/15 px-4 py-2 text-[13.5px] font-medium text-text-hi transition-colors hover:bg-lit/25 disabled:pointer-events-none disabled:opacity-50"
+                  >
+                    선택 완료
+                  </button>
+                </div>
+              )}
               {chatError && (
                 <div className="mb-2 flex items-center gap-2 rounded-md border border-spec-m/45 bg-spec-m/10 px-3 py-2 font-sans text-xs text-spec-m">
                   <span className="flex-1">{chatError}</span>
