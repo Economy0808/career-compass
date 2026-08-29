@@ -20,7 +20,7 @@ import {
 import { ElementBinPanel, type Bin, type BinItem, type BinDropPayload } from "@/components/ElementBinPanel";
 import { ElementNotesPanel, type ElementNote } from "@/components/ElementNotesPanel";
 import { ConstellationIntakeChat } from "@/components/ConstellationIntakeChat";
-import { DraftReviewStage } from "@/components/DraftReviewStage";
+import { DraftReviewStage, binClusterCenter } from "@/components/DraftReviewStage";
 import { ColorPaletteBar } from "@/components/ColorPaletteBar";
 import { LaunchModal, type LaunchInput } from "@/components/LaunchModal";
 import { Modal } from "@/components/ui/Modal";
@@ -236,56 +236,16 @@ function deriveNodeCodeAndLabel(item: BinItem): { code?: string; label: string }
   return { label: item.label };
 }
 
-// bins 전체를 뒤져 원소 하나를 id로 찾는다 - 초안(draft)의 itemIds는 어느
-// 보관함 소속인지 모르는 상태로 온다.
-function findBinItemAcrossBins(bins: Bin[], itemId: string): BinItem | undefined {
-  for (const bin of bins) {
-    const item = bin.items.find((i) => i.id === itemId);
-    if (item) return item;
-  }
-  return undefined;
-}
-
-// 초안 하나를 캔버스 그래프로 편다 - 지그재그 배치는 요구사항의 "단순하지만
-// 보기 좋은 흩뿌림"을 만족하는 가장 짧은 공식일 뿐이라 다른 의미는 없다
-// (사용자가 어차피 드래그로 다시 배치한다).
-function draftItemPosition(index: number): CanvasPosition {
-  return {
-    x: 220 + index * 170 + (index % 2) * 40,
-    y: 420 + (index % 2 ? 130 : -60) + ((index * 53) % 3) * 35,
-  };
-}
-
-function buildDraftGraph(
-  draft: DraftDto,
-  bins: Bin[]
-): { nodes: Record<string, CanvasNode>; edges: Record<string, CanvasEdge> } {
-  const nodes: Record<string, CanvasNode> = {};
-  draft.itemIds.forEach((itemId, index) => {
-    const item = findBinItemAcrossBins(bins, itemId);
-    if (!item) return; // 보관함에서 사라진 항목 - 조용히 건너뛴다.
-    const nodeId = nodeIdForItem(itemId);
-    const { code, label } = deriveNodeCodeAndLabel(item);
-    nodes[nodeId] = {
-      id: nodeId,
-      label,
-      type: item.type,
-      isCompleted: false,
-      position: draftItemPosition(index),
-      level: item.level ?? null,
-      code,
-      description: item.description,
-    };
+// 보관함 하나를 level(학정번호 앞자리) 오름차순으로 정렬한다 - 기초 원소가
+// 먼저 오게 하는 공통 규칙. handleExternalDrop(보관함 통째 드롭)과
+// handleAcceptDraft(초안 확정 materialize) 양쪽에서 "대표 항목=정렬 첫
+// 항목" 규칙에 그대로 쓰인다.
+function sortItemsByLevel(items: BinItem[]): BinItem[] {
+  return [...items].sort((a, b) => {
+    const la = typeof a.level === "number" ? a.level : Number.POSITIVE_INFINITY;
+    const lb = typeof b.level === "number" ? b.level : Number.POSITIVE_INFINITY;
+    return la - lb;
   });
-  const edges: Record<string, CanvasEdge> = {};
-  draft.edges.forEach(([fromId, toId], index) => {
-    const sourceNodeId = nodeIdForItem(fromId);
-    const targetNodeId = nodeIdForItem(toId);
-    if (!nodes[sourceNodeId] || !nodes[targetNodeId]) return; // 끝점이 없는 엣지는 버린다.
-    const id = `edge-draft-${index}`;
-    edges[id] = { id, sourceNodeId, targetNodeId };
-  });
-  return { nodes, edges };
 }
 
 // 회계원리(1)에 미리 채워 둔 데모 노트 - 시드 노드가 이미 "노트 3개"라고
@@ -1070,46 +1030,87 @@ export default function NewConstellationPage() {
       // 바뀌면 이 한 줄만으로 다시 살아난다.
       persistBins(mapped);
       setIntakeOpen(false);
-      if (drafts && drafts.length > 0) {
-        // 초안 미리보기 단계로 진입 - 첫 안을 캔버스 그래프 state에 그려 둔다.
-        // 실제 화면 표시는 DraftReviewStage 전용 무대가 맡고, 확정 전까지는
-        // 메인 캔버스에 노출되지 않는다.
-        const { nodes: draftNodes, edges: draftEdges } = buildDraftGraph(drafts[0], mapped);
-        setNodes(draftNodes);
-        setEdges(draftEdges);
-        setDraftOffer({ drafts, selected: 0 });
-      } else {
-        // 초안이 없어도 "새 별자리 시작"이라는 원칙은 같다 - 이전 그래프를
-        // 캔버스에 남겨두지 않는다.
-        setNodes({});
-        setEdges({});
-        setDraftOffer(null);
-      }
+      // 캔버스는 항상 비운다 - 초안이 있어도 DraftReviewStage가 bins+draft로
+      // 부터 직접 성단 미리보기를 그리므로(캔버스 노드를 미리 채울 필요 없음),
+      // 확정("이 별자리로 시작")해야만 handleAcceptDraft가 한 번에 채운다.
+      setNodes({});
+      setEdges({});
+      setDraftOffer(drafts && drafts.length > 0 ? { drafts, selected: 0 } : null);
     },
     [persistBins]
   );
 
-  // "추천 별자리" 패널에서 다른 안을 고르면 캔버스 전체를 그 안의 그래프로
-  // 교체한다(현재 작업 그래프를 대체 - 초안 미리보기 단계에선 nodes/edges가
-  // 곧 "지금 보여줄 안"이라는 뜻이므로 별도 프리뷰 state를 두지 않는다).
-  const handleSelectDraft = useCallback(
-    (index: number) => {
-      setDraftOffer((prev) => {
-        if (!prev || !prev.drafts[index]) return prev;
-        const { nodes: draftNodes, edges: draftEdges } = buildDraftGraph(prev.drafts[index], binsRef.current);
-        setNodes(draftNodes);
-        setEdges(draftEdges);
-        return { ...prev, selected: index };
-      });
-    },
-    []
-  );
+  // "추천 별자리" 패널에서 다른 안을 고른다 - 군집 좌표(binClusterCenter)는
+  // bins 개수에만 의존해 안마다 절대 안 바뀌므로, DraftReviewStage가 core
+  // 강조/간선만 다시 그리도록 선택 인덱스만 바꾸면 된다(캔버스 state는
+  // 아직 건드리지 않는다 - 그건 확정 시점의 일).
+  const handleSelectDraft = useCallback((index: number) => {
+    setDraftOffer((prev) => (prev && prev.drafts[index] ? { ...prev, selected: index } : prev));
+  }, []);
 
-  // "이 별자리로 시작" - 지금 캔버스에 그려진 선택된 안을 그대로 작업 그래프로
-  // 확정한다(nodes/edges는 이미 그 안이므로 딱히 손댈 게 없다). 저장은 여전히
-  // 사용자가 저장 버튼을 눌러야 일어난다(기존 흐름 그대로).
+  // "이 별자리로 시작" - 이 시점에 처음으로 bins 전체를 실제 캔버스 그래프로
+  // materialize한다(사용자 지시: "성운 형식으로 시안에서도 다 띄우라고" +
+  // "캔버스에서도 안 뜨지" - 스테이지가 보여준 성단 배치가 그대로 메인
+  // 캔버스로 이어져야 한다). 군집마다 대표 노드(정렬 첫 항목, sortItemsByLevel)를
+  // 성단 간선의 끝점으로 삼고, 군집 하나를 곧장 collapsed=true 성단 그룹으로
+  // 접어 둔다 - 접힘 렌더가 대표 노드 간선을 성단↔성단 선으로 승격시키므로
+  // (ConstellationCanvas의 resolveEndpoint 참고) 별도의 "그룹 간선" 개념이
+  // 필요 없다. handleIntakeComplete가 이미 constellationId를 null로 리셋해
+  // 둔 상태이므로 여기서는 로컬 state만 채우고 서버 호출은 하지 않는다 -
+  // 노드 100+개도 뮤테이션 큐를 두드리지 않고, 첫 저장(handleConfirmTitle/
+  // handleLaunchSubmit)이 한 번에 실어 보내는 기존 경로를 그대로 탄다.
   const handleAcceptDraft = useCallback(() => {
-    setDraftOffer(null);
+    setDraftOffer((prev) => {
+      if (!prev) return null;
+      const draft = prev.drafts[prev.selected];
+      const nextNodes: Record<string, CanvasNode> = {};
+      const nextGroups: Record<string, CanvasGroup> = {};
+      const repNodeIdByLabel = new Map<string, string>();
+
+      binsRef.current.forEach((bin, binIndex) => {
+        if (bin.items.length === 0) return; // 안 채워진 군집 - 노드도 그룹도 만들 게 없다.
+        const base = binClusterCenter(binIndex);
+        const sorted = sortItemsByLevel(bin.items);
+        const memberNodeIds = sorted.map((item, itemIndex) => {
+          const nodeId = nodeIdForItem(item.id);
+          const { code, label } = deriveNodeCodeAndLabel(item);
+          nextNodes[nodeId] = {
+            id: nodeId,
+            label,
+            type: item.type,
+            isCompleted: false,
+            position: spiralOffset(itemIndex, base),
+            level: item.level ?? null,
+            code,
+            description: item.description,
+          };
+          return nodeId;
+        });
+        repNodeIdByLabel.set(bin.label, memberNodeIds[0]);
+        const groupId = makeId("group");
+        nextGroups[groupId] = {
+          id: groupId,
+          label: bin.label,
+          memberNodeIds,
+          collapsed: true,
+          position: base,
+        };
+      });
+
+      const nextEdges: Record<string, CanvasEdge> = {};
+      (draft?.binEdges ?? []).forEach(([fromLabel, toLabel], index) => {
+        const sourceNodeId = repNodeIdByLabel.get(fromLabel);
+        const targetNodeId = repNodeIdByLabel.get(toLabel);
+        if (!sourceNodeId || !targetNodeId || sourceNodeId === targetNodeId) return;
+        const id = `edge-draft-${index}`;
+        nextEdges[id] = { id, sourceNodeId, targetNodeId };
+      });
+
+      setNodes(nextNodes);
+      setEdges(nextEdges);
+      setGroups(nextGroups);
+      return null;
+    });
     fitTokenRef.current += 1;
     setFitRequest(fitTokenRef.current);
   }, []);
@@ -1214,13 +1215,7 @@ export default function NewConstellationPage() {
       if (isBinDropPayload(parsed)) {
         const bin = bins.find((b) => b.id === parsed.binId);
         if (!bin) return;
-        const unplaced = [...bin.items]
-          .sort((a, b) => {
-            const la = typeof a.level === "number" ? a.level : Number.POSITIVE_INFINITY;
-            const lb = typeof b.level === "number" ? b.level : Number.POSITIVE_INFINITY;
-            return la - lb;
-          })
-          .filter((item) => !nodes[nodeIdForItem(item.id)]);
+        const unplaced = sortItemsByLevel(bin.items).filter((item) => !nodes[nodeIdForItem(item.id)]);
         unplaced.forEach((item, i) => placeItem(item, spiralOffset(i, position)));
         return;
       }
@@ -1846,17 +1841,16 @@ export default function NewConstellationPage() {
       )}
 
       {/* 초안 검토 - 확정("이 별자리로 시작")/거절("직접 그릴래요") 전까지는
-          메인 캔버스가 아니라 이 전용 무대만 보여준다(사용자 지시). 확정되면
-          onConfirm이 draftOffer를 지워 이 무대가 닫히고, 이미 그려둔
-          nodes/edges(handleAcceptDraft는 손대지 않음)가 그대로 메인 캔버스에
-          드러난다 - 그게 곧 "메인 페이지로 이관"이다. */}
+          메인 캔버스가 아니라 이 전용 무대만 보여준다(사용자 지시). 이 무대는
+          bins+선택된 draft로부터 직접 성단 미리보기를 그리므로(nodes/edges
+          prop 불필요) - 확정되면 handleAcceptDraft가 그 자리에서 bins 전체를
+          실제 캔버스 그래프로 한 번에 채우고, onConfirm이 draftOffer를 지워
+          이 무대가 닫히면서 그 결과가 메인 캔버스에 드러난다. */}
       {draftOffer && !intakeOpen && (
         <DraftReviewStage
           drafts={draftOffer.drafts}
           selected={draftOffer.selected}
           bins={bins}
-          nodes={nodes}
-          edges={edges}
           onSelect={handleSelectDraft}
           onConfirm={handleAcceptDraft}
           onReject={handleRejectDrafts}
