@@ -213,7 +213,15 @@ function isBinDropPayload(value: unknown): value is BinDropPayload {
 // 그대로 옮기면 된다 - isLoading은 서버 쪽 개념이 아니므로 항상 지운다(로드 시엔
 // false 취급, 저장 시엔 payload에서 아예 뺀다).
 function mapBinItemDtoToBinItem(dto: BinItemDto): BinItem {
-  return { id: dto.id, label: dto.label, type: dto.type, level: dto.level, subtitle: dto.subtitle, description: dto.description };
+  return {
+    id: dto.id,
+    label: dto.label,
+    type: dto.type,
+    level: dto.level,
+    subtitle: dto.subtitle,
+    description: dto.description,
+    prereqIds: dto.prereqIds,
+  };
 }
 
 function mapBinDtoToBin(dto: BinDto): Bin {
@@ -233,6 +241,7 @@ function mapBinToBinDto(bin: Bin): BinDto {
       level: item.level ?? undefined,
       subtitle: item.subtitle,
       description: item.description,
+      prereqIds: item.prereqIds,
     })),
   };
 }
@@ -261,6 +270,29 @@ function sortItemsByLevel(items: BinItem[]): BinItem[] {
     const lb = typeof b.level === "number" ? b.level : Number.POSITIVE_INFINITY;
     return la - lb;
   });
+}
+
+/** bin 하나의 prereqIds를 캔버스 엣지로 바꾼다. 같은 bin 안에 실제로 존재하고
+ *  nodes에도 materialize된 항목만 남긴다 - dangling endpoint가 하나라도 섞이면
+ *  첫 저장(ConstellationCreateIn._check_edge_endpoints)이 통째로 422로 죽는다. */
+function prereqEdgesFor(
+  bin: Bin,
+  nodeExists: (nodeId: string) => boolean,
+  keyPrefix: string
+): CanvasEdge[] {
+  const own = new Set(bin.items.map((i) => i.id));
+  const out: CanvasEdge[] = [];
+  for (const item of bin.items) {
+    for (const pid of item.prereqIds ?? []) {
+      if (!own.has(pid)) continue;
+      const sourceNodeId = nodeIdForItem(pid);
+      const targetNodeId = nodeIdForItem(item.id);
+      if (sourceNodeId === targetNodeId) continue;
+      if (!nodeExists(sourceNodeId) || !nodeExists(targetNodeId)) continue;
+      out.push({ id: `edge-prereq-${keyPrefix}-${out.length}`, sourceNodeId, targetNodeId });
+    }
+  }
+  return out;
 }
 
 // 회계원리(1)에 미리 채워 둔 데모 노트 - 시드 노드가 이미 "노트 3개"라고
@@ -1107,20 +1139,41 @@ export default function NewConstellationPage() {
         if (bin.items.length === 0) return; // 안 채워진 군집 - 노드도 그룹도 만들 게 없다.
         const base = binClusterCenter(binIndex);
         const sorted = sortItemsByLevel(bin.items);
-        const memberNodeIds = sorted.map((item, itemIndex) => {
-          const nodeId = nodeIdForItem(item.id);
-          const { code, label } = deriveNodeCodeAndLabel(item);
-          nextNodes[nodeId] = {
-            id: nodeId,
-            label,
-            type: item.type,
-            isCompleted: false,
-            position: spiralOffset(itemIndex, base),
-            level: item.level ?? null,
-            code,
-            description: item.description,
-          };
-          return nodeId;
+        // 층형 배치(사용자 지시: "선수과목 순으로 위계가 한눈에") - level 값이
+        // 같은 항목을 한 행으로 묶어 행마다 y를 내려가며 쌓는다. 층 간격×층수를
+        // ~500px로 클램프한다 - 안 그러면 성단 반지름(binClusterCenter,
+        // CLUSTER_RADIUS_STEP=240·√i)을 넘어 이웃 성단과 겹친다.
+        const rows: BinItem[][] = [];
+        for (const item of sorted) {
+          const lvl = typeof item.level === "number" ? item.level : null;
+          const lastRow = rows[rows.length - 1];
+          const lastLvl = lastRow ? (typeof lastRow[0].level === "number" ? lastRow[0].level : null) : undefined;
+          if (lastRow && lastLvl === lvl) {
+            lastRow.push(item);
+          } else {
+            rows.push([item]);
+          }
+        }
+        const rowGap = rows.length > 1 ? Math.min(70, 500 / rows.length) : 70;
+        const memberNodeIds: string[] = [];
+        rows.forEach((rowItems, row) => {
+          const y = base.y + (row - (rows.length - 1) / 2) * rowGap;
+          rowItems.forEach((item, col) => {
+            const x = base.x + (col - (rowItems.length - 1) / 2) * 56;
+            const nodeId = nodeIdForItem(item.id);
+            const { code, label } = deriveNodeCodeAndLabel(item);
+            nextNodes[nodeId] = {
+              id: nodeId,
+              label,
+              type: item.type,
+              isCompleted: false,
+              position: { x: Math.round(x), y: Math.round(y) },
+              level: item.level ?? null,
+              code,
+              description: item.description,
+            };
+            memberNodeIds.push(nodeId);
+          });
         });
         repNodeIdByLabel.set(bin.label, memberNodeIds[0]);
         const groupId = makeId("group");
@@ -1140,6 +1193,15 @@ export default function NewConstellationPage() {
         if (!sourceNodeId || !targetNodeId || sourceNodeId === targetNodeId) return;
         const id = `edge-draft-${index}`;
         nextEdges[id] = { id, sourceNodeId, targetNodeId };
+      });
+
+      // 스테이지에서 다이브인해 캐시된 prereqIds를 실제 캔버스 간선으로
+      // materialize한다 - 캐시가 없는 bin은 여기서 건너뛴다(이번 스코프 아님,
+      // 나중에 캔버스 다이브인 때 이어짐).
+      binsRef.current.forEach((bin, binIndex) => {
+        for (const e of prereqEdgesFor(bin, (id) => id in nextNodes, String(binIndex))) {
+          nextEdges[e.id] = e;
+        }
       });
 
       setNodes(nextNodes);
@@ -1215,6 +1277,39 @@ export default function NewConstellationPage() {
     return ids;
   }, [nodes]);
 
+  // 잇기는 토글이다: 이미 이어진 쌍(방향 무관)을 다시 이으면 끊어지고, 아니면
+  // 새로 이어진다 - 절대 같은 쌍에 두 번째 엣지를 만들지 않는다. 캔버스는
+  // drag-to-connect와 툴바의 "잇기" 양쪽 모두 이 콜백 하나로 들어오므로, 토글
+  // 규칙을 캔버스가 아니라 그래프 상태를 들고 있는 여기 한 곳에만 둔다 -
+  // 캔버스의 props API(연결 "생성"이라는 이름)는 그대로 유지된다. (placeItem/
+  // handleExternalDrop/handlePlaceAllGroup이 prereq 위계 간선을 이걸로 잇기
+  // 위해 이 위치로 끌어올려져 있다 - useCallback deps는 선언 순서를 탄다.)
+  const handleEdgeCreate = useCallback(
+    (sourceNodeId: string, targetNodeId: string) => {
+      if (sourceNodeId === targetNodeId) return;
+      const existing = Object.values(edgesRef.current).find(
+        (e) =>
+          (e.sourceNodeId === sourceNodeId && e.targetNodeId === targetNodeId) ||
+          (e.sourceNodeId === targetNodeId && e.targetNodeId === sourceNodeId)
+      );
+      const cid = constellationIdRef.current;
+      if (existing) {
+        const existingId = existing.id;
+        setEdges((prev) => {
+          const next = { ...prev };
+          delete next[existingId];
+          return next;
+        });
+        if (cid) enqueueMutation(() => deleteEdge(cid, existingId));
+        return;
+      }
+      const id = makeId("edge-local");
+      setEdges((prev) => ({ ...prev, [id]: { id, sourceNodeId, targetNodeId } }));
+      if (cid) enqueueMutation(() => addEdge(cid, { id, sourceNodeId, targetNodeId }));
+    },
+    [enqueueMutation]
+  );
+
   const placeItem = useCallback(
     (item: BinItem, position: CanvasPosition) => {
       const nodeId = nodeIdForItem(item.id);
@@ -1253,28 +1348,22 @@ export default function NewConstellationPage() {
         if (!bin) return;
         const unplaced = sortItemsByLevel(bin.items).filter((item) => !nodes[nodeIdForItem(item.id)]);
         unplaced.forEach((item, i) => placeItem(item, spiralOffset(i, position)));
+        // 캐시된 prereqIds가 있으면 위계 간선도 함께 잇는다(handlePlaceAllGroup과
+        // 동일 패턴) - 배치(spiralOffset)는 그대로 두고 간선만 추가. setNodes가
+        // 비동기라 nodesRef.current가 이 틱에서 아직 안 갱신됐을 수 있으므로
+        // (기존에 놓인 것 + unplaced = bin.items 전부가 노드가 된다는 사실
+        // 자체를 존재 판정으로 쓴다).
+        const memberNodeIdSet = new Set(bin.items.map((item) => nodeIdForItem(item.id)));
+        for (const e of prereqEdgesFor(bin, (nodeId) => memberNodeIdSet.has(nodeId), bin.id)) {
+          handleEdgeCreate(e.sourceNodeId, e.targetNodeId);
+        }
         return;
       }
       const item = parsed as BinItem;
       if (!item?.id || !item?.label) return;
       placeItem(item, position);
     },
-    [placeItem, bins, nodes]
-  );
-
-  // "모두 추가" 그룹화(사용자 지시) - ElementBinPanel이 나선 배치를 끝낸 뒤
-  // 그 기준점(base)과 보관함을 그대로 넘겨준다. 이미 캔버스에 있던 ✓ 멤버도
-  // bin.items에 포함되어 있으므로 그대로 memberNodeIds에 편입된다(재드롭은
-  // ElementBinPanel의 handlePlaceAll이 이미 걸러줌). 3개 미만이면 "성단"이라
-  // 부를 만큼 무겁지 않으니 그룹을 만들지 않는다.
-  const handlePlaceAllGroup = useCallback(
-    (bin: Bin, base: CanvasPosition) => {
-      if (bin.items.length < 3) return;
-      const memberNodeIds = bin.items.map((item) => nodeIdForItem(item.id));
-      const id = makeId("group");
-      handleGroupCreate({ id, label: bin.label, memberNodeIds, collapsed: true, position: base });
-    },
-    [handleGroupCreate]
+    [placeItem, bins, nodes, handleEdgeCreate]
   );
 
   // 보관함에 사용자가 직접 원소를 추가한다(모든 보관함에서 허용 - LLM이 놓친
@@ -1320,35 +1409,31 @@ export default function NewConstellationPage() {
     [enqueueMutation]
   );
 
-  // 잇기는 토글이다: 이미 이어진 쌍(방향 무관)을 다시 이으면 끊어지고, 아니면
-  // 새로 이어진다 - 절대 같은 쌍에 두 번째 엣지를 만들지 않는다. 캔버스는
-  // drag-to-connect와 툴바의 "잇기" 양쪽 모두 이 콜백 하나로 들어오므로, 토글
-  // 규칙을 캔버스가 아니라 그래프 상태를 들고 있는 여기 한 곳에만 둔다 -
-  // 캔버스의 props API(연결 "생성"이라는 이름)는 그대로 유지된다.
-  const handleEdgeCreate = useCallback(
-    (sourceNodeId: string, targetNodeId: string) => {
-      if (sourceNodeId === targetNodeId) return;
-      const existing = Object.values(edgesRef.current).find(
-        (e) =>
-          (e.sourceNodeId === sourceNodeId && e.targetNodeId === targetNodeId) ||
-          (e.sourceNodeId === targetNodeId && e.targetNodeId === sourceNodeId)
-      );
-      const cid = constellationIdRef.current;
-      if (existing) {
-        const existingId = existing.id;
-        setEdges((prev) => {
-          const next = { ...prev };
-          delete next[existingId];
-          return next;
-        });
-        if (cid) enqueueMutation(() => deleteEdge(cid, existingId));
-        return;
+  // "모두 추가" 그룹화(사용자 지시) - ElementBinPanel이 나선 배치를 끝낸 뒤
+  // 그 기준점(base)과 보관함을 그대로 넘겨준다. 이미 캔버스에 있던 ✓ 멤버도
+  // bin.items에 포함되어 있으므로 그대로 memberNodeIds에 편입된다(재드롭은
+  // ElementBinPanel의 handlePlaceAll이 이미 걸러줌). 3개 미만이면 "성단"이라
+  // 부를 만큼 무겁지 않으니 그룹을 만들지 않는다. 배치(spiralOffset)는 그대로
+  // 두고, 캐시된 prereqIds가 있으면 handleEdgeCreate로 위계 간선만 추가로
+  // 잇는다(이 함수가 handleEdgeCreate 아래로 옮겨진 이유 - useCallback deps가
+  // 선언 순서를 타므로).
+  const handlePlaceAllGroup = useCallback(
+    (bin: Bin, base: CanvasPosition) => {
+      if (bin.items.length < 3) return;
+      const memberNodeIds = bin.items.map((item) => nodeIdForItem(item.id));
+      const id = makeId("group");
+      handleGroupCreate({ id, label: bin.label, memberNodeIds, collapsed: true, position: base });
+      // ElementBinPanel의 handlePlaceAll이 이 함수를 부르기 직전 bin.items 전부를
+      // onItemDragToCanvas(placeItem)로 이미 놓았다(먼저 놓여 있던 것 + 방금 놓은
+      // 것) - 그런데 setNodes는 비동기라 nodesRef.current가 아직 이 틱에서 안
+      // 갱신됐을 수 있다(handleExternalDrop과 같은 함정). "모두 추가"는 정의상
+      // bin.items 전부가 노드가 되므로, memberNodeIds 자체를 존재 판정으로 쓴다.
+      const memberNodeIdSet = new Set(memberNodeIds);
+      for (const e of prereqEdgesFor(bin, (nodeId) => memberNodeIdSet.has(nodeId), bin.id)) {
+        handleEdgeCreate(e.sourceNodeId, e.targetNodeId);
       }
-      const id = makeId("edge-local");
-      setEdges((prev) => ({ ...prev, [id]: { id, sourceNodeId, targetNodeId } }));
-      if (cid) enqueueMutation(() => addEdge(cid, { id, sourceNodeId, targetNodeId }));
     },
-    [enqueueMutation]
+    [handleGroupCreate, handleEdgeCreate]
   );
 
   const handleEdgeDelete = useCallback(
