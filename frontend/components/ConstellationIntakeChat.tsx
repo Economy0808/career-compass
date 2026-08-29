@@ -23,6 +23,7 @@ import {
 } from "react";
 import { cn } from "@/lib/cn";
 import { ApiError } from "@/lib/api";
+import { GeneratingGuide } from "@/components/GeneratingGuide";
 import {
   getBinJob,
   intakeChat,
@@ -546,12 +547,13 @@ function GeneratingStage({
       </div>
     );
   }
+  // 로딩(랜덤 별자리 점등 모션) + 사용법 캐러셀 - 5분급 대기를 안내로 채운다
+  // (사용자 지시). 작은 화면에서는 세로 스크롤로 전체를 볼 수 있게 한다.
   return (
-    <div className="fixed inset-0 flex flex-col items-center justify-center gap-4 px-6 text-center">
-      <p className="font-serif text-xl text-text-hi" role="status" aria-live="polite">
-        별자리 초안을 그리는 중…
-      </p>
-      <TypingDots />
+    <div className="fixed inset-0 overflow-y-auto">
+      <div className="flex min-h-full items-center justify-center">
+        <GeneratingGuide />
+      </div>
     </div>
   );
 }
