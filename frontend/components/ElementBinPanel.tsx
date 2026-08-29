@@ -68,7 +68,9 @@ const ELEMENT_TYPE_OPTIONS: { value: string; label: string }[] = [
 ];
 
 const COURSE_CODE_RE = /^([A-Z]{2,6}\d{3,5})\s+(.+)$/;
-function splitCourseCode(label: string): { code: string | null; rest: string } {
+// DraftReviewStage(전개된 노드 라벨)도 같은 학정번호 분리 규칙을 써야 캔버스와
+// 표기가 일치한다 - export해 단일 진실 공급원으로 공유한다.
+export function splitCourseCode(label: string): { code: string | null; rest: string } {
   const m = COURSE_CODE_RE.exec(label);
   return m ? { code: m[1], rest: m[2] } : { code: null, rest: label };
 }
