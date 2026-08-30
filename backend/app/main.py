@@ -11,6 +11,7 @@ from app.api.beans import router as beans_router
 from app.api.community import router as community_router
 from app.api.constellation import router as constellation_router
 from app.api.constellation_intake import router as constellation_intake_router
+from app.api.courses import router as courses_router
 from app.api.explore import router as explore_router
 from app.api.goals import router as goals_router
 from app.api.health import router as health_router
@@ -74,6 +75,7 @@ def create_app() -> FastAPI:
     app.include_router(todos_router)
     app.include_router(constellation_router)
     app.include_router(constellation_intake_router)
+    app.include_router(courses_router)
     app.include_router(explore_router)
     app.include_router(profiles_router)
     app.include_router(posts_router)

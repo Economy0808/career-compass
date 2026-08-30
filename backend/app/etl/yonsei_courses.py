@@ -113,6 +113,11 @@ class MergedCourse(BaseModel):
     description: str | None = None
     college: str | None = None
     department: str | None = None
+    # 캠퍼스(신촌/원주 등) 컬럼은 원천 TXT(대학요람)에 과목 단위로 없어 이 파서는
+    # 절대 채우지 않는다(2026-08-30 사용자 결정: "나중에 내가 적재해줄게"). 이후
+    # 사용자가 course_catalog 문서에 campus 필드를 직접 적재하면 get_course 등
+    # 조회 계층이 파싱 코드 변경 없이 그대로 통과시킨다 - 이 필드는 그 이음새다.
+    campus: str | None = None
 
 
 class ParseDiagnostics(BaseModel):

@@ -25,6 +25,7 @@ firestore.rules를 완전히 우회하므로(모듈 constellation_repo.py와 동
 from __future__ import annotations
 
 import logging
+import re
 
 from google.cloud.firestore import Client
 from google.cloud.firestore_v1.base_query import FieldFilter
@@ -34,6 +35,22 @@ from app.etl.yonsei_courses import MergedCourse
 logger = logging.getLogger(__name__)
 
 _COLLECTION = "course_catalog"
+
+# 학정번호처럼 보이는 검색어(영문 접두 2~6자 + 숫자 1자리 이상)인지 판단하는 패턴.
+# search_courses가 이걸로 "code 범위 쿼리 vs 과목명 스캔"을 가른다.
+_CODE_LOOKALIKE_RE = re.compile(r"^[A-Za-z]{2,6}\d+$")
+
+# department/college 필터가 주어졌을 때, 그 필터로 먼저 좁힌 뒤 파이썬에서 q를
+# 추가로 거르기 위한 스캔 상한. 학과/단과대 하나의 과목 수는 전체 카탈로그(7,109건,
+# 2026-08 기준)보다 훨씬 작으므로 넉넉하게 잡는다.
+_FILTER_SCAN_LIMIT = 1000
+
+# department/college 없이 q(과목명)만으로 검색할 때의 스캔 상한. Firestore는
+# 부분일치 쿼리를 지원하지 않으므로 전체 컬렉션에서 이 상한만큼 fetch한 뒤
+# 파이썬에서 필터한다. 카탈로그가 이 상한을 크게 넘어서면(예: 수만 건) 검색
+# 인덱스(Algolia/Typesense 등) 도입을 검토할 것 - app/api/explore.py의
+# _SEARCH_SCAN_LIMIT와 동일한 관례.
+_NAME_SEARCH_SCAN_LIMIT = 2000
 
 # Firestore가 한 배치(WriteBatch)에 허용하는 최대 오퍼레이션 수.
 _BATCH_LIMIT = 500
@@ -179,3 +196,75 @@ def list_taxonomy(db: Client) -> tuple[list[str], list[str]]:
         return result
     _taxonomy_cache = result
     return result
+
+
+def _looks_like_course_code(q: str) -> bool:
+    """검색어가 학정번호(영문 접두+숫자)처럼 보이는지 판단한다."""
+    return bool(_CODE_LOOKALIKE_RE.match(q.strip()))
+
+
+def _matches_query(course: MergedCourse, q_lower: str) -> bool:
+    """과목명 부분일치 또는 학정번호 부분일치(대소문자 무관) - 사용자 지시대로 하나의
+    q로 둘 다 겸용한다."""
+    return q_lower in course.name.lower() or q_lower in course.code.lower()
+
+
+def search_courses(
+    db: Client,
+    *,
+    q: str | None = None,
+    department: str | None = None,
+    college: str | None = None,
+    limit: int = 20,
+) -> list[MergedCourse]:
+    """과목명 부분일치 또는 학정번호 접두/부분일치 검색. 프론트가 캔버스 "기본
+    추천수업 군집"에 사용자가 직접 검색해 붙일 요소를 찾는 데 쓴다.
+
+    campus 필터는 아직 받지 않는다 - 사용자가 나중에 course_catalog 문서에 campus
+    필드를 직접 적재할 예정이며(2026-08-30 결정), 그때 아래 필터 단계에 조건 한
+    줄만 추가하면 된다(현재는 원천 데이터에 필드 자체가 없어 필터링할 대상이 없음).
+
+    Firestore는 부분일치 쿼리를 지원하지 않으므로, 다음 우선순위로 "어떤 조건을
+    Firestore 쿼리로 먼저 좁힐지"를 정하고 나머지는 파이썬에서 거른다:
+
+    1. department가 있으면 그걸로 먼저 쿼리(list_by_department 재사용)한다.
+       college도 함께 왔으면 department 쿼리 결과 위에서 파이썬으로 추가 필터.
+    2. department 없이 college만 있으면 그걸로 쿼리(search_by_college 재사용)한다.
+    3. 필터가 전혀 없고 q가 학정번호처럼 보이면(_looks_like_course_code) code
+       필드 범위 쿼리(>=q, <q+\\uf8ff)로 Firestore가 직접 좁힌다 - 부분일치가
+       아니라 접두 일치이므로 이 경우만 정확한 쿼리가 가능하다.
+    4. 필터가 전혀 없고 q가 과목명으로 보이면 _NAME_SEARCH_SCAN_LIMIT만큼 fetch한
+       뒤 파이썬에서 필터한다.
+    5. q/department/college가 전부 비어 있으면 필터 없이 상위 limit개를 반환한다
+       (프론트 캔버스 초기 화면이 빈 목록으로 뜨지 않도록 하는 선택 - 400 대신
+       기본 목록을 준다).
+
+    1~2번 분기에서는 남은 q도 파이썬에서 추가로 거른다(_matches_query).
+    """
+    if department:
+        candidates = list_by_department(db, department, limit=_FILTER_SCAN_LIMIT)
+        if college:
+            candidates = [c for c in candidates if c.college == college]
+    elif college:
+        candidates = search_by_college(db, college, limit=_FILTER_SCAN_LIMIT)
+    elif q and _looks_like_course_code(q):
+        code_prefix = q.strip().upper()
+        query = (
+            db.collection(_COLLECTION)
+            .where(filter=FieldFilter("code", ">=", code_prefix))
+            .where(filter=FieldFilter("code", "<", code_prefix + ""))
+            .order_by("code")
+            .limit(limit)
+        )
+        return [MergedCourse.model_validate(doc.to_dict()) for doc in query.stream()]
+    elif q:
+        query = db.collection(_COLLECTION).limit(_NAME_SEARCH_SCAN_LIMIT)
+        candidates = [MergedCourse.model_validate(doc.to_dict()) for doc in query.stream()]
+    else:
+        query = db.collection(_COLLECTION).limit(limit)
+        return [MergedCourse.model_validate(doc.to_dict()) for doc in query.stream()]
+
+    if q:
+        q_lower = q.strip().lower()
+        candidates = [c for c in candidates if _matches_query(c, q_lower)]
+    return candidates[:limit]
