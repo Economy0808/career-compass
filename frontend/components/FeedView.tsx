@@ -21,10 +21,17 @@
  *
  * 댓글은 카운트+퍼머링크 유도만 - 스트림에서 글마다 상세를 부르면 N+1이라
  * 목록 응답만으로 그린다. 캐러셀·별 좋아요는 PostDetail의 것을 재사용.
+ *
+ * 미인증 진입 차단(사용자 지시 8번 - "소셜은 게시물 클릭도 되고"): 스트림
+ * 자체는 보여주되, 게시물 상세로 넘어가는 링크(댓글 아이콘·모두 보기)와
+ * 작성자 프로필 링크, 추천 사이드바의 프로필 링크를 누르면 인증 안내로
+ * 보낸다. 좋아요/팔로우는 이미 handleLikeToggle·handleFollowToggle이 막고
+ * 있으니 그대로 둔다.
  */
 
 import Link from "next/link";
 import { useRouter } from "next/navigation";
+import type { MouseEvent } from "react";
 import { useEffect, useState } from "react";
 import { Button } from "@/components/ui";
 import { StoryRing } from "@/components/StoryRing";
@@ -76,6 +83,14 @@ function FeedPostCard({
   const [shareNotice, setShareNotice] = useState<string | null>(null);
   const [verifyGateOpen, setVerifyGateOpen] = useState(false);
   const slides = usePostImages(post.id, post.imageCount ?? 1, post.imageData);
+
+  /** 로그인은 했지만 미인증이면 프로필·상세로 넘어가는 클릭을 막는다. */
+  function guardNav(e: MouseEvent<HTMLAnchorElement>) {
+    if (user && !user.yonseiVerified) {
+      e.preventDefault();
+      setVerifyGateOpen(true);
+    }
+  }
 
   async function handleLikeToggle(): Promise<void> {
     // 비로그인(직접 URL 진입·세션 만료 방어) - 로그인 유도.
@@ -129,6 +144,7 @@ function FeedPostCard({
       {/* 작성자 줄 */}
       <Link
         href={`/profile/${post.ownerId}`}
+        onClick={guardNav}
         className="flex items-center gap-2.5 px-3.5 py-2.5 no-underline"
       >
         <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full border border-rule bg-ink-900 text-lg">
@@ -162,6 +178,7 @@ function FeedPostCard({
               남기기라 해놓지 말고 댓글 아이콘 추가해줘"). 상세로 이동해 읽고 쓴다. */}
           <Link
             href={`/post/${post.id}`}
+            onClick={guardNav}
             aria-label={`댓글 ${post.commentCount ?? 0}개`}
             className="flex min-h-11 items-center gap-1.5 rounded-md px-2 text-text-lo no-underline transition-colors hover:bg-ink-700 hover:text-text-hi focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-1 focus-visible:outline-spec-b"
           >
@@ -188,6 +205,7 @@ function FeedPostCard({
         {(post.commentCount ?? 0) > 0 && (
           <Link
             href={`/post/${post.id}`}
+            onClick={guardNav}
             className="self-start font-sans text-caption text-text-lo no-underline hover:text-text-hi"
           >
             댓글 <span className="font-mono">{post.commentCount}</span>개 모두 보기
@@ -276,6 +294,14 @@ function SimilarPeopleSidebar() {
       .catch(() => setUsers([]));
   }, []);
 
+  /** 로그인은 했지만 미인증이면 프로필로 넘어가는 클릭을 막는다. */
+  function guardNav(e: MouseEvent<HTMLAnchorElement>) {
+    if (user && !user.yonseiVerified) {
+      e.preventDefault();
+      setVerifyGateOpen(true);
+    }
+  }
+
   async function handleFollowToggle(uid: string): Promise<void> {
     // 이 사이드바는 피드(로그인 필수 화면)에서만 렌더되므로 user는 항상 있다 -
     // 여기서는 인증 여부만 선제 확인한다.
@@ -322,7 +348,11 @@ function SimilarPeopleSidebar() {
               key={u.uid}
               className="flex items-center gap-2.5 rounded-lg border border-rule bg-ink-800/70 px-3 py-2.5 backdrop-blur-[2px]"
             >
-              <Link href={`/profile/${u.uid}`} className="flex min-w-0 flex-1 items-center gap-2.5 no-underline">
+              <Link
+                href={`/profile/${u.uid}`}
+                onClick={guardNav}
+                className="flex min-w-0 flex-1 items-center gap-2.5 no-underline"
+              >
                 <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full border border-rule bg-ink-900 text-base">
                   {u.avatarEmoji ?? "🔭"}
                 </span>
