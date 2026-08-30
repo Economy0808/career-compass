@@ -98,10 +98,15 @@ async def get_story_ring(
 @router.get("/user/{uid}", response_model=list[StoryOut])
 async def list_user_stories(
     uid: str,
-    _user: DecodedToken | None = Depends(get_current_user_optional),
+    _user: DecodedToken = Depends(get_current_user),
     db: Client = Depends(get_firestore_client),
 ) -> list[StoryOut]:
-    """uid의 활성 스토리를 시간순(오래된 것부터)으로 반환한다 - 익명 열람 허용."""
+    """uid의 활성 스토리를 시간순(오래된 것부터)으로 반환한다 - 로그인한 사람이면 누구나(익명 401).
+
+    옵션1 일관성: 게시물(app/api/posts.py)과 동일하게 열람은 로그인 여부만 본다.
+    팔로우 체크는 넣지 않는다 - 링 구성(GET /ring)이 이미 팔로우 기준이라 여기
+    또 넣으면 정책이 중복·불일치할 여지만 생긴다.
+    """
     stories = story_repo.list_active_by_owner(db, uid, _now_ms())
     return [_to_out(s) for s in stories]
 

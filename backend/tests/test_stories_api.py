@@ -117,9 +117,18 @@ async def test_create_story_invalid_image_returns_422(authed_as: Callable[[str],
 
 
 @pytest.mark.asyncio
-async def test_list_user_stories_excludes_expired_anonymous_allowed() -> None:
+async def test_list_user_stories_requires_auth() -> None:
+    """옵션1: 스토리 열람도 게시물과 동일하게 로그인 여부만 본다(팔로우 체크 없음) - 익명 401."""
+    async with _client() as client:
+        resp = await client.get("/api/stories/user/user-a")
+    assert resp.status_code == 401
+
+
+@pytest.mark.asyncio
+async def test_list_user_stories_excludes_expired(authed_as: Callable[[str], None]) -> None:
     # 만료 판정은 서버의 실제 시계 기준이므로 고정 상수를 쓰면 안 된다 -
     # 미래 시각을 "현재"로 둔 초판은 만료 문서가 아직 안 만료된 걸로 읽혔다(실측).
+    authed_as("user-b")  # 로그인만 하면 되고 user-a를 팔로우할 필요는 없다(옵션1).
     now = int(time.time() * 1000)
     _set_story_doc(
         "expired-1",
