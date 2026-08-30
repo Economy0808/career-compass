@@ -14,6 +14,7 @@ import Link from "next/link";
 import { useParams, useRouter } from "next/navigation";
 import { useEffect, useState } from "react";
 import { Button, EmptyState, Field, Modal } from "@/components/ui";
+import { CommunityNoteComposer, NoteKebabMenu, type NoteTarget } from "@/components/CommunityNoteComposer";
 import { VerifyGate, isVerifyRequiredError } from "@/components/VerifyGate";
 import { useAuth } from "@/lib/auth-context";
 import { relativeTimeKo } from "@/lib/format";
@@ -35,30 +36,31 @@ function PostSkeleton() {
   );
 }
 
-function PostRow({ post }: { post: CommunityPostDto }) {
+function PostRow({ post, onSendNote }: { post: CommunityPostDto; onSendNote: (post: CommunityPostDto) => void }) {
   // 실명 글인데 프로필 이름이 비어 있으면 "익명"으로 둔갑시키지 말고 중립 폴백.
   const authorLabel = post.isAnonymous ? (post.isMine ? "익명(나)" : "익명") : (post.authorDisplayName ?? "관측자");
   return (
-    <Link
-      href={`/community/post/${post.id}`}
-      className="block rounded-lg border border-rule bg-ink-800/70 p-4 no-underline backdrop-blur-[2px] transition-colors hover:bg-ink-800/90"
-    >
-      <h3 className="truncate font-sans text-body font-medium text-text-hi">{post.title}</h3>
-      <div className="mt-1.5 flex flex-wrap items-center gap-x-2.5 gap-y-1 text-caption text-text-lo">
-        <span>{authorLabel}</span>
-        <span aria-hidden>·</span>
-        <span>{relativeTimeKo(post.createdAt)}</span>
-        <span aria-hidden>·</span>
-        {/* No-Korean-Mono: mono는 숫자에만 - 한글 글리프가 없다(DESIGN.md Don't). */}
-        <span>
-          좋아요 <span className="font-mono">{post.likeCount}</span>
-        </span>
-        <span aria-hidden>·</span>
-        <span>
-          댓글 <span className="font-mono">{post.commentCount}</span>
-        </span>
-      </div>
-    </Link>
+    <div className="flex items-start gap-1 rounded-lg border border-rule bg-ink-800/70 p-4 backdrop-blur-[2px] transition-colors hover:bg-ink-800/90">
+      <Link href={`/community/post/${post.id}`} className="block min-w-0 flex-1 no-underline">
+        <h3 className="truncate font-sans text-body font-medium text-text-hi">{post.title}</h3>
+        <div className="mt-1.5 flex flex-wrap items-center gap-x-2.5 gap-y-1 text-caption text-text-lo">
+          <span>{authorLabel}</span>
+          <span aria-hidden>·</span>
+          <span>{relativeTimeKo(post.createdAt)}</span>
+          <span aria-hidden>·</span>
+          {/* No-Korean-Mono: mono는 숫자에만 - 한글 글리프가 없다(DESIGN.md Don't). */}
+          <span>
+            좋아요 <span className="font-mono">{post.likeCount}</span>
+          </span>
+          <span aria-hidden>·</span>
+          <span>
+            댓글 <span className="font-mono">{post.commentCount}</span>
+          </span>
+        </div>
+      </Link>
+      {/* 본인 글에는 쪽지 항목을 아예 안 보여준다(isMine 판정, 사용자 지시). */}
+      {!post.isMine && <NoteKebabMenu ariaLabel="글 메뉴" onSendNote={() => onSendNote(post)} />}
+    </div>
   );
 }
 
@@ -79,6 +81,8 @@ export default function CommunityBoardPage() {
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
   const [verifyGateOpen, setVerifyGateOpen] = useState(false);
+  const [noteTarget, setNoteTarget] = useState<NoteTarget | null>(null);
+  const [noteComposerOpen, setNoteComposerOpen] = useState(false);
 
   function load() {
     setPosts(null);
@@ -129,6 +133,19 @@ export default function CommunityBoardPage() {
     }
   }
 
+  function openNoteComposer(target: NoteTarget): void {
+    if (!user) {
+      router.push(`/login?next=/community/${boardId}`);
+      return;
+    }
+    if (!user.yonseiVerified) {
+      setVerifyGateOpen(true);
+      return;
+    }
+    setNoteTarget(target);
+    setNoteComposerOpen(true);
+  }
+
   return (
     <div className="mx-auto max-w-3xl px-4 py-10 md:px-8">
       <header className="mb-6 flex items-start justify-between gap-4">
@@ -146,7 +163,11 @@ export default function CommunityBoardPage() {
       ) : (
         <div className="flex flex-col gap-2.5">
           {posts.map((post) => (
-            <PostRow key={post.id} post={post} />
+            <PostRow
+              key={post.id}
+              post={post}
+              onSendNote={(p) => openNoteComposer({ targetType: "post", targetId: p.id, label: p.title })}
+            />
           ))}
         </div>
       )}
@@ -188,6 +209,11 @@ export default function CommunityBoardPage() {
         </div>
       </Modal>
       <VerifyGate open={verifyGateOpen} onClose={() => setVerifyGateOpen(false)} />
+      <CommunityNoteComposer
+        open={noteComposerOpen}
+        target={noteTarget}
+        onClose={() => setNoteComposerOpen(false)}
+      />
     </div>
   );
 }

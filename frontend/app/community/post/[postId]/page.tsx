@@ -9,6 +9,7 @@
 import { useParams, useRouter } from "next/navigation";
 import { useEffect, useState } from "react";
 import { Button, EmptyState, Field } from "@/components/ui";
+import { CommunityNoteComposer, NoteKebabMenu, type NoteTarget } from "@/components/CommunityNoteComposer";
 import { VerifyGate, isVerifyRequiredError } from "@/components/VerifyGate";
 import { useAuth } from "@/lib/auth-context";
 import { relativeTimeKo } from "@/lib/format";
@@ -32,7 +33,13 @@ function DetailSkeleton() {
   );
 }
 
-function CommentRow({ comment }: { comment: CommunityCommentDto }) {
+function CommentRow({
+  comment,
+  onSendNote,
+}: {
+  comment: CommunityCommentDto;
+  onSendNote: (comment: CommunityCommentDto) => void;
+}) {
   const authorLabel = comment.isAnonymous
     ? comment.isMine
       ? "익명(나)"
@@ -40,10 +47,16 @@ function CommentRow({ comment }: { comment: CommunityCommentDto }) {
     : (comment.authorDisplayName ?? "관측자");
   return (
     <div className="rounded-lg border border-rule bg-ink-800/70 p-3.5">
-      <div className="flex items-center gap-2 text-caption text-text-lo">
-        <span className="font-semibold text-text-hi">{authorLabel}</span>
-        <span aria-hidden>·</span>
-        <span>{relativeTimeKo(comment.createdAt)}</span>
+      <div className="flex items-center justify-between gap-2">
+        <div className="flex items-center gap-2 text-caption text-text-lo">
+          <span className="font-semibold text-text-hi">{authorLabel}</span>
+          <span aria-hidden>·</span>
+          <span>{relativeTimeKo(comment.createdAt)}</span>
+        </div>
+        {/* 본인 댓글에는 쪽지 항목을 아예 안 보여준다(isMine 판정, 사용자 지시). */}
+        {!comment.isMine && (
+          <NoteKebabMenu ariaLabel="댓글 메뉴" onSendNote={() => onSendNote(comment)} />
+        )}
       </div>
       <p className="mt-1.5 whitespace-pre-wrap text-body-sm text-text-hi">{comment.body}</p>
     </div>
@@ -64,6 +77,8 @@ export default function CommunityPostPage() {
   const [submittingComment, setSubmittingComment] = useState(false);
   const [commentError, setCommentError] = useState<string | null>(null);
   const [verifyGateOpen, setVerifyGateOpen] = useState(false);
+  const [noteTarget, setNoteTarget] = useState<NoteTarget | null>(null);
+  const [noteComposerOpen, setNoteComposerOpen] = useState(false);
 
   useEffect(() => {
     let cancelled = false;
@@ -140,6 +155,19 @@ export default function CommunityPostPage() {
     }
   }
 
+  function openNoteComposer(target: NoteTarget): void {
+    if (!user) {
+      router.push(`/login?next=/community/post/${postId}`);
+      return;
+    }
+    if (!user.yonseiVerified) {
+      setVerifyGateOpen(true);
+      return;
+    }
+    setNoteTarget(target);
+    setNoteComposerOpen(true);
+  }
+
   if (loadError) {
     return (
       <div className="mx-auto max-w-2xl px-4 py-10 md:px-8">
@@ -162,13 +190,24 @@ export default function CommunityPostPage() {
 
   return (
     <div className="mx-auto max-w-2xl px-4 py-10 md:px-8">
-      <header className="flex flex-col gap-1.5">
-        <h1 className="font-serif text-display font-bold text-text-hi">{post.title}</h1>
-        <div className="flex items-center gap-2 text-caption text-text-lo">
-          <span className="font-semibold text-text-hi">{authorLabel}</span>
-          <span aria-hidden>·</span>
-          <span>{relativeTimeKo(post.createdAt)}</span>
+      <header className="flex items-start justify-between gap-3">
+        <div className="flex flex-col gap-1.5">
+          <h1 className="font-serif text-display font-bold text-text-hi">{post.title}</h1>
+          <div className="flex items-center gap-2 text-caption text-text-lo">
+            <span className="font-semibold text-text-hi">{authorLabel}</span>
+            <span aria-hidden>·</span>
+            <span>{relativeTimeKo(post.createdAt)}</span>
+          </div>
         </div>
+        {/* 본인 글에는 쪽지 항목을 아예 안 보여준다(isMine 판정, 사용자 지시). */}
+        {!post.isMine && (
+          <NoteKebabMenu
+            ariaLabel="글 메뉴"
+            onSendNote={() =>
+              openNoteComposer({ targetType: "post", targetId: post.id, label: post.title })
+            }
+          />
+        )}
       </header>
 
       <p className="mt-5 whitespace-pre-wrap text-body leading-relaxed text-text-hi">{post.body}</p>
@@ -187,7 +226,20 @@ export default function CommunityPostPage() {
         {post.comments.length === 0 ? (
           <EmptyState title="아직 댓글이 없어요" description="첫 댓글을 남겨보세요" />
         ) : (
-          post.comments.map((c) => <CommentRow key={c.id} comment={c} />)
+          post.comments.map((c) => (
+            <CommentRow
+              key={c.id}
+              comment={c}
+              onSendNote={(comment) =>
+                openNoteComposer({
+                  targetType: "comment",
+                  targetId: comment.id,
+                  postId,
+                  label: comment.body.length > 60 ? `${comment.body.slice(0, 60)}…` : comment.body,
+                })
+              }
+            />
+          ))
         )}
       </div>
 
@@ -221,6 +273,11 @@ export default function CommunityPostPage() {
         </Button>
       </div>
       <VerifyGate open={verifyGateOpen} onClose={() => setVerifyGateOpen(false)} />
+      <CommunityNoteComposer
+        open={noteComposerOpen}
+        target={noteTarget}
+        onClose={() => setNoteComposerOpen(false)}
+      />
     </div>
   );
 }
