@@ -48,6 +48,12 @@ def create_app() -> FastAPI:
         allow_credentials=True,
         allow_methods=["*"],
         allow_headers=["*"],
+        # 브라우저 fetch()는 CORS safelist 밖의 응답 헤더를 서버가 명시적으로 노출해야만
+        # 읽을 수 있다. allow_headers는 "요청" 헤더 허용이라 응답 노출과 무관하다 -
+        # 이게 빠지면 프론트의 res.headers.get("X-Auth-Requirement")가 항상 null이 되어
+        # 미인증(403+헤더)과 권한 없음(403)을 구분하지 못한다. curl/urllib에서는 헤더가
+        # 그대로 보이므로 서버 측 스모크만으로는 잡히지 않는 종류의 버그다.
+        expose_headers=["X-Auth-Requirement"],
     )
 
     @app.middleware("http")
