@@ -126,6 +126,11 @@ class BinItem(BaseModel):
     # 이 항목의 선수 항목 id 목록(예: ["course:PHI1001"]). 같은 bin 안에서 LLM이
     # 추론한 선후수 위계 - 없으면 None(빈 리스트 아님, base.py 계약과 동일한 결).
     prereq_ids: list[str] | None = None
+    # 이 아이템(수업)이 속한 학과명(예: "경제학과"). 학과별로 병합된 bin 안에서도
+    # 프론트가 아이템 배지로 원 소속을 표시할 수 있게 아이템 자체가 들고 다닌다 -
+    # bin 라벨(화면 전용, 병합 후 사라짐)에 의존하면 새로고침 시 사라지는 결함이
+    # 있었다(2026-08-30). 비수업(support) 아이템은 항상 None.
+    department: str | None = None
 
 
 class Bin(BaseModel):

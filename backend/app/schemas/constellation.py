@@ -263,6 +263,9 @@ class BinItemIn(_CamelModel):
     # 기본값은 반드시 None([] 금지) - response_model_exclude_none이 못 걸러
     # 모든 응답에 빈 배열이 실리는 것을 막는다(schemas 모듈 docstring 규약 참고).
     prereq_ids: list[str] | None = Field(default=None, max_length=_MAX_ITEMS_PER_BIN)
+    # 이 아이템이 속한 학과명 - 도메인 모델 BinItem.department와 동일 규약(기본값
+    # None, [] 아님). 새 필드는 클래스 맨 끝에 둔다(validator 선언 순서 의존 관례).
+    department: str | None = None
 
 
 class BinItemOut(_CamelModel):
@@ -275,6 +278,7 @@ class BinItemOut(_CamelModel):
     subtitle: str | None = None
     description: str | None = None
     prereq_ids: list[str] | None = None
+    department: str | None = None
 
 
 def bin_item_to_out(item: BinItem) -> BinItemOut:
@@ -286,6 +290,7 @@ def bin_item_to_out(item: BinItem) -> BinItemOut:
         subtitle=item.subtitle,
         description=item.description,
         prereq_ids=item.prereq_ids,
+        department=item.department,
     )
 
 
@@ -298,6 +303,7 @@ def bin_item_from_in(payload: BinItemIn) -> BinItem:
         subtitle=payload.subtitle,
         description=payload.description,
         prereq_ids=payload.prereq_ids,
+        department=payload.department,
     )
 
 

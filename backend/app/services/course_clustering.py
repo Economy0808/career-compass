@@ -56,6 +56,10 @@ class ClusteredCourseView:
     years: list[int]
     kind: str | None
     reason: str
+    # 과목 소속 학과명(카탈로그의 MergedCourse.department 그대로) - 학과별로 묶인
+    # bin이 상위에서 병합돼도 아이템이 자기 소속을 들고 다닐 수 있게 여기서부터
+    # 실어 나른다(bin_suggestion._course_item이 BinItem.department로 옮겨 담음).
+    department: str | None = None
 
 
 @dataclass
@@ -151,6 +155,7 @@ async def cluster_courses(
                         years=by_code[rc.code].years,
                         kind=by_code[rc.code].kind,
                         reason=rc.reason,
+                        department=by_code[rc.code].department,
                     )
                     for rc in ordered
                 ],

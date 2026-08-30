@@ -22,6 +22,7 @@ job 워커의 백그라운드 asyncio 태스크 안에서 돌 것이므로, 순�
              "level": int,       # 있을 때만
              "subtitle": str,    # 있을 때만
              "description": str, # 있을 때만
+             "department": str,  # 있을 때만(수업만 - support 아이템엔 없음)
             }, ...
          ]}, ...
     ],
@@ -112,6 +113,11 @@ def _course_item(course: ClusteredCourseView) -> dict[str, Any]:
     # course_clustering.ClusteredCourseView에는 과목 설명 필드가 없다(카탈로그의
     # description은 군집화 입력(CourseOption)에서만 쓰이고 출력엔 안 흘러나온다) —
     # 그래서 description 키는 애초에 만들지 않는다(= 생략, null 아님).
+    if course.department:
+        # 학과별 bin이 프론트에서 "추천 수업" 하나로 병합돼도 아이템이 자기 소속을
+        # 들고 다니게 한다(2026-08-30) - key는 "department"로 snake_case와
+        # camelCase가 동일한 한 단어라 별도 변환이 필요 없다.
+        item["department"] = course.department
     return item
 
 

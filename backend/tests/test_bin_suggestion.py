@@ -131,6 +131,28 @@ async def test_suggest_all_bins_ids_and_origin_and_no_none_values(db: Client) ->
 
 
 @pytest.mark.asyncio
+async def test_suggest_all_bins_course_items_carry_department(db: Client) -> None:
+    """수업 아이템에 학과가 실려야 한다 - 학과별 bin이 프론트에서 하나로 병합돼도
+    아이템이 자기 소속을 들고 다니게 하기 위한 정공법 수정(2026-08-30)."""
+    _seed_business_courses(db)
+    llm = MockClaudeClient()
+
+    result = await suggest_all_bins(db, llm, _BUSINESS_GOAL)
+
+    course_items = [item for b in result["bins"] for item in b["items"] if item["type"] == "course"]
+    assert course_items, "수업 아이템이 최소 1개 있어야 한다"
+    for item in course_items:
+        assert item["department"] == "경영대학"
+
+    # 비교과(support) 아이템에는 department가 없어야 한다(수업 전용 필드).
+    support_items = [
+        item for b in result["bins"] for item in b["items"] if item["type"] != "course"
+    ]
+    for item in support_items:
+        assert "department" not in item
+
+
+@pytest.mark.asyncio
 async def test_suggest_all_bins_unmatched_goal_has_no_course_bins(db: Client) -> None:
     """학과 매칭이 안 되는 목표는 크래시 없이 수업 군집만 비운다 (비교과는 별개 계약).
 

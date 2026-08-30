@@ -177,6 +177,22 @@ async def test_select_relevant_departments_defaults_to_no_vocabulary() -> None:
 
 
 @pytest.mark.asyncio
+async def test_cluster_courses_propagates_department_to_view() -> None:
+    """MergedCourse.department가 ClusteredCourseView.department까지 그대로 흘러야 한다
+    (2026-08-30 - bin_suggestion이 이 값을 BinItem.department로 옮겨 담는 전제)."""
+    llm = MockClaudeClient()
+    goal = "전략 컨설턴트가 되고 싶다"
+    courses = [_course("BIZ1001", "경영학 원론", level=1, department="경영대학")]
+    result = await cluster_courses(llm, goal, courses)
+
+    assert result.clusters
+    all_courses = [c for cluster in result.clusters for c in cluster.courses]
+    assert all_courses
+    for c in all_courses:
+        assert c.department == "경영대학"
+
+
+@pytest.mark.asyncio
 async def test_cluster_courses_rules_context_none_still_works() -> None:
     """rules_context를 안 넘겨도(기본값 None) 기존 호출부는 그대로 동작해야 한다."""
     llm = MockClaudeClient()

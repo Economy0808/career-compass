@@ -915,6 +915,121 @@ async def test_put_bins_exceeding_cap_returns_422(authed_as: Callable[[str], Non
         assert resp.status_code == 422
 
 
+@pytest.mark.asyncio
+async def test_bin_item_department_round_trips(authed_as: Callable[[str], None]) -> None:
+    """수업 아이템의 department가 저장 -> 재조회에서 그대로 살아남아야 한다.
+
+    학과별 bin이 프론트에서 하나로 병합돼도 아이템이 자기 소속을 들고 다녀야
+    새로고침 후에도 배지가 안 사라진다(2026-08-30 결함 수정 - 배경은 이 파일
+    상단 대신 커밋 메시지/설계 문서 참고).
+    """
+    authed_as("user-a")
+    async with _client() as client:
+        resp = await client.post(
+            "/api/constellations",
+            json={
+                "title": "학과 배지",
+                "goalRawText": "x",
+                "bins": [
+                    {
+                        "id": "bin1",
+                        "label": "추천 수업",
+                        "origin": "llm",
+                        "items": [
+                            {
+                                "id": "course:ECO1001",
+                                "label": "경제학원론",
+                                "type": "course",
+                                "department": "경제학과",
+                            }
+                        ],
+                    }
+                ],
+            },
+        )
+        assert resp.status_code == 201
+        cid = resp.json()["id"]
+        assert resp.json()["bins"][0]["items"][0]["department"] == "경제학과"
+
+        resp = await client.get(f"/api/constellations/{cid}")
+        assert resp.status_code == 200
+        assert resp.json()["bins"][0]["items"][0]["department"] == "경제학과"
+
+
+@pytest.mark.asyncio
+async def test_bin_item_without_department_omits_key_in_response(
+    authed_as: Callable[[str], None],
+) -> None:
+    """department를 안 보내면(None) 응답에 키 자체가 없어야 한다(exclude_none 규약)."""
+    authed_as("user-a")
+    async with _client() as client:
+        resp = await client.post(
+            "/api/constellations",
+            json={
+                "title": "학과 없는 아이템",
+                "goalRawText": "x",
+                "bins": [
+                    {
+                        "id": "bin1",
+                        "label": "군집",
+                        "origin": "user",
+                        "items": [{"id": "support:1", "label": "자격증", "type": "certification"}],
+                    }
+                ],
+            },
+        )
+        assert resp.status_code == 201
+        assert "department" not in resp.json()["bins"][0]["items"][0]
+
+        cid = resp.json()["id"]
+        resp = await client.get(f"/api/constellations/{cid}")
+        assert "department" not in resp.json()["bins"][0]["items"][0]
+
+
+@pytest.mark.asyncio
+async def test_bin_item_legacy_document_without_department_field_still_loads(
+    authed_as: Callable[[str], None],
+) -> None:
+    """department 필드 자체가 없던 구 문서(역호환) - Pydantic 기본값(None)으로
+    문제없이 조회되어야 한다(groups 역호환 테스트와 동일한 결의 회귀 가드)."""
+    authed_as("user-a")
+    async with _client() as client:
+        cid = (
+            await client.post(
+                "/api/constellations",
+                json={
+                    "title": "구 아이템 문서",
+                    "goalRawText": "x",
+                    "bins": [
+                        {
+                            "id": "bin1",
+                            "label": "옛 군집",
+                            "origin": "user",
+                            "items": [
+                                {"id": "course:OLD1001", "label": "옛 과목", "type": "course"}
+                            ],
+                        }
+                    ],
+                },
+            )
+        ).json()["id"]
+
+        # 실제로 "필드 자체가 없던" 상태를 재현: 저장된 raw 문서에서 department 키를
+        # 제거한다(신규 저장은 이미 None으로 채워지지만, 구 문서는 키가 아예 없었다).
+        db = get_firestore_client()
+        doc_ref = db.collection("constellations").document(cid)
+        raw = doc_ref.get().to_dict()
+        for b in raw["bins"]:
+            for item in b["items"]:
+                item.pop("department", None)
+        doc_ref.set(raw)
+
+        resp = await client.get(f"/api/constellations/{cid}")
+        assert resp.status_code == 200
+        assert resp.json()["bins"][0]["items"][0]["id"] == "course:OLD1001"
+        assert "department" not in resp.json()["bins"][0]["items"][0]
+
+
 # --- 성단(Group) ---
 
 
