@@ -232,6 +232,10 @@ function mapBinItemDtoToBinItem(dto: BinItemDto): BinItem {
     subtitle: dto.subtitle,
     description: dto.description,
     prereqIds: dto.prereqIds,
+    // 학과는 이제 서버가 실어 준다(계약 `610c0f0`) - 저장 후 다시 열어도 배지가
+    // 유지된다. 오늘 이전에 저장된 문서엔 키가 없어 undefined로 떨어지고,
+    // 그 경우에만 아래 mergeCourseBins의 bin.label 폴백이 배지를 채운다.
+    groupLabel: dto.department,
   };
 }
 
@@ -244,13 +248,13 @@ function mapBinDtoToBin(dto: BinDto): Bin {
 // 산업공학과 이런식으로 나눠서 표기하든 알아서 해보고"). 판정은 순수
 // 데이터 기반이다 - 학과명을 코드에 하드코딩하지 않고, bin의 항목이 하나
 // 이상이고 전부 `course:` id를 갖는지만 본다(백엔드 bin_suggestion.py의
-// _course_item 규약). 원래 bin.label(LLM이 붙인 "경제학과 수업" 류 이름)은
-// 각 항목의 groupLabel로 옮겨 칩에 표기해, 통합 후에도 어느 군집 출신인지
-// 알 수 있게 한다.
+// _course_item 규약). 통합 후에도 어느 학과 과목인지 알 수 있도록 항목마다
+// 배지를 붙인다.
 //
-// groupLabel은 서버에 저장되지 않는 화면 전용 필드다(BinItemDto에 없음) -
-// ponytail: 저장 후 새로고침하면 배지가 사라지는 게 알려진 한계, 필요해지면
-// BinItemDto에 필드를 추가해 서버 계약을 함께 바꿔야 한다.
+// 배지 출처는 서버가 주는 실제 학과명(BinItemDto.department, 계약 `610c0f0`)이
+// 1순위다 - 저장 후 다시 열어도 유지된다. 그 필드가 없는 구 문서에서만 원래
+// bin.label("경제학과 수업" 류 LLM 작명)로 폴백한다 - 폴백을 빼면 예전에
+// 저장해 둔 별자리의 배지가 빈다.
 const MERGED_COURSES_BIN_ID = "bin-courses-recommended";
 const MANUAL_COURSES_BIN_ID = "bin-courses-manual";
 
