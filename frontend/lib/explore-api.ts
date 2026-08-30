@@ -7,7 +7,8 @@
  *
  * - GET /api/explore/users → 익명 허용, ≤30명. 로그인 시 나와의 공통 태그
  *   교집합 내림차순 + commonTags 포함, 익명은 최신순. 본인 제외.
- * - GET /api/explore/search?q= → 이름 prefix 검색, ≤20명.
+ * - GET /api/explore/search?q= → q가 "@"로 시작하면 닉네임 부분일치, 아니면
+ *   이름·소개·관심사 부분일치(로그인 시 내 관심사와 겹치는 수 내림차순), ≤20명.
  * - interestTags는 발행된 별자리들의 요소 빈도 상위 5개(발행 시점 비정규화).
  */
 
