@@ -15,12 +15,19 @@
  * - 초상형 세로 카드 그리드 - 가로로 긴 행 금지. 카드 = 큰 아바타·이름·bio·
  *   관심사 칩. 나와 겹치는 태그(commonTags)는 lit 칩으로 강조(새 별빛 어휘).
  * - 카드 클릭 → 프로필. 익명도 열람 가능(요청에 토큰이 없으면 서버가 최신순).
+ *
+ * 미인증 진입 차단(사용자 지시 8번 - "탐색도 검색도 되잖아"): 로그인은 했지만
+ * 미인증이면 검색창 입력·유저 카드 클릭을 전부 막고 인증 안내로 보낸다.
+ * 비로그인은 기존대로 열람 가능(건드리지 않는다).
  */
 
 import Link from "next/link";
+import type { MouseEvent } from "react";
 import { useEffect, useRef, useState } from "react";
 import { EmptyState } from "@/components/ui";
 import { SearchIcon } from "@/components/ui/icons";
+import { VerifyGate } from "@/components/VerifyGate";
+import { useAuth } from "@/lib/auth-context";
 import { listExploreUsers, searchExploreUsers, type ExploreUserDto } from "@/lib/explore-api";
 
 const SEARCH_DEBOUNCE_MS = 300;
@@ -39,13 +46,27 @@ function CardSkeleton() {
  * 넘치며 이름 span을 높이 0까지 압축하던 검수 버그의 방어선. */
 const CHIP_MAX = 4;
 
-function UserCard({ user }: { user: ExploreUserDto }) {
+function UserCard({
+  user,
+  locked,
+  onLockedClick,
+}: {
+  user: ExploreUserDto;
+  locked: boolean;
+  onLockedClick: () => void;
+}) {
   const common = new Set(user.commonTags ?? []);
   const shownTags = user.interestTags.slice(0, CHIP_MAX);
   const hiddenCount = user.interestTags.length - shownTags.length;
   return (
     <Link
       href={`/profile/${user.uid}`}
+      onClick={(e: MouseEvent<HTMLAnchorElement>) => {
+        if (locked) {
+          e.preventDefault();
+          onLockedClick();
+        }
+      }}
       className="flex aspect-[3/4] flex-col items-center overflow-hidden rounded-xl border border-rule bg-ink-800/70 px-3 py-5 no-underline backdrop-blur-[2px] transition-colors hover:bg-ink-800/90"
     >
       <span className="flex h-16 w-16 shrink-0 items-center justify-center rounded-full border border-rule bg-ink-900 text-[30px] md:h-20 md:w-20 md:text-[34px]">
@@ -89,11 +110,15 @@ function UserCard({ user }: { user: ExploreUserDto }) {
 }
 
 export default function ExplorePage() {
+  const { user } = useAuth();
   const [query, setQuery] = useState("");
   const [users, setUsers] = useState<ExploreUserDto[] | null>(null);
   const [error, setError] = useState(false);
+  const [verifyGateOpen, setVerifyGateOpen] = useState(false);
   // 응답 역전 방지 - 마지막 요청만 반영한다.
   const requestSeq = useRef(0);
+  // 로그인은 했지만 미인증 - 검색·카드 진입을 잠근다(비로그인은 그대로 열람 가능).
+  const locked = user !== null && !user.yonseiVerified;
 
   const trimmedQuery = query.trim();
   const isIdMode = trimmedQuery.startsWith("@");
@@ -137,6 +162,10 @@ export default function ExplorePage() {
           type="search"
           value={query}
           onChange={(e) => setQuery(e.target.value)}
+          onClick={() => {
+            if (locked) setVerifyGateOpen(true);
+          }}
+          readOnly={locked}
           placeholder="이름·소개·관심사 검색, @아이디로 찾기"
           maxLength={40}
           aria-label="사람 검색 - 키워드 또는 @아이디"
@@ -183,10 +212,16 @@ export default function ExplorePage() {
       ) : (
         <div className="grid grid-cols-2 gap-3 sm:grid-cols-3 lg:grid-cols-4">
           {users.map((u) => (
-            <UserCard key={u.uid} user={u} />
+            <UserCard
+              key={u.uid}
+              user={u}
+              locked={locked}
+              onLockedClick={() => setVerifyGateOpen(true)}
+            />
           ))}
         </div>
       )}
+      <VerifyGate open={verifyGateOpen} onClose={() => setVerifyGateOpen(false)} />
     </div>
   );
 }
