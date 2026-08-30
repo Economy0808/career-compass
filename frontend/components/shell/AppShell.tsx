@@ -6,6 +6,7 @@ import { usePathname } from "next/navigation";
 import { SideRail } from "./SideRail";
 import { TabBar } from "./TabBar";
 import { NavIsland } from "./NavIsland";
+import { NotificationBell } from "./NotificationBell";
 
 export interface AppShellProps {
   children: ReactNode;
@@ -70,6 +71,13 @@ export function AppShell({ children }: AppShellProps) {
             (TabBar 없음)에서만 서랍으로 남는다. */}
         <NavIsland />
 
+        {/* 별자리 캔버스(/constellation*)만 제외 - 우상단이 이미
+            군집·노트 패널의 접힘 칩(right-4 top-4 z-20, 같은 좌표)과
+            "우상단 컨트롤 줄"로 꽉 차 있다(2026-08-30 확인). 그 화면은
+            몰입 편집용이라 겹치느니 빼는 쪽을 택한다(지시). 랜딩("/")의
+            섬 크롬에는 그대로 노출한다. */}
+        {!isImmersive && <NotificationBell />}
+
         <TabBar />
       </div>
     );
@@ -77,6 +85,7 @@ export function AppShell({ children }: AppShellProps) {
 
   return (
     <div className="flex min-h-dvh bg-ink-900">
+      <NotificationBell />
       <SideRail />
       <main
         className={
