@@ -20,6 +20,7 @@ import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useEffect, useRef, useState } from "react";
 import { Button, EmptyState, Modal } from "@/components/ui";
+import { VerifyGate, isVerifyRequiredError } from "@/components/VerifyGate";
 import { MiniConstellation } from "@/components/MiniConstellation";
 import { listUserConstellations, type ConstellationDto } from "@/lib/constellation-api";
 import { getProfile, followUser, unfollowUser, type ProfileDto } from "@/lib/profiles-api";
@@ -122,6 +123,7 @@ export default function ProfilePage({ params }: { params: { id: string } }) {
   const [profile, setProfile] = useState<ProfileDto | undefined>(undefined);
   const [followPending, setFollowPending] = useState(false);
   const [followError, setFollowError] = useState<string | null>(null);
+  const [verifyGateOpen, setVerifyGateOpen] = useState(false);
 
   // 케밥 메뉴/모달/컴포저/라이트박스 상태
   const [menuOpen, setMenuOpen] = useState(false);
@@ -214,6 +216,10 @@ export default function ProfilePage({ params }: { params: { id: string } }) {
       router.push(`/login?next=${encodeURIComponent(`/profile/${params.id}`)}`);
       return;
     }
+    if (user && !user.yonseiVerified) {
+      setVerifyGateOpen(true);
+      return;
+    }
     if (!profile || profile.isFollowing === undefined || followPending) return;
     setFollowPending(true);
     setFollowError(null);
@@ -223,6 +229,10 @@ export default function ProfilePage({ params }: { params: { id: string } }) {
         : await followUser(params.id);
       setProfile(updated);
     } catch (err) {
+      if (isVerifyRequiredError(err)) {
+        setVerifyGateOpen(true);
+        return;
+      }
       setFollowError(
         err instanceof ApiError && err.status === 429
           ? "요청이 많아요. 잠시 후 다시 시도해주세요."
@@ -245,8 +255,12 @@ export default function ProfilePage({ params }: { params: { id: string } }) {
         const imageData = await fileToDataUrl(first);
         await createStory(imageData);
         setRingRefreshKey((k) => k + 1);
-      } catch {
-        setStoryError("스토리를 올리지 못했어요. 잠시 후 다시 시도해주세요.");
+      } catch (err) {
+        if (isVerifyRequiredError(err)) {
+          setVerifyGateOpen(true);
+        } else {
+          setStoryError("스토리를 올리지 못했어요. 잠시 후 다시 시도해주세요.");
+        }
       } finally {
         setStoryPosting(false);
         setUploadTarget(null);
@@ -277,8 +291,13 @@ export default function ProfilePage({ params }: { params: { id: string } }) {
       const created = await createPost({ images: draft.images, caption: draft.caption.trim() });
       setPosts((prev) => [created, ...(prev ?? [])]);
       setDraft(null);
-    } catch {
-      setPostError("게시물을 올리지 못했어요. 잠시 후 다시 시도해주세요.");
+    } catch (err) {
+      if (isVerifyRequiredError(err)) {
+        setVerifyGateOpen(true);
+        setDraft(null);
+      } else {
+        setPostError("게시물을 올리지 못했어요. 잠시 후 다시 시도해주세요.");
+      }
     } finally {
       setPosting(false);
     }
@@ -449,7 +468,16 @@ export default function ProfilePage({ params }: { params: { id: string } }) {
               {isOwn && (
                 <button
                   type="button"
-                  onClick={() => setUploadSheetOpen(true)}
+                  onClick={() => {
+                    // 게시물·스토리 모두 이 진입점 하나로 열린다 - 여기서 한 번만
+                    // 선제 차단하면 파일 선택 전에 인증 유도가 뜬다(서버 403은
+                    // handlePublishPost/handleFilesPicked의 최후 방어선으로 남겨둔다).
+                    if (user && !user.yonseiVerified) {
+                      setVerifyGateOpen(true);
+                      return;
+                    }
+                    setUploadSheetOpen(true);
+                  }}
                   disabled={storyPosting}
                   className="flex aspect-square flex-col items-center justify-center gap-1.5 border border-dashed border-rule text-text-lo transition-colors hover:bg-ink-800 hover:text-text-hi focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-1 focus-visible:outline-spec-b"
                 >
@@ -654,6 +682,7 @@ export default function ProfilePage({ params }: { params: { id: string } }) {
       </Modal>
 
       <AccountDeleteModal open={deleteOpen} onClose={() => setDeleteOpen(false)} onDeleted={() => router.push("/")} />
+      <VerifyGate open={verifyGateOpen} onClose={() => setVerifyGateOpen(false)} />
     </>
   );
 }

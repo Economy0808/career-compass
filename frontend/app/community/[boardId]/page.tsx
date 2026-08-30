@@ -14,6 +14,7 @@ import Link from "next/link";
 import { useParams, useRouter } from "next/navigation";
 import { useEffect, useState } from "react";
 import { Button, EmptyState, Field, Modal } from "@/components/ui";
+import { VerifyGate, isVerifyRequiredError } from "@/components/VerifyGate";
 import { useAuth } from "@/lib/auth-context";
 import { relativeTimeKo } from "@/lib/format";
 import {
@@ -77,6 +78,7 @@ export default function CommunityBoardPage() {
   const [anonymous, setAnonymous] = useState(true);
   const [submitting, setSubmitting] = useState(false);
   const [error, setError] = useState<string | null>(null);
+  const [verifyGateOpen, setVerifyGateOpen] = useState(false);
 
   function load() {
     setPosts(null);
@@ -90,6 +92,10 @@ export default function CommunityBoardPage() {
   function openComposer() {
     if (!user) {
       router.push(`/login?next=/community/${boardId}`);
+      return;
+    }
+    if (!user.yonseiVerified) {
+      setVerifyGateOpen(true);
       return;
     }
     setTitle("");
@@ -111,8 +117,13 @@ export default function CommunityBoardPage() {
       });
       setPosts((prev) => [created, ...(prev ?? [])]);
       setComposerOpen(false);
-    } catch {
-      setError("글을 올리지 못했어요. 잠시 후 다시 시도해주세요.");
+    } catch (err) {
+      if (isVerifyRequiredError(err)) {
+        setComposerOpen(false);
+        setVerifyGateOpen(true);
+      } else {
+        setError("글을 올리지 못했어요. 잠시 후 다시 시도해주세요.");
+      }
     } finally {
       setSubmitting(false);
     }
@@ -176,6 +187,7 @@ export default function CommunityBoardPage() {
           </div>
         </div>
       </Modal>
+      <VerifyGate open={verifyGateOpen} onClose={() => setVerifyGateOpen(false)} />
     </div>
   );
 }

@@ -21,6 +21,7 @@
 import { useRouter } from "next/navigation";
 import { useEffect, useRef, useState } from "react";
 import { Button, EmptyState, Field } from "@/components/ui";
+import { VerifyGate, isVerifyRequiredError } from "@/components/VerifyGate";
 import { useAuth } from "@/lib/auth-context";
 import { relativeTimeKo } from "@/lib/format";
 import { ApiError } from "@/lib/api";
@@ -228,6 +229,7 @@ export function PostDetail({ postId, initial, showDelete, onDeleted, onPostChang
   const [commentError, setCommentError] = useState<string | null>(null);
   const [shareNotice, setShareNotice] = useState<string | null>(null);
   const [deleteError, setDeleteError] = useState(false);
+  const [verifyGateOpen, setVerifyGateOpen] = useState(false);
 
   const permalink = `/post/${postId}`;
 
@@ -287,14 +289,22 @@ export function PostDetail({ postId, initial, showDelete, onDeleted, onPostChang
       router.push(`/login?next=${permalink}`);
       return;
     }
+    if (!user.yonseiVerified) {
+      setVerifyGateOpen(true);
+      return;
+    }
     if (liking) return;
     setLiking(true);
     try {
       const updated = post.isLiked ? await unlikePost(postId) : await likePost(postId);
       setPost(updated);
       onPostChange?.(updated);
-    } catch {
-      // 조용히 실패 - 재시도 가능.
+    } catch (err) {
+      if (isVerifyRequiredError(err)) {
+        setVerifyGateOpen(true);
+        return;
+      }
+      // 그 외는 조용히 실패 - 재시도 가능.
     } finally {
       setLiking(false);
     }
@@ -325,6 +335,10 @@ export function PostDetail({ postId, initial, showDelete, onDeleted, onPostChang
       router.push(`/login?next=${permalink}`);
       return;
     }
+    if (!user.yonseiVerified) {
+      setVerifyGateOpen(true);
+      return;
+    }
     if (!commentBody.trim() || submitting) return;
     setSubmitting(true);
     setCommentError(null);
@@ -338,7 +352,11 @@ export function PostDetail({ postId, initial, showDelete, onDeleted, onPostChang
         return next;
       });
       setCommentBody("");
-    } catch {
+    } catch (err) {
+      if (isVerifyRequiredError(err)) {
+        setVerifyGateOpen(true);
+        return;
+      }
       setCommentError("댓글을 올리지 못했어요. 잠시 후 다시 시도해주세요.");
     } finally {
       setSubmitting(false);
@@ -434,6 +452,7 @@ export function PostDetail({ postId, initial, showDelete, onDeleted, onPostChang
           </div>
         </div>
       )}
+      <VerifyGate open={verifyGateOpen} onClose={() => setVerifyGateOpen(false)} />
     </div>
   );
 }

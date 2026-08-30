@@ -9,6 +9,7 @@
 import { useParams, useRouter } from "next/navigation";
 import { useEffect, useState } from "react";
 import { Button, EmptyState, Field } from "@/components/ui";
+import { VerifyGate, isVerifyRequiredError } from "@/components/VerifyGate";
 import { useAuth } from "@/lib/auth-context";
 import { relativeTimeKo } from "@/lib/format";
 import {
@@ -62,6 +63,7 @@ export default function CommunityPostPage() {
   const [commentAnonymous, setCommentAnonymous] = useState(true);
   const [submittingComment, setSubmittingComment] = useState(false);
   const [commentError, setCommentError] = useState<string | null>(null);
+  const [verifyGateOpen, setVerifyGateOpen] = useState(false);
 
   useEffect(() => {
     let cancelled = false;
@@ -85,14 +87,22 @@ export default function CommunityPostPage() {
       router.push(`/login?next=/community/post/${postId}`);
       return;
     }
+    if (!user.yonseiVerified) {
+      setVerifyGateOpen(true);
+      return;
+    }
     if (liking) return;
     setLiking(true);
     try {
       // C1 확정: 좋아요는 POST/DELETE 분리, 응답은 갱신된 글 전체.
       const result = post.isLiked ? await unlikePost(postId) : await likePost(postId);
       setPost((prev) => (prev ? { ...prev, ...result, comments: prev.comments } : prev));
-    } catch {
-      // 조용히 실패 - 카운트는 그대로 두고 재시도 가능.
+    } catch (err) {
+      if (isVerifyRequiredError(err)) {
+        setVerifyGateOpen(true);
+        return;
+      }
+      // 그 외는 조용히 실패 - 카운트는 그대로 두고 재시도 가능.
     } finally {
       setLiking(false);
     }
@@ -102,6 +112,10 @@ export default function CommunityPostPage() {
     if (!post) return;
     if (!user) {
       router.push(`/login?next=/community/post/${postId}`);
+      return;
+    }
+    if (!user.yonseiVerified) {
+      setVerifyGateOpen(true);
       return;
     }
     if (!commentBody.trim() || submittingComment) return;
@@ -115,7 +129,11 @@ export default function CommunityPostPage() {
       });
       setPost((prev) => (prev ? { ...prev, comments: [...prev.comments, created] } : prev));
       setCommentBody("");
-    } catch {
+    } catch (err) {
+      if (isVerifyRequiredError(err)) {
+        setVerifyGateOpen(true);
+        return;
+      }
       setCommentError("댓글을 올리지 못했어요. 잠시 후 다시 시도해주세요.");
     } finally {
       setSubmittingComment(false);
@@ -202,6 +220,7 @@ export default function CommunityPostPage() {
           {submittingComment ? "올리는 중…" : "댓글 남기기"}
         </Button>
       </div>
+      <VerifyGate open={verifyGateOpen} onClose={() => setVerifyGateOpen(false)} />
     </div>
   );
 }

@@ -29,6 +29,7 @@ import { useEffect, useState } from "react";
 import { Button } from "@/components/ui";
 import { StoryRing } from "@/components/StoryRing";
 import { StoryViewer } from "@/components/StoryViewer";
+import { VerifyGate, isVerifyRequiredError } from "@/components/VerifyGate";
 import { CommentIcon, LikeStarIcon, PostImageCarousel, ShareIcon, usePostImages } from "@/components/PostDetail";
 import { likePost, listFeedPosts, unlikePost, type FeedPostDto, type FeedResultDto } from "@/lib/posts-api";
 import { listExploreUsers, type ExploreUserDto } from "@/lib/explore-api";
@@ -73,11 +74,18 @@ function FeedPostCard({
   const { user } = useAuth();
   const [liking, setLiking] = useState(false);
   const [shareNotice, setShareNotice] = useState<string | null>(null);
+  const [verifyGateOpen, setVerifyGateOpen] = useState(false);
   const slides = usePostImages(post.id, post.imageCount ?? 1, post.imageData);
 
   async function handleLikeToggle(): Promise<void> {
+    // 비로그인(직접 URL 진입·세션 만료 방어) - 로그인 유도.
     if (!user) {
       router.push(`/login?next=${FEED_PATH}`);
+      return;
+    }
+    // 로그인은 했지만 미인증 - 서버까지 가기 전에 선제 차단(최후 방어선은 catch의 403+헤더).
+    if (!user.yonseiVerified) {
+      setVerifyGateOpen(true);
       return;
     }
     if (liking) return;
@@ -86,8 +94,12 @@ function FeedPostCard({
       const updated = post.isLiked ? await unlikePost(post.id) : await likePost(post.id);
       // 작성자 조인 필드는 like 응답에 없으니 기존 값을 보존해 머지한다.
       onPostChange({ ...post, ...updated });
-    } catch {
-      // 조용히 실패 - 재시도 가능.
+    } catch (err) {
+      if (isVerifyRequiredError(err)) {
+        setVerifyGateOpen(true);
+        return;
+      }
+      // 그 외는 조용히 실패 - 재시도 가능.
     } finally {
       setLiking(false);
     }
@@ -182,6 +194,7 @@ function FeedPostCard({
           </Link>
         )}
       </div>
+      <VerifyGate open={verifyGateOpen} onClose={() => setVerifyGateOpen(false)} />
     </article>
   );
 }
@@ -244,9 +257,11 @@ function FeedSourceBanner({ source }: { source: FeedResultDto["source"] }) {
  * 곳에는 자동으로 비슷한 사람 추천해주는 칸을 만들자"). lib/explore-api.ts의
  * 빈 질의 추천 목록(로그인 시 공통 관심사 내림차순)을 그대로 재사용한다. */
 function SimilarPeopleSidebar() {
+  const { user } = useAuth();
   const [users, setUsers] = useState<ExploreUserDto[] | null>(null);
   const [followingUids, setFollowingUids] = useState<Set<string>>(new Set());
   const [pendingUid, setPendingUid] = useState<string | null>(null);
+  const [verifyGateOpen, setVerifyGateOpen] = useState(false);
 
   useEffect(() => {
     listExploreUsers()
@@ -262,6 +277,12 @@ function SimilarPeopleSidebar() {
   }, []);
 
   async function handleFollowToggle(uid: string): Promise<void> {
+    // 이 사이드바는 피드(로그인 필수 화면)에서만 렌더되므로 user는 항상 있다 -
+    // 여기서는 인증 여부만 선제 확인한다.
+    if (user && !user.yonseiVerified) {
+      setVerifyGateOpen(true);
+      return;
+    }
     if (pendingUid) return;
     setPendingUid(uid);
     try {
@@ -276,8 +297,12 @@ function SimilarPeopleSidebar() {
         await followUser(uid);
         setFollowingUids((prev) => new Set(prev).add(uid));
       }
-    } catch {
-      // 조용히 실패 - 재시도 가능.
+    } catch (err) {
+      if (isVerifyRequiredError(err)) {
+        setVerifyGateOpen(true);
+        return;
+      }
+      // 그 외는 조용히 실패 - 재시도 가능.
     } finally {
       setPendingUid(null);
     }
@@ -321,6 +346,7 @@ function SimilarPeopleSidebar() {
               </Button>
             </div>
           ))}
+      <VerifyGate open={verifyGateOpen} onClose={() => setVerifyGateOpen(false)} />
     </aside>
   );
 }
