@@ -28,6 +28,7 @@ from httpx import ASGITransport, AsyncClient
 
 from app.auth.deps import get_current_user, get_current_user_optional
 from app.auth.firebase_auth import DecodedToken
+from app.firestore import follow_repo
 from app.firestore.client import get_firestore_client
 from app.main import app
 
@@ -363,3 +364,91 @@ async def test_search_regression_self_never_appears_keyword_and_nickname(
     assert nickname_resp.status_code == 200
     assert "regress-search-viewer" not in [item["uid"] for item in keyword_resp.json()]
     assert "regress-search-viewer" not in [item["uid"] for item in nickname_resp.json()]
+
+
+# ---------------------------------------------------------------------------
+# isFollowing 반영 (팔로우 후 새로고침해도 버튼이 되돌아가는 버그 수정)
+# ---------------------------------------------------------------------------
+
+
+@pytest.mark.asyncio
+async def test_list_users_excludes_already_followed(
+    authed_as: Callable[[str], None],
+) -> None:
+    """추천(/users)에 이미 팔로우 중인 유저는 다시 뜨면 안 된다."""
+    db = get_firestore_client()
+    _seed_user(
+        "follow-viewer",
+        display_name="팔로우뷰어",
+        interest_tags=["철학"],
+        updated_at=datetime(2026, 1, 1, tzinfo=UTC),
+    )
+    _seed_user(
+        "already-followed",
+        display_name="이미팔로우",
+        interest_tags=["철학"],
+        updated_at=datetime(2026, 1, 1, tzinfo=UTC),
+    )
+    _seed_user(
+        "not-followed",
+        display_name="미팔로우",
+        interest_tags=["철학"],
+        updated_at=datetime(2026, 1, 1, tzinfo=UTC),
+    )
+    follow_repo.follow(db, "follow-viewer", "already-followed")
+    authed_as("follow-viewer")
+    async with _client() as client:
+        resp = await client.get("/api/explore/users")
+    body = resp.json()
+    uids = [item["uid"] for item in body]
+    assert "already-followed" not in uids
+    assert "not-followed" in uids
+    not_followed = next(item for item in body if item["uid"] == "not-followed")
+    assert not_followed["isFollowing"] is False
+
+
+@pytest.mark.asyncio
+async def test_search_shows_followed_user_with_is_following_true(
+    authed_as: Callable[[str], None],
+) -> None:
+    """검색(/search)은 이미 팔로우한 유저도 결과에 남기되 isFollowing으로 표시한다."""
+    db = get_firestore_client()
+    _seed_user(
+        "search-follow-viewer",
+        display_name="검색팔로우뷰어",
+        interest_tags=[],
+        updated_at=datetime(2026, 1, 1, tzinfo=UTC),
+    )
+    _seed_user(
+        "search-followed-target",
+        display_name="검색팔로우대상",
+        interest_tags=[],
+        updated_at=datetime(2026, 1, 1, tzinfo=UTC),
+    )
+    follow_repo.follow(db, "search-follow-viewer", "search-followed-target")
+    authed_as("search-follow-viewer")
+    async with _client() as client:
+        resp = await client.get("/api/explore/search", params={"q": "검색팔로우대상"})
+    assert resp.status_code == 200
+    body = resp.json()
+    uids = [item["uid"] for item in body]
+    assert "search-followed-target" in uids
+    target = next(item for item in body if item["uid"] == "search-followed-target")
+    assert target["isFollowing"] is True
+
+
+@pytest.mark.asyncio
+async def test_search_anonymous_has_no_is_following_key() -> None:
+    """익명 요청이면 응답에 isFollowing 키 자체가 없어야 한다(response_model_exclude_none)."""
+    _seed_user(
+        "anon-search-target",
+        display_name="익명검색대상",
+        interest_tags=[],
+        updated_at=datetime(2026, 1, 1, tzinfo=UTC),
+    )
+    async with _client() as client:
+        resp = await client.get("/api/explore/search", params={"q": "익명검색대상"})
+    assert resp.status_code == 200
+    body = resp.json()
+    assert body
+    assert all("isFollowing" not in item for item in body)

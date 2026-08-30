@@ -24,7 +24,7 @@ from google.cloud.firestore import Client
 
 from app.auth.deps import get_current_user_optional
 from app.auth.firebase_auth import DecodedToken
-from app.firestore import user_repo
+from app.firestore import follow_repo, user_repo
 from app.firestore.client import get_firestore_client
 from app.schemas.explore import ExploreUserOut
 
@@ -35,10 +35,20 @@ _SEARCH_LIMIT = 20
 # user_repo.list_all_users의 상한 - 그 함수 docstring 참고(ponytail: 유저 수백 명
 # 규모까지는 이 상한 안에서 전체 스캔이 감당된다).
 _SEARCH_SCAN_LIMIT = 500
+# follow_repo.list_following_ids 호출 시 명시적으로 줄 상한. 기본값(100)이나
+# 피드가 쓰는 50 같은 작은 값을 그대로 쓰면, 팔로잉이 그 수를 넘는 유저는 상한
+# 밖의 팔로이가 isFollowing=False로 잘못 표시되는 정확성 버그가 된다. 여기서는
+# 이 집합 하나로 추천 제외 + isFollowing 판정을 모두 하므로 전량이 필요하다
+# (ponytail: 유저 수만 명 규모가 되면 페이지네이션으로 승격할 것).
+_FOLLOWING_SCAN_LIMIT = 10_000
 
 
 def _to_out(
-    uid: str, profile: dict[str, Any], *, requester_tags: set[str] | None
+    uid: str,
+    profile: dict[str, Any],
+    *,
+    requester_tags: set[str] | None,
+    is_following: bool | None,
 ) -> ExploreUserOut:
     tags: list[str] = profile.get("interest_tags") or []
     common_tags = None if requester_tags is None else [t for t in tags if t in requester_tags]
@@ -49,6 +59,7 @@ def _to_out(
         bio=profile.get("bio"),
         interest_tags=tags,
         common_tags=common_tags,
+        is_following=is_following,
     )
 
 
@@ -70,6 +81,18 @@ def _requester_tags(db: Client, user: DecodedToken | None) -> set[str] | None:
         return None
     profile = user_repo.get_user_profile(db, user.uid)
     return set((profile or {}).get("interest_tags") or [])
+
+
+def _requester_following_ids(db: Client, user: DecodedToken | None) -> set[str]:
+    """로그인 요청자가 팔로우 중인 uid 집합을 반환한다(익명이면 빈 집합).
+
+    이 집합 하나를 ①추천(/users) 목록에서 이미 팔로우한 유저 제외 ②추천/검색
+    응답의 isFollowing 판정에 함께 쓴다 - 항목마다 follow_repo.is_following을
+    개별 호출하면 후보 수만큼 쿼리가 늘어나므로 한 번만 읽는다.
+    """
+    if user is None:
+        return set()
+    return set(follow_repo.list_following_ids(db, user.uid, limit=_FOLLOWING_SCAN_LIMIT))
 
 
 def list_uids_with_shared_interest(
@@ -97,20 +120,30 @@ async def list_explore_users(
     user: DecodedToken | None = Depends(get_current_user_optional),
     db: Client = Depends(get_firestore_client),
 ) -> list[ExploreUserOut]:
-    """공통 관심사가 있을 만한 유저를 최대 30명 추천한다. 요청자 본인은 제외한다.
+    """공통 관심사가 있을 만한 유저를 최대 30명 추천한다.
 
-    로그인 시 요청자의 interest_tags와 교집합 크기가 큰 순, 동률(익명 포함)이면
-    최근 갱신순(updated_at 내림차순)이다.
+    요청자 본인과, 요청자가 이미 팔로우 중인 유저는 제외한다(이미 팔로우한
+    사람이 "비슷한 사람 추천"에 계속 뜨는 건 추천의 목적에 맞지 않는다). 로그인
+    시 요청자의 interest_tags와 교집합 크기가 큰 순, 동률(익명 포함)이면 최근
+    갱신순(updated_at 내림차순)이다.
     """
     requester_tags = _requester_tags(db, user)
+    following_ids = _requester_following_ids(db, user)
     candidates = [
         (uid, profile)
         for uid, profile in user_repo.list_users_with_interest_tags(db)
-        if profile.get("display_name") and (user is None or uid != user.uid)
+        if profile.get("display_name")
+        and (user is None or uid != user.uid)
+        and uid not in following_ids
     ]
     candidates.sort(key=lambda item: _sort_key(item[1], requester_tags=requester_tags or set()))
     return [
-        _to_out(uid, profile, requester_tags=requester_tags)
+        _to_out(
+            uid,
+            profile,
+            requester_tags=requester_tags,
+            is_following=(uid in following_ids) if user is not None else None,
+        )
         for uid, profile in candidates[:_LIST_LIMIT]
     ]
 
@@ -156,6 +189,7 @@ async def search_explore_users(
     승격할 것).
     """
     requester_tags = _requester_tags(db, user)
+    following_ids = _requester_following_ids(db, user)
     viewer_uid = user.uid if user is not None else None
     candidates = [
         (uid, profile)
@@ -185,6 +219,11 @@ async def search_explore_users(
         matches.sort(key=lambda item: -_keyword_match_count(item[1], query_for_ranking))
 
     return [
-        _to_out(uid, profile, requester_tags=requester_tags)
+        _to_out(
+            uid,
+            profile,
+            requester_tags=requester_tags,
+            is_following=(uid in following_ids) if user is not None else None,
+        )
         for uid, profile in matches[:_SEARCH_LIMIT]
     ]
