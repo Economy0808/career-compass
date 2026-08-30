@@ -481,21 +481,6 @@ def constellation_to_out(constellation: Constellation) -> ConstellationOut:
     )
 
 
-# --- 피드 (공개 별자리 목록) ---
-
-
-class FeedAuthorOut(_CamelModel):
-    """피드 항목의 작성자 표시 정보. users 문서가 없으면 필드가 전부 None."""
-
-    display_name: str | None = None
-    avatar_emoji: str | None = None
-
-
-class FeedItemOut(_CamelModel):
-    constellation: ConstellationOut
-    author: FeedAuthorOut
-
-
 # --- 부분 갱신 요청 ---
 
 

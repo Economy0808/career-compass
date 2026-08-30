@@ -483,22 +483,3 @@ export function patchPublish(
     jsonInit("PATCH", patch)
   );
 }
-
-// ---------- 소셜 피드 ----------
-
-/** 익명 작성자 표시 - 둘 다 선택 필드라 카드 쪽에서 "이름 없는 관측자" 등
- * 기본값을 채운다. */
-export interface FeedAuthorDto {
-  displayName?: string;
-  avatarEmoji?: string;
-}
-
-export interface FeedItemDto {
-  constellation: ConstellationDto;
-  author: FeedAuthorDto;
-}
-
-/** 발행된 별자리 최신순 최대 20개. 페이지네이션 없음(백엔드가 20개로 캡). */
-export function getFeed(): Promise<FeedItemDto[]> {
-  return request<FeedItemDto[]>("/api/constellations/feed");
-}

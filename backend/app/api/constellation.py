@@ -38,8 +38,6 @@ from app.schemas.constellation import (
     ConstellationOut,
     EdgeColorPatchIn,
     EdgeCreateIn,
-    FeedAuthorOut,
-    FeedItemOut,
     GlowPatchIn,
     GroupCreateIn,
     GroupPatchIn,
@@ -143,37 +141,6 @@ async def list_my_constellations(
     return [constellation_to_out(c) for c in constellations]
 
 
-@router.get("/feed", response_model=list[FeedItemOut], response_model_exclude_none=True)
-async def get_feed(
-    user: DecodedToken | None = Depends(get_current_user_optional),
-    db: Client = Depends(get_firestore_client),
-) -> list[FeedItemOut]:
-    """공개된 별자리 피드 (최신 수정순, 최대 20개).
-
-    발행된 별자리는 공개 데이터이므로 비로그인(익명) 요청도 허용한다 - 로그인
-    여부와 무관하게 열람은 되고, 제한은 저장(발행/수정 등 쓰기) 시점에만 건다는
-    방침을 따른다. user 파라미터는 현재 응답 내용에 영향을 주지 않지만, 추후
-    "내가 좋아요한 항목" 등 개인화가 붙을 자리를 위해 시그니처에 남겨둔다.
-
-    ROUTE ORDER: 반드시 GET /{constellation_id}보다 먼저 선언해야 한다 -
-    그렇지 않으면 FastAPI가 "feed"를 constellation_id 경로 파라미터로 매칭한다.
-
-    항목마다 작성자 프로필을 추가로 조회한다(N+1) - limit 20 상한이 있어
-    허용되는 수준이다. 피드 규모가 커지면 배치 조회로 바꿔야 한다.
-    """
-    constellations = constellation_repo.list_published(db, limit=20)
-    constellations.sort(key=lambda c: c.updated_at, reverse=True)
-    items = []
-    for c in constellations:
-        profile = user_repo.get_user_profile(db, c.owner_id)
-        author = FeedAuthorOut(
-            display_name=profile.get("display_name") if profile else None,
-            avatar_emoji=profile.get("avatar_emoji") if profile else None,
-        )
-        items.append(FeedItemOut(constellation=constellation_to_out(c), author=author))
-    return items
-
-
 @router.get("/user/{uid}", response_model=list[ConstellationOut], response_model_exclude_none=True)
 async def list_user_gallery(
     uid: str,
@@ -182,11 +149,10 @@ async def list_user_gallery(
 ) -> list[ConstellationOut]:
     """특정 유저가 발행한 별자리 갤러리 (프로필 화면용, 최신 수정순, 최대 30개).
 
-    발행된 별자리는 공개 데이터이므로 get_feed와 동일하게 익명 요청도 허용한다.
+    발행된 별자리는 공개 데이터이므로 익명 요청도 허용한다.
 
     ROUTE ORDER: 반드시 GET /{constellation_id}보다 먼저 선언해야 한다 - 그렇지
-    않으면 FastAPI가 "user"를 constellation_id 경로 파라미터로 매칭한다
-    (get_feed의 "feed"와 동일한 함정).
+    않으면 FastAPI가 "user"를 constellation_id 경로 파라미터로 매칭한다.
     """
     constellations = constellation_repo.list_published_by_owner(db, uid, limit=30)
     return [constellation_to_out(c) for c in constellations]
@@ -203,7 +169,7 @@ async def get_constellation(
     """별자리 하나를 조회한다. 소유자이거나 공개된 별자리만 허용한다.
 
     발행된 별자리는 공개 데이터이므로 익명(비로그인) 열람을 허용한다 -
-    /feed, /user/{uid}와 동일한 계약(공유 링크·게시물 상세 임베드가 의존).
+    /user/{uid}와 동일한 계약(공유 링크·게시물 상세 임베드가 의존).
     """
     return _get_owned_or_published(db, constellation_id, user.uid if user else None)
 
