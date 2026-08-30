@@ -744,10 +744,11 @@ export default function NewConstellationPage() {
   useEffect(() => {
     if (authLoading) return; // 로딩 중엔 아무 것도 정착시키지 않는다.
     if (!user) {
-      // 비로그인도 렌즈->대화->추천 시안 체인을 그대로 탄다(사용자 결정 - 제한은
-      // 저장 시점에 건다). 대화를 닫으면 데모 시드가 남는다.
-      setBootState("empty");
-      setIntakeOpen(true);
+      // 비로그인 = 실제 서비스 화면 접근 불가(사용자 지시: "랜딩페이지에서 무조건
+      // 로그인을 하게 만들고"). 예전엔 여기서 대화 체인을 그대로 태웠지만, 인테이크
+      // API가 익명 401이 되어 대화가 뜬 채로 실패한다 - 로그인으로 보낸다.
+      // 로그인 없이 기능을 보고 싶은 사람은 /demo가 전담한다.
+      router.replace("/login?next=%2Fconstellation%2Fnew");
       return;
     }
     if (!user.yonseiVerified) {
@@ -777,7 +778,7 @@ export default function NewConstellationPage() {
     return () => {
       bootCancelledRef.current = true;
     };
-  }, [authLoading, user, bootFromServer]);
+  }, [authLoading, user, bootFromServer, router]);
 
   // 인증 승계 "예" - 로컬 보관분(지금 캔버스에 이미 미리보기로 떠 있는 값)을
   // 기존 첫 저장 경로(handleConfirmTitle과 동일 패턴)로 실제 서버에 만든다.

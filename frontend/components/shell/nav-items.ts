@@ -27,7 +27,9 @@ export const NAV_ITEMS: readonly NavItem[] = [
     shortLabel: "생성",
     Icon: SeedIcon,
     href: "/constellation/new",
-    requiresAuth: false,
+    // 예전엔 비로그인 데모 진입점이었지만, 둘러보기는 /demo가 전담하고 인테이크
+    // API도 익명 401이 됐다 - 비로그인이 들어오면 대화가 뜬 채로 실패한다.
+    requiresAuth: true,
     primary: true,
   },
   // Instagram convention: the last tab is the profile mark, not a feature name.
