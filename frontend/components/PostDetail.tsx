@@ -11,8 +11,11 @@
  *   비로그인 클릭은 /login?next=퍼머링크로 유도한다.
  * - 댓글: SNS층은 실명 기반(익명 없음). 이름 부재 폴백은 "관측자"(검수 관례).
  * - 공유: navigator.share → 미지원/거부 시 클립보드 복사+안내 폴백.
- * - 상세(getPost)가 아직 없거나 실패해도 initial이 있으면 화면은 살아있어야
- *   한다(백엔드 P1~P3 랜드 전 갭 방어) - 댓글 영역만 조용히 접는다.
+ * - 상세(getPost)가 실패해도 initial이 있으면 화면은 살아있어야 한다(백엔드
+ *   P1~P3 랜드 전 갭 방어) - 댓글 영역만 조용히 접는다. 단, 401(SNS 열람 모델이
+ *   "로그인만 하면 열람"으로 전환됨 - GET /api/posts/{id}가 익명 401)은 예외 -
+ *   initial 유무와 무관하게 전체 화면을 로그인 유도로 교체한다(404 빈 상태와
+ *   구분되는 별개 화면).
  */
 
 import { useRouter } from "next/navigation";
@@ -198,6 +201,7 @@ export function PostDetail({ postId, initial, showDelete, onDeleted, onPostChang
   const [post, setPost] = useState<PostDto | undefined>(initial);
   const [comments, setComments] = useState<PostCommentDto[] | null>(null);
   const [notFound, setNotFound] = useState(false);
+  const [authRequired, setAuthRequired] = useState(false);
   const [liking, setLiking] = useState(false);
   const [commentBody, setCommentBody] = useState("");
   const [submitting, setSubmitting] = useState(false);
@@ -219,6 +223,12 @@ export function PostDetail({ postId, initial, showDelete, onDeleted, onPostChang
       })
       .catch((err) => {
         if (cancelled) return;
+        // 401은 initial 유무와 무관하게 로그인 유도로 교체 - 익명은 상세 자체를
+        // 볼 권한이 없다(404와 별개 화면, SNS 열람 모델 전환).
+        if (err instanceof ApiError && err.status === 401) {
+          setAuthRequired(true);
+          return;
+        }
         // initial 없이 404면 진짜 없는 글. initial이 있으면(라이트박스 경로)
         // 썸네일 기반으로 화면을 유지하고 댓글 영역만 접는다.
         if (!initial && err instanceof ApiError && err.status === 404) setNotFound(true);
@@ -232,6 +242,18 @@ export function PostDetail({ postId, initial, showDelete, onDeleted, onPostChang
   const imageCount = post?.imageCount ?? 1;
   const slides = usePostImages(postId, imageCount, post?.imageData ?? "");
 
+  if (authRequired) {
+    return (
+      <EmptyState
+        title="이 게시물은 로그인하고 볼 수 있어요"
+        action={
+          <Button variant="primary" size="md" onClick={() => router.push(`/login?next=${permalink}`)}>
+            로그인
+          </Button>
+        }
+      />
+    );
+  }
   if (notFound) {
     return <EmptyState title="게시물을 찾을 수 없어요" description="삭제되었거나 잘못된 링크예요" />;
   }
