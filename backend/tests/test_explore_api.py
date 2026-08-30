@@ -8,12 +8,14 @@ E1), 이 스위트는 그 계산 경로를 거치지 않고 raw Firestore 문서
 API의 필터/정렬/검색 로직이지 태그 계산 자체(그건 test_constellation.py의
 compute_interest_tags 단위 테스트 몫)가 아니다.
 
-CRITICAL: 이 스위트는 작성만 하고 실행하지 않는다(작업 지시 - 공유 에뮬레이터
-데이터가 전멸하는 함정이 있어 이 세션에서는 pytest를 절대 돌리지 않는다).
+과거에는 공유 에뮬레이터 데이터가 전멸하는 함정이 있어 이 세션에서 pytest를
+돌리지 않는다는 주의가 여기 있었으나, 2026-08-30 사고(conftest.py 참고) 이후
+`FIRESTORE_PROJECT_ID`를 `demo-ourlab-test`로 강제 고정해 실데이터 프로젝트
+(demo-ourlab)와 완전히 격리됐다 - 이제 에뮬레이터를 띄운 채로 pytest를 직접
+돌려도 안전하다.
 
-실행 방법 (backend/ 에서, 이 세션이 아닌 별도 검증 시):
-    firebase emulators:exec --only firestore --project demo-ourlab \
-        ".venv/Scripts/python.exe -m pytest tests/test_explore_api.py -q"
+실행 방법 (backend/ 에서, 두 에뮬레이터가 이미 떠 있는 상태):
+    .venv/Scripts/python.exe -m pytest tests/test_explore_api.py -q
 """
 
 from __future__ import annotations
@@ -452,3 +454,107 @@ async def test_search_anonymous_has_no_is_following_key() -> None:
     body = resp.json()
     assert body
     assert all("isFollowing" not in item for item in body)
+
+
+# ---------------------------------------------------------------------------
+# 추천(/users) 2순위 폴백 - 실사용 계정이 적어 1순위가 상한을 못 채울 때도
+# 목록이 계속 채워지는지 검증한다.
+# ---------------------------------------------------------------------------
+
+
+@pytest.mark.asyncio
+async def test_list_users_fallback_fills_with_users_without_interest_tags(
+    authed_as: Callable[[str], None],
+) -> None:
+    """1순위(관심사 있는 유저)만으로 상한을 못 채우면, 관심사가 아예 없는
+    유저도 2순위로 채워져야 한다(회귀: 팔로우 후 목록이 통째로 비는 버그)."""
+    _seed_user(
+        "fallback-viewer",
+        display_name="폴백뷰어",
+        interest_tags=["철학"],
+        updated_at=datetime(2026, 1, 1, tzinfo=UTC),
+    )
+    _seed_user(
+        "fallback-no-tags",
+        display_name="태그없음",
+        interest_tags=[],
+        updated_at=datetime(2026, 1, 1, tzinfo=UTC),
+    )
+    authed_as("fallback-viewer")
+    async with _client() as client:
+        resp = await client.get("/api/explore/users")
+    assert resp.status_code == 200
+    body = resp.json()
+    uids = [item["uid"] for item in body]
+    assert "fallback-no-tags" in uids
+    fallback_item = next(item for item in body if item["uid"] == "fallback-no-tags")
+    assert fallback_item["commonTags"] == []
+
+
+@pytest.mark.asyncio
+async def test_list_users_fallback_excludes_self_and_followed(
+    authed_as: Callable[[str], None],
+) -> None:
+    """2순위 폴백도 본인/이미 팔로우 중인 유저는 제외해야 한다."""
+    db = get_firestore_client()
+    _seed_user(
+        "fallback-exclude-viewer",
+        display_name="폴백제외뷰어",
+        interest_tags=[],
+        updated_at=datetime(2026, 1, 1, tzinfo=UTC),
+    )
+    _seed_user(
+        "fallback-exclude-followed",
+        display_name="폴백제외팔로이",
+        interest_tags=[],
+        updated_at=datetime(2026, 1, 1, tzinfo=UTC),
+    )
+    _seed_user(
+        "fallback-exclude-other",
+        display_name="폴백제외타인",
+        interest_tags=[],
+        updated_at=datetime(2026, 1, 1, tzinfo=UTC),
+    )
+    follow_repo.follow(db, "fallback-exclude-viewer", "fallback-exclude-followed")
+    authed_as("fallback-exclude-viewer")
+    async with _client() as client:
+        resp = await client.get("/api/explore/users")
+    uids = [item["uid"] for item in resp.json()]
+    assert "fallback-exclude-viewer" not in uids
+    assert "fallback-exclude-followed" not in uids
+    assert "fallback-exclude-other" in uids
+
+
+@pytest.mark.asyncio
+async def test_list_users_primary_ranked_before_fallback(
+    authed_as: Callable[[str], None],
+) -> None:
+    """1순위(관심사 겹침) 결과가 2순위(폴백) 결과보다 항상 앞에 와야 한다."""
+    _seed_user(
+        "rank-viewer",
+        display_name="순위뷰어",
+        interest_tags=["철학"],
+        updated_at=datetime(2026, 1, 1, tzinfo=UTC),
+    )
+    _seed_user(
+        "rank-fallback",
+        display_name="가순위폴백",
+        interest_tags=[],
+        updated_at=datetime(2026, 6, 1, tzinfo=UTC),
+    )
+    _seed_user(
+        "rank-primary",
+        display_name="나순위1순위",
+        interest_tags=["철학"],
+        updated_at=datetime(2026, 1, 1, tzinfo=UTC),
+    )
+    authed_as("rank-viewer")
+    async with _client() as client:
+        resp = await client.get("/api/explore/users")
+    body = resp.json()
+    uids = [item["uid"] for item in body]
+    assert uids.index("rank-primary") < uids.index("rank-fallback")
+    primary_item = next(item for item in body if item["uid"] == "rank-primary")
+    fallback_item = next(item for item in body if item["uid"] == "rank-fallback")
+    assert "commonTags" in primary_item
+    assert fallback_item["commonTags"] == []

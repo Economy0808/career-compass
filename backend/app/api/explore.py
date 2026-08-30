@@ -115,28 +115,63 @@ def list_uids_with_shared_interest(
     return [candidate_uid for candidate_uid, _ in candidates[:limit]]
 
 
+def _display_name_sort_key(profile: dict[str, Any]) -> str:
+    """2순위(폴백) 후보의 정렬 키 - 표시 이름 오름차순.
+
+    2순위는 요청자 관심사와 무관하게 채우는 후보라 겹침 크기로 정렬할 근거가
+    없다. updated_at처럼 계속 변하는 값 대신 표시 이름을 쓰면, 같은 후보 집합에
+    대해 매 요청 결과 순서가 안정적으로 유지된다.
+    """
+    return profile.get("display_name") or ""
+
+
 @router.get("/users", response_model=list[ExploreUserOut], response_model_exclude_none=True)
 async def list_explore_users(
     user: DecodedToken | None = Depends(get_current_user_optional),
     db: Client = Depends(get_firestore_client),
 ) -> list[ExploreUserOut]:
-    """공통 관심사가 있을 만한 유저를 최대 30명 추천한다.
+    """비슷한 사람 추천을 최대 30명, 가능하면 항상 채워서 반환한다.
 
-    요청자 본인과, 요청자가 이미 팔로우 중인 유저는 제외한다(이미 팔로우한
-    사람이 "비슷한 사람 추천"에 계속 뜨는 건 추천의 목적에 맞지 않는다). 로그인
-    시 요청자의 interest_tags와 교집합 크기가 큰 순, 동률(익명 포함)이면 최근
-    갱신순(updated_at 내림차순)이다.
+    1순위: 관심사(interest_tags)가 하나라도 있는 유저 중 요청자 본인과 이미
+    팔로우 중인 유저를 제외한 나머지 - 요청자의 interest_tags와 교집합 크기가
+    큰 순, 동률(익명 포함)이면 최근 갱신순(updated_at 내림차순)이다(기존 동작
+    그대로).
+
+    2순위(폴백): 1순위만으로 상한(30명)을 못 채우면, 관심사 유무·겹침과
+    무관하게 나머지 유저(1순위에 없고, 본인도 팔로우 중도 아닌)로 채운다 -
+    실사용 계정이 적어 1순위 후보가 바닥나도(예: 3명뿐인 상태에서 하나를
+    팔로우하면 1순위가 0명이 되는 상황) 추천 사이드바가 통째로 비지 않게 하기
+    위함이다. 2순위 항목은 정의상 interest_tags가 비어 있거나 교집합이 없어
+    commonTags가 빈 배열([])이거나(로그인 시) 아예 키가 없다(익명 시) - 별도
+    필드를 추가하지 않고 기존 스키마 안에서 "추천 근거 없음"을 표현한다.
+
+    두 순위 모두 요청자 본인/이미 팔로우 중인 유저는 제외한다. 정렬은
+    1순위(교집합 큰 순) 뒤에 2순위(표시 이름 순)를 이어붙인 순서다.
     """
     requester_tags = _requester_tags(db, user)
     following_ids = _requester_following_ids(db, user)
-    candidates = [
+
+    def _excluded(uid: str) -> bool:
+        return (user is not None and uid == user.uid) or uid in following_ids
+
+    primary = [
         (uid, profile)
         for uid, profile in user_repo.list_users_with_interest_tags(db)
-        if profile.get("display_name")
-        and (user is None or uid != user.uid)
-        and uid not in following_ids
+        if profile.get("display_name") and not _excluded(uid)
     ]
-    candidates.sort(key=lambda item: _sort_key(item[1], requester_tags=requester_tags or set()))
+    primary.sort(key=lambda item: _sort_key(item[1], requester_tags=requester_tags or set()))
+    selected = primary[:_LIST_LIMIT]
+
+    if len(selected) < _LIST_LIMIT:
+        primary_uids = {uid for uid, _ in selected}
+        fallback = [
+            (uid, profile)
+            for uid, profile in user_repo.list_all_users(db, limit=_SEARCH_SCAN_LIMIT)
+            if profile.get("display_name") and not _excluded(uid) and uid not in primary_uids
+        ]
+        fallback.sort(key=lambda item: _display_name_sort_key(item[1]))
+        selected = selected + fallback[: _LIST_LIMIT - len(selected)]
+
     return [
         _to_out(
             uid,
@@ -144,7 +179,7 @@ async def list_explore_users(
             requester_tags=requester_tags,
             is_following=(uid in following_ids) if user is not None else None,
         )
-        for uid, profile in candidates[:_LIST_LIMIT]
+        for uid, profile in selected
     ]
 
 
