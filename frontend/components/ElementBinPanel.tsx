@@ -15,6 +15,8 @@ import { cn } from "@/lib/cn";
 import { TYPE_COLOR, DEFAULT_TYPE_COLOR } from "@/lib/element-colors";
 import type { CanvasPosition } from "@/components/ConstellationCanvas";
 import { InfoIcon, SeedIcon } from "@/components/ui/icons";
+import { CourseSearchPanel } from "@/components/CourseSearchPanel";
+import type { CourseDto } from "@/lib/courses-api";
 
 export interface BinItem {
   id: string;
@@ -25,6 +27,10 @@ export interface BinItem {
   description?: string;
   /** 이 항목의 선수 항목 id들(같은 bin 안). 온디맨드 선수관계 API 결과를 캐시한다. */
   prereqIds?: string[];
+  /** 원래 어느 학과/군집 출신인지(수업 군집 통합 시 원래 bin.label을 여기로
+   * 옮겨 칩에 표기한다) - 서버에 저장되지 않는 화면 전용 필드라 새로고침하면
+   * 사라진다(page.tsx normalizeIncomingBins 참고, 알려진 한계). */
+  groupLabel?: string;
 }
 
 export interface Bin {
@@ -45,6 +51,9 @@ export interface ElementBinPanelProps {
   onCreateBin: (label: string) => void;
   /** 보관함에 직접 원소를 추가한다 - id는 page.tsx가 생성한다. */
   onAddItem: (binId: string, item: Omit<BinItem, "id">) => void;
+  /** 과목 검색 결과를 보관함에 추가한다 - id는 `course:{학정번호}` 고정
+   * 규칙으로 page.tsx가 만든다(courses-api.ts의 courseItemId 참고). */
+  onAddCourseItem: (binId: string, course: CourseDto) => void;
   /** 이미 캔버스에 배치된 원소는 흐리게 + 체크 표시로 구분한다. */
   placedItemIds?: Set<string>;
   /** 있으면 패널 하단에 "새 별자리 만들기" 버튼을 보여준다. */
@@ -202,6 +211,9 @@ function ItemChip({
       />
       {code && <span className="font-mono text-micro text-paper-lo">{code}</span>}
       <span className="truncate">{rest}</span>
+      {item.groupLabel && (
+        <span className="shrink-0 rounded-none bg-paper px-1 text-micro text-paper-lo">{item.groupLabel}</span>
+      )}
       {placed && (
         <span aria-hidden className="text-lit">
           ✓
@@ -224,14 +236,20 @@ export interface BinDropPayload {
 function BinSection({
   bin,
   placedItemIds,
+  existingItemIds,
   onItemDragToCanvas,
   onAddItem,
+  onAddCourseItem,
   onPlaceAll,
 }: {
   bin: Bin;
   placedItemIds: Set<string>;
+  /** 보관함 전체(이 bin뿐 아니라 다른 bin 포함)에 이미 있는 원소 id - 수업
+   * 검색 중복 방지는 bin 하나가 아니라 화면 전체 기준이어야 한다. */
+  existingItemIds: Set<string>;
   onItemDragToCanvas: (item: BinItem, position: CanvasPosition) => void;
   onAddItem: (binId: string, item: Omit<BinItem, "id">) => void;
+  onAddCourseItem: (binId: string, course: CourseDto) => void;
   onPlaceAll?: (bin: Bin, base: CanvasPosition) => void;
 }) {
   const groups = useMemo(() => groupByLevel(bin.items), [bin.items]);
@@ -400,38 +418,49 @@ function BinSection({
       )}
 
       {!bin.isLoading && (
-        <form
-          onSubmit={handleAddItem}
-          className="mt-2 flex items-center gap-1.5 border-t border-paper-line pt-2"
-          aria-label={`${bin.label}에 원소 직접 추가`}
-        >
-          <select
-            value={addType}
-            onChange={(e) => setAddType(e.target.value)}
-            aria-label="새 원소 종류"
-            className="shrink-0 rounded-none border border-paper-line bg-paper px-1 py-1 text-micro text-paper-ink focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-paper-ink/60"
-          >
-            {ELEMENT_TYPE_OPTIONS.map((opt) => (
-              <option key={opt.value} value={opt.value}>
-                {opt.label}
-              </option>
-            ))}
-          </select>
-          <input
-            value={addLabel}
-            onChange={(e) => setAddLabel(e.target.value)}
-            placeholder="요소 이름 직접 추가"
-            aria-label="새 원소 이름"
-            className="min-w-0 flex-1 rounded-none border border-paper-line bg-transparent px-2 py-1 text-micro text-paper-ink placeholder:text-paper-lo focus:border-paper-ink focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-paper-ink/60"
-          />
-          <button
-            type="submit"
-            disabled={!addLabel.trim()}
-            className="shrink-0 rounded-none bg-paper-ink/12 px-2 py-1 text-micro font-semibold text-paper-ink transition-colors hover:bg-paper-ink/18 disabled:cursor-not-allowed disabled:opacity-40 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-paper-ink/60"
-          >
-            추가
-          </button>
-        </form>
+        <div className="mt-2 border-t border-paper-line pt-2" aria-label={`${bin.label}에 원소 추가`}>
+          <div className="flex items-center gap-1.5">
+            <select
+              value={addType}
+              onChange={(e) => setAddType(e.target.value)}
+              aria-label="새 원소 종류"
+              className="shrink-0 rounded-none border border-paper-line bg-paper px-1 py-1 text-micro text-paper-ink focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-paper-ink/60"
+            >
+              {ELEMENT_TYPE_OPTIONS.map((opt) => (
+                <option key={opt.value} value={opt.value}>
+                  {opt.label}
+                </option>
+              ))}
+            </select>
+            {/* "수업"만 검색 카탈로그가 있다 - 자격증/학회 등은 카탈로그가
+                없으므로 여전히 텍스트로 직접 입력한다. */}
+            {addType !== "course" && (
+              <form onSubmit={handleAddItem} className="flex min-w-0 flex-1 items-center gap-1.5">
+                <input
+                  value={addLabel}
+                  onChange={(e) => setAddLabel(e.target.value)}
+                  placeholder="요소 이름 직접 추가"
+                  aria-label="새 원소 이름"
+                  className="min-w-0 flex-1 rounded-none border border-paper-line bg-transparent px-2 py-1 text-micro text-paper-ink placeholder:text-paper-lo focus:border-paper-ink focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-paper-ink/60"
+                />
+                <button
+                  type="submit"
+                  disabled={!addLabel.trim()}
+                  className="shrink-0 rounded-none bg-paper-ink/12 px-2 py-1 text-micro font-semibold text-paper-ink transition-colors hover:bg-paper-ink/18 disabled:cursor-not-allowed disabled:opacity-40 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-paper-ink/60"
+                >
+                  추가
+                </button>
+              </form>
+            )}
+          </div>
+          {addType === "course" && (
+            <CourseSearchPanel
+              className="mt-1.5"
+              existingItemIds={existingItemIds}
+              onSelect={(course) => onAddCourseItem(bin.id, course)}
+            />
+          )}
+        </div>
       )}
     </section>
   );
@@ -442,6 +471,7 @@ export function ElementBinPanel({
   onItemDragToCanvas,
   onCreateBin,
   onAddItem,
+  onAddCourseItem,
   placedItemIds,
   onStartNewConstellation,
   onPlaceAll,
@@ -449,6 +479,13 @@ export function ElementBinPanel({
 }: ElementBinPanelProps) {
   const [newBinLabel, setNewBinLabel] = useState("");
   const resolvedPlaced = placedItemIds ?? new Set<string>();
+  // 수업 검색 중복 방지는 bin 하나가 아니라 화면 전체 기준 - 다른 보관함에
+  // 이미 있는 과목도 "이미 담았어요"로 표시해야 한다.
+  const existingItemIds = useMemo(() => {
+    const ids = new Set<string>();
+    for (const bin of bins) for (const item of bin.items) ids.add(item.id);
+    return ids;
+  }, [bins]);
 
   function handleCreateBin() {
     const label = newBinLabel.trim();
@@ -486,8 +523,10 @@ export function ElementBinPanel({
               key={bin.id}
               bin={bin}
               placedItemIds={resolvedPlaced}
+              existingItemIds={existingItemIds}
               onItemDragToCanvas={onItemDragToCanvas}
               onAddItem={onAddItem}
+              onAddCourseItem={onAddCourseItem}
               onPlaceAll={onPlaceAll}
             />
           ))
