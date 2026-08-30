@@ -25,10 +25,31 @@
 import { useEffect, useRef, useState } from "react";
 import { usePathname } from "next/navigation";
 import { DmPanel } from "@/components/DmPanel";
+import { CommunityNoteInbox, useCommunityNoteUnread } from "@/components/CommunityNoteInbox";
 import { useAuth } from "@/lib/auth-context";
 import { listDmThreads } from "@/lib/dm-api";
 
 const DM_ROUTES = ["/explore", "/feed", "/schedule"];
+const NOTE_ROUTE = "/community";
+
+/** 쪽지(봉투) - 커뮤니티 전용. DM 말풍선과 한눈에 구분되게 다른 도상을 쓴다. */
+function EnvelopeIcon({ size = 20 }: { size?: number }) {
+  return (
+    <svg
+      width={size}
+      height={size}
+      viewBox="0 0 24 24"
+      fill="transparent"
+      stroke="currentColor"
+      strokeWidth="1.7"
+      strokeLinejoin="round"
+      aria-hidden
+    >
+      <rect x="3" y="5.5" width="18" height="13" rx="2" />
+      <path d="M3.5 7 L12 13 L20.5 7" />
+    </svg>
+  );
+}
 
 function MessageBubbleIcon({ size = 20 }: { size?: number }) {
   return (
@@ -57,6 +78,12 @@ export function MessageIcon() {
 
   const isDmRoute =
     pathname !== null && DM_ROUTES.some((p) => pathname === p || pathname.startsWith(`${p}/`));
+  // 커뮤니티는 익명 공간이라 DM 대신 쪽지함이 뜬다(사용자 지시: "쪽지기능은
+  // 커뮤니티 한정이야"). 두 아이콘이 동시에 뜨는 경로는 없다.
+  const isNoteRoute =
+    pathname !== null && (pathname === NOTE_ROUTE || pathname.startsWith(`${NOTE_ROUTE}/`));
+  // 훅은 조건부로 부를 수 없다 - 커뮤니티가 아니면 이 값은 그냥 쓰이지 않는다.
+  const noteUnread = useCommunityNoteUnread();
 
   // 마운트 시 1회 조회 - 뱃지만 채우면 충분, 폴링은 과설계(알림함과 동일 판단).
   useEffect(() => {
@@ -117,29 +144,36 @@ export function MessageIcon() {
     };
   }, [open]);
 
-  if (!user || !isDmRoute) return null;
+  if (!user || (!isDmRoute && !isNoteRoute)) return null;
+
+  const badge = isNoteRoute ? noteUnread : unreadTotal;
+  const label = isNoteRoute ? "쪽지함" : "메시지함";
 
   return (
     <div ref={containerRef} className="contents">
       <button
         type="button"
         aria-expanded={open}
-        aria-label={open ? "메시지함 닫기" : "메시지함 열기"}
+        aria-label={open ? `${label} 닫기` : `${label} 열기`}
         onClick={() => setOpen((o) => !o)}
         className="paper-surface fixed right-20 top-4 z-20 flex h-11 w-11 items-center justify-center rounded-full border border-paper-line bg-paper-soft/95 text-paper-ink shadow-panel backdrop-blur-md transition-colors hover:bg-paper focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-paper-ink"
       >
-        <MessageBubbleIcon />
-        {unreadTotal > 0 && (
+        {isNoteRoute ? <EnvelopeIcon /> : <MessageBubbleIcon />}
+        {badge > 0 && (
           <span
             aria-hidden
             className="absolute -right-1 -top-1 flex h-5 min-w-5 items-center justify-center rounded-full bg-spec-b px-1 font-mono text-micro font-semibold leading-none text-paper"
           >
-            {unreadTotal > 99 ? "99+" : unreadTotal}
+            {badge > 99 ? "99+" : badge}
           </span>
         )}
       </button>
 
-      {open && (
+      {/* 쪽지함은 자체 Modal을 들고 있어(익명 대화 UI 일체) 아래 DM 다이얼로그
+          껍데기를 씌우지 않는다 - 아이콘만 이 컴포넌트가 소유한다. */}
+      {isNoteRoute && <CommunityNoteInbox open={open} onClose={() => setOpen(false)} />}
+
+      {isDmRoute && open && (
         <div
           ref={panelRef}
           role="dialog"
