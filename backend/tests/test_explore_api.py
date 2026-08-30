@@ -128,6 +128,33 @@ async def test_list_users_excludes_self_and_requires_display_name(
 
 
 @pytest.mark.asyncio
+async def test_list_users_regression_self_never_appears(
+    authed_as: Callable[[str], None],
+) -> None:
+    """회귀 테스트: 프론트 세션이 탐색 추천 결과에 본인 계정이 한 번 섞여 나온 것을
+    관측했다(explore.py 편집 중 과도 상태였을 가능성이 높음). 본인이 추천 조건을
+    완벽히 충족해도(표시 이름 있음 + 공통 관심사 보유) 결과에는 항상 빠져야 한다."""
+    _seed_user(
+        "regress-viewer",
+        display_name="회귀뷰어",
+        interest_tags=["철학"],
+        updated_at=datetime(2026, 1, 1, tzinfo=UTC),
+    )
+    _seed_user(
+        "regress-other",
+        display_name="다른유저",
+        interest_tags=["철학"],
+        updated_at=datetime(2026, 1, 1, tzinfo=UTC),
+    )
+    authed_as("regress-viewer")
+    async with _client() as client:
+        resp = await client.get("/api/explore/users")
+    uids = [item["uid"] for item in resp.json()]
+    assert "regress-viewer" not in uids
+    assert "regress-other" in uids
+
+
+@pytest.mark.asyncio
 async def test_list_users_sorts_by_intersection_size_when_logged_in(
     authed_as: Callable[[str], None],
 ) -> None:
@@ -314,3 +341,25 @@ async def test_search_excludes_self(authed_as: Callable[[str], None]) -> None:
         resp = await client.get("/api/explore/search", params={"q": "셀프검색"})
     uids = [item["uid"] for item in resp.json()]
     assert "self-search" not in uids
+
+
+@pytest.mark.asyncio
+async def test_search_regression_self_never_appears_keyword_and_nickname(
+    authed_as: Callable[[str], None],
+) -> None:
+    """회귀 테스트: 검색어가 본인 표시 이름/관심사 태그와 정확히 일치해도(키워드·@
+    닉네임 양쪽 모두) 본인은 항상 결과에서 빠져야 한다."""
+    _seed_user(
+        "regress-search-viewer",
+        display_name="겹침검색유저",
+        interest_tags=["회귀검색태그"],
+        updated_at=datetime(2026, 1, 1, tzinfo=UTC),
+    )
+    authed_as("regress-search-viewer")
+    async with _client() as client:
+        keyword_resp = await client.get("/api/explore/search", params={"q": "회귀검색태그"})
+        nickname_resp = await client.get("/api/explore/search", params={"q": "@겹침검색유저"})
+    assert keyword_resp.status_code == 200
+    assert nickname_resp.status_code == 200
+    assert "regress-search-viewer" not in [item["uid"] for item in keyword_resp.json()]
+    assert "regress-search-viewer" not in [item["uid"] for item in nickname_resp.json()]
