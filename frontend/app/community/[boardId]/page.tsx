@@ -8,10 +8,14 @@
  *
  * 비밀 게시판(forcedAnonymous)은 작성 모달에 익명 체크박스 자체가 없다 -
  * "이 게시판은 익명만 가능해요" 한 줄만 보여준다(사용자 지시).
+ *
+ * 미인증 진입 차단(사용자 지시 8번): 글 목록은 보여주되, 항목을 눌러 글
+ * 상세로 들어가는 클릭은 막는다. 기존 verifyGateOpen state를 그대로 재사용.
  */
 
 import Link from "next/link";
 import { useParams, useRouter } from "next/navigation";
+import type { MouseEvent } from "react";
 import { useEffect, useState } from "react";
 import { Button, EmptyState, Field, Modal } from "@/components/ui";
 import { CommunityNoteComposer, NoteKebabMenu, type NoteTarget } from "@/components/CommunityNoteComposer";
@@ -36,12 +40,20 @@ function PostSkeleton() {
   );
 }
 
-function PostRow({ post, onSendNote }: { post: CommunityPostDto; onSendNote: (post: CommunityPostDto) => void }) {
+function PostRow({
+  post,
+  onSendNote,
+  onNavigate,
+}: {
+  post: CommunityPostDto;
+  onSendNote: (post: CommunityPostDto) => void;
+  onNavigate: (e: MouseEvent<HTMLAnchorElement>) => void;
+}) {
   // 실명 글인데 프로필 이름이 비어 있으면 "익명"으로 둔갑시키지 말고 중립 폴백.
   const authorLabel = post.isAnonymous ? (post.isMine ? "익명(나)" : "익명") : (post.authorDisplayName ?? "관측자");
   return (
     <div className="flex items-start gap-1 rounded-lg border border-rule bg-ink-800/70 p-4 backdrop-blur-[2px] transition-colors hover:bg-ink-800/90">
-      <Link href={`/community/post/${post.id}`} className="block min-w-0 flex-1 no-underline">
+      <Link href={`/community/post/${post.id}`} onClick={onNavigate} className="block min-w-0 flex-1 no-underline">
         <h3 className="truncate font-sans text-body font-medium text-text-hi">{post.title}</h3>
         <div className="mt-1.5 flex flex-wrap items-center gap-x-2.5 gap-y-1 text-caption text-text-lo">
           <span>{authorLabel}</span>
@@ -92,6 +104,14 @@ export default function CommunityBoardPage() {
   }
 
   useEffect(load, [boardId]);
+
+  /** 로그인은 했지만 미인증이면 글 상세 진입 자체를 막는다(사용자 지시 8번). */
+  function guardEntry(e: MouseEvent<HTMLAnchorElement>) {
+    if (user && !user.yonseiVerified) {
+      e.preventDefault();
+      setVerifyGateOpen(true);
+    }
+  }
 
   function openComposer() {
     if (!user) {
@@ -167,6 +187,7 @@ export default function CommunityBoardPage() {
               key={post.id}
               post={post}
               onSendNote={(p) => openNoteComposer({ targetType: "post", targetId: p.id, label: p.title })}
+              onNavigate={guardEntry}
             />
           ))}
         </div>

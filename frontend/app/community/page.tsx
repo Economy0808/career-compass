@@ -12,10 +12,18 @@
  * 빈 게시판은 미리보기 없이 기존 카드 그대로(화면 사망 금지 동일 원칙).
  * ponytail: 미리보기용으로 게시판 전체 글 목록을 6번 받는다 - 글 수가 적은
  * 지금은 충분하고, 무거워지면 백엔드에 보드별 프리뷰 엔드포인트를 요청한다.
+ *
+ * 미인증 진입 차단(사용자 지시 8번 - "커뮤니티 탭에서 지금 각 게시판 들어갈
+ * 수 있고" 재차단): 최상위 화면(이 카드 목록)은 보여주되, 카드를 눌러 게시판
+ * 안으로 들어가는 클릭 자체를 막는다. VerifyGate/isVerifyRequiredError는 이미
+ * 있는 인증 안내 컴포넌트를 그대로 재사용 - 새 패턴 발명 금지.
  */
 
 import Link from "next/link";
+import type { MouseEvent } from "react";
 import { useEffect, useState } from "react";
+import { VerifyGate } from "@/components/VerifyGate";
+import { useAuth } from "@/lib/auth-context";
 import {
   BOARDS,
   listBoardPosts,
@@ -47,9 +55,20 @@ function BoardSkeleton() {
 }
 
 export default function CommunityPage() {
+  const { user } = useAuth();
   const [boards, setBoards] = useState<BoardDto[] | null>(null);
   // boardId -> 핫글. 아직 안 온 게시판은 키 자체가 없다(카드는 미리보기 없이 렌더).
   const [previews, setPreviews] = useState<Record<string, CommunityPostDto>>({});
+  const [verifyGateOpen, setVerifyGateOpen] = useState(false);
+
+  /** 로그인은 했지만 미인증이면 게시판 진입 자체를 막는다. 비로그인은 기존
+   * 그대로(이 화면은 원래 열람에 로그인을 요구하지 않았다 - 건드리지 않는다). */
+  function guardBoardEntry(e: MouseEvent<HTMLAnchorElement>) {
+    if (user && !user.yonseiVerified) {
+      e.preventDefault();
+      setVerifyGateOpen(true);
+    }
+  }
 
   useEffect(() => {
     let cancelled = false;
@@ -104,6 +123,7 @@ export default function CommunityPage() {
               <Link
                 key={board.id}
                 href={`/community/${board.id}`}
+                onClick={guardBoardEntry}
                 className="block rounded-lg border border-rule bg-ink-800/70 p-4 no-underline backdrop-blur-[2px] transition-colors hover:bg-ink-800/90"
               >
                 <h2 className="font-sans text-body font-semibold text-text-hi">{board.name}</h2>
@@ -135,6 +155,7 @@ export default function CommunityPage() {
           })}
         </div>
       )}
+      <VerifyGate open={verifyGateOpen} onClose={() => setVerifyGateOpen(false)} />
     </div>
   );
 }
