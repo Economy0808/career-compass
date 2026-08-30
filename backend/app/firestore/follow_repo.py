@@ -142,3 +142,13 @@ def list_following_ids(db: Client, uid: str, limit: int = 100) -> list[str]:
     """uid가 팔로우하는 유저들의 uid 목록을 반환한다(정렬 순서 보장 없음)."""
     query = db.collection(_FOLLOWS_COLLECTION).where("follower_id", "==", uid).limit(limit)
     return [doc.to_dict()["followee_id"] for doc in query.stream()]
+
+
+def list_followers_ids(db: Client, uid: str, limit: int = 100) -> list[str]:
+    """uid를 팔로우하는(팔로워) 유저들의 uid 목록을 반환한다(정렬 순서 보장 없음).
+
+    list_following_ids와 대칭인 함수 - 등호 필터의 방향만 뒤집는다
+    (follower_id 대신 followee_id로 uid를 찾는다).
+    """
+    query = db.collection(_FOLLOWS_COLLECTION).where("followee_id", "==", uid).limit(limit)
+    return [doc.to_dict()["follower_id"] for doc in query.stream()]

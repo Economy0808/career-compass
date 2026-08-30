@@ -9,9 +9,11 @@ from app.api.auth import router as auth_router
 from app.api.auth_sync import router as auth_sync_router
 from app.api.beans import router as beans_router
 from app.api.community import router as community_router
+from app.api.community_notes import router as community_notes_router
 from app.api.constellation import router as constellation_router
 from app.api.constellation_intake import router as constellation_intake_router
 from app.api.courses import router as courses_router
+from app.api.dm import router as dm_router
 from app.api.explore import router as explore_router
 from app.api.goals import router as goals_router
 from app.api.health import router as health_router
@@ -88,6 +90,8 @@ def create_app() -> FastAPI:
     app.include_router(notifications_router)
     app.include_router(stories_router)
     app.include_router(community_router)
+    app.include_router(community_notes_router)
+    app.include_router(dm_router)
     return app
 
 
