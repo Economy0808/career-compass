@@ -90,7 +90,7 @@ def _translate_repo_errors(fn: Callable[_P, _R]) -> Callable[_P, _R]:
 
 
 @_translate_repo_errors
-def _get_owned_or_published(db: Client, constellation_id: str, uid: str) -> ConstellationOut:
+def _get_owned_or_published(db: Client, constellation_id: str, uid: str | None) -> ConstellationOut:
     """조회 전용 가시성 판단: 소유자이거나 공개된 별자리만 볼 수 있다.
 
     get_constellation 자체는 가시성을 판단하지 않는 순수 조회이므로(리포지토리
@@ -101,7 +101,7 @@ def _get_owned_or_published(db: Client, constellation_id: str, uid: str) -> Cons
         raise ConstellationNotFoundError(constellation_id)
     if constellation.owner_id != uid and not constellation.is_published:
         raise ConstellationPermissionError(
-            f"{uid}는 별자리 {constellation_id}를 열람할 수 없습니다."
+            f"{uid or '익명 사용자'}는 별자리 {constellation_id}를 열람할 수 없습니다."
         )
     return constellation_to_out(constellation)
 
@@ -197,11 +197,15 @@ async def list_user_gallery(
 )
 async def get_constellation(
     constellation_id: str,
-    user: DecodedToken = Depends(get_current_user),
+    user: DecodedToken | None = Depends(get_current_user_optional),
     db: Client = Depends(get_firestore_client),
 ) -> ConstellationOut:
-    """별자리 하나를 조회한다. 소유자이거나 공개된 별자리만 허용한다."""
-    return _get_owned_or_published(db, constellation_id, user.uid)
+    """별자리 하나를 조회한다. 소유자이거나 공개된 별자리만 허용한다.
+
+    발행된 별자리는 공개 데이터이므로 익명(비로그인) 열람을 허용한다 -
+    /feed, /user/{uid}와 동일한 계약(공유 링크·게시물 상세 임베드가 의존).
+    """
+    return _get_owned_or_published(db, constellation_id, user.uid if user else None)
 
 
 @router.delete("/{constellation_id}", status_code=204)

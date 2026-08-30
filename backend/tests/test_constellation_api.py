@@ -26,7 +26,7 @@ import requests
 from google.cloud import firestore
 from httpx import ASGITransport, AsyncClient
 
-from app.auth.deps import get_current_user
+from app.auth.deps import get_current_user, get_current_user_optional
 from app.auth.firebase_auth import DecodedToken
 from app.firestore import user_repo
 from app.firestore.client import get_firestore_client
@@ -71,7 +71,11 @@ def authed_as() -> Callable[[str], None]:
     """
 
     def _set(uid: str) -> None:
-        app.dependency_overrides[get_current_user] = lambda: DecodedToken(uid=uid)
+        token = DecodedToken(uid=uid)
+        app.dependency_overrides[get_current_user] = lambda: token
+        # 단건 GET처럼 optional 인증을 쓰는 라우트도 같은 uid로 보여야 한다
+        # (test_community_api.py와 동일 패턴 - 하나만 override하면 익명으로 보임).
+        app.dependency_overrides[get_current_user_optional] = lambda: token
 
     return _set
 
@@ -1343,6 +1347,47 @@ async def test_feed_allows_anonymous_access(authed_as: Callable[[str], None]) ->
         assert resp.status_code == 200
         ids = {item["constellation"]["id"] for item in resp.json()}
         assert cid in ids
+
+
+@pytest.mark.asyncio
+async def test_get_single_allows_anonymous_for_published(
+    authed_as: Callable[[str], None],
+) -> None:
+    """발행된 별자리 단건 GET은 익명도 200 - 공유 링크/게시물 상세 임베드가 의존하는
+    계약. (회귀: 단건만 하드 인증을 요구해 익명 401을 냈던 사고, 2026-08-30)"""
+    authed_as("user-a")
+    async with _client() as client:
+        cid = (
+            await client.post(
+                "/api/constellations", json={"title": "익명 단건 대상", "goalRawText": "x"}
+            )
+        ).json()["id"]
+        await client.patch(f"/api/constellations/{cid}/publish", json={"isPublished": True})
+
+    app.dependency_overrides.clear()  # 익명 상태 재현
+    async with _client() as client:
+        resp = await client.get(f"/api/constellations/{cid}")
+        assert resp.status_code == 200
+        assert resp.json()["isPublished"] is True
+
+
+@pytest.mark.asyncio
+async def test_get_single_denies_anonymous_for_unpublished(
+    authed_as: Callable[[str], None],
+) -> None:
+    """미발행 별자리 단건 GET은 익명에게 403 - 완화가 비공개까지 열지 않는지 확인."""
+    authed_as("user-a")
+    async with _client() as client:
+        cid = (
+            await client.post(
+                "/api/constellations", json={"title": "비공개 단건", "goalRawText": "x"}
+            )
+        ).json()["id"]
+
+    app.dependency_overrides.clear()
+    async with _client() as client:
+        resp = await client.get(f"/api/constellations/{cid}")
+        assert resp.status_code == 403
 
 
 # --- 유저 갤러리 (프로필 화면용 발행 목록) ---
