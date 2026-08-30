@@ -28,6 +28,7 @@ import { DmPanel } from "@/components/DmPanel";
 import { CommunityNoteInbox, useCommunityNoteUnread } from "@/components/CommunityNoteInbox";
 import { useAuth } from "@/lib/auth-context";
 import { listDmThreads } from "@/lib/dm-api";
+import { subscribeMessagePanel } from "@/lib/message-panel-bus";
 
 const DM_ROUTES = ["/explore", "/feed", "/schedule"];
 const NOTE_ROUTE = "/community";
@@ -73,8 +74,23 @@ export function MessageIcon() {
   const pathname = usePathname();
   const [open, setOpen] = useState(false);
   const [unreadTotal, setUnreadTotal] = useState(0);
+  // 알림함의 dm 알림 클릭(lib/message-panel-bus.ts)으로 열렸을 때만 채워지는
+  // "이 상대와의 대화를 바로 열어라" 대상. 아이콘을 직접 눌러 여는 수동
+  // 열기는 이전 대상을 들고 가면 안 되므로 그 onClick에서 매번 비운다.
+  const [dmTargetPeerUid, setDmTargetPeerUid] = useState<string | null>(null);
   const containerRef = useRef<HTMLDivElement>(null);
   const panelRef = useRef<HTMLDivElement>(null);
+
+  // 알림함과의 pub/sub 연결 - dm 요청은 패널을 열고 상대를 기억, note 요청은
+  // (커뮤니티 경로에서만 실제로 보이는) 쪽지함을 연다.
+  useEffect(() => {
+    return subscribeMessagePanel((req) => {
+      if (req.kind === "dm") {
+        setDmTargetPeerUid(req.peerUid);
+      }
+      setOpen(true);
+    });
+  }, []);
 
   const isDmRoute =
     pathname !== null && DM_ROUTES.some((p) => pathname === p || pathname.startsWith(`${p}/`));
@@ -155,7 +171,11 @@ export function MessageIcon() {
         type="button"
         aria-expanded={open}
         aria-label={open ? `${label} 닫기` : `${label} 열기`}
-        onClick={() => setOpen((o) => !o)}
+        onClick={() => {
+          // 수동 토글은 항상 새로 연다 - 이전 알림이 남긴 dm 이동 대상을 물려받지 않는다.
+          setDmTargetPeerUid(null);
+          setOpen((o) => !o);
+        }}
         className="paper-surface fixed right-20 top-4 z-20 flex h-11 w-11 items-center justify-center rounded-full border border-paper-line bg-paper-soft/95 text-paper-ink shadow-panel backdrop-blur-md transition-colors hover:bg-paper focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-paper-ink"
       >
         {isNoteRoute ? <EnvelopeIcon /> : <MessageBubbleIcon />}
@@ -195,7 +215,7 @@ export function MessageIcon() {
             </button>
           </div>
 
-          <DmPanel onUnreadTotalChange={setUnreadTotal} />
+          <DmPanel onUnreadTotalChange={setUnreadTotal} initialPeerUid={dmTargetPeerUid ?? undefined} />
         </div>
       )}
     </div>

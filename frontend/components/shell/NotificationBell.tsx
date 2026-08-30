@@ -25,21 +25,40 @@ import Link from "next/link";
 import { LikeStarIcon } from "@/components/PostDetail";
 import { useAuth } from "@/lib/auth-context";
 import { relativeTimeKo } from "@/lib/format";
+import { requestOpenDm, requestOpenNotes } from "@/lib/message-panel-bus";
 import {
   listNotifications,
   markAllNotificationsRead,
   type NotificationDto,
 } from "@/lib/notifications-api";
 
-const TYPE_LABEL: Record<NotificationDto["type"], string> = {
+// dm·note는 문구가 고정 템플릿("이름 + 접미사")에 안 맞아 렌더링에서 개별
+// 분기한다(아래 items.map) - 여기 표는 follow/like/comment 세 개만 다룬다.
+const TYPE_LABEL: Partial<Record<NotificationDto["type"], string>> = {
   follow: "회원님을 팔로우하기 시작했어요",
   like: "회원님의 게시물을 좋아합니다",
   comment: "회원님의 게시물에 댓글을 남겼어요",
 };
 
 function notificationHref(n: NotificationDto): string {
-  if (n.type === "follow") return `/profile/${encodeURIComponent(n.actorUid)}`;
-  return n.postId ? `/post/${encodeURIComponent(n.postId)}` : `/profile/${encodeURIComponent(n.actorUid)}`;
+  if (n.type === "dm") return "/feed";
+  if (n.type === "note") return "/community";
+  if (n.type === "follow") return `/profile/${encodeURIComponent(n.actorUid ?? "")}`;
+  return n.postId
+    ? `/post/${encodeURIComponent(n.postId)}`
+    : `/profile/${encodeURIComponent(n.actorUid ?? "")}`;
+}
+
+/** dm·note는 클릭 시 해당 경로로 이동한 뒤(Link의 기본 동작) 메시지 패널
+ * 버스로 "그 상대와의 대화를 열어라" / "쪽지함을 열어라"를 알린다 - 두
+ * 컴포넌트가 직접 호출할 수 없어 lib/message-panel-bus.ts를 거친다.
+ * follow/like/comment는 기존 Link 이동 그대로 - 여기서 건드리지 않는다. */
+function handleNotificationClick(n: NotificationDto) {
+  if (n.type === "dm" && n.actorUid) {
+    requestOpenDm(n.actorUid);
+  } else if (n.type === "note") {
+    requestOpenNotes();
+  }
 }
 
 export function NotificationBell() {
@@ -180,16 +199,26 @@ export function NotificationBell() {
                   <Link
                     key={n.id}
                     href={notificationHref(n)}
-                    onClick={() => setOpen(false)}
+                    onClick={() => {
+                      setOpen(false);
+                      handleNotificationClick(n);
+                    }}
                     className="flex items-start gap-3 border-b border-paper-line px-4 py-3 no-underline transition-colors last:border-b-0 hover:bg-paper"
                   >
                     <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-paper text-lg">
+                      {/* note는 actor 자체가 없어(익명성) 항상 기본 도상만 뜬다. */}
                       {n.actor?.avatarEmoji ?? "🔭"}
                     </span>
                     <span className="min-w-0 flex-1">
                       <span className="block text-body-sm text-paper-ink">
-                        <span className="font-semibold">{n.actor?.displayName ?? "관측자"}</span>{" "}
-                        {TYPE_LABEL[n.type]}
+                        {n.type === "note" ? (
+                          "새 쪽지가 도착했어요"
+                        ) : (
+                          <>
+                            <span className="font-semibold">{n.actor?.displayName ?? "관측자"}</span>
+                            {n.type === "dm" ? "님이 메시지를 보냈어요" : <>{" "}{TYPE_LABEL[n.type]}</>}
+                          </>
+                        )}
                       </span>
                       <span className="mt-0.5 block text-caption text-paper-lo">
                         {relativeTimeKo(n.createdAt)}

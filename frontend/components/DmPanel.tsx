@@ -11,7 +11,7 @@
  * 조회가 곧 "열 때마다 재조회"와 같다(알림함과 동일한 패턴).
  */
 
-import { useEffect, useState } from "react";
+import { useEffect, useRef, useState } from "react";
 import { ApiError } from "@/lib/api";
 import {
   listDmMessages,
@@ -28,13 +28,18 @@ export interface DmPanelProps {
    * 뱃지로 끌어올린다 - 패널이 닫혀 있을 때도 뱃지는 계속 보여야 해서 상태를
    * 여기서 소유하지 않고 콜백으로 올린다. */
   onUnreadTotalChange?: (total: number) => void;
+  /** 알림함의 dm 알림 클릭(lib/message-panel-bus.ts)으로 열렸을 때, 최초
+   * 목록 로드 직후 이 상대와의 대화를 자동으로 연다. 목록에 이 상대와의
+   * 스레드가 없으면(팔로우 관계가 끊겼거나 등) 조용히 목록만 보여준다 -
+   * 에러 화면을 띄우지 않는다. */
+  initialPeerUid?: string;
 }
 
 function isForbidden(err: unknown): boolean {
   return err instanceof ApiError && err.status === 403;
 }
 
-export function DmPanel({ onUnreadTotalChange }: DmPanelProps) {
+export function DmPanel({ onUnreadTotalChange, initialPeerUid }: DmPanelProps) {
   const [threads, setThreads] = useState<DmThreadDto[] | null>(null);
   const [active, setActive] = useState<DmThreadDto | null>(null);
   const [messages, setMessages] = useState<DmMessageDto[] | null>(null);
@@ -42,12 +47,22 @@ export function DmPanel({ onUnreadTotalChange }: DmPanelProps) {
   const [sending, setSending] = useState(false);
   const [sendError, setSendError] = useState<string | null>(null);
   const [showVerifyGate, setShowVerifyGate] = useState(false);
+  // initialPeerUid 자동 열기는 최초 목록 로드 1회만 - openThread()가 내부에서
+  // loadThreads()를 다시 부르므로(안읽음 갱신) 이 가드가 없으면 재귀적으로
+  // 계속 같은 스레드를 다시 연다.
+  const autoOpenedRef = useRef(false);
 
   function loadThreads() {
     listDmThreads()
       .then((res) => {
         setThreads(res.items);
         onUnreadTotalChange?.(res.unreadTotal);
+        if (!autoOpenedRef.current && initialPeerUid) {
+          autoOpenedRef.current = true;
+          const target = res.items.find((t) => t.peer.uid === initialPeerUid);
+          if (target) openThread(target);
+          // 목록에 없으면 조용히 목록만 보여준다(에러 화면 금지 - 지시).
+        }
       })
       .catch((err) => {
         if (isVerifyRequiredError(err)) setShowVerifyGate(true);

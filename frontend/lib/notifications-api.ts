@@ -7,6 +7,8 @@
  *   read-all(전체 일괄)만 존재한다.
  * - actor는 프로필 문서가 아예 없는 stub 유저면 없을 수 있고, exclude_none이라
  *   키 자체가 응답에서 빠질 수 있다 - 옵셔널로 선언(호출부가 옵셔널 체이닝 필수).
+ * - type "note"(커뮤니티 익명 쪽지)는 actorUid·actor 키 자체가 응답에서 빠진다
+ *   (백엔드가 익명성 보장을 위해 아예 내려주지 않는다) - actorUid도 옵셔널.
  */
 
 import { request } from "./api";
@@ -18,9 +20,9 @@ export interface NotificationActorDto {
 
 export interface NotificationDto {
   id: string;
-  actorUid: string;
+  actorUid?: string;
   actor?: NotificationActorDto;
-  type: "follow" | "like" | "comment";
+  type: "follow" | "like" | "comment" | "dm" | "note";
   postId?: string;
   createdAt: number;
   read: boolean;
