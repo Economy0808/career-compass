@@ -96,4 +96,11 @@ async def require_yonsei_verified(
         return user
     if get_live_yonsei_verified(user.uid):
         return user.model_copy(update={"yonsei_verified": True})
-    raise HTTPException(status_code=403, detail="연세대 학부생 인증이 필요합니다.")
+    # 403은 소유권 위반(남의 리소스 수정)에도 쓰이므로, 프론트가 "인증 유도 화면"과
+    # "권한 없음"을 구분할 수 있도록 기계 판독용 헤더를 함께 내려준다. detail은 문자열
+    # 그대로 유지한다 - 모듈 docstring대로 프론트 ApiError가 문자열을 전제하기 때문.
+    raise HTTPException(
+        status_code=403,
+        detail="연세대 학부생 인증이 필요합니다.",
+        headers={"X-Auth-Requirement": "yonsei-verified"},
+    )
