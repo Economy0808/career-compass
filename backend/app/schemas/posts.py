@@ -17,6 +17,8 @@ app/domain/post.py의 상수를 그대로 재사용한다 - 이 스키마 계층
 
 from __future__ import annotations
 
+from typing import Literal
+
 from pydantic import BaseModel, ConfigDict, Field, field_validator, model_validator
 from pydantic.alias_generators import to_camel
 
@@ -150,3 +152,15 @@ class PostFeedAuthorOut(_CamelModel):
 class PostFeedItemOut(_CamelModel):
     post: PostOut
     author: PostFeedAuthorOut
+
+
+class PostFeedOut(_CamelModel):
+    """GET /feed 응답. source로 콜드스타트 분기 결과를 프론트에 알려준다.
+
+    - "following": 팔로잉 + 본인 글(정상 상태).
+    - "interest": 콜드스타트 - 팔로잉이 0명이라 관심사 겹치는 유저 글로 보충.
+    - "latest": 관심사 태그도 없어 전체 최신 글로 폴백(완전 콜드스타트).
+    """
+
+    source: Literal["following", "interest", "latest"]
+    posts: list[PostFeedItemOut]

@@ -41,6 +41,10 @@ _COMMENTS_SUBCOLLECTION = "comments"
 _LIKES_SUBCOLLECTION = "likes"
 _LIST_LIMIT = 30
 _COMMENT_LIST_LIMIT = 100
+# Firestore where(..., "in", [...])는 값 30개까지만 허용한다 - 31개부터 400
+# InvalidArgument("'IN' supports up to 30 comparison values")를 던진다(에뮬레이터
+# 실측 확인, 2026-08-30). list_feed_for가 uids를 이 크기로 청크 분할하는 근거.
+_FEED_QUERY_IN_CHUNK = 30
 
 __all__ = [
     "CommentNotFoundError",
@@ -58,7 +62,7 @@ __all__ = [
     "liked_post_ids",
     "list_by_owner",
     "list_comments",
-    "list_feed",
+    "list_feed_for",
     "list_post_images",
     "unlike_post",
 ]
@@ -177,21 +181,36 @@ def list_by_owner(db: Client, owner_id: str) -> list[Post]:
     return posts[:_LIST_LIMIT]
 
 
-def list_feed(db: Client, limit: int = _LIST_LIMIT) -> list[Post]:
-    """전체 유저의 최신 게시물을 최대 limit건 반환한다(소셜 피드용, 익명 열람 허용).
+def list_feed_for(db: Client, uids: list[str] | None, limit: int = _LIST_LIMIT) -> list[Post]:
+    """uids가 쓴 게시물만 최신순 최대 limit건 반환한다(소셜 피드용).
 
-    소유자 필터가 없는 전체 컬렉션 조회라 list_by_owner와 달리 파이썬 정렬로
-    회피할 필요가 없다 - order_by + limit만 걸린 단일 필드 쿼리는 Firestore가
-    created_at 단일 필드 인덱스를 자동 생성해준다(firestore.indexes.json에
-    손댈 필요 없음, constellation_repo.list_published와 동일한 판단이지만 그쪽은
-    등호 필터가 하나 더 있어 복합 인덱스가 필요했던 것과 다르다).
+    uids가 None이면 완전 콜드스타트 폴백 - 필터 없이 전체 컬렉션에서 최신 글을
+    가져온다(옛 list_feed와 동일한 order_by+limit 단일 필드 쿼리, 복합 인덱스
+    불필요). 그 외에는 uids(본인 + 팔로잉, 또는 콜드스타트 시 관심사 겹침 유저)로
+    owner_id를 필터링한다 - 연세대 폐쇄망 SNS 정책상 그 외 유저의 글은 피드에
+    노출하지 않는다.
+
+    Firestore where(..., "in", [...])는 30개 상한이 있어(_FEED_QUERY_IN_CHUNK)
+    uids를 청크로 나눠 여러 쿼리를 던진 뒤 합친다 - 청크마다 별도 쿼리라 단일
+    order_by로 정렬할 수 없으므로 list_by_owner와 동일하게 파이썬에서 정렬/절단한다.
+    등호 필터 쿼리라 복합 인덱스 없이 단일 필드 인덱스만으로 동작한다.
     """
-    query = (
-        db.collection(_COLLECTION)
-        .order_by("created_at", direction=gcf.Query.DESCENDING)
-        .limit(limit)
-    )
-    return [Post.model_validate(doc.to_dict()) for doc in query.stream()]
+    if uids is None:
+        query = (
+            db.collection(_COLLECTION)
+            .order_by("created_at", direction=gcf.Query.DESCENDING)
+            .limit(limit)
+        )
+        return [Post.model_validate(doc.to_dict()) for doc in query.stream()]
+    if not uids:
+        return []
+    posts: list[Post] = []
+    for i in range(0, len(uids), _FEED_QUERY_IN_CHUNK):
+        chunk = uids[i : i + _FEED_QUERY_IN_CHUNK]
+        query = db.collection(_COLLECTION).where(filter=FieldFilter("owner_id", "in", chunk))
+        posts.extend(Post.model_validate(doc.to_dict()) for doc in query.stream())
+    posts.sort(key=lambda p: p.created_at, reverse=True)
+    return posts[:limit]
 
 
 def delete_post(db: Client, post_id: str, owner_id: str) -> None:

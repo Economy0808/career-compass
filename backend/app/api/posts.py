@@ -22,15 +22,17 @@ GET "/{post_id}"(단건, P3)는 두 세그먼트짜리 구체 경로(/user/{uid}
 from __future__ import annotations
 
 from datetime import UTC, datetime
+from typing import Literal
 
 from fastapi import APIRouter, Depends, HTTPException
 from google.cloud.firestore import Client
 
-from app.auth.deps import get_current_user, get_current_user_optional
+from app.api.explore import list_uids_with_shared_interest
+from app.auth.deps import get_current_user
 from app.auth.firebase_auth import DecodedToken
 from app.core.rate_limit import rate_limit
 from app.domain.post import Post, PostComment, PostImage
-from app.firestore import post_repo, user_repo
+from app.firestore import follow_repo, post_repo, user_repo
 from app.firestore.client import get_firestore_client
 from app.firestore.post_repo import (
     CommentNotFoundError,
@@ -45,6 +47,7 @@ from app.schemas.posts import (
     PostDetailOut,
     PostFeedAuthorOut,
     PostFeedItemOut,
+    PostFeedOut,
     PostImageOut,
     PostOut,
 )
@@ -55,6 +58,11 @@ _POST_NOT_FOUND = HTTPException(status_code=404, detail="게시물을 찾을 수
 _POST_FORBIDDEN = HTTPException(status_code=403, detail="본인 게시물만 삭제할 수 있어요.")
 _COMMENT_NOT_FOUND = HTTPException(status_code=404, detail="댓글을 찾을 수 없어요.")
 _COMMENT_FORBIDDEN = HTTPException(status_code=403, detail="본인 댓글만 삭제할 수 있어요.")
+
+# 피드 콜드스타트 분기(팔로잉 0명일 때)에서 관심사 겹침 유저를 몇 명까지 끌어올지 -
+# list_following_ids 기본 상한(100)과 별개로, 피드 자체가 최대 30건이라 그 이상은
+# 낭비다(follow_repo.list_following_ids 호출에도 동일 상한을 준다).
+_FEED_CANDIDATE_LIMIT = 30
 
 
 def _now_ms() -> int:
@@ -118,42 +126,62 @@ async def create_post(
     return _to_out(post, viewer_uid=user.uid, is_liked=False)
 
 
-@router.get("/feed", response_model=list[PostFeedItemOut], response_model_exclude_none=True)
+@router.get("/feed", response_model=PostFeedOut, response_model_exclude_none=True)
 async def get_feed(
-    user: DecodedToken | None = Depends(get_current_user_optional),
+    user: DecodedToken = Depends(get_current_user),
     db: Client = Depends(get_firestore_client),
-) -> list[PostFeedItemOut]:
-    """전체 유저의 최신 게시물 피드(최신순, 최대 30개) - 익명 열람 허용, 부모 문서(썸네일)만.
+) -> PostFeedOut:
+    """소셜 피드(최신순, 최대 30개) - 로그인 필수(익명 401), 팔로우가 "누가 뜨는지"의 기준.
 
     ROUTE ORDER: 반드시 GET /user/{uid}·GET /{post_id}보다 먼저 선언해야 한다 -
     그렇지 않으면 FastAPI가 "feed"를 uid/post_id 경로 파라미터로 매칭한다
-    (app/api/constellation.py의 GET /feed와 동일한 함정).
+    (app/api/constellation.py의 옛 GET /feed와 동일한 함정 - 그쪽은 B5에서 삭제됨).
 
-    항목마다 작성자 프로필을 추가 조회한다(N+1) - limit 30 상한이 있어
-    constellation.py의 get_feed와 동일하게 허용되는 수준이다.
+    콜드스타트 분기(사용자 원문): "처음에는 누구나 팔로워가 없으니까 아무것도
+    안뜰거 아니야. 그거 방지하려고 (콜드스타트에는) 같은 관심사의 사람들의
+    게시물도 띄워보자. 나중에는 팔로워 위주로." - 팔로잉이 1명 이상이면 그
+    사람들 + 본인 글만("following"). 팔로잉이 0명이면 본인 interest_tags와
+    겹치는 유저 글로 보충한다("interest"). 그마저 없으면(관심사 태그도 없는
+    완전 신규) 전체 최신 글로 폴백한다("latest") - 로그인 게이트가 있어 익명
+    노출 문제는 없다. source는 프론트가 피드 상단에 분기 안내를 보여줄 수 있게
+    응답에 그대로 실어 보낸다.
+
+    항목마다 작성자 프로필을 추가 조회한다(N+1) - limit 30 상한이 있어 허용되는
+    수준이다.
     """
-    posts = post_repo.list_feed(db)
-    liked_ids: set[str] = (
-        set() if user is None else post_repo.liked_post_ids(db, [p.id for p in posts], user.uid)
-    )
+    following_ids = follow_repo.list_following_ids(db, user.uid, limit=_FEED_CANDIDATE_LIMIT)
+    if following_ids:
+        source: Literal["following", "interest", "latest"] = "following"
+        posts = post_repo.list_feed_for(db, [user.uid, *following_ids])
+    else:
+        profile = user_repo.get_user_profile(db, user.uid)
+        requester_tags = set((profile or {}).get("interest_tags") or [])
+        interest_uids = list_uids_with_shared_interest(
+            db, user.uid, requester_tags, limit=_FEED_CANDIDATE_LIMIT
+        )
+        if interest_uids:
+            source = "interest"
+            posts = post_repo.list_feed_for(db, [user.uid, *interest_uids])
+        else:
+            source = "latest"
+            posts = post_repo.list_feed_for(db, None)
+
+    liked_ids = post_repo.liked_post_ids(db, [p.id for p in posts], user.uid)
     items = []
     for post in posts:
-        is_liked = None if user is None else post.id in liked_ids
-        profile = user_repo.get_user_profile(db, post.owner_id)
+        author_profile = user_repo.get_user_profile(db, post.owner_id)
         author = PostFeedAuthorOut(
             uid=post.owner_id,
-            display_name=profile.get("display_name") if profile else None,
-            avatar_emoji=profile.get("avatar_emoji") if profile else None,
+            display_name=author_profile.get("display_name") if author_profile else None,
+            avatar_emoji=author_profile.get("avatar_emoji") if author_profile else None,
         )
         items.append(
             PostFeedItemOut(
-                post=_to_out(
-                    post, viewer_uid=None if user is None else user.uid, is_liked=is_liked
-                ),
+                post=_to_out(post, viewer_uid=user.uid, is_liked=post.id in liked_ids),
                 author=author,
             )
         )
-    return items
+    return PostFeedOut(source=source, posts=items)
 
 
 @router.get("/user/{uid}", response_model=list[PostOut], response_model_exclude_none=True)

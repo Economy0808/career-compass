@@ -69,6 +69,26 @@ def _requester_tags(db: Client, user: DecodedToken | None) -> set[str] | None:
     return set((profile or {}).get("interest_tags") or [])
 
 
+def list_uids_with_shared_interest(
+    db: Client, uid: str, requester_tags: set[str], limit: int
+) -> list[str]:
+    """uid와 관심사(interest_tags)가 하나 이상 겹치는 유저의 uid를 겹침 큰 순으로 최대 limit명 반환한다.
+
+    app/api/posts.py의 피드 콜드스타트 분기(팔로잉이 0명일 때 관심사로 보충)가
+    재사용한다 - list_explore_users와 달리 겹침이 0인 후보는 아예 제외한다(탐색
+    페이지는 "추천"이라 겹침 0도 보여주지만, 피드는 무관한 남의 글을 섞지 않는다).
+    """
+    if not requester_tags:
+        return []
+    candidates = [
+        (candidate_uid, profile)
+        for candidate_uid, profile in user_repo.list_users_with_interest_tags(db)
+        if candidate_uid != uid and set(profile.get("interest_tags") or []) & requester_tags
+    ]
+    candidates.sort(key=lambda item: _sort_key(item[1], requester_tags=requester_tags))
+    return [candidate_uid for candidate_uid, _ in candidates[:limit]]
+
+
 @router.get("/users", response_model=list[ExploreUserOut], response_model_exclude_none=True)
 async def list_explore_users(
     user: DecodedToken | None = Depends(get_current_user_optional),

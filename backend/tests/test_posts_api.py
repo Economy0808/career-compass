@@ -23,6 +23,8 @@ from httpx import ASGITransport, AsyncClient
 
 from app.auth.deps import get_current_user, get_current_user_optional
 from app.auth.firebase_auth import DecodedToken
+from app.firestore import user_repo
+from app.firestore.client import get_firestore_client
 from app.main import app
 
 _TINY_PNG_DATA_URL = (
@@ -368,7 +370,7 @@ async def test_list_post_images_requires_login_only(authed_as: Callable[[str], N
 
 
 # ---------------------------------------------------------------------------
-# E3: 전체 유저 피드
+# E3: 소셜 피드(팔로우 우선 + 콜드스타트 관심사 보충)
 # ---------------------------------------------------------------------------
 
 
@@ -385,30 +387,110 @@ async def test_feed_route_is_not_shadowed_by_post_id_route(
 
 
 @pytest.mark.asyncio
-async def test_feed_returns_newest_first_with_author_and_allows_anonymous(
-    authed_as: Callable[[str], None],
-) -> None:
-    authed_as("feed-author")
-    async with _client() as client:
-        first_resp = await client.post(
-            "/api/posts", json={"imageData": _TINY_PNG_DATA_URL, "caption": "첫 글"}
-        )
-        first_id = first_resp.json()["id"]
-        second_resp = await client.post(
-            "/api/posts", json={"imageData": _TINY_PNG_DATA_URL, "caption": "둘째 글"}
-        )
-        second_id = second_resp.json()["id"]
-
-    # 익명 열람도 허용 - isLiked 키 자체가 없어야 한다.
-    app.dependency_overrides.pop(get_current_user_optional, None)
-    app.dependency_overrides.pop(get_current_user, None)
+async def test_feed_requires_auth() -> None:
     async with _client() as client:
         resp = await client.get("/api/posts/feed")
+    assert resp.status_code == 401
+
+
+@pytest.mark.asyncio
+async def test_feed_following_scope_excludes_unfollowed_newest_first(
+    authed_as: Callable[[str], None],
+) -> None:
+    """팔로잉이 1명 이상이면 source="following" - 팔로잉 + 본인 글만 최신순, 무관한
+    유저 글은 제외한다."""
+    authed_as("followed-a")
+    async with _client() as client:
+        followed_resp = await client.post(
+            "/api/posts", json={"imageData": _TINY_PNG_DATA_URL, "caption": "팔로우 대상 글"}
+        )
+        followed_post_id = followed_resp.json()["id"]
+
+    authed_as("stranger")
+    async with _client() as client:
+        stranger_resp = await client.post(
+            "/api/posts", json={"imageData": _TINY_PNG_DATA_URL, "caption": "무관한 글"}
+        )
+        stranger_post_id = stranger_resp.json()["id"]
+
+    authed_as("viewer")
+    async with _client() as client:
+        assert (await client.post("/api/profiles/followed-a/follow")).status_code == 200
+        own_resp = await client.post(
+            "/api/posts", json={"imageData": _TINY_PNG_DATA_URL, "caption": "내 글"}
+        )
+        own_post_id = own_resp.json()["id"]
+        resp = await client.get("/api/posts/feed")
+
     assert resp.status_code == 200
-    items = resp.json()
-    ids_in_order = [item["post"]["id"] for item in items]
-    # 최신순 - 둘째 글이 첫 글보다 먼저 나와야 한다.
-    assert ids_in_order.index(second_id) < ids_in_order.index(first_id)
-    second_item = next(item for item in items if item["post"]["id"] == second_id)
-    assert second_item["author"]["uid"] == "feed-author"
-    assert "isLiked" not in second_item["post"]
+    body = resp.json()
+    assert body["source"] == "following"
+    ids = [item["post"]["id"] for item in body["posts"]]
+    assert own_post_id in ids
+    assert followed_post_id in ids
+    assert stranger_post_id not in ids
+    # 최신순 - 내 글(마지막에 작성)이 팔로우 대상 글보다 먼저 나와야 한다.
+    assert ids.index(own_post_id) < ids.index(followed_post_id)
+    followed_item = next(item for item in body["posts"] if item["post"]["id"] == followed_post_id)
+    assert followed_item["author"]["uid"] == "followed-a"
+
+
+@pytest.mark.asyncio
+async def test_feed_cold_start_falls_back_to_interest_overlap(
+    authed_as: Callable[[str], None],
+) -> None:
+    """사용자 원문 콜드스타트 방침: 팔로잉이 0명이면 관심사 겹치는 유저 글로 보충한다
+    (source="interest") - 관심사가 안 겹치는 유저 글은 섞이지 않는다."""
+    db = get_firestore_client()
+
+    authed_as("interest-match")
+    async with _client() as client:
+        match_resp = await client.post(
+            "/api/posts", json={"imageData": _TINY_PNG_DATA_URL, "caption": "관심사 겹침 글"}
+        )
+        match_post_id = match_resp.json()["id"]
+    user_repo.set_interest_tags(db, "interest-match", ["AI", "백엔드"])
+
+    authed_as("no-overlap")
+    async with _client() as client:
+        no_overlap_resp = await client.post(
+            "/api/posts", json={"imageData": _TINY_PNG_DATA_URL, "caption": "무관한 관심사 글"}
+        )
+        no_overlap_post_id = no_overlap_resp.json()["id"]
+    user_repo.set_interest_tags(db, "no-overlap", ["미술"])
+
+    authed_as("cold-start-viewer")
+    user_repo.set_interest_tags(db, "cold-start-viewer", ["AI"])
+    async with _client() as client:
+        resp = await client.get("/api/posts/feed")
+
+    assert resp.status_code == 200
+    body = resp.json()
+    assert body["source"] == "interest"
+    ids = [item["post"]["id"] for item in body["posts"]]
+    assert match_post_id in ids
+    assert no_overlap_post_id not in ids
+
+
+@pytest.mark.asyncio
+async def test_feed_cold_start_falls_back_to_latest_without_interest_tags(
+    authed_as: Callable[[str], None],
+) -> None:
+    """팔로잉 0명 + 본인 관심사 태그도 없는 완전 신규 유저는 전체 최신 글로
+    폴백한다(source="latest") - 익명이 아니라 로그인 게이트가 있어 문제 없다."""
+    authed_as("anyone")
+    async with _client() as client:
+        anyone_resp = await client.post(
+            "/api/posts", json={"imageData": _TINY_PNG_DATA_URL, "caption": "아무 글"}
+        )
+        anyone_post_id = anyone_resp.json()["id"]
+
+    authed_as("brand-new-user")
+    async with _client() as client:
+        resp = await client.get("/api/posts/feed")
+
+    assert resp.status_code == 200
+    body = resp.json()
+    assert body["source"] == "latest"
+    ids = [item["post"]["id"] for item in body["posts"]]
+    assert anyone_post_id in ids
