@@ -71,8 +71,15 @@ def authed_as() -> Callable[[str], None]:
     """
 
     def _set(uid: str) -> None:
-        app.dependency_overrides[get_current_user] = lambda: DecodedToken(uid=uid)
-        app.dependency_overrides[get_current_user_optional] = lambda: DecodedToken(uid=uid)
+        # 연세대 인증 게이트(require_yonsei_verified) 도입 이후: 이 스위트의 대다수
+        # 테스트는 "정상 인증 유저" 시나리오이므로 기본값을 True로 둔다. 미인증
+        # 케이스는 test_write_endpoints_require_yonsei_verification가 별도로 검증한다.
+        app.dependency_overrides[get_current_user] = lambda: DecodedToken(
+            uid=uid, yonsei_verified=True
+        )
+        app.dependency_overrides[get_current_user_optional] = lambda: DecodedToken(
+            uid=uid, yonsei_verified=True
+        )
 
     return _set
 
@@ -494,3 +501,42 @@ async def test_feed_cold_start_falls_back_to_latest_without_interest_tags(
     assert body["source"] == "latest"
     ids = [item["post"]["id"] for item in body["posts"]]
     assert anyone_post_id in ids
+
+
+# --- 연세대 인증 게이트(require_yonsei_verified) ---
+
+
+@pytest.mark.asyncio
+async def test_write_endpoints_require_yonsei_verification(
+    authed_as: Callable[[str], None],
+) -> None:
+    """미인증(yonsei_verified=False) 유저는 게시물 생성/좋아요/댓글 작성이 모두 403.
+
+    응답 헤더 X-Auth-Requirement=yonsei-verified로 소유권 403과 구분 가능해야 한다
+    (프론트가 이 헤더로 인증 유도 화면을 띄운다).
+    """
+    authed_as("verified-author")
+    async with _client() as client:
+        create_resp = await client.post(
+            "/api/posts", json={"imageData": _TINY_PNG_DATA_URL, "caption": "인증 유저 글"}
+        )
+        post_id = create_resp.json()["id"]
+
+    app.dependency_overrides[get_current_user] = lambda: DecodedToken(
+        uid="unverified-user", yonsei_verified=False
+    )
+    app.dependency_overrides[get_current_user_optional] = lambda: DecodedToken(
+        uid="unverified-user", yonsei_verified=False
+    )
+    async with _client() as client:
+        create_resp = await client.post(
+            "/api/posts", json={"imageData": _TINY_PNG_DATA_URL, "caption": "미인증 글"}
+        )
+        like_resp = await client.post(f"/api/posts/{post_id}/like")
+        comment_resp = await client.post(
+            f"/api/posts/{post_id}/comments", json={"body": "미인증 댓글"}
+        )
+
+    for resp in (create_resp, like_resp, comment_resp):
+        assert resp.status_code == 403
+        assert resp.headers["X-Auth-Requirement"] == "yonsei-verified"

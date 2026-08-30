@@ -12,7 +12,7 @@ from datetime import UTC, datetime
 from fastapi import APIRouter, Depends, HTTPException
 from google.cloud.firestore import Client
 
-from app.auth.deps import get_current_user, get_current_user_optional
+from app.auth.deps import get_current_user, get_current_user_optional, require_yonsei_verified
 from app.auth.firebase_auth import DecodedToken
 from app.core.rate_limit import rate_limit
 from app.domain.story import Story
@@ -48,7 +48,7 @@ def _to_out(story: Story) -> StoryOut:
 @router.post("", response_model=StoryOut, status_code=201)
 async def create_story(
     payload: StoryCreateIn,
-    user: DecodedToken = Depends(get_current_user),
+    user: DecodedToken = Depends(require_yonsei_verified),
     db: Client = Depends(get_firestore_client),
     _: None = Depends(rate_limit("story-create", limit=10)),
 ) -> StoryOut:

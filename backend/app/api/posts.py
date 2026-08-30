@@ -29,7 +29,7 @@ from fastapi import APIRouter, Depends, HTTPException
 from google.cloud.firestore import Client
 
 from app.api.explore import list_uids_with_shared_interest
-from app.auth.deps import get_current_user
+from app.auth.deps import get_current_user, require_yonsei_verified
 from app.auth.firebase_auth import DecodedToken
 from app.core.rate_limit import rate_limit
 from app.domain.post import Post, PostComment, PostImage
@@ -138,7 +138,7 @@ def _snapshot_display_name(db: Client, uid: str) -> str | None:
 @router.post("", response_model=PostOut, response_model_exclude_none=True, status_code=201)
 async def create_post(
     payload: PostCreateIn,
-    user: DecodedToken = Depends(get_current_user),
+    user: DecodedToken = Depends(require_yonsei_verified),
     db: Client = Depends(get_firestore_client),
     _: None = Depends(rate_limit("post-create", limit=10)),
 ) -> PostOut:
@@ -256,7 +256,7 @@ async def list_post_images(
 @router.post("/{post_id}/like", response_model=PostOut, response_model_exclude_none=True)
 async def like_post(
     post_id: str,
-    user: DecodedToken = Depends(get_current_user),
+    user: DecodedToken = Depends(require_yonsei_verified),
     db: Client = Depends(get_firestore_client),
 ) -> PostOut:
     """게시물에 좋아요를 남긴다. 응답은 갱신된 게시물(community.py의 like_post와 동일 관례)."""
@@ -274,7 +274,7 @@ async def like_post(
 @router.delete("/{post_id}/like", response_model=PostOut, response_model_exclude_none=True)
 async def unlike_post(
     post_id: str,
-    user: DecodedToken = Depends(get_current_user),
+    user: DecodedToken = Depends(require_yonsei_verified),
     db: Client = Depends(get_firestore_client),
 ) -> PostOut:
     """게시물 좋아요를 취소한다. 응답은 갱신된 게시물."""
@@ -293,7 +293,7 @@ async def unlike_post(
 async def create_comment(
     post_id: str,
     payload: PostCommentCreateIn,
-    user: DecodedToken = Depends(get_current_user),
+    user: DecodedToken = Depends(require_yonsei_verified),
     db: Client = Depends(get_firestore_client),
     _: None = Depends(rate_limit("post-comment-create", limit=20)),
 ) -> PostCommentOut:

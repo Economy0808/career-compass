@@ -64,7 +64,10 @@ def authed_as() -> Callable[[str], None]:
     """주어진 uid로 get_current_user/get_current_user_optional을 함께 override한다."""
 
     def _set(uid: str) -> None:
-        token = DecodedToken(uid=uid)
+        # 연세대 인증 게이트(require_yonsei_verified) 도입 이후: 이 스위트의 대다수
+        # 테스트는 "정상 인증 유저" 시나리오이므로 기본값을 True로 둔다. 미인증
+        # 케이스는 test_create_story_requires_yonsei_verification이 별도로 검증한다.
+        token = DecodedToken(uid=uid, yonsei_verified=True)
         app.dependency_overrides[get_current_user] = lambda: token
         app.dependency_overrides[get_current_user_optional] = lambda: token
 
@@ -111,6 +114,18 @@ async def test_create_story_invalid_image_returns_422(authed_as: Callable[[str],
     async with _client() as client:
         resp = await client.post("/api/stories", json={"imageData": "not-a-data-url"})
     assert resp.status_code == 422
+
+
+@pytest.mark.asyncio
+async def test_create_story_requires_yonsei_verification() -> None:
+    """미인증(yonsei_verified=False) 유저는 스토리 생성이 403 - 헤더로 소유권 403과 구분."""
+    token = DecodedToken(uid="unverified-user", yonsei_verified=False)
+    app.dependency_overrides[get_current_user] = lambda: token
+    app.dependency_overrides[get_current_user_optional] = lambda: token
+    async with _client() as client:
+        resp = await client.post("/api/stories", json={"imageData": _TINY_PNG_DATA_URL})
+    assert resp.status_code == 403
+    assert resp.headers["X-Auth-Requirement"] == "yonsei-verified"
 
 
 # --- GET /api/stories/user/{uid} : 만료 필터 ---
