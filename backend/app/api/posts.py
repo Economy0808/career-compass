@@ -21,6 +21,7 @@ GET "/{post_id}"(단건, P3)는 두 세그먼트짜리 구체 경로(/user/{uid}
 
 from __future__ import annotations
 
+import logging
 from datetime import UTC, datetime
 from typing import Literal
 
@@ -32,7 +33,7 @@ from app.auth.deps import get_current_user
 from app.auth.firebase_auth import DecodedToken
 from app.core.rate_limit import rate_limit
 from app.domain.post import Post, PostComment, PostImage
-from app.firestore import follow_repo, post_repo, user_repo
+from app.firestore import follow_repo, notification_repo, post_repo, user_repo
 from app.firestore.client import get_firestore_client
 from app.firestore.post_repo import (
     CommentNotFoundError,
@@ -53,6 +54,7 @@ from app.schemas.posts import (
 )
 
 router = APIRouter(prefix="/api/posts", tags=["posts"])
+logger = logging.getLogger(__name__)
 
 _POST_NOT_FOUND = HTTPException(status_code=404, detail="게시물을 찾을 수 없어요.")
 _POST_FORBIDDEN = HTTPException(status_code=403, detail="본인 게시물만 삭제할 수 있어요.")
@@ -67,6 +69,32 @@ _FEED_CANDIDATE_LIMIT = 30
 
 def _now_ms() -> int:
     return int(datetime.now(UTC).timestamp() * 1000)
+
+
+def _notify(
+    db: Client,
+    *,
+    recipient_uid: str,
+    actor_uid: str,
+    type: Literal["follow", "like", "comment"],
+    post_id: str | None = None,
+) -> None:
+    """알림 생성 훅 - 실패해도 좋아요/댓글 본 동작을 막지 않는다(로그만 남기고 삼킨다).
+
+    자기 글에 자기가 좋아요/댓글을 남기는 경우는 notification_repo.create_notification이
+    recipient_uid == actor_uid를 보고 조용히 걸러낸다.
+    """
+    try:
+        notification_repo.create_notification(
+            db,
+            recipient_uid=recipient_uid,
+            actor_uid=actor_uid,
+            type=type,
+            post_id=post_id,
+            created_at=_now_ms(),
+        )
+    except Exception:  # 알림 생성 실패가 좋아요/댓글 자체를 막으면 안 된다.
+        logger.warning("%s notification 생성 실패", type, exc_info=True)
 
 
 def _to_out(post: Post, *, viewer_uid: str | None, is_liked: bool | None) -> PostOut:
@@ -239,6 +267,7 @@ async def like_post(
     post = post_repo.get_post(db, post_id)
     if post is None:
         raise _POST_NOT_FOUND
+    _notify(db, recipient_uid=post.owner_id, actor_uid=user.uid, type="like", post_id=post_id)
     return _to_out(post, viewer_uid=user.uid, is_liked=True)
 
 
@@ -280,6 +309,11 @@ async def create_comment(
         )
     except PostNotFoundError as e:
         raise _POST_NOT_FOUND from e
+    post = post_repo.get_post(db, post_id)
+    if post is not None:
+        _notify(
+            db, recipient_uid=post.owner_id, actor_uid=user.uid, type="comment", post_id=post_id
+        )
     return _to_comment_out(comment)
 
 

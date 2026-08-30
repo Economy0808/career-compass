@@ -9,6 +9,8 @@ Postgres 데이터 이전은 없다(테스트 데이터라 폐기 - 사용자 �
 
 from __future__ import annotations
 
+import logging
+from datetime import UTC, datetime
 from typing import Any
 
 from fastapi import APIRouter, Depends, HTTPException
@@ -17,12 +19,13 @@ from google.cloud.firestore import Client
 from app.auth.deps import get_current_user, get_current_user_optional
 from app.auth.firebase_auth import DecodedToken
 from app.core.rate_limit import rate_limit
-from app.firestore import follow_repo, user_repo
+from app.firestore import follow_repo, notification_repo, user_repo
 from app.firestore.client import get_firestore_client
 from app.firestore.follow_repo import SelfFollowError
 from app.schemas.profiles import ProfileOut, ProfilePatchIn
 
 router = APIRouter(prefix="/api/profiles", tags=["profiles"])
+logger = logging.getLogger(__name__)
 
 _PROFILE_NOT_FOUND = HTTPException(status_code=404, detail="유저를 찾을 수 없어요.")
 
@@ -88,6 +91,16 @@ async def follow_user(
         follow_repo.follow(db, user.uid, uid)
     except SelfFollowError as e:
         raise HTTPException(status_code=400, detail=str(e)) from e
+    try:
+        notification_repo.create_notification(
+            db,
+            recipient_uid=uid,
+            actor_uid=user.uid,
+            type="follow",
+            created_at=int(datetime.now(UTC).timestamp() * 1000),
+        )
+    except Exception:  # 알림 생성 실패가 팔로우 자체를 막으면 안 된다.
+        logger.warning("follow notification 생성 실패", exc_info=True)
     profile = user_repo.get_user_profile(db, uid)
     if profile is None:
         raise _PROFILE_NOT_FOUND

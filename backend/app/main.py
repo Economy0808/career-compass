@@ -15,6 +15,7 @@ from app.api.explore import router as explore_router
 from app.api.goals import router as goals_router
 from app.api.health import router as health_router
 from app.api.ncs import router as ncs_router
+from app.api.notifications import router as notifications_router
 from app.api.posts import router as posts_router
 from app.api.profiles import router as profiles_router
 from app.api.roadmap import router as roadmap_router
@@ -76,6 +77,7 @@ def create_app() -> FastAPI:
     app.include_router(explore_router)
     app.include_router(profiles_router)
     app.include_router(posts_router)
+    app.include_router(notifications_router)
     app.include_router(stories_router)
     app.include_router(community_router)
     return app
