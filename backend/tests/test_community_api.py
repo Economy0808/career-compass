@@ -59,7 +59,10 @@ def authed_as() -> Callable[[str], None]:
     """주어진 uid로 get_current_user/get_current_user_optional을 함께 override한다."""
 
     def _set(uid: str) -> None:
-        token = DecodedToken(uid=uid)
+        # 연세대 인증 게이트(require_yonsei_verified) 도입 이후: 이 스위트의 대다수
+        # 테스트는 "정상 인증 유저" 시나리오이므로 기본값을 True로 둔다. 미인증
+        # 케이스는 test_write_endpoints_require_yonsei_verification이 별도로 검증한다.
+        token = DecodedToken(uid=uid, yonsei_verified=True)
         app.dependency_overrides[get_current_user] = lambda: token
         app.dependency_overrides[get_current_user_optional] = lambda: token
 
@@ -337,3 +340,58 @@ async def test_delete_own_post_then_404(authed_as: Callable[[str], None]) -> Non
 
         get_resp = await client.get(f"/api/community/posts/{post_id}")
         assert get_resp.status_code == 404
+
+
+# --- 연세대 인증 게이트(require_yonsei_verified) ---
+
+
+@pytest.mark.asyncio
+async def test_write_endpoints_require_yonsei_verification(
+    authed_as: Callable[[str], None],
+) -> None:
+    """미인증(yonsei_verified=False) 유저는 글 작성/댓글 작성·삭제/좋아요/게시글 삭제가 모두 403.
+
+    커뮤니티는 게시판 브리핑상 "쓰기 전부"가 대상이라 posts.py와 달리 삭제류도
+    포함한다. 응답 헤더 X-Auth-Requirement=yonsei-verified로 소유권 403과 구분한다.
+    """
+    authed_as("verified-author")
+    async with _client() as client:
+        post_resp = await client.post(
+            "/api/community/boards/free/posts", json={"title": "글", "body": "내용"}
+        )
+        post_id = post_resp.json()["id"]
+        comment_resp = await client.post(
+            f"/api/community/posts/{post_id}/comments", json={"body": "댓글"}
+        )
+        comment_id = comment_resp.json()["id"]
+
+    app.dependency_overrides[get_current_user] = lambda: DecodedToken(
+        uid="unverified-user", yonsei_verified=False
+    )
+    app.dependency_overrides[get_current_user_optional] = lambda: DecodedToken(
+        uid="unverified-user", yonsei_verified=False
+    )
+    async with _client() as client:
+        create_resp = await client.post(
+            "/api/community/boards/free/posts", json={"title": "미인증 글", "body": "내용"}
+        )
+        create_comment_resp = await client.post(
+            f"/api/community/posts/{post_id}/comments", json={"body": "미인증 댓글"}
+        )
+        like_resp = await client.post(f"/api/community/posts/{post_id}/like")
+        unlike_resp = await client.request("DELETE", f"/api/community/posts/{post_id}/like")
+        delete_comment_resp = await client.delete(
+            f"/api/community/posts/{post_id}/comments/{comment_id}"
+        )
+        delete_post_resp = await client.delete(f"/api/community/posts/{post_id}")
+
+    for resp in (
+        create_resp,
+        create_comment_resp,
+        like_resp,
+        unlike_resp,
+        delete_comment_resp,
+        delete_post_resp,
+    ):
+        assert resp.status_code == 403
+        assert resp.headers["X-Auth-Requirement"] == "yonsei-verified"

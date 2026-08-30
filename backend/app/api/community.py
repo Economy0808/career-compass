@@ -26,7 +26,7 @@ from datetime import UTC, datetime
 from fastapi import APIRouter, Depends, HTTPException
 from google.cloud.firestore import Client
 
-from app.auth.deps import get_current_user, get_current_user_optional
+from app.auth.deps import get_current_user_optional, require_yonsei_verified
 from app.auth.firebase_auth import DecodedToken
 from app.core.rate_limit import rate_limit
 from app.domain.community import BOARDS, CommunityComment, CommunityPost, get_board
@@ -144,7 +144,7 @@ async def list_board_posts(
 async def create_board_post(
     board_id: str,
     payload: CommunityPostCreateIn,
-    user: DecodedToken = Depends(get_current_user),
+    user: DecodedToken = Depends(require_yonsei_verified),
     db: Client = Depends(get_firestore_client),
     _: None = Depends(rate_limit("community-post-create", limit=10)),
 ) -> CommunityPostOut:
@@ -198,7 +198,7 @@ async def get_post_detail(
 async def create_comment(
     post_id: str,
     payload: CommunityCommentCreateIn,
-    user: DecodedToken = Depends(get_current_user),
+    user: DecodedToken = Depends(require_yonsei_verified),
     db: Client = Depends(get_firestore_client),
     _: None = Depends(rate_limit("community-comment-create", limit=20)),
 ) -> CommunityCommentOut:
@@ -230,7 +230,7 @@ async def create_comment(
 async def delete_comment(
     post_id: str,
     comment_id: str,
-    user: DecodedToken = Depends(get_current_user),
+    user: DecodedToken = Depends(require_yonsei_verified),
     db: Client = Depends(get_firestore_client),
 ) -> None:
     """본인 댓글을 삭제한다. 없으면 404, 작성자가 아니면 403."""
@@ -245,7 +245,7 @@ async def delete_comment(
 @router.delete("/posts/{post_id}", status_code=204)
 async def delete_post(
     post_id: str,
-    user: DecodedToken = Depends(get_current_user),
+    user: DecodedToken = Depends(require_yonsei_verified),
     db: Client = Depends(get_firestore_client),
 ) -> None:
     """본인 게시글을 삭제한다. 없으면 404, 작성자가 아니면 403."""
@@ -262,7 +262,7 @@ async def delete_post(
 )
 async def like_post(
     post_id: str,
-    user: DecodedToken = Depends(get_current_user),
+    user: DecodedToken = Depends(require_yonsei_verified),
     db: Client = Depends(get_firestore_client),
 ) -> CommunityPostOut:
     """게시글에 좋아요를 남긴다. 응답은 갱신된 게시글(follow_user가 갱신된 프로필을
@@ -284,7 +284,7 @@ async def like_post(
 )
 async def unlike_post(
     post_id: str,
-    user: DecodedToken = Depends(get_current_user),
+    user: DecodedToken = Depends(require_yonsei_verified),
     db: Client = Depends(get_firestore_client),
 ) -> CommunityPostOut:
     """게시글 좋아요를 취소한다. 응답은 갱신된 게시글."""

@@ -60,7 +60,12 @@ def authed_as() -> Callable[[str], None]:
     """
 
     def _set(uid: str) -> None:
-        token = DecodedToken(uid=uid)
+        # 연세대 인증 게이트(require_yonsei_verified) 도입 이후: 이 스위트의 대다수
+        # 테스트는 "정상 인증 유저" 시나리오이므로 기본값을 True로 둔다. 미인증
+        # 케이스는 test_follow_endpoints_require_yonsei_verification이 별도로 검증한다.
+        # 프로필 수정(PATCH /me)은 게이트 대상이 아니므로(브리핑 - 자기 계정 설정은
+        # "상호작용"이 아니다) get_current_user는 그대로 둔다.
+        token = DecodedToken(uid=uid, yonsei_verified=True)
         app.dependency_overrides[get_current_user] = lambda: token
         app.dependency_overrides[get_current_user_optional] = lambda: token
 
@@ -242,3 +247,33 @@ async def test_is_following_true_when_viewer_follows_target(
     async with _client() as client:
         resp = await client.get("/api/profiles/user-b")
     assert resp.json()["isFollowing"] is True
+
+
+# --- 연세대 인증 게이트(require_yonsei_verified) ---
+
+
+@pytest.mark.asyncio
+async def test_follow_endpoints_require_yonsei_verification() -> None:
+    """미인증(yonsei_verified=False) 유저는 팔로우/언팔로우가 403(헤더로 소유권 403과 구분)."""
+    token = DecodedToken(uid="unverified-user", yonsei_verified=False)
+    app.dependency_overrides[get_current_user] = lambda: token
+    app.dependency_overrides[get_current_user_optional] = lambda: token
+    async with _client() as client:
+        follow_resp = await client.post("/api/profiles/user-b/follow")
+        unfollow_resp = await client.delete("/api/profiles/user-b/follow")
+
+    for resp in (follow_resp, unfollow_resp):
+        assert resp.status_code == 403
+        assert resp.headers["X-Auth-Requirement"] == "yonsei-verified"
+
+
+@pytest.mark.asyncio
+async def test_patch_me_does_not_require_yonsei_verification() -> None:
+    """프로필 수정(PATCH /me)은 브리핑상 게이트 예외 - 미인증 유저도 이름/아바타를 정할 수 있어야 한다."""
+    token = DecodedToken(uid="unverified-user", yonsei_verified=False)
+    app.dependency_overrides[get_current_user] = lambda: token
+    app.dependency_overrides[get_current_user_optional] = lambda: token
+    async with _client() as client:
+        resp = await client.patch("/api/profiles/me", json={"displayName": "미인증 유저"})
+    assert resp.status_code == 200
+    assert resp.json()["displayName"] == "미인증 유저"

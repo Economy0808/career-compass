@@ -16,7 +16,7 @@ from typing import Any
 from fastapi import APIRouter, Depends, HTTPException
 from google.cloud.firestore import Client
 
-from app.auth.deps import get_current_user, get_current_user_optional
+from app.auth.deps import get_current_user, get_current_user_optional, require_yonsei_verified
 from app.auth.firebase_auth import DecodedToken
 from app.core.rate_limit import rate_limit
 from app.firestore import follow_repo, notification_repo, user_repo
@@ -82,7 +82,7 @@ async def patch_my_profile(
 @router.post("/{uid}/follow", response_model=ProfileOut, response_model_exclude_none=True)
 async def follow_user(
     uid: str,
-    user: DecodedToken = Depends(get_current_user),
+    user: DecodedToken = Depends(require_yonsei_verified),
     db: Client = Depends(get_firestore_client),
     _: None = Depends(rate_limit("profile-follow", limit=30)),
 ) -> ProfileOut:
@@ -110,7 +110,7 @@ async def follow_user(
 @router.delete("/{uid}/follow", response_model=ProfileOut, response_model_exclude_none=True)
 async def unfollow_user(
     uid: str,
-    user: DecodedToken = Depends(get_current_user),
+    user: DecodedToken = Depends(require_yonsei_verified),
     db: Client = Depends(get_firestore_client),
     _: None = Depends(rate_limit("profile-follow", limit=30)),
 ) -> ProfileOut:
