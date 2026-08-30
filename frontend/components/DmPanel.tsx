@@ -160,7 +160,9 @@ export function DmPanel({ onUnreadTotalChange, initialPeerUid }: DmPanelProps) {
       if (isVerifyRequiredError(err)) {
         setShowVerifyGate(true);
       } else if (isForbidden(err)) {
-        setSendError("서로 팔로우한 사이에서만 대화할 수 있어요");
+        // 계약은 "팔로잉 ∪ 팔로워"라 한쪽만 팔로우해도 된다 - "서로"라고 쓰면
+        // 맞팔이 필요한 것처럼 읽혀 원인을 잘못 알려준다.
+        setSendError("팔로우 관계가 아니어서 메시지를 보낼 수 없어요. 먼저 팔로우해보세요.");
       } else {
         setSendError("전송하지 못했어요. 다시 시도해주세요.");
       }
@@ -182,7 +184,9 @@ export function DmPanel({ onUnreadTotalChange, initialPeerUid }: DmPanelProps) {
       if (isVerifyRequiredError(err)) {
         setShowVerifyGate(true);
       } else if (isForbidden(err)) {
-        setSendError("서로 팔로우한 사이에서만 대화할 수 있어요");
+        // 계약은 "팔로잉 ∪ 팔로워"라 한쪽만 팔로우해도 된다 - "서로"라고 쓰면
+        // 맞팔이 필요한 것처럼 읽혀 원인을 잘못 알려준다.
+        setSendError("팔로우 관계가 아니어서 메시지를 보낼 수 없어요. 먼저 팔로우해보세요.");
       } else {
         setSendError("전송하지 못했어요. 다시 시도해주세요.");
       }
