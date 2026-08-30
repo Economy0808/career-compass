@@ -1,4 +1,25 @@
-# 백엔드 세션 핸드오프 (2026-08-27 작성, 2026-08-30 16차 갱신)
+# 백엔드 세션 핸드오프 (2026-08-27 작성, 2026-08-30 17차 갱신)
+
+> **17차 (8/30) — 익명 단건 열람 회귀 복원 + 프론트 4건(피어) 랜드, 원격 첫 푸시**:
+> - **회귀 `865193a`**: GET /api/constellations/{cid} 단건만 하드 인증(get_current_user)이라
+>   발행 별자리 익명 열람이 401 — 공유 링크·게시물 상세 임베드 전멸(피어 실측 보고).
+>   가시성 판단(_get_owned_or_published)은 이미 "소유자 또는 발행"이므로 의존성만
+>   get_current_user_optional로 완화(uid=None 허용). /feed·/user/{uid}와 동일 계약.
+>   회귀 테스트 2개 추가(익명 발행=200/익명 미발행=403). ⚠️함정: 이 스위트 authed_as
+>   픽스처가 get_current_user만 override라 optional 라우트가 테스트에서 익명으로 보여
+>   8개 오탐 — 둘 다 override로 수정(test_community_api 패턴). 52 전부 통과.
+>   ⚠️이 회귀는 오늘 재시작 전 옛 프로세스가 옛 코드를 서빙해 잠복했던 것(Windows
+>   uvicorn 수동 재시작 필수 교훈 재확인). 서버 재시작+익명 실측 200 확인.
+> - **프론트 4건(피어 03-code-03) `cf03107`**: ①시안 다이브인 픽셀 밀림(별점을 좌표에
+>   정확 앵커, 라벨 아래 absolute — 간선 px attribute 유지) ②스파게티(신규
+>   lib/layered-order.ts barycenter 층내 정렬을 시안+캔버스 다이브인 양쪽 적용, 추이적
+>   중복 간선 그리기 생략(시안 한정, prereqIds 데이터 불변), 밀집층 지그재그)
+>   ③진입 배율 하한 ENTRY_MIN_ZOOM=0.65(computeFitTransform minZoom 인자, 부트+
+>   fitRequest만) ④다이브인 상한 DIVE_FIT_MAX_ZOOM 1.8→1.15. 배율 체감 조정은 이 두
+>   노브 상수만 만지면 됨. 성운 미리보기 모션 불변 유지.
+> - **feature/constellation 원격 첫 푸시**(사용자 지시 "이거다 하고나서 git push하자").
+> - 피어가 검증용 데모 성단 group:demo-verify(멤버 4)를 데모 별자리에 추가 —
+>   emulator-backup 재갱신에 포함.
 
 > **16차 (8/30) — "과목 실종" 근본 확진 + 4중 방어 완성, 사용자 지적 4건 전부 랜드**:
 > - **과목 실종 확진(데이터는 무사, 소실 아님)**: ①course_repo `list_taxonomy` 프로세스 캐시가
