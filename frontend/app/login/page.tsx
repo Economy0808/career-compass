@@ -116,7 +116,7 @@ function LoginForm() {
           </Link>
         </p>
         <p className="mt-2 text-center text-body-sm text-text-lo">
-          <Link href="/constellation/new" className="font-semibold text-spec-b">
+          <Link href="/demo" className="font-semibold text-spec-b">
             로그인 없이 둘러보기
           </Link>
         </p>

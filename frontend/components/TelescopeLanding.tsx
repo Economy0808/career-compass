@@ -120,8 +120,9 @@ export function TelescopeLanding() {
   const [stage, setStage] = useState<"idle" | "aperture" | "zoom">("idle");
 
   // CTA를 누르기 전에 목적지를 미리 받아 전환 직후 빈 화면이 없게 한다.
+  // 비로그인 = 실제 서비스 화면 접근 불가(사용자 지시) - 메인 CTA는 로그인으로 간다.
   useEffect(() => {
-    router.prefetch("/constellation/new");
+    router.prefetch("/login");
   }, [router]);
 
   return (
@@ -144,7 +145,7 @@ export function TelescopeLanding() {
         <nav className="flex items-center gap-7 text-body-sm">
           {/* 진입 플로우 BGM(랜딩=묵직한 믹스). 사용자 배치 지시. */}
           <BgmToggle mode="landing" variant="paper" />
-          <Link href="/constellation/new" style={{ color: "var(--paper-lo)" }}>
+          <Link href="/demo" style={{ color: "var(--paper-lo)" }}>
             둘러보기
           </Link>
           {user ? (
@@ -212,7 +213,7 @@ export function TelescopeLanding() {
                 망원경 들여다보기
               </button>
               <Link
-                href="/constellation/new"
+                href="/demo"
                 className="border-b pb-0.5 text-body-sm"
                 style={{ color: "var(--paper-lo)", borderColor: "var(--paper-line)" }}
               >
@@ -355,9 +356,10 @@ export function TelescopeLanding() {
             <div
               aria-hidden
               onAnimationEnd={() =>
-                // 렌즈->대화->추천 시안 체인은 로그인 여부와 무관하게 이어진다(사용자 결정).
-                // 로그인 요구는 저장 시점에 건다.
-                router.push("/constellation/new")
+                // 비로그인 = 실제 서비스 화면 접근 불가(사용자 결정, 이전의 "저장 시점에만
+                // 로그인 요구" 방침을 대체). 접안렌즈 명->암 전환은 그대로 두고 도착지만
+                // 로그인으로 바꾼다 - 비로그인 둘러보기는 /demo가 전담한다.
+                router.push("/login")
               }
               className="fixed left-1/2 top-1/2 z-[70] h-[250vmax] w-[250vmax] rounded-full"
               style={{

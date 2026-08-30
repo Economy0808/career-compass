@@ -16,11 +16,11 @@ export interface NavItem {
 
 export const NAV_ITEMS: readonly NavItem[] = [
   // 탐색: 관심사 기반 사람 찾기(사용자 지시 "돋보기 아이콘 + 탐색").
-  { key: "explore", label: "탐색", shortLabel: "탐색", Icon: SearchIcon, href: "/explore", requiresAuth: false },
-  { key: "feed", label: "소셜", shortLabel: "소셜", Icon: EagleIcon, href: "/feed", requiresAuth: false },
-  { key: "community", label: "커뮤니티", shortLabel: "커뮤니티", Icon: BoardIcon, href: "/community", requiresAuth: false },
-  // 일정 탭 자체는 비로그인도 진입 가능(페이지 안에서 로그인 유도) - 사용자 지시.
-  { key: "schedule", label: "일정", shortLabel: "일정", Icon: CalendarIcon, href: "/schedule", requiresAuth: false },
+  // 비로그인 = 실제 서비스 화면 접근 불가(사용자 지시) - 둘러보기는 /demo가 전담한다.
+  { key: "explore", label: "탐색", shortLabel: "탐색", Icon: SearchIcon, href: "/explore", requiresAuth: true },
+  { key: "feed", label: "소셜", shortLabel: "소셜", Icon: EagleIcon, href: "/feed", requiresAuth: true },
+  { key: "community", label: "커뮤니티", shortLabel: "커뮤니티", Icon: BoardIcon, href: "/community", requiresAuth: true },
+  { key: "schedule", label: "일정", shortLabel: "일정", Icon: CalendarIcon, href: "/schedule", requiresAuth: true },
   {
     key: "new",
     label: "별자리 생성하기",
@@ -41,7 +41,11 @@ export const TAB_ORDER: readonly string[] = ["explore", "feed", "new", "communit
 
 /** Resolves where a nav item should navigate to for the current user. */
 export function navTarget(item: NavItem, user: AuthUser | null): string {
-  if (item.requiresAuth && !user) return "/login";
+  // "로그인" 여부만 본다(user 존재) - "인증(yonseiVerified)" 여부는 각 화면이 담당한다.
+  // 로그인만 되어 있으면 미인증 상태라도 여기는 통과시켜야 한다(사용자 지시).
+  if (item.requiresAuth && !user) {
+    return item.href ? `/login?next=${encodeURIComponent(item.href)}` : "/login";
+  }
   if (item.href) return item.href;
   // "내 별자리": 개인 프로필로 이동.
   return user ? `/profile/${user.uid}` : "/login";
