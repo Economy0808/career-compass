@@ -41,6 +41,19 @@ class DmPeerOut(_CamelModel):
     avatar_emoji: str | None = None
 
 
+class DmPartnerOut(_CamelModel):
+    """새 대화를 시작할 수 있는 상대 한 명(내 팔로잉 또는 팔로워).
+
+    hasThread는 이미 이 상대와 대화방이 있는지 여부다 - 프론트가 "새 대화
+    시작"과 "기존 대화 이어가기"를 구분해 보여줄 수 있게 한다.
+    """
+
+    uid: str
+    display_name: str | None = None
+    avatar_emoji: str | None = None
+    has_thread: bool = False
+
+
 class DmThreadOut(_CamelModel):
     """대화방 목록 카드 하나."""
 

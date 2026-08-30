@@ -237,6 +237,116 @@ async def test_non_participant_cannot_read_thread_messages(
     assert resp.status_code == 403
 
 
+# ---------------------------------------------------------------------------
+# GET /api/dm/partners - 새 대화 상대 목록 (팔로잉 ∪ 팔로워)
+# ---------------------------------------------------------------------------
+
+
+@pytest.mark.asyncio
+async def test_list_partners_anonymous_401() -> None:
+    _anonymous()
+    async with _client() as client:
+        resp = await client.get("/api/dm/partners")
+    assert resp.status_code == 401
+
+
+@pytest.mark.asyncio
+async def test_list_partners_requires_yonsei_verification() -> None:
+    app.dependency_overrides[get_current_user] = lambda: DecodedToken(
+        uid="dm-partners-unverified", yonsei_verified=False
+    )
+    app.dependency_overrides[get_current_user_optional] = lambda: DecodedToken(
+        uid="dm-partners-unverified", yonsei_verified=False
+    )
+    async with _client() as client:
+        resp = await client.get("/api/dm/partners")
+    assert resp.status_code == 403
+    assert resp.headers.get("X-Auth-Requirement") == "yonsei-verified"
+
+
+@pytest.mark.asyncio
+async def test_list_partners_route_not_shadowed_by_thread_messages_route(
+    authed_as: Callable[[str], None],
+) -> None:
+    """/partners가 /{thread_id}/messages보다 먼저 선언돼야 한다 - test_posts_api.py의
+    /feed vs /{post_id} 회귀 테스트와 동일한 함정 점검(모듈 docstring 참고)."""
+    authed_as("dm-partners-route-order")
+    async with _client() as client:
+        resp = await client.get("/api/dm/partners")
+    assert resp.status_code == 200
+
+
+@pytest.mark.asyncio
+async def test_list_partners_includes_following_and_follower_union(
+    authed_as: Callable[[str], None],
+) -> None:
+    """핵심 계약: 내가 팔로우한 사람과 나를 팔로우한 사람 둘 다 나와야 한다."""
+    db = get_firestore_client()
+    follow_repo.follow(db, "dm-partners-viewer", "dm-partners-following")
+    follow_repo.follow(db, "dm-partners-follower", "dm-partners-viewer")
+
+    authed_as("dm-partners-viewer")
+    async with _client() as client:
+        resp = await client.get("/api/dm/partners")
+
+    assert resp.status_code == 200
+    uids = {item["uid"] for item in resp.json()}
+    assert "dm-partners-following" in uids
+    assert "dm-partners-follower" in uids
+
+
+@pytest.mark.asyncio
+async def test_list_partners_deduplicates_mutual_follow(
+    authed_as: Callable[[str], None],
+) -> None:
+    """맞팔(팔로잉이면서 팔로워인) 상대는 목록에 한 번만 나와야 한다."""
+    db = get_firestore_client()
+    follow_repo.follow(db, "dm-partners-mutual-viewer", "dm-partners-mutual-peer")
+    follow_repo.follow(db, "dm-partners-mutual-peer", "dm-partners-mutual-viewer")
+
+    authed_as("dm-partners-mutual-viewer")
+    async with _client() as client:
+        resp = await client.get("/api/dm/partners")
+
+    uids = [item["uid"] for item in resp.json()]
+    assert uids.count("dm-partners-mutual-peer") == 1
+
+
+@pytest.mark.asyncio
+async def test_list_partners_excludes_unrelated_and_self(
+    authed_as: Callable[[str], None],
+) -> None:
+    db = get_firestore_client()
+    follow_repo.follow(db, "dm-partners-excl-viewer", "dm-partners-excl-following")
+    # dm-partners-excl-stranger는 아무 관계도 없다.
+
+    authed_as("dm-partners-excl-viewer")
+    async with _client() as client:
+        resp = await client.get("/api/dm/partners")
+
+    uids = {item["uid"] for item in resp.json()}
+    assert "dm-partners-excl-stranger" not in uids
+    assert "dm-partners-excl-viewer" not in uids
+
+
+@pytest.mark.asyncio
+async def test_list_partners_has_thread_reflects_existing_conversation(
+    authed_as: Callable[[str], None],
+) -> None:
+    db = get_firestore_client()
+    follow_repo.follow(db, "dm-partners-thread-viewer", "dm-partners-thread-with-msg")
+    follow_repo.follow(db, "dm-partners-thread-viewer", "dm-partners-thread-without-msg")
+
+    authed_as("dm-partners-thread-viewer")
+    async with _client() as client:
+        await client.post("/api/dm/dm-partners-thread-with-msg/messages", json={"body": "안녕"})
+        resp = await client.get("/api/dm/partners")
+
+    items = {item["uid"]: item for item in resp.json()}
+    assert items["dm-partners-thread-with-msg"]["hasThread"] is True
+    assert items["dm-partners-thread-without-msg"]["hasThread"] is False
+
+
 @pytest.mark.asyncio
 async def test_list_threads_sorted_by_latest_message(
     authed_as: Callable[[str], None],

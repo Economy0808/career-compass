@@ -41,6 +41,7 @@ from app.firestore.client import get_firestore_client
 from app.schemas.dm import (
     DmMessageCreateIn,
     DmMessageOut,
+    DmPartnerOut,
     DmPeerOut,
     DmThreadListOut,
     DmThreadOut,
@@ -55,6 +56,12 @@ logger = logging.getLogger(__name__)
 # 동일한 함정이라 동일한 근거로 동일한 값을 쓴다(ponytail: 유저 수만 명 규모가
 # 되면 페이지네이션으로 승격할 것).
 _ELIGIBILITY_SCAN_LIMIT = 10_000
+
+# GET /partners는 "새 대화를 시작할 상대를 고르는" 표시용 목록이라 대화방
+# 목록(_THREAD_LIST_LIMIT=30)과 달리 활동 빈도가 아니라 팔로잉/팔로워 규모에
+# 비례해 커진다 - 팔로워가 아주 많은 유저가 한 화면에 감당 못 할 만큼 긴 목록을
+# 받지 않도록 표시 상한을 둔다(ponytail: 검색/페이지네이션이 필요해지면 승격할 것).
+_PARTNERS_DISPLAY_LIMIT = 100
 
 _MESSAGES_NOT_FOUND = HTTPException(status_code=404, detail="대화방을 찾을 수 없어요.")
 _MESSAGES_FORBIDDEN = HTTPException(status_code=403, detail="이 대화방의 참가자가 아니에요.")
@@ -133,6 +140,56 @@ async def list_threads(
         )
     unread_total = sum(item.unread for item in items)
     return DmThreadListOut(items=items, unread_total=unread_total)
+
+
+@router.get("/partners", response_model=list[DmPartnerOut], response_model_exclude_none=True)
+async def list_partners(
+    user: DecodedToken = Depends(require_yonsei_verified),
+    db: Client = Depends(get_firestore_client),
+) -> list[DmPartnerOut]:
+    """새로 대화를 시작할 수 있는 상대 목록 = 내 팔로잉 ∪ 내 팔로워(중복 제거, 본인 제외).
+
+    /{thread_id}/messages보다 먼저 선언한다 - 이 라우터 모듈 docstring이 설명하는
+    "고정 경로를 파라미터 경로보다 먼저 선언" 관례(app/api/posts.py의 /feed vs
+    /{post_id} 사고 전례와 동일한 함정 회피)를 그대로 따른다. 실제로는 이 경로가
+    두 세그먼트짜리 /{thread_id}/messages와 세그먼트 수가 달라 충돌하지 않지만,
+    나중에 GET /{peer_uid} 같은 한 세그먼트 경로가 추가될 때를 대비해 미리
+    안전한 위치에 둔다.
+
+    자격 판정은 _is_eligible_peer와 동일한 두 집합(팔로잉/팔로워)을 쓰되, 여기서는
+    "상대 한 명이 자격 있는가"가 아니라 "자격 있는 상대 전원"이 필요하므로 합집합을
+    직접 구성한다. 프로필은 user_repo.get_profiles로 배치 조회한다(app/api/notifications.py와
+    동일한 N+1 회피 관례 - 후보 수만큼 개별 조회하지 않는다).
+
+    hasThread는 이미 이 상대와 대화방이 있는지를 나타낸다. 새 dm_repo 함수를
+    추가하는 대신 기존 list_threads_for(자격 판정과 같은 상한 _ELIGIBILITY_SCAN_LIMIT로
+    호출)가 돌려주는 내 전체 대화방에서 상대 uid 집합을 뽑아 재사용한다.
+
+    정렬은 "대화가 아직 없는 상대도 나와야 한다"는 이 목록의 성격상 최신
+    메시지순이 맞지 않아, 표시 이름 기준 오름차순(이름 없는 유저는 뒤로, 동명이인은
+    uid로 재정렬)으로 안정적인 순서를 준다.
+    """
+    following = follow_repo.list_following_ids(db, user.uid, limit=_ELIGIBILITY_SCAN_LIMIT)
+    followers = follow_repo.list_followers_ids(db, user.uid, limit=_ELIGIBILITY_SCAN_LIMIT)
+    candidate_uids = {uid for uid in (*following, *followers) if uid != user.uid}
+    if not candidate_uids:
+        return []
+
+    profiles = user_repo.get_profiles(db, list(candidate_uids))
+    threads = dm_repo.list_threads_for(db, user.uid, limit=_ELIGIBILITY_SCAN_LIMIT)
+    peers_with_thread = {thread.peer_uid(user.uid) for thread in threads}
+
+    items = [
+        DmPartnerOut(
+            uid=uid,
+            display_name=(profiles.get(uid) or {}).get("display_name"),
+            avatar_emoji=(profiles.get(uid) or {}).get("avatar_emoji"),
+            has_thread=uid in peers_with_thread,
+        )
+        for uid in candidate_uids
+    ]
+    items.sort(key=lambda item: (item.display_name is None, item.display_name or "", item.uid))
+    return items[:_PARTNERS_DISPLAY_LIMIT]
 
 
 @router.get(
