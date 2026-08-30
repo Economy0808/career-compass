@@ -1,4 +1,5 @@
 """인증 의존성: 세션 쿠키 → 유저 해석, 권한 게이트."""
+
 from datetime import datetime
 
 from fastapi import Depends, HTTPException, Request
@@ -42,5 +43,12 @@ async def get_current_user(
 async def require_yonsei_verified(user: User = Depends(get_current_user)) -> User:
     """쓰기 행동 게이트: 연세대 인증(학교메일 또는 학생증 승인)까지 끝난 유저만."""
     if user.yonsei_verified_at is None:
-        raise HTTPException(status_code=403, detail="연세대 학부생 인증이 필요합니다.")
+        # 403은 소유권 위반(남의 리소스 수정)에도 쓰이므로, 프론트가 "인증 유도 화면"과
+        # "권한 없음"을 구분할 수 있도록 기계 판독용 헤더를 함께 내려준다.
+        # (app.auth.deps.require_yonsei_verified와 동일한 규약 - 커밋 461c04f)
+        raise HTTPException(
+            status_code=403,
+            detail="연세대 학부생 인증이 필요합니다.",
+            headers={"X-Auth-Requirement": "yonsei-verified"},
+        )
     return user

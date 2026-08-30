@@ -1,15 +1,18 @@
 """일일 투두(일정) API.
 
-개인 리소스이므로 로그인(get_current_user)만 요구하고 연세 인증은 요구하지 않는다.
+조회(GET)는 로그인(get_current_user)만 요구한다. 쓰기(생성/수정/삭제)는 연세대
+인증(require_yonsei_verified)까지 요구한다 - 미인증 계정의 캔버스 인터랙션을 막은 것과
+같은 기준을 일정에도 맞추기 위함이다.
 모든 조회/수정은 user_id == 세션 유저 검사로 IDOR을 막는다.
 """
+
 from datetime import date, datetime
 
 from fastapi import APIRouter, Depends, HTTPException, Query
 from sqlalchemy import Integer, cast, func, select
 from sqlalchemy.ext.asyncio import AsyncSession
 
-from app.core.deps import get_current_user
+from app.core.deps import get_current_user, require_yonsei_verified
 from app.db import get_db
 from app.models.roadmap import User
 from app.models.todo import TodoCategory, TodoItem
@@ -125,7 +128,7 @@ async def get_calendar(
 async def create_category(
     request: CategoryCreateRequest,
     db: AsyncSession = Depends(get_db),
-    user: User = Depends(get_current_user),
+    user: User = Depends(require_yonsei_verified),
 ) -> TodoCategoryOut:
     next_order = await db.scalar(
         select(func.coalesce(func.max(TodoCategory.order_index), -1) + 1).where(
@@ -145,7 +148,7 @@ async def patch_category(
     category_id: int,
     request: CategoryPatchRequest,
     db: AsyncSession = Depends(get_db),
-    user: User = Depends(get_current_user),
+    user: User = Depends(require_yonsei_verified),
 ) -> TodoCategoryOut:
     category = await _owned_category(db, category_id, user.id)
     if request.name is not None:
@@ -162,7 +165,7 @@ async def patch_category(
 async def delete_category(
     category_id: int,
     db: AsyncSession = Depends(get_db),
-    user: User = Depends(get_current_user),
+    user: User = Depends(require_yonsei_verified),
 ) -> None:
     category = await _owned_category(db, category_id, user.id)
     await db.delete(category)  # items cascade
@@ -173,7 +176,7 @@ async def delete_category(
 async def create_item(
     request: ItemCreateRequest,
     db: AsyncSession = Depends(get_db),
-    user: User = Depends(get_current_user),
+    user: User = Depends(require_yonsei_verified),
 ) -> TodoItemOut:
     # 분류 소유권 확인 (남의 분류에 못 넣도록)
     await _owned_category(db, request.category_id, user.id)
@@ -201,7 +204,7 @@ async def patch_item(
     item_id: int,
     request: ItemPatchRequest,
     db: AsyncSession = Depends(get_db),
-    user: User = Depends(get_current_user),
+    user: User = Depends(require_yonsei_verified),
 ) -> TodoItemOut:
     item = await _owned_item(db, item_id, user.id)
     if request.content is not None:
@@ -219,7 +222,7 @@ async def patch_item(
 async def delete_item(
     item_id: int,
     db: AsyncSession = Depends(get_db),
-    user: User = Depends(get_current_user),
+    user: User = Depends(require_yonsei_verified),
 ) -> None:
     item = await _owned_item(db, item_id, user.id)
     await db.delete(item)

@@ -197,3 +197,43 @@ async def test_cannot_touch_others_todos(todo_user) -> None:
             ).status_code == 404
     finally:
         await delete_user_cascade(session, other.id)
+
+
+@pytest.mark.asyncio
+async def test_write_endpoints_require_yonsei_verification() -> None:
+    """미인증 유저는 조회(GET)는 되지만 쓰기(POST/PATCH/DELETE)는 403 + 인증 유도 헤더."""
+    session = await _get_session()
+    user = await create_user(session, yonsei_verified=False)
+    token = await create_session_token(session, user)
+    try:
+        async with _client() as client:
+            client.cookies.set("cc_session", token)
+
+            # 조회는 미인증도 허용
+            resp = await client.get("/api/todos/day", params={"date": TODAY})
+            assert resp.status_code == 200
+            cat_id = resp.json()["categories"][0]["id"]
+            resp = await client.get("/api/todos/calendar", params={"year": 2026, "month": 7})
+            assert resp.status_code == 200
+
+            # 쓰기는 전부 403 + 프론트가 인증 유도 화면을 띄울 수 있는 헤더
+            resp = await client.post("/api/todos/categories", json={"name": "x", "color": "green"})
+            assert resp.status_code == 403
+            assert resp.headers.get("x-auth-requirement") == "yonsei-verified"
+
+            resp = await client.patch(f"/api/todos/categories/{cat_id}", json={"name": "y"})
+            assert resp.status_code == 403
+            assert resp.headers.get("x-auth-requirement") == "yonsei-verified"
+
+            resp = await client.post(
+                "/api/todos/items",
+                json={"category_id": cat_id, "due_date": TODAY, "content": "할 일"},
+            )
+            assert resp.status_code == 403
+            assert resp.headers.get("x-auth-requirement") == "yonsei-verified"
+
+            resp = await client.delete(f"/api/todos/categories/{cat_id}")
+            assert resp.status_code == 403
+            assert resp.headers.get("x-auth-requirement") == "yonsei-verified"
+    finally:
+        await delete_user_cascade(session, user.id)
