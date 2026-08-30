@@ -115,6 +115,9 @@ export default function ProfilePage({ params }: { params: { id: string } }) {
 
   const [tab, setTab] = useState<"photos" | "constellations">("photos");
   const [posts, setPosts] = useState<PostDto[] | null>(null);
+  // 게시물 fetch가 401이면(비로그인) "게시물 없음"이 아니라 로그인 유도를
+  // 보여준다 - 잠금 패널 디자인 없이 그리드 자리를 EmptyState로 대체(사용자 지시).
+  const [postsAuthRequired, setPostsAuthRequired] = useState(false);
   const [items, setItems] = useState<ConstellationDto[] | null>(null);
   const [profile, setProfile] = useState<ProfileDto | undefined>(undefined);
   const [followPending, setFollowPending] = useState(false);
@@ -144,13 +147,18 @@ export default function ProfilePage({ params }: { params: { id: string } }) {
   useEffect(() => {
     let cancelled = false;
     setPosts(null);
+    setPostsAuthRequired(false);
     setItems(null);
     listUserPosts(params.id)
       .then((list) => {
         if (!cancelled) setPosts(list);
       })
-      .catch(() => {
-        if (!cancelled) setPosts([]);
+      .catch((err) => {
+        if (cancelled) return;
+        if (err instanceof ApiError && err.status === 401) {
+          setPostsAuthRequired(true);
+        }
+        setPosts([]);
       });
     listUserConstellations(params.id)
       .then((list) => {
@@ -199,7 +207,13 @@ export default function ProfilePage({ params }: { params: { id: string } }) {
   const displayName = profile?.displayName ?? "이름 없는 관측자";
   const avatarEmoji = profile?.avatarEmoji ?? "🔭";
 
+  // 비로그인 방문자는 프로필 API가 isFollowing 자체를 안 내려줘 버튼 상태를
+  // 알 수 없다 - 그래도 버튼은 보여주고 클릭 시 로그인으로 보낸다(사용자 지시).
   async function handleFollowToggle(): Promise<void> {
+    if (!authLoading && !user) {
+      router.push(`/login?next=${encodeURIComponent(`/profile/${params.id}`)}`);
+      return;
+    }
     if (!profile || profile.isFollowing === undefined || followPending) return;
     setFollowPending(true);
     setFollowError(null);
@@ -310,9 +324,9 @@ export default function ProfilePage({ params }: { params: { id: string } }) {
         <div className="min-w-0 flex-1 pt-1">
           <div className="flex flex-wrap items-center gap-x-3 gap-y-2">
             <h1 className="truncate font-sans text-heading font-semibold text-text-hi">{displayName}</h1>
-            {profile?.isFollowing !== undefined && (
+            {(profile?.isFollowing !== undefined || (!authLoading && !user && !isOwn)) && (
               <Button variant="ghost" size="sm" onClick={handleFollowToggle} disabled={followPending}>
-                {profile.isFollowing ? "팔로잉" : "팔로우"}
+                {profile?.isFollowing ? "팔로잉" : "팔로우"}
               </Button>
             )}
             {/* 향후: 타인 프로필의 "메시지"(DM) 버튼이 이 옆에 선다. */}
@@ -416,6 +430,18 @@ export default function ProfilePage({ params }: { params: { id: string } }) {
         {tab === "photos" ? (
           posts === null ? (
             <GridSkeleton />
+          ) : postsAuthRequired ? (
+            <EmptyState
+              title="게시물은 로그인하고 볼 수 있어요"
+              action={
+                <Link
+                  href={`/login?next=${encodeURIComponent(`/profile/${params.id}`)}`}
+                  className="rounded-md border border-transparent bg-spec-b px-5 py-2.5 text-body-sm font-bold text-ink-900 no-underline transition-[filter] duration-150 hover:brightness-110"
+                >
+                  로그인
+                </Link>
+              }
+            />
           ) : posts.length === 0 && !isOwn ? (
             <EmptyState title="아직 게시물이 없어요" />
           ) : (
