@@ -188,6 +188,9 @@ export interface BinItemDto {
   subtitle?: string;
   description?: string;
   prereqIds?: string[];
+  /** 과목의 소속 학과(4792fe4). 학과별 bin을 하나로 병합해도 아이템이 자기 학과를
+   * 들고 다니므로, 저장 후 재로드해도 배지가 유지된다. 구 문서에는 키가 없다. */
+  department?: string;
 }
 
 export interface BinDto {
