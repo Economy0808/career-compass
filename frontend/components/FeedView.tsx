@@ -273,15 +273,23 @@ function FeedSourceBanner({ source }: { source: FeedResultDto["source"] }) {
 
 /** 데스크톱 전용 "비슷한 사람 추천" 사이드바(사용자 지시: "오른쪽에 칸 비는
  * 곳에는 자동으로 비슷한 사람 추천해주는 칸을 만들자"). lib/explore-api.ts의
- * 빈 질의 추천 목록(로그인 시 공통 관심사 내림차순)을 그대로 재사용한다. */
+ * 빈 질의 추천 목록(로그인 시 공통 관심사 내림차순)을 그대로 재사용한다.
+ *
+ * 사용자 재지시: 이 슬롯은 "있을 때/없을 때"로 화면을 가르지 않는다 - 제목
+ * 포함 자리는 항상 렌더되고(레이아웃이 들썩이지 않게), 로딩 중엔 스켈레톤,
+ * 응답이 비면(팔로우 폴백까지 바닥난 극단적 경우 - 주 경로 아님) 최소 안내 +
+ * /explore 링크만 채운다. 조회 실패는 빈 목록과 다른 문구로 구분한다. */
 function SimilarPeopleSidebar() {
   const { user } = useAuth();
   const [users, setUsers] = useState<ExploreUserDto[] | null>(null);
+  const [loadError, setLoadError] = useState(false);
   const [followingUids, setFollowingUids] = useState<Set<string>>(new Set());
   const [pendingUid, setPendingUid] = useState<string | null>(null);
   const [verifyGateOpen, setVerifyGateOpen] = useState(false);
 
-  useEffect(() => {
+  function load() {
+    setUsers(null);
+    setLoadError(false);
     listExploreUsers()
       .then((list) => {
         const visible = list.slice(0, SIDEBAR_LIMIT);
@@ -291,8 +299,13 @@ function SimilarPeopleSidebar() {
         // 없는 응답(익명·구버전 서버)은 false로 떨어져 기존 동작을 유지한다.
         setFollowingUids(new Set(visible.filter((u) => u.isFollowing).map((u) => u.uid)));
       })
-      .catch(() => setUsers([]));
-  }, []);
+      .catch(() => {
+        setUsers([]);
+        setLoadError(true);
+      });
+  }
+
+  useEffect(load, []);
 
   /** 로그인은 했지만 미인증이면 프로필로 넘어가는 클릭을 막는다. */
   function guardNav(e: MouseEvent<HTMLAnchorElement>) {
@@ -334,48 +347,62 @@ function SimilarPeopleSidebar() {
     }
   }
 
-  if (users !== null && users.length === 0) return null;
-
   return (
     <aside className="hidden w-72 shrink-0 flex-col gap-3 md:flex">
       <h2 className="font-sans text-caption font-semibold text-text-lo">비슷한 사람 추천</h2>
-      {users === null
-        ? Array.from({ length: 3 }).map((_, i) => (
-            <div key={i} className="h-16 animate-pulse rounded-lg border border-rule bg-ink-800/70" />
-          ))
-        : users.map((u) => (
-            <div
-              key={u.uid}
-              className="flex items-center gap-2.5 rounded-lg border border-rule bg-ink-800/70 px-3 py-2.5 backdrop-blur-[2px]"
+      {users === null ? (
+        Array.from({ length: 3 }).map((_, i) => (
+          <div key={i} className="h-16 animate-pulse rounded-lg border border-rule bg-ink-800/70" />
+        ))
+      ) : loadError ? (
+        <div className="rounded-lg border border-dashed border-rule px-3 py-5 text-center">
+          <p className="text-body-sm text-text-lo">추천 목록을 불러오지 못했어요</p>
+          <Button variant="ghost" size="sm" className="mt-2" onClick={load}>
+            다시 시도
+          </Button>
+        </div>
+      ) : users.length === 0 ? (
+        <div className="rounded-lg border border-dashed border-rule px-3 py-5 text-center">
+          <p className="text-body-sm text-text-lo">추천할 사람이 없어요</p>
+          <Link href="/explore" className="mt-2 inline-block font-sans text-caption text-lit no-underline hover:underline">
+            탐색에서 더 찾아보기
+          </Link>
+        </div>
+      ) : (
+        users.map((u) => (
+          <div
+            key={u.uid}
+            className="flex items-center gap-2.5 rounded-lg border border-rule bg-ink-800/70 px-3 py-2.5 backdrop-blur-[2px]"
+          >
+            <Link
+              href={`/profile/${u.uid}`}
+              onClick={guardNav}
+              className="flex min-w-0 flex-1 items-center gap-2.5 no-underline"
             >
-              <Link
-                href={`/profile/${u.uid}`}
-                onClick={guardNav}
-                className="flex min-w-0 flex-1 items-center gap-2.5 no-underline"
-              >
-                <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full border border-rule bg-ink-900 text-base">
-                  {u.avatarEmoji ?? "🔭"}
+              <span className="flex h-9 w-9 shrink-0 items-center justify-center rounded-full border border-rule bg-ink-900 text-base">
+                {u.avatarEmoji ?? "🔭"}
+              </span>
+              <span className="flex min-w-0 flex-col">
+                <span className="truncate font-sans text-body-sm font-semibold text-text-hi">
+                  {u.displayName ?? "이름 없는 관측자"}
                 </span>
-                <span className="flex min-w-0 flex-col">
-                  <span className="truncate font-sans text-body-sm font-semibold text-text-hi">
-                    {u.displayName ?? "이름 없는 관측자"}
-                  </span>
-                  {u.commonTags && u.commonTags.length > 0 && (
-                    <span className="truncate font-sans text-micro text-lit">{u.commonTags[0]}</span>
-                  )}
-                </span>
-              </Link>
-              <Button
-                variant="ghost"
-                size="sm"
-                disabled={pendingUid === u.uid}
-                onClick={() => void handleFollowToggle(u.uid)}
-                className="shrink-0"
-              >
-                {followingUids.has(u.uid) ? "팔로잉" : "팔로우"}
-              </Button>
-            </div>
-          ))}
+                {u.commonTags && u.commonTags.length > 0 && (
+                  <span className="truncate font-sans text-micro text-lit">{u.commonTags[0]}</span>
+                )}
+              </span>
+            </Link>
+            <Button
+              variant="ghost"
+              size="sm"
+              disabled={pendingUid === u.uid}
+              onClick={() => void handleFollowToggle(u.uid)}
+              className="shrink-0"
+            >
+              {followingUids.has(u.uid) ? "팔로잉" : "팔로우"}
+            </Button>
+          </div>
+        ))
+      )}
       <VerifyGate open={verifyGateOpen} onClose={() => setVerifyGateOpen(false)} />
     </aside>
   );
