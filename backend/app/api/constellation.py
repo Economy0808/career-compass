@@ -1,6 +1,12 @@
 """별자리(constellation) API.
 
-Firebase Bearer 토큰 인증만 요구한다(연세 인증 게이트 없음 - 브리핑 명시).
+쓰기 엔드포인트(생성/수정/삭제, 발행 포함)는 연세대 인증(require_yonsei_verified)을
+요구한다 - 미인증 유저는 캔버스를 로컬로만 가지고 놀 수 있고, 서버에 저장하거나
+발행할 수는 없다는 정책 결정(2026-08-30)에 따른다. 읽기 전용 엔드포인트
+(GET /{constellation_id}, GET /user/{uid})는 발행된 별자리의 익명 열람 계약을
+유지해야 하므로 이 게이트를 적용하지 않는다 - 공유 링크/게시물 상세 임베드가
+의존하는 계약이다(회귀 방지, 2026-08-30).
+
 리포지토리 계층(app/firestore/constellation_repo.py, note_repo.py)이 소유권
 검증의 유일한 실질적 방어선이므로, 이 라우터는 리포지토리가 던지는 예외를
 HTTP 상태코드로 옮기는 얇은 어댑터 역할만 한다 - 소유권 로직을 여기서
@@ -17,7 +23,7 @@ from typing import ParamSpec, TypeVar
 from fastapi import APIRouter, Depends, HTTPException
 from google.cloud.firestore import Client
 
-from app.auth.deps import get_current_user, get_current_user_optional
+from app.auth.deps import get_current_user, get_current_user_optional, require_yonsei_verified
 from app.auth.firebase_auth import DecodedToken
 from app.domain.constellation import Constellation, Note, Position, compute_interest_tags
 from app.firestore import constellation_repo, note_repo, user_repo
@@ -107,7 +113,7 @@ def _get_owned_or_published(db: Client, constellation_id: str, uid: str | None) 
 @router.post("", status_code=201, response_model=ConstellationOut, response_model_exclude_none=True)
 async def create_constellation(
     payload: ConstellationCreateIn,
-    user: DecodedToken = Depends(get_current_user),
+    user: DecodedToken = Depends(require_yonsei_verified),
     db: Client = Depends(get_firestore_client),
 ) -> ConstellationOut:
     """새 별자리를 만든다. 초기 nodes/edges를 함께 받아 한 번에 저장할 수 있다."""
@@ -177,7 +183,7 @@ async def get_constellation(
 @router.delete("/{constellation_id}", status_code=204)
 async def delete_constellation(
     constellation_id: str,
-    user: DecodedToken = Depends(get_current_user),
+    user: DecodedToken = Depends(require_yonsei_verified),
     db: Client = Depends(get_firestore_client),
 ) -> None:
     _translate_repo_errors(constellation_repo.delete_constellation)(db, constellation_id, user.uid)
@@ -191,7 +197,7 @@ async def delete_constellation(
 async def set_published(
     constellation_id: str,
     payload: PublishPatchIn,
-    user: DecodedToken = Depends(get_current_user),
+    user: DecodedToken = Depends(require_yonsei_verified),
     db: Client = Depends(get_firestore_client),
 ) -> ConstellationOut:
     """별자리의 공개 여부를 바꾸고, 그 참에 owner의 관심사 태그 캐시를 재계산한다.
@@ -223,7 +229,7 @@ async def set_published(
 async def replace_bins(
     constellation_id: str,
     payload: BinsPutIn,
-    user: DecodedToken = Depends(get_current_user),
+    user: DecodedToken = Depends(require_yonsei_verified),
     db: Client = Depends(get_firestore_client),
 ) -> ConstellationOut:
     """우측 패널 보관함을 통째로 교체한다. 요청에 없는 기존 bin은 사라진다."""
@@ -243,7 +249,7 @@ async def replace_bins(
 async def add_node(
     constellation_id: str,
     payload: NodeCreateIn,
-    user: DecodedToken = Depends(get_current_user),
+    user: DecodedToken = Depends(require_yonsei_verified),
     db: Client = Depends(get_firestore_client),
 ) -> ConstellationOut:
     node = node_from_create_in(payload, created_at=datetime.now(UTC))
@@ -261,7 +267,7 @@ async def add_node(
 async def remove_node(
     constellation_id: str,
     node_id: str,
-    user: DecodedToken = Depends(get_current_user),
+    user: DecodedToken = Depends(require_yonsei_verified),
     db: Client = Depends(get_firestore_client),
 ) -> ConstellationOut:
     updated = _translate_repo_errors(constellation_repo.remove_node)(
@@ -279,7 +285,7 @@ async def update_node_position(
     constellation_id: str,
     node_id: str,
     payload: PositionPatchIn,
-    user: DecodedToken = Depends(get_current_user),
+    user: DecodedToken = Depends(require_yonsei_verified),
     db: Client = Depends(get_firestore_client),
 ) -> ConstellationOut:
     position = Position(x=payload.position.x, y=payload.position.y)
@@ -298,7 +304,7 @@ async def update_node_color(
     constellation_id: str,
     node_id: str,
     payload: ColorPatchIn,
-    user: DecodedToken = Depends(get_current_user),
+    user: DecodedToken = Depends(require_yonsei_verified),
     db: Client = Depends(get_firestore_client),
 ) -> ConstellationOut:
     updated = _translate_repo_errors(constellation_repo.update_node_color)(
@@ -316,7 +322,7 @@ async def update_node_glow(
     constellation_id: str,
     node_id: str,
     payload: GlowPatchIn,
-    user: DecodedToken = Depends(get_current_user),
+    user: DecodedToken = Depends(require_yonsei_verified),
     db: Client = Depends(get_firestore_client),
 ) -> ConstellationOut:
     updated = _translate_repo_errors(constellation_repo.update_node_glow)(
@@ -334,7 +340,7 @@ async def toggle_node_completion(
     constellation_id: str,
     node_id: str,
     payload: CompletionPatchIn,
-    user: DecodedToken = Depends(get_current_user),
+    user: DecodedToken = Depends(require_yonsei_verified),
     db: Client = Depends(get_firestore_client),
 ) -> ConstellationOut:
     updated = _translate_repo_errors(constellation_repo.toggle_node_completion)(
@@ -352,7 +358,7 @@ async def toggle_node_completion(
 async def add_edge(
     constellation_id: str,
     payload: EdgeCreateIn,
-    user: DecodedToken = Depends(get_current_user),
+    user: DecodedToken = Depends(require_yonsei_verified),
     db: Client = Depends(get_firestore_client),
 ) -> ConstellationOut:
     edge = edge_from_create_in(payload)
@@ -371,7 +377,7 @@ async def update_edge_color(
     constellation_id: str,
     edge_id: str,
     payload: EdgeColorPatchIn,
-    user: DecodedToken = Depends(get_current_user),
+    user: DecodedToken = Depends(require_yonsei_verified),
     db: Client = Depends(get_firestore_client),
 ) -> ConstellationOut:
     updated = _translate_repo_errors(constellation_repo.update_edge_color)(
@@ -388,7 +394,7 @@ async def update_edge_color(
 async def remove_edge(
     constellation_id: str,
     edge_id: str,
-    user: DecodedToken = Depends(get_current_user),
+    user: DecodedToken = Depends(require_yonsei_verified),
     db: Client = Depends(get_firestore_client),
 ) -> ConstellationOut:
     updated = _translate_repo_errors(constellation_repo.remove_edge)(
@@ -406,7 +412,7 @@ async def remove_edge(
 async def create_group(
     constellation_id: str,
     payload: GroupCreateIn,
-    user: DecodedToken = Depends(get_current_user),
+    user: DecodedToken = Depends(require_yonsei_verified),
     db: Client = Depends(get_firestore_client),
 ) -> ConstellationOut:
     """캔버스 성단(group)을 만든다. 요소가 많아진 노드들을 하나로 묶는다."""
@@ -426,7 +432,7 @@ async def update_group(
     constellation_id: str,
     group_id: str,
     payload: GroupPatchIn,
-    user: DecodedToken = Depends(get_current_user),
+    user: DecodedToken = Depends(require_yonsei_verified),
     db: Client = Depends(get_firestore_client),
 ) -> ConstellationOut:
     """성단을 부분 갱신한다 - label/collapsed/memberNodeIds/position 중 온 필드만 반영한다."""
@@ -452,7 +458,7 @@ async def update_group(
 async def delete_group(
     constellation_id: str,
     group_id: str,
-    user: DecodedToken = Depends(get_current_user),
+    user: DecodedToken = Depends(require_yonsei_verified),
     db: Client = Depends(get_firestore_client),
 ) -> ConstellationOut:
     """성단만 삭제한다("해제") - 멤버 노드는 그대로 남는다."""
@@ -466,7 +472,7 @@ async def delete_group(
 async def create_note(
     constellation_id: str,
     payload: NoteCreateIn,
-    user: DecodedToken = Depends(get_current_user),
+    user: DecodedToken = Depends(require_yonsei_verified),
     db: Client = Depends(get_firestore_client),
 ) -> NoteOut:
     """노트를 만든다. id가 없으면 서버가 uuid4를 생성해 응답에 반드시 포함한다.
@@ -506,7 +512,7 @@ async def update_note(
     constellation_id: str,
     note_id: str,
     payload: NotePatchIn,
-    user: DecodedToken = Depends(get_current_user),
+    user: DecodedToken = Depends(require_yonsei_verified),
     db: Client = Depends(get_firestore_client),
 ) -> NoteOut:
     updated = _translate_repo_errors(note_repo.update_note)(
@@ -526,7 +532,7 @@ async def update_note(
 async def delete_note(
     constellation_id: str,
     note_id: str,
-    user: DecodedToken = Depends(get_current_user),
+    user: DecodedToken = Depends(require_yonsei_verified),
     db: Client = Depends(get_firestore_client),
 ) -> None:
     _translate_repo_errors(note_repo.delete_note)(db, constellation_id, note_id, user.uid)

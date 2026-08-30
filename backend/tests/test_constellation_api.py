@@ -67,10 +67,17 @@ def authed_as() -> Callable[[str], None]:
     라우터가 실제로 import하는 app.auth.deps.get_current_user 객체를 그대로 키로
     써야 override가 먹는다 - app.core.deps의 동명 함수와 다른 객체이므로 헷갈리지
     않도록 여기서만 단일 진입점으로 wrapping한다.
+
+    yonsei_verified을 항상 True로 만드는 이유: 쓰기 엔드포인트 전부가 이제
+    require_yonsei_verified 게이트를 거친다(2026-08-30). DecodedToken 기본값(False)을
+    그대로 쓰면 이 스위트의 쓰기 테스트 전부가 403으로 깨지므로, "이 유저는 이미
+    인증됐다"를 기본 가정으로 삼는다. 시그니처는 그대로 유지한다 - 미인증 케이스는
+    이 fixture를 쓰지 않고 dependency_overrides를 직접 건드려 표현한다(아래
+    test_create_by_unverified_user_returns_403_with_auth_requirement_header 등 참고).
     """
 
     def _set(uid: str) -> None:
-        token = DecodedToken(uid=uid)
+        token = DecodedToken(uid=uid, yonsei_verified=True)
         app.dependency_overrides[get_current_user] = lambda: token
         # 단건 GET처럼 optional 인증을 쓰는 라우트도 같은 uid로 보여야 한다
         # (test_community_api.py와 동일 패턴 - 하나만 override하면 익명으로 보임).
@@ -97,6 +104,49 @@ async def test_no_auth_header_returns_401() -> None:
     async with _client() as client:
         resp = await client.get("/api/constellations")
         assert resp.status_code == 401
+
+
+def _set_unverified(uid: str) -> None:
+    """authed_as와 달리 yonsei_verified=False 토큰을 강제하는 미인증 케이스 전용 헬퍼."""
+    token = DecodedToken(uid=uid, yonsei_verified=False)
+    app.dependency_overrides[get_current_user] = lambda: token
+    app.dependency_overrides[get_current_user_optional] = lambda: token
+
+
+@pytest.mark.asyncio
+async def test_create_by_unverified_user_returns_403_with_auth_requirement_header() -> None:
+    """미인증(연세대 인증 전) 유저는 별자리를 서버에 저장할 수 없다(2026-08-30 정책).
+
+    프론트가 "로그인 필요"(401)와 "인증 유도 화면"(403 + 헤더)을 구분할 수 있어야
+    하므로 헤더까지 함께 확인한다.
+    """
+    _set_unverified("unverified-user")
+    async with _client() as client:
+        resp = await client.post(
+            "/api/constellations", json={"title": "미인증 시도", "goalRawText": "x"}
+        )
+        assert resp.status_code == 403
+        assert resp.headers["X-Auth-Requirement"] == "yonsei-verified"
+
+
+@pytest.mark.asyncio
+async def test_publish_by_unverified_user_returns_403_with_auth_requirement_header(
+    authed_as: Callable[[str], None],
+) -> None:
+    """발행(publish)도 저장에 준하는 쓰기 행동이므로 동일하게 막혀야 한다."""
+    authed_as("owner-a")
+    async with _client() as client:
+        cid = (
+            await client.post(
+                "/api/constellations", json={"title": "발행 시도", "goalRawText": "x"}
+            )
+        ).json()["id"]
+
+    _set_unverified("owner-a")  # 같은 유저가 인증을 잃은 상황을 재현
+    async with _client() as client:
+        resp = await client.patch(f"/api/constellations/{cid}/publish", json={"isPublished": True})
+        assert resp.status_code == 403
+        assert resp.headers["X-Auth-Requirement"] == "yonsei-verified"
 
 
 # --- 생성 / 조회 ---
