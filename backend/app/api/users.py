@@ -17,9 +17,7 @@ from app.schemas.roadmap import (
 router = APIRouter(prefix="/api/users", tags=["users"])
 
 
-async def _profile_out(
-    db: AsyncSession, user: User, viewer: User | None
-) -> UserProfileOut:
+async def _profile_out(db: AsyncSession, user: User, viewer: User | None) -> UserProfileOut:
     roadmap_count = await db.scalar(
         select(func.count()).select_from(Roadmap).where(Roadmap.user_id == user.id)
     )
@@ -32,9 +30,7 @@ async def _profile_out(
     is_following = None
     if viewer is not None and viewer.id != user.id:
         follow = await db.scalar(
-            select(Follow).where(
-                Follow.follower_id == viewer.id, Follow.followee_id == user.id
-            )
+            select(Follow).where(Follow.follower_id == viewer.id, Follow.followee_id == user.id)
         )
         is_following = follow is not None
     return UserProfileOut(
@@ -110,9 +106,7 @@ async def follow_user(
         raise HTTPException(status_code=404, detail="user not found")
 
     existing = await db.scalar(
-        select(Follow).where(
-            Follow.follower_id == follower.id, Follow.followee_id == user_id
-        )
+        select(Follow).where(Follow.follower_id == follower.id, Follow.followee_id == user_id)
     )
     if existing is None:
         db.add(Follow(follower_id=follower.id, followee_id=user_id))
@@ -127,9 +121,7 @@ async def unfollow_user(
 ) -> None:
     """user_id 팔로우를 취소한다. idempotent."""
     existing = await db.scalar(
-        select(Follow).where(
-            Follow.follower_id == follower.id, Follow.followee_id == user_id
-        )
+        select(Follow).where(Follow.follower_id == follower.id, Follow.followee_id == user_id)
     )
     if existing is not None:
         await db.delete(existing)

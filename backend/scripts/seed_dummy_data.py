@@ -8,6 +8,7 @@
     cd backend
     python scripts/seed_dummy_data.py
 """
+
 import asyncio
 from datetime import date, datetime, timedelta
 

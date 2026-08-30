@@ -3,6 +3,7 @@
 PIPA: 승인/거절 어느 쪽이든 결정 즉시 이미지 파일을 삭제하고
 image_path를 비운다. DB에는 심사 결과만 남는다.
 """
+
 from datetime import datetime
 from pathlib import Path
 
@@ -49,9 +50,7 @@ async def approve_card(db: AsyncSession, card_id: int) -> StudentCardVerificatio
     return card
 
 
-async def reject_card(
-    db: AsyncSession, card_id: int, reason: str
-) -> StudentCardVerification:
+async def reject_card(db: AsyncSession, card_id: int, reason: str) -> StudentCardVerification:
     card = await db.get(StudentCardVerification, card_id)
     if card is None or card.status != "pending":
         raise ValueError(f"pending card {card_id} not found")

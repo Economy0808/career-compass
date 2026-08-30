@@ -1,4 +1,5 @@
 """인증 API 요청/응답 스키마. 모든 입력은 Pydantic으로 형식·길이를 강제한다."""
+
 from pydantic import BaseModel, EmailStr, Field, field_validator
 
 YONSEI_DOMAIN = "@yonsei.ac.kr"

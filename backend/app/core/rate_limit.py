@@ -3,6 +3,7 @@
 프로세스 로컬이라 다중 워커/서버에서는 워커별로 따로 계산된다 —
 프로토타입 규모에서는 충분하며, 스케일아웃 시 Redis 기반으로 교체할 것.
 """
+
 import time
 from collections import deque
 from collections.abc import AsyncIterator, Callable

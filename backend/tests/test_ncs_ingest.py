@@ -2,6 +2,7 @@
 
 DB와 외부 API는 모두 mock 처리한다.
 """
+
 from unittest.mock import AsyncMock, MagicMock, patch
 
 import pytest

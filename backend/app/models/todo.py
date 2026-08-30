@@ -3,6 +3,7 @@
 콩나무 로드맵(장기 목표)과 별개인 하루 단위 실행 플래너. 콩 화폐와는 무관하며
 캘린더의 콩 표시는 순수 시각적 연출이다.
 """
+
 from datetime import date, datetime
 from typing import Literal
 

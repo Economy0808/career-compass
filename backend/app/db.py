@@ -13,6 +13,7 @@ from app.config import get_settings
 
 class Base(DeclarativeBase):
     """Base class for all ORM models."""
+
     pass
 
 

@@ -1,4 +1,5 @@
 """콩 화폐 서비스: 잔액 조회, 완주 보상 지급."""
+
 from datetime import datetime
 
 from sqlalchemy import func, select

@@ -5,6 +5,7 @@
   DB가 유출돼도 쿠키로 재사용할 수 있는 원본 토큰은 남지 않는다.
 - 인증 코드: 6자리 숫자, 역시 해시로만 저장.
 """
+
 import hashlib
 import hmac
 import secrets

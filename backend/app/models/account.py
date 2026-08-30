@@ -1,4 +1,5 @@
 """인증 관련 ORM 모델: 세션, 이메일 인증 코드, 학생증 심사."""
+
 from datetime import datetime
 from typing import Literal
 

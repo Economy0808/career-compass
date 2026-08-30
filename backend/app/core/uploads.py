@@ -3,6 +3,7 @@
 Content-Type 헤더는 위조 가능하므로 항상 바이트를 직접 검사한다.
 공개용 이미지(마일스톤 기록)는 긴 변 1280px로 축소해 JPEG로 통일 저장한다.
 """
+
 import io
 
 from PIL import Image, UnidentifiedImageError

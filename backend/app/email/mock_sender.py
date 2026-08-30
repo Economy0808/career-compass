@@ -1,4 +1,5 @@
 """개발용 Mock 이메일 발송자: 실제 발송 대신 로그에 남긴다."""
+
 import logging
 
 logger = logging.getLogger("app.email")

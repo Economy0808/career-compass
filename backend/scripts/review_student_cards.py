@@ -8,6 +8,7 @@ Usage (backend/ 에서, .venv 활성화 후):
 list는 심사 대기 건과 이미지 파일 경로를 보여준다. 이미지를 직접 열어
 확인한 뒤 approve/reject 하면 이미지는 즉시 파기된다 (PIPA).
 """
+
 import argparse
 import asyncio
 import sys

@@ -10,6 +10,7 @@ cron 등으로 월 1회 실행. 유저 로드맵 생성은 이 캐시를 읽기�
 
 컴플라이언스: llm.research_job이 요약 + 출처 URL만 반환하며, 여기서도 그것만 저장한다.
 """
+
 import argparse
 import asyncio
 import sys
@@ -47,9 +48,7 @@ CURATED_KEYWORDS = [
 
 
 async def _refresh_one(db, llm, job, force: bool, ttl_days: int) -> str:
-    existing = await db.scalar(
-        select(JobResearch).where(JobResearch.ncs_job_code == job.code)
-    )
+    existing = await db.scalar(select(JobResearch).where(JobResearch.ncs_job_code == job.code))
     if existing and not force:
         age = datetime.now() - existing.refreshed_at.replace(tzinfo=None)
         if age < timedelta(days=ttl_days):

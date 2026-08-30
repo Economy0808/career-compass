@@ -95,7 +95,9 @@ async def fetch_ncs_job(lclas_cd: str, mclas_cd: str, sclas_cd: str) -> list[dic
     )
 
 
-async def fetch_ncs_ability_unit(lclas_cd: str, mclas_cd: str, sclas_cd: str, subd_cd: str) -> list[dict]:
+async def fetch_ncs_ability_unit(
+    lclas_cd: str, mclas_cd: str, sclas_cd: str, subd_cd: str
+) -> list[dict]:
     """NCS 능력단위 코드를 조회한다 (NCS005). NCS_LCLAS_CD + NCS_MCLAS_CD + NCS_SCLAS_CD + NCS_SUBD_CD 필수."""
     return await _fetch_all_pages(
         f"{NCS_BASE_URL}/NCS005",
