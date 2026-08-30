@@ -29,7 +29,7 @@ import { useEffect, useState } from "react";
 import { Button } from "@/components/ui";
 import { StoryRing } from "@/components/StoryRing";
 import { StoryViewer } from "@/components/StoryViewer";
-import { LikeStarIcon, PostImageCarousel, ShareIcon, usePostImages } from "@/components/PostDetail";
+import { CommentIcon, LikeStarIcon, PostImageCarousel, ShareIcon, usePostImages } from "@/components/PostDetail";
 import { likePost, listFeedPosts, unlikePost, type FeedPostDto, type FeedResultDto } from "@/lib/posts-api";
 import { listExploreUsers, type ExploreUserDto } from "@/lib/explore-api";
 import { followUser, unfollowUser } from "@/lib/profiles-api";
@@ -146,6 +146,16 @@ function FeedPostCard({
             <LikeStarIcon filled={post.isLiked === true} size={20} />
             <span className="font-mono text-body-sm">{post.likeCount ?? 0}</span>
           </button>
+          {/* 댓글 - 텍스트 링크 대신 아이콘 액션(사용자 지시: "댓글도 댓글
+              남기기라 해놓지 말고 댓글 아이콘 추가해줘"). 상세로 이동해 읽고 쓴다. */}
+          <Link
+            href={`/post/${post.id}`}
+            aria-label={`댓글 ${post.commentCount ?? 0}개`}
+            className="flex min-h-11 items-center gap-1.5 rounded-md px-2 text-text-lo no-underline transition-colors hover:bg-ink-700 hover:text-text-hi focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-1 focus-visible:outline-spec-b"
+          >
+            <CommentIcon size={19} />
+            <span className="font-mono text-body-sm">{post.commentCount ?? 0}</span>
+          </Link>
           <button
             type="button"
             onClick={() => void handleShare()}
@@ -161,18 +171,16 @@ function FeedPostCard({
             {post.caption}
           </p>
         )}
-        <Link
-          href={`/post/${post.id}`}
-          className="self-start font-sans text-caption text-text-lo no-underline hover:text-text-hi"
-        >
-          {(post.commentCount ?? 0) > 0 ? (
-            <>
-              댓글 <span className="font-mono">{post.commentCount}</span>개 모두 보기
-            </>
-          ) : (
-            "댓글 남기기"
-          )}
-        </Link>
+        {/* 댓글이 이미 있을 때만 "모두 보기"로 유도한다 - 0건일 때의 "댓글 남기기"
+            텍스트는 위 아이콘 액션이 대체했다(사용자 지시). */}
+        {(post.commentCount ?? 0) > 0 && (
+          <Link
+            href={`/post/${post.id}`}
+            className="self-start font-sans text-caption text-text-lo no-underline hover:text-text-hi"
+          >
+            댓글 <span className="font-mono">{post.commentCount}</span>개 모두 보기
+          </Link>
+        )}
       </div>
     </article>
   );

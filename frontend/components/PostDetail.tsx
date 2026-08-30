@@ -74,6 +74,26 @@ export function ShareIcon({ size = 20 }: { size?: number }) {
   );
 }
 
+/** 댓글(말풍선) - 좋아요·공유와 같은 선화 어휘. 사용자 지시: "댓글도 댓글
+ * 남기기라 해놓지 말고 댓글 아이콘 추가해줘"(피드 카드의 텍스트 링크를 대체). */
+export function CommentIcon({ size = 20 }: { size?: number }) {
+  return (
+    <svg
+      width={size}
+      height={size}
+      viewBox="0 0 24 24"
+      fill="transparent"
+      stroke="currentColor"
+      strokeWidth="1.7"
+      strokeLinecap="round"
+      strokeLinejoin="round"
+      aria-hidden
+    >
+      <path d="M20 12a7.5 7.5 0 0 1-7.5 7.5H8L4 22v-4.2A7.5 7.5 0 0 1 12.5 4.5 7.5 7.5 0 0 1 20 12Z" />
+    </svg>
+  );
+}
+
 /** 다중 장 지연 로드 훅 - 목록의 대표 썸네일로 시작해, imageCount>1일 때만
  * 전체 이미지를 불러온다. 실패해도 썸네일 1장으로 살아있는다.
  * PostDetail과 FeedView 피드 카드가 공유한다. */

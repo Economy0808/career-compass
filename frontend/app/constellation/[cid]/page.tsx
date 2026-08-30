@@ -20,7 +20,7 @@
  */
 
 import { useCallback, useEffect, useMemo, useRef, useState } from "react";
-import { useParams } from "next/navigation";
+import { useParams, useRouter } from "next/navigation";
 import Link from "next/link";
 import { ConstellationCanvas } from "@/components/ConstellationCanvas";
 import { EmptyState, Avatar } from "@/components/ui";
@@ -57,6 +57,7 @@ type LoadState =
 
 export default function ConstellationViewerPage() {
   const params = useParams<{ cid: string }>();
+  const router = useRouter();
   const cid = params.cid;
   const [state, setState] = useState<LoadState>({ kind: "loading" });
   const fitTokenRef = useRef(0);
@@ -186,6 +187,25 @@ export default function ConstellationViewerPage() {
           언어(paper-surface, DESIGN.md의 Floating-Chrome Paper Rule). */}
       {/* 모바일: 좌상단 로고 섬과 같은 줄에서 충돌하지 않게 그 아래로 내리고,
           폭은 뷰포트에 클램프한다(375px에서 max-w-md가 넘치던 검수 지적). */}
+      {/* 돌아가기 - 이 뷰어는 게시물 상세·피드·프로필 등 여러 곳에서 들어오므로
+          고정 목적지 대신 브라우저 히스토리로 되돌린다(사용자 지시: "게시물
+          상세에서 별자리 클릭하니까 캔버스로 들어가져서 자세히 볼 수 있는건 좋은데
+          돌아가는 버튼이 없어"). 직접 URL로 들어와 히스토리가 없으면 피드로 보낸다.
+          우상단에 두는 이유: 좌상단은 AppShell 몰입형 크롬의 로고 락업이
+          fixed left-4 top-4로 이미 점유한다(겹침 실측 확인). 이 뷰어는 편집
+          화면과 달리 우상단 컨트롤이 없어 비어 있다. */}
+      <button
+        type="button"
+        onClick={() => {
+          if (window.history.length > 1) router.back();
+          else router.push("/feed");
+        }}
+        className="paper-surface fixed right-4 top-4 z-30 flex min-h-11 items-center gap-1.5 rounded-full border border-paper-line bg-paper-soft/95 px-4 font-sans text-body-sm text-paper-ink shadow-panel backdrop-blur-md transition-colors hover:bg-paper-soft focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-2 focus-visible:outline-spec-b"
+      >
+        <span aria-hidden>←</span>
+        돌아가기
+      </button>
+
       <div className="paper-surface fixed left-1/2 top-16 z-20 w-[min(92vw,28rem)] -translate-x-1/2 rounded-lg border border-paper-line bg-paper-soft/95 px-4 py-3 shadow-panel backdrop-blur-md md:top-3">
         <h1 className="truncate font-serif text-title font-bold text-paper-ink">{data.title}</h1>
         <div className="mt-1.5 flex items-center gap-2">
