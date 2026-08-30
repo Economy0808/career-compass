@@ -156,6 +156,21 @@ def set_interest_tags(db: Client, uid: str, interest_tags: list[str]) -> dict[st
     return data
 
 
+def get_profiles(db: Client, uids: list[str]) -> dict[str, dict[str, Any]]:
+    """uids 중 실제로 존재하는 프로필만 {uid: 문서 dict}로 배치 조회한다.
+
+    app/firestore/post_repo.py의 liked_post_ids와 동일한 이유로 db.get_all()을
+    쓴다 - 목록 화면(app/api/notifications.py의 알림 목록)에서 항목마다 프로필을
+    개별 조회하는 N+1 대신, 중복 제거한 고유 uid 집합만 한 번에 가져온다(같은
+    actor가 여러 알림에 반복 등장해도 조회는 한 번뿐).
+    """
+    unique_uids = list(dict.fromkeys(uids))
+    if not unique_uids:
+        return {}
+    refs = [_doc_ref(db, uid) for uid in unique_uids]
+    return {snap.id: (snap.to_dict() or {}) for snap in db.get_all(refs) if snap.exists}
+
+
 def list_users_with_interest_tags(db: Client) -> list[tuple[str, dict[str, Any]]]:
     """interest_tags가 비어있지 않은 유저 전체를 (uid, 문서 dict)로 반환한다.
 

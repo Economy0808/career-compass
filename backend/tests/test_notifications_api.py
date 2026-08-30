@@ -21,6 +21,7 @@ from httpx import ASGITransport, AsyncClient
 
 from app.auth.deps import get_current_user, get_current_user_optional
 from app.auth.firebase_auth import DecodedToken
+from app.firestore.client import get_firestore_client
 from app.main import app
 
 _TINY_PNG_DATA_URL = (
@@ -92,6 +93,8 @@ async def test_follow_creates_notification_for_followee(
     assert item["type"] == "follow"
     assert item["actorUid"] == "follower"
     assert "postId" not in item
+    # follower의 프로필 문서를 세팅한 적 없으므로 actor 임베드 자체가 응답에서 빠진다.
+    assert "actor" not in item
 
 
 @pytest.mark.asyncio
@@ -146,6 +149,45 @@ async def test_comment_creates_notification_for_post_owner(
     assert item["type"] == "comment"
     assert item["actorUid"] == "commenter"
     assert item["postId"] == post_id
+
+
+@pytest.mark.asyncio
+async def test_notification_embeds_actor_profile_and_dedupes_repeated_actor(
+    authed_as: Callable[[str], None],
+) -> None:
+    """actor 프로필이 있으면 각 알림에 동봉되고, 같은 actor가 여러 알림을 만들어도
+    (댓글 2개) 항목마다 정확한 프로필이 실린다(get_profiles 배치 조회의 중복 제거가
+    결과를 깨뜨리지 않는지 확인)."""
+    db = get_firestore_client()
+    db.collection("users").document("repeat-commenter").set(
+        {"display_name": "별빛댓글러", "avatar_emoji": "🌟"}
+    )
+
+    authed_as("owner3")
+    async with _client() as client:
+        create_resp = await client.post(
+            "/api/posts", json={"imageData": _TINY_PNG_DATA_URL, "caption": ""}
+        )
+        post_id = create_resp.json()["id"]
+
+    authed_as("repeat-commenter")
+    async with _client() as client:
+        assert (
+            await client.post(f"/api/posts/{post_id}/comments", json={"body": "첫 댓글"})
+        ).status_code == 201
+        assert (
+            await client.post(f"/api/posts/{post_id}/comments", json={"body": "두번째 댓글"})
+        ).status_code == 201
+
+    authed_as("owner3")
+    async with _client() as client:
+        list_resp = await client.get("/api/notifications")
+    body = list_resp.json()
+    assert body["unreadCount"] == 2
+    assert len(body["items"]) == 2
+    for item in body["items"]:
+        assert item["actorUid"] == "repeat-commenter"
+        assert item["actor"] == {"displayName": "별빛댓글러", "avatarEmoji": "🌟"}
 
 
 @pytest.mark.asyncio
