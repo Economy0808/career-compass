@@ -107,10 +107,15 @@ async def test_create_then_list_then_owner_delete(authed_as: Callable[[str], Non
         assert all(p["id"] != created["id"] for p in list_after_resp.json())
 
 
+def _anonymous() -> None:
+    """authed_as가 잡은 두 override를 모두 걷어내 익명 요청을 흉내낸다."""
+    app.dependency_overrides.pop(get_current_user, None)
+    app.dependency_overrides.pop(get_current_user_optional, None)
+
+
 @pytest.mark.asyncio
-async def test_anonymous_and_other_user_see_is_mine_false(
-    authed_as: Callable[[str], None],
-) -> None:
+async def test_list_user_posts_view_gate_matrix(authed_as: Callable[[str], None]) -> None:
+    """GET /user/{uid}: 익명=401 / 미팔로우=403 / 팔로우=200(isMine False) / 본인=200(isMine True)."""
     authed_as("user-a")
     async with _client() as client:
         create_resp = await client.post(
@@ -118,19 +123,28 @@ async def test_anonymous_and_other_user_see_is_mine_false(
         )
     assert create_resp.json()["isMine"] is True
 
-    # 익명 열람: isMine은 항상 False, 조회 자체는 허용된다.
-    # authed_as가 optional까지 잡으므로 익명 검증 전에 그 override만 걷어낸다.
-    app.dependency_overrides.pop(get_current_user_optional, None)
+    _anonymous()
     async with _client() as client:
         anon_resp = await client.get("/api/posts/user/user-a")
-    assert anon_resp.status_code == 200
-    assert all(p["isMine"] is False for p in anon_resp.json())
+    assert anon_resp.status_code == 401
 
-    # 다른 로그인 유저가 봐도 isMine은 False.
     authed_as("user-b")
     async with _client() as client:
-        other_resp = await client.get("/api/posts/user/user-a")
-    assert all(p["isMine"] is False for p in other_resp.json())
+        forbidden_resp = await client.get("/api/posts/user/user-a")
+    assert forbidden_resp.status_code == 403
+
+    async with _client() as client:
+        follow_resp = await client.post("/api/profiles/user-a/follow")
+        assert follow_resp.status_code == 200
+        followed_resp = await client.get("/api/posts/user/user-a")
+    assert followed_resp.status_code == 200
+    assert all(p["isMine"] is False for p in followed_resp.json())
+
+    authed_as("user-a")
+    async with _client() as client:
+        own_resp = await client.get("/api/posts/user/user-a")
+    assert own_resp.status_code == 200
+    assert any(p["isMine"] is True for p in own_resp.json())
 
 
 @pytest.mark.asyncio
@@ -271,6 +285,8 @@ async def test_comment_create_updates_count_and_delete_by_others_forbidden(
 
     authed_as("user-b")
     async with _client() as client:
+        # user-b가 user-a의 게시물을 GET으로 열람하려면 팔로우가 필요하다(B1 열람 게이트).
+        await client.post("/api/profiles/user-a/follow")
         comment_resp = await client.post(f"/api/posts/{post_id}/comments", json={"body": "멋져요"})
         assert comment_resp.status_code == 201
         comment = comment_resp.json()
@@ -309,11 +325,8 @@ async def test_get_post_detail_not_found_returns_404(authed_as: Callable[[str], 
 
 
 @pytest.mark.asyncio
-async def test_get_post_detail_anonymous_has_no_is_liked_key(
-    authed_as: Callable[[str], None],
-) -> None:
-    """익명 열람은 허용하되, isLiked는 로그인 시에만 채워지는 값이라 응답 JSON에
-    키 자체가 없어야 한다(response_model_exclude_none)."""
+async def test_get_post_detail_view_gate_matrix(authed_as: Callable[[str], None]) -> None:
+    """GET /{post_id}: 익명=401 / 미팔로우=403 / 팔로우=200 / 본인=200."""
     authed_as("user-a")
     async with _client() as client:
         create_resp = await client.post(
@@ -321,13 +334,80 @@ async def test_get_post_detail_anonymous_has_no_is_liked_key(
         )
         post_id = create_resp.json()["id"]
 
-    app.dependency_overrides.pop(get_current_user_optional, None)
+    _anonymous()
     async with _client() as client:
-        resp = await client.get(f"/api/posts/{post_id}")
-        assert resp.status_code == 200
-        body = resp.json()
-        assert "isLiked" not in body["post"]
-        assert body["comments"] == []
+        anon_resp = await client.get(f"/api/posts/{post_id}")
+    assert anon_resp.status_code == 401
+
+    authed_as("user-b")
+    async with _client() as client:
+        forbidden_resp = await client.get(f"/api/posts/{post_id}")
+    assert forbidden_resp.status_code == 403
+
+    async with _client() as client:
+        assert (await client.post("/api/profiles/user-a/follow")).status_code == 200
+        followed_resp = await client.get(f"/api/posts/{post_id}")
+    assert followed_resp.status_code == 200
+    assert followed_resp.json()["post"]["isLiked"] is False
+    assert followed_resp.json()["comments"] == []
+
+    authed_as("user-a")
+    async with _client() as client:
+        own_resp = await client.get(f"/api/posts/{post_id}")
+    assert own_resp.status_code == 200
+    assert own_resp.json()["post"]["isMine"] is True
+
+
+@pytest.mark.asyncio
+async def test_list_post_images_view_gate_matrix(authed_as: Callable[[str], None]) -> None:
+    """GET /{post_id}/images: 익명=401 / 미팔로우=403 / 팔로우=200 / 본인=200."""
+    authed_as("user-a")
+    async with _client() as client:
+        create_resp = await client.post(
+            "/api/posts", json={"imageData": _TINY_PNG_DATA_URL, "caption": ""}
+        )
+        post_id = create_resp.json()["id"]
+
+    _anonymous()
+    async with _client() as client:
+        anon_resp = await client.get(f"/api/posts/{post_id}/images")
+    assert anon_resp.status_code == 401
+
+    authed_as("user-b")
+    async with _client() as client:
+        forbidden_resp = await client.get(f"/api/posts/{post_id}/images")
+    assert forbidden_resp.status_code == 403
+
+    async with _client() as client:
+        assert (await client.post("/api/profiles/user-a/follow")).status_code == 200
+        followed_resp = await client.get(f"/api/posts/{post_id}/images")
+    assert followed_resp.status_code == 200
+
+    authed_as("user-a")
+    async with _client() as client:
+        own_resp = await client.get(f"/api/posts/{post_id}/images")
+    assert own_resp.status_code == 200
+
+
+@pytest.mark.asyncio
+async def test_follow_then_unfollow_toggles_post_view_access(
+    authed_as: Callable[[str], None],
+) -> None:
+    """열람 권한은 팔로우 그래프에서 실시간으로 파생된다 - 팔로우 직후 200, 언팔로우 직후 403."""
+    authed_as("user-a")
+    async with _client() as client:
+        create_resp = await client.post(
+            "/api/posts", json={"imageData": _TINY_PNG_DATA_URL, "caption": ""}
+        )
+        post_id = create_resp.json()["id"]
+
+    authed_as("user-b")
+    async with _client() as client:
+        assert (await client.post("/api/profiles/user-a/follow")).status_code == 200
+        assert (await client.get(f"/api/posts/{post_id}")).status_code == 200
+
+        assert (await client.delete("/api/profiles/user-a/follow")).status_code == 200
+        assert (await client.get(f"/api/posts/{post_id}")).status_code == 403
 
 
 # ---------------------------------------------------------------------------

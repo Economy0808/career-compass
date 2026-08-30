@@ -30,7 +30,7 @@ from app.auth.deps import get_current_user, get_current_user_optional
 from app.auth.firebase_auth import DecodedToken
 from app.core.rate_limit import rate_limit
 from app.domain.post import Post, PostComment, PostImage
-from app.firestore import post_repo, user_repo
+from app.firestore import follow_repo, post_repo, user_repo
 from app.firestore.client import get_firestore_client
 from app.firestore.post_repo import (
     CommentNotFoundError,
@@ -53,6 +53,9 @@ router = APIRouter(prefix="/api/posts", tags=["posts"])
 
 _POST_NOT_FOUND = HTTPException(status_code=404, detail="게시물을 찾을 수 없어요.")
 _POST_FORBIDDEN = HTTPException(status_code=403, detail="본인 게시물만 삭제할 수 있어요.")
+_POST_VIEW_FORBIDDEN = HTTPException(
+    status_code=403, detail="팔로우한 사람의 게시물만 볼 수 있습니다."
+)
 _COMMENT_NOT_FOUND = HTTPException(status_code=404, detail="댓글을 찾을 수 없어요.")
 _COMMENT_FORBIDDEN = HTTPException(status_code=403, detail="본인 댓글만 삭제할 수 있어요.")
 
@@ -159,18 +162,19 @@ async def get_feed(
 @router.get("/user/{uid}", response_model=list[PostOut], response_model_exclude_none=True)
 async def list_user_posts(
     uid: str,
-    user: DecodedToken | None = Depends(get_current_user_optional),
+    user: DecodedToken = Depends(get_current_user),
     db: Client = Depends(get_firestore_client),
 ) -> list[PostOut]:
-    """uid의 게시물 목록을 최신순으로 반환한다 - 익명 열람 허용. isMine/isLiked로 본인/좋아요 여부 판별.
+    """uid의 게시물 목록을 최신순으로 반환한다 - 팔로우한 사람만 열람 가능(본인 포함).
+    isMine/isLiked로 본인/좋아요 여부 판별.
 
     목록은 부모 문서(썸네일 image_data)만 읽는다 - images 서브컬렉션은 조인하지
     않는다(비용, 모듈 docstring 참고). 전체 이미지가 필요하면 GET .../images를
     따로 부른다.
     """
+    if not follow_repo.can_view(db, user.uid, uid):
+        raise _POST_VIEW_FORBIDDEN
     posts = post_repo.list_by_owner(db, uid)
-    if user is None:
-        return [_to_out(p, viewer_uid=None, is_liked=None) for p in posts]
     liked_ids = post_repo.liked_post_ids(db, [p.id for p in posts], user.uid)
     return [_to_out(p, viewer_uid=user.uid, is_liked=p.id in liked_ids) for p in posts]
 
@@ -178,9 +182,10 @@ async def list_user_posts(
 @router.get("/{post_id}/images", response_model=list[PostImageOut])
 async def list_post_images(
     post_id: str,
+    user: DecodedToken = Depends(get_current_user),
     db: Client = Depends(get_firestore_client),
 ) -> list[PostImageOut]:
-    """게시물의 전체 이미지를 순서대로 반환한다 - 상세/캐러셀용, 익명 열람 허용.
+    """게시물의 전체 이미지를 순서대로 반환한다 - 상세/캐러셀용, 팔로우한 사람만 열람 가능.
 
     다중 사진 기능 이전에 만들어진 게시물은 images 서브컬렉션이 비어 있다 - 그 경우
     부모 문서의 image_data(썸네일 겸 유일한 사진)를 index 0 한 장으로 폴백한다.
@@ -188,6 +193,8 @@ async def list_post_images(
     post = post_repo.get_post(db, post_id)
     if post is None:
         raise _POST_NOT_FOUND
+    if not follow_repo.can_view(db, user.uid, post.owner_id):
+        raise _POST_VIEW_FORBIDDEN
     images = post_repo.list_post_images(db, post_id)
     if not images:
         return [PostImageOut(index=0, image_data=post.image_data)]
@@ -271,17 +278,22 @@ async def delete_comment(
 @router.get("/{post_id}", response_model=PostDetailOut, response_model_exclude_none=True)
 async def get_post_detail(
     post_id: str,
-    user: DecodedToken | None = Depends(get_current_user_optional),
+    user: DecodedToken = Depends(get_current_user),
     db: Client = Depends(get_firestore_client),
 ) -> PostDetailOut:
-    """게시물 단건(공유용) + 댓글 목록을 반환한다 - 열람은 익명 허용. 없으면 404."""
+    """게시물 단건(공유용) + 댓글 목록을 반환한다 - 팔로우한 사람만 열람 가능.
+
+    게시물이 없으면 404, 열람 권한(팔로우/본인)이 없으면 403 - 404가 먼저다.
+    """
     post = post_repo.get_post(db, post_id)
     if post is None:
         raise _POST_NOT_FOUND
-    is_liked = None if user is None else post_repo.is_liked_by(db, post_id, user.uid)
+    if not follow_repo.can_view(db, user.uid, post.owner_id):
+        raise _POST_VIEW_FORBIDDEN
+    is_liked = post_repo.is_liked_by(db, post_id, user.uid)
     comments = post_repo.list_comments(db, post_id)
     return PostDetailOut(
-        post=_to_out(post, viewer_uid=None if user is None else user.uid, is_liked=is_liked),
+        post=_to_out(post, viewer_uid=user.uid, is_liked=is_liked),
         comments=[_to_comment_out(c) for c in comments],
     )
 

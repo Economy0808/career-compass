@@ -142,3 +142,14 @@ def list_following_ids(db: Client, uid: str, limit: int = 100) -> list[str]:
     """uid가 팔로우하는 유저들의 uid 목록을 반환한다(정렬 순서 보장 없음)."""
     query = db.collection(_FOLLOWS_COLLECTION).where("follower_id", "==", uid).limit(limit)
     return [doc.to_dict()["followee_id"] for doc in query.stream()]
+
+
+def can_view(db: Client, viewer_uid: str | None, owner_uid: str) -> bool:
+    """팔로우 그래프에서 파생되는 열람 권한 - 게시물/스토리 공용.
+
+    익명(viewer_uid=None)은 항상 False. 본인 소유물이거나, 소유자를 팔로우
+    중이면 True.
+    """
+    return viewer_uid is not None and (
+        viewer_uid == owner_uid or is_following(db, viewer_uid, owner_uid)
+    )
