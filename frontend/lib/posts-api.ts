@@ -11,12 +11,16 @@
  * images 우선. 댓글 DELETE(본인만)는 아직 UI 미배선.
  *
  * - POST /api/posts → 인증 필수, images 1~10장, 분당 10 rate limit(429 가능).
- * - GET /api/posts/user/{uid} → 익명 허용. 목록은 대표 썸네일(imageData)만.
- * - GET /api/posts/{postId} → 익명 허용, {post, comments} 중첩(community 관례).
- * - GET /api/posts/{postId}/images → 익명 허용, 전체 이미지(지연 로드용).
+ * - GET /api/posts/user/{uid} → 인증 필수(익명 401). 목록은 대표 썸네일(imageData)만.
+ * - GET /api/posts/{postId} → 인증 필수(익명 401), {post, comments} 중첩(community 관례).
+ * - GET /api/posts/{postId}/images → 인증 필수(익명 401), 전체 이미지(지연 로드용).
  * - POST/DELETE /api/posts/{postId}/like → 인증 필수, 응답=갱신된 PostOut.
  * - POST /api/posts/{postId}/comments → 인증 필수, body ≤500, 분당 20.
  * - DELETE /api/posts/{postId} → 인증+소유자 필수, 204.
+ * - GET /api/posts/feed → 인증 필수(익명 401). {source, posts} 래퍼로 응답 -
+ *   source는 "following"|"interest"|"latest"(콜드스타트 분기,
+ *   app/schemas/posts.py의 PostFeedOut 참고). 로그인만 하면 팔로우 여부와
+ *   무관하게 200(SNS 열람 모델이 "로그인만 하면 열람"으로 전환됨).
  */
 
 import { jsonInit, request } from "./api";
@@ -66,17 +70,28 @@ export interface FeedPostDto extends PostDto {
   ownerAvatarEmoji?: string;
 }
 
-/** 전체 게시물 피드(최신 ≤30, 익명 허용) - /feed SNS 전환용. */
-export function listFeedPosts(): Promise<FeedPostDto[]> {
-  return request<{ post: PostDto; author: { uid: string; displayName?: string; avatarEmoji?: string } }[]>(
-    "/api/posts/feed"
-  ).then((list) =>
-    list.map((item) => ({
+/** GET /feed 응답(평탄화 전) - source가 콜드스타트 분기 결과를 알려준다.
+ * app/schemas/posts.py의 PostFeedOut과 1:1 대응. */
+export interface FeedResultDto {
+  source: "following" | "interest" | "latest";
+  posts: FeedPostDto[];
+}
+
+/** 피드(팔로잉 글, 팔로잉 0명이면 관심사 겹침 글, 그마저 없으면 전체 최신 -
+ * /feed SNS 전환용). 인증 필수(익명 401) - 로그인만 하면 팔로우 여부와 무관하게
+ * 열람 가능. */
+export function listFeedPosts(): Promise<FeedResultDto> {
+  return request<{
+    source: "following" | "interest" | "latest";
+    posts: { post: PostDto; author: { uid: string; displayName?: string; avatarEmoji?: string } }[];
+  }>("/api/posts/feed").then((res) => ({
+    source: res.source,
+    posts: res.posts.map((item) => ({
       ...item.post,
       ownerDisplayName: item.author.displayName,
       ownerAvatarEmoji: item.author.avatarEmoji,
-    }))
-  );
+    })),
+  }));
 }
 
 export async function getPost(postId: string): Promise<PostDetailDto> {
