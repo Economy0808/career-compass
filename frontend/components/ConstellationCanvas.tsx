@@ -359,6 +359,8 @@ const DIVE_FIT_MAX_ZOOM = 1.15;
 const DIVE_MIN_SPACING = 90;
 const DIVE_TIER_ROW_GAP = 130;
 const DIVE_TIER_COL_GAP = 110;
+const DIVE_DENSE_ROW_MIN = 4; // 이 인원 이상 층은 지그재그(라벨 맞닿음 완화)
+const DIVE_DENSE_ROW_ZIGZAG_Y = 18; // 지그재그 상하 어긋남(world px)
 
 function minPairDistance(positions: CanvasPosition[]): number {
   let min = Infinity;
@@ -450,7 +452,10 @@ function computeDiveLayout(
     const count = idsInRank.length;
     idsInRank.forEach((id, i) => {
       const x = centroid.x + (count === 1 ? 0 : (i - (count - 1) / 2) * DIVE_TIER_COL_GAP);
-      const y = centroid.y + (rank - maxRank / 2) * DIVE_TIER_ROW_GAP;
+      // 밀집 층은 지그재그로 어긋내 이웃 라벨 맞닿음을 푼다 - 시안
+      // interiorLayoutFor와 같은 규칙(승인 계획 ②).
+      const zigzag = count >= DIVE_DENSE_ROW_MIN ? (i % 2 === 0 ? -1 : 1) * DIVE_DENSE_ROW_ZIGZAG_Y : 0;
+      const y = centroid.y + (rank - maxRank / 2) * DIVE_TIER_ROW_GAP + zigzag;
       positions.set(id, { x, y });
     });
   });
@@ -1616,18 +1621,21 @@ export function ConstellationCanvas({
                   filter={node.isCompleted ? "url(#const-glow)" : undefined}
                 />
 
+                {/* "요소가 뭔지 글자가 아주 조금만 더 잘보였으면"(사용자 지시) -
+                    크기 +1px, 미완료 불투명도 0.6->0.8만 소폭 상향. 색 토큰과
+                    완료/미완료 위계(text-hi vs text-lo)는 그대로. */}
                 <text
                   x={0}
                   y={r + 16}
                   textAnchor="middle"
-                  fontSize={11.5}
+                  fontSize={12.5}
                   className="font-sans"
                   fill={node.isCompleted ? "var(--text-hi)" : "var(--text-lo)"}
-                  opacity={node.isCompleted ? 1 : 0.6}
+                  opacity={node.isCompleted ? 1 : 0.8}
                   style={{ paintOrder: "stroke", stroke: "var(--ink-900)", strokeWidth: 3, strokeOpacity: 0.75 }}
                 >
                   {code && (
-                    <tspan className="font-mono" fontSize={9.5} dx={0}>
+                    <tspan className="font-mono" fontSize={10} dx={0}>
                       {code}{" "}
                     </tspan>
                   )}
