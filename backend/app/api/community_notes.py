@@ -53,6 +53,7 @@ _MISSING_POST_ID = HTTPException(
 )
 _BLOCKED = HTTPException(status_code=403, detail="상대가 이 대화를 차단했어요.")
 _BLOCK_NOT_ALLOWED = HTTPException(status_code=403, detail="받는 사람만 대화를 차단할 수 있어요.")
+_UNBLOCK_NOT_ALLOWED = HTTPException(status_code=403, detail="받는 사람만 차단을 해제할 수 있어요.")
 
 
 def _now_ms() -> int:
@@ -244,4 +245,25 @@ async def block_thread(
     if user.uid != thread.recipient_uid:
         raise _BLOCK_NOT_ALLOWED
     thread = community_note_repo.block(db, thread_id)
+    return _to_thread_out(db, thread, role="recipient")
+
+
+@router.post("/{thread_id}/unblock", response_model=NoteThreadOut, response_model_exclude_none=True)
+async def unblock_thread(
+    thread_id: str,
+    user: DecodedToken = Depends(require_yonsei_verified),
+    db: Client = Depends(get_firestore_client),
+) -> NoteThreadOut:
+    """받는 사람만 차단을 해제할 수 있다(block과 동일한 권한 규칙).
+
+    이미 차단되지 않은 스레드에 호출해도 에러 없이 통과한다(멱등) - repo의
+    unblock이 현재 상태를 확인하지 않고 그냥 덮어쓰므로 자연히 그렇게 되고,
+    실수로 두 번 눌러도 사용자에게 에러를 보여줄 이유가 없다는 판단이다.
+    """
+    thread = community_note_repo.get_thread(db, thread_id)
+    if thread is None:
+        raise _THREAD_NOT_FOUND
+    if user.uid != thread.recipient_uid:
+        raise _UNBLOCK_NOT_ALLOWED
+    thread = community_note_repo.unblock(db, thread_id)
     return _to_thread_out(db, thread, role="recipient")

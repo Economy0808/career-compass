@@ -392,6 +392,96 @@ async def test_block_then_send_is_403_and_sender_cannot_block(
     assert blocked_restart.status_code == 403
 
 
+@pytest.mark.asyncio
+async def test_unblock_then_send_succeeds_again(authed_as: Callable[[str], None]) -> None:
+    """차단 -> 해제 -> 다시 전송이 되는지가 이 기능의 핵심 계약이다."""
+    authed_as("unblock-author")
+    async with _client() as client:
+        post = await _create_post(client)
+
+    authed_as("unblock-sender")
+    async with _client() as client:
+        start_resp = await client.post(
+            "/api/community/notes",
+            json={"targetType": "post", "targetId": post["id"], "body": "안녕하세요"},
+        )
+        thread_id = start_resp.json()["id"]
+
+    authed_as("unblock-author")
+    async with _client() as client:
+        block_resp = await client.post(f"/api/community/notes/{thread_id}/block")
+        assert block_resp.status_code == 200
+
+    # 보낸 쪽은 해제도 불가 (block과 동일 권한 규칙)
+    authed_as("unblock-sender")
+    async with _client() as client:
+        sender_unblock_resp = await client.post(f"/api/community/notes/{thread_id}/unblock")
+    assert sender_unblock_resp.status_code == 403
+
+    # 제3자도 해제 불가
+    authed_as("unblock-third-party")
+    async with _client() as client:
+        third_party_unblock_resp = await client.post(f"/api/community/notes/{thread_id}/unblock")
+    assert third_party_unblock_resp.status_code == 403
+
+    # 익명(미인증)은 401
+    app.dependency_overrides.clear()
+    async with _client() as client:
+        anon_unblock_resp = await client.post(f"/api/community/notes/{thread_id}/unblock")
+    assert anon_unblock_resp.status_code == 401
+
+    # 인증됐지만 재학생 미인증이면 403 + 헤더
+    app.dependency_overrides[get_current_user] = lambda: DecodedToken(
+        uid="unblock-author", yonsei_verified=False
+    )
+    app.dependency_overrides[get_current_user_optional] = lambda: DecodedToken(
+        uid="unblock-author", yonsei_verified=False
+    )
+    async with _client() as client:
+        unverified_unblock_resp = await client.post(f"/api/community/notes/{thread_id}/unblock")
+    assert unverified_unblock_resp.status_code == 403
+    assert unverified_unblock_resp.headers["X-Auth-Requirement"] == "yonsei-verified"
+    app.dependency_overrides.clear()
+
+    authed_as("unblock-author")
+    async with _client() as client:
+        unblock_resp = await client.post(f"/api/community/notes/{thread_id}/unblock")
+    assert unblock_resp.status_code == 200
+    assert unblock_resp.json()["blocked"] is False
+
+    # 핵심 계약: 해제 후 다시 메시지 전송이 된다
+    authed_as("unblock-sender")
+    async with _client() as client:
+        resend_resp = await client.post(
+            f"/api/community/notes/{thread_id}/messages", json={"body": "다시 보냅니다"}
+        )
+    assert resend_resp.status_code == 201
+
+
+@pytest.mark.asyncio
+async def test_unblock_on_not_blocked_thread_is_idempotent(
+    authed_as: Callable[[str], None],
+) -> None:
+    """차단된 적 없는 스레드에 해제를 호출해도 에러 없이 통과한다(멱등 정책)."""
+    authed_as("idempotent-author")
+    async with _client() as client:
+        post = await _create_post(client)
+
+    authed_as("idempotent-sender")
+    async with _client() as client:
+        start_resp = await client.post(
+            "/api/community/notes",
+            json={"targetType": "post", "targetId": post["id"], "body": "안녕하세요"},
+        )
+        thread_id = start_resp.json()["id"]
+
+    authed_as("idempotent-author")
+    async with _client() as client:
+        unblock_resp = await client.post(f"/api/community/notes/{thread_id}/unblock")
+    assert unblock_resp.status_code == 200
+    assert unblock_resp.json()["blocked"] is False
+
+
 # --- 접근 제어 ---
 
 

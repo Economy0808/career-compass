@@ -68,6 +68,7 @@ __all__ = [
     "mark_read",
     "resolve_target",
     "start_or_continue",
+    "unblock",
 ]
 
 
@@ -309,6 +310,21 @@ def block(db: Client, thread_id: str) -> NoteThread:
     """스레드를 차단 상태로 바꾼다. 호출 전 recipient 권한 확인은 API 계층 책임."""
     ref = _thread_doc_ref(db, thread_id)
     ref.update({"blocked": True})
+    thread = get_thread(db, thread_id)
+    assert thread is not None
+    return thread
+
+
+def unblock(db: Client, thread_id: str) -> NoteThread:
+    """스레드의 차단을 해제한다. 호출 전 recipient 권한 확인은 API 계층 책임.
+
+    block과 대칭으로 현재 blocked 값을 확인하지 않고 그냥 False로 덮어쓴다 -
+    이미 차단 안 된 스레드에 호출해도 에러 없이 같은 결과(blocked=False)로
+    수렴하므로 자연히 멱등이다(block도 이미 차단된 스레드에 다시 호출해도
+    에러를 내지 않는 것과 동일한 설계).
+    """
+    ref = _thread_doc_ref(db, thread_id)
+    ref.update({"blocked": False})
     thread = get_thread(db, thread_id)
     assert thread is not None
     return thread
