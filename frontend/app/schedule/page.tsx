@@ -1,6 +1,6 @@
 "use client";
 
-import { useRouter } from "next/navigation";
+import Link from "next/link";
 import { useCallback, useEffect, useId, useMemo, useState } from "react";
 import { TaskCheckbox } from "@/components/TaskCheckbox";
 import { DayCompleteCelebration } from "@/components/DayCompleteCelebration";
@@ -34,7 +34,6 @@ const COLOR_HEX: Record<TodoColor, string> = {
 const COLORS = Object.keys(COLOR_HEX) as TodoColor[];
 
 export default function SchedulePage() {
-  const router = useRouter();
   const { user, loading: authLoading } = useAuth();
 
   const initial = todayISODate();
@@ -51,11 +50,6 @@ export default function SchedulePage() {
 
   // 하루 완료 목표 (캘린더 콩 최대치와 동일)
   const DAY_GOAL = 6;
-
-  useEffect(() => {
-    // 로그인 후 이 화면으로 복귀할 수 있게 목적지를 next로 넘긴다.
-    if (!authLoading && !user) router.push("/login?next=" + encodeURIComponent("/schedule"));
-  }, [authLoading, user, router]);
 
   // 선택일의 할 일 + 분류 로드
   useEffect(() => {
@@ -178,10 +172,40 @@ export default function SchedulePage() {
     setViewMonth(m);
   }
 
-  if (authLoading || !user) {
+  // 페이지 뼈대(제목·설명)는 비로그인에도 그대로 보이고, 목록 자리만
+  // 로그인 유도로 바뀐다(사용자 지시 - 일정 전체 리다이렉트 금지).
+  if (authLoading) {
     return (
-      <div className="mx-auto max-w-sm animate-pulse">
-        <EmptyState title="불러오는 중…" />
+      <div className="mx-auto w-full max-w-3xl animate-pulse">
+        <h1 className="font-serif text-display font-bold text-text-hi">일정</h1>
+        <p className="mt-2 text-body-sm text-text-lo">
+          하루의 할 일을 콩으로 채워보세요 — 완료할수록 그날의 콩이 진해져요
+        </p>
+        <div className="mt-6 h-64 rounded-lg border border-rule bg-ink-800" />
+      </div>
+    );
+  }
+
+  if (!user) {
+    return (
+      <div className="mx-auto w-full max-w-3xl">
+        <h1 className="font-serif text-display font-bold text-text-hi">일정</h1>
+        <p className="mt-2 text-body-sm text-text-lo">
+          하루의 할 일을 콩으로 채워보세요 — 완료할수록 그날의 콩이 진해져요
+        </p>
+        <div className="mt-6">
+          <EmptyState
+            title="일정은 로그인하고 관리할 수 있어요"
+            action={
+              <Link
+                href={`/login?next=${encodeURIComponent("/schedule")}`}
+                className="rounded-md border border-transparent bg-spec-b px-5 py-2.5 text-body-sm font-bold text-ink-900 no-underline transition-[filter] duration-150 hover:brightness-110"
+              >
+                로그인
+              </Link>
+            }
+          />
+        </div>
       </div>
     );
   }

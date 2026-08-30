@@ -19,7 +19,8 @@ export const NAV_ITEMS: readonly NavItem[] = [
   { key: "explore", label: "탐색", shortLabel: "탐색", Icon: SearchIcon, href: "/explore", requiresAuth: false },
   { key: "feed", label: "소셜", shortLabel: "소셜", Icon: EagleIcon, href: "/feed", requiresAuth: false },
   { key: "community", label: "커뮤니티", shortLabel: "커뮤니티", Icon: BoardIcon, href: "/community", requiresAuth: false },
-  { key: "schedule", label: "일정", shortLabel: "일정", Icon: CalendarIcon, href: "/schedule", requiresAuth: true },
+  // 일정 탭 자체는 비로그인도 진입 가능(페이지 안에서 로그인 유도) - 사용자 지시.
+  { key: "schedule", label: "일정", shortLabel: "일정", Icon: CalendarIcon, href: "/schedule", requiresAuth: false },
   {
     key: "new",
     label: "별자리 생성하기",
