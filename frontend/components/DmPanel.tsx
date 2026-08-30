@@ -1,0 +1,239 @@
+"use client";
+
+/**
+ * DM(다이렉트 메시지) 패널 내용물 - 대화 목록 → 대화 열기 → 전송.
+ * components/shell/MessageIcon.tsx가 패널 다이얼로그(제목줄·닫기·바깥클릭·포커스
+ * 트랩)를 소유하고, 이 컴포넌트는 그 안의 목록/대화 UI만 담당한다.
+ *
+ * 새 대화 시작(팔로워 목록에서 상대를 골라 처음 말 걸기) UI는 이 과제 범위 밖 -
+ * 지시가 "대화 목록 → 대화 열기 → 전송"까지만이라 기존 대화방만 이어간다.
+ * 폴링 없음: MessageIcon이 패널을 열 때만 이 컴포넌트가 마운트되므로 최초 1회
+ * 조회가 곧 "열 때마다 재조회"와 같다(알림함과 동일한 패턴).
+ */
+
+import { useEffect, useState } from "react";
+import { ApiError } from "@/lib/api";
+import {
+  listDmMessages,
+  listDmThreads,
+  sendDmMessage,
+  type DmMessageDto,
+  type DmThreadDto,
+} from "@/lib/dm-api";
+import { relativeTimeKo } from "@/lib/format";
+import { isVerifyRequiredError, VerifyGate } from "@/components/VerifyGate";
+
+export interface DmPanelProps {
+  /** 대화방 목록을 새로 불러올 때마다 최신 안읽음 합계를 부모(MessageIcon)의
+   * 뱃지로 끌어올린다 - 패널이 닫혀 있을 때도 뱃지는 계속 보여야 해서 상태를
+   * 여기서 소유하지 않고 콜백으로 올린다. */
+  onUnreadTotalChange?: (total: number) => void;
+}
+
+function isForbidden(err: unknown): boolean {
+  return err instanceof ApiError && err.status === 403;
+}
+
+export function DmPanel({ onUnreadTotalChange }: DmPanelProps) {
+  const [threads, setThreads] = useState<DmThreadDto[] | null>(null);
+  const [active, setActive] = useState<DmThreadDto | null>(null);
+  const [messages, setMessages] = useState<DmMessageDto[] | null>(null);
+  const [body, setBody] = useState("");
+  const [sending, setSending] = useState(false);
+  const [sendError, setSendError] = useState<string | null>(null);
+  const [showVerifyGate, setShowVerifyGate] = useState(false);
+
+  function loadThreads() {
+    listDmThreads()
+      .then((res) => {
+        setThreads(res.items);
+        onUnreadTotalChange?.(res.unreadTotal);
+      })
+      .catch((err) => {
+        if (isVerifyRequiredError(err)) setShowVerifyGate(true);
+        setThreads([]);
+      });
+  }
+
+  // eslint-disable-next-line react-hooks/exhaustive-deps
+  useEffect(loadThreads, []);
+
+  function openThread(thread: DmThreadDto) {
+    setActive(thread);
+    setMessages(null);
+    setSendError(null);
+    listDmMessages(thread.id)
+      .then((msgs) => {
+        setMessages(msgs);
+        // 조회 즉시 이 방의 안읽음이 서버에서 0으로 리셋되므로 목록을 다시 불러
+        // 뱃지(unreadTotal)를 갱신한다.
+        loadThreads();
+      })
+      .catch((err) => {
+        if (isVerifyRequiredError(err)) setShowVerifyGate(true);
+        setMessages([]);
+      });
+  }
+
+  async function handleSend() {
+    const trimmed = body.trim();
+    if (!active || !trimmed || sending) return;
+    setSending(true);
+    setSendError(null);
+    try {
+      const sent = await sendDmMessage(active.peer.uid, trimmed);
+      setMessages((prev) => (prev ? [sent, ...prev] : [sent]));
+      setBody("");
+    } catch (err) {
+      if (isVerifyRequiredError(err)) {
+        setShowVerifyGate(true);
+      } else if (isForbidden(err)) {
+        setSendError("서로 팔로우한 사이에서만 대화할 수 있어요");
+      } else {
+        setSendError("전송하지 못했어요. 다시 시도해주세요.");
+      }
+    } finally {
+      setSending(false);
+    }
+  }
+
+  return (
+    <div className="flex min-h-0 flex-1 flex-col">
+      <VerifyGate open={showVerifyGate} onClose={() => setShowVerifyGate(false)} />
+      {active ? (
+        <div className="flex min-h-0 flex-1 flex-col">
+          <div className="flex items-center gap-2 border-b border-paper-line px-4 py-2.5">
+            <button
+              type="button"
+              onClick={() => setActive(null)}
+              aria-label="대화 목록으로"
+              className="rounded-sm p-1 text-paper-lo transition-colors hover:text-paper-ink"
+            >
+              <span aria-hidden className="block text-body leading-none">
+                ‹
+              </span>
+            </button>
+            <span className="flex h-7 w-7 shrink-0 items-center justify-center rounded-full bg-paper text-base">
+              {active.peer.avatarEmoji ?? "🔭"}
+            </span>
+            <span className="truncate text-body-sm font-semibold text-paper-ink">
+              {active.peer.displayName ?? "관측자"}
+            </span>
+          </div>
+
+          <div className="flex min-h-0 flex-1 flex-col-reverse gap-2 overflow-y-auto px-4 py-3">
+            {messages === null ? (
+              <p className="py-10 text-center text-body-sm text-paper-lo">불러오는 중이에요</p>
+            ) : messages.length === 0 ? (
+              <p className="py-10 text-center text-body-sm text-paper-lo">
+                첫 메시지를 보내보세요
+              </p>
+            ) : (
+              // 서버는 최신순으로 주지만 대화창은 옛→최신 순으로 위→아래 읽혀야
+              // 하고, flex-col-reverse 컨테이너에서는 배열 순서를 뒤집지 않고
+              // 그대로(최신이 먼저) 넣어야 시각적으로 최신이 맨 아래에 온다.
+              messages.map((m) => (
+                <div
+                  key={m.id}
+                  className={
+                    "max-w-[80%] rounded-lg px-3 py-2 text-body-sm " +
+                    (m.senderUid === active.peer.uid
+                      ? "self-start bg-paper text-paper-ink"
+                      : "self-end bg-paper-ink text-paper")
+                  }
+                >
+                  <p className="whitespace-pre-wrap break-words">{m.body}</p>
+                  <p
+                    className={
+                      "mt-1 text-micro " +
+                      (m.senderUid === active.peer.uid ? "text-paper-lo" : "text-paper/70")
+                    }
+                  >
+                    {relativeTimeKo(m.createdAt)}
+                  </p>
+                </div>
+              ))
+            )}
+          </div>
+
+          <div className="border-t border-paper-line px-3 py-2.5">
+            {sendError && <p className="mb-1.5 text-micro text-spec-m">{sendError}</p>}
+            <div className="flex items-end gap-2">
+              <textarea
+                value={body}
+                onChange={(e) => setBody(e.target.value)}
+                onKeyDown={(e) => {
+                  if (e.key === "Enter" && !e.shiftKey) {
+                    e.preventDefault();
+                    void handleSend();
+                  }
+                }}
+                rows={1}
+                maxLength={2000}
+                placeholder="메시지 보내기"
+                className="min-h-11 flex-1 resize-none rounded-md border border-paper-line bg-paper px-3 py-2.5 text-body-sm text-paper-ink outline-none focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-1 focus-visible:outline-paper-ink"
+              />
+              <button
+                type="button"
+                onClick={() => void handleSend()}
+                disabled={!body.trim() || sending}
+                aria-label="보내기"
+                className="flex h-11 w-11 shrink-0 items-center justify-center rounded-md bg-paper-ink text-paper transition-opacity disabled:opacity-40"
+              >
+                <span aria-hidden className="block text-body leading-none">
+                  ↑
+                </span>
+              </button>
+            </div>
+          </div>
+        </div>
+      ) : (
+        <div className="overflow-y-auto">
+          {threads === null ? (
+            <p className="px-4 py-10 text-center text-body-sm text-paper-lo">불러오는 중이에요</p>
+          ) : threads.length === 0 ? (
+            <p className="px-4 py-10 text-center text-body-sm text-paper-lo">
+              아직 나눈 대화가 없어요
+            </p>
+          ) : (
+            threads.map((t) => (
+              <button
+                key={t.id}
+                type="button"
+                onClick={() => openThread(t)}
+                className="flex w-full items-start gap-3 border-b border-paper-line px-4 py-3 text-left transition-colors last:border-b-0 hover:bg-paper"
+              >
+                <span className="flex h-8 w-8 shrink-0 items-center justify-center rounded-full bg-paper text-lg">
+                  {t.peer.avatarEmoji ?? "🔭"}
+                </span>
+                <span className="min-w-0 flex-1">
+                  <span className="flex items-center justify-between gap-2">
+                    <span className="truncate text-body-sm font-semibold text-paper-ink">
+                      {t.peer.displayName ?? "관측자"}
+                    </span>
+                    <span className="shrink-0 text-caption text-paper-lo">
+                      {relativeTimeKo(t.lastMessageAt)}
+                    </span>
+                  </span>
+                  <span className="mt-0.5 flex items-center gap-1.5">
+                    <span className="truncate text-caption text-paper-lo">
+                      {t.lastMessagePreview}
+                    </span>
+                    {t.unread > 0 && (
+                      <span
+                        aria-hidden
+                        className="ml-auto flex h-4 min-w-4 shrink-0 items-center justify-center rounded-full bg-spec-b px-1 font-mono text-micro font-semibold leading-none text-paper"
+                      >
+                        {t.unread > 99 ? "99+" : t.unread}
+                      </span>
+                    )}
+                  </span>
+                </span>
+              </button>
+            ))
+          )}
+        </div>
+      )}
+    </div>
+  );
+}

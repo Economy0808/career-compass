@@ -7,6 +7,7 @@ import { SideRail } from "./SideRail";
 import { TabBar } from "./TabBar";
 import { NavIsland } from "./NavIsland";
 import { NotificationBell } from "./NotificationBell";
+import { MessageIcon } from "./MessageIcon";
 
 export interface AppShellProps {
   children: ReactNode;
@@ -86,6 +87,10 @@ export function AppShell({ children }: AppShellProps) {
   return (
     <div className="flex min-h-dvh bg-ink-900">
       <NotificationBell />
+      {/* 탐색·소셜·일정에서만 스스로를 렌더한다(경로 게이팅은 컴포넌트 내부) -
+          커뮤니티에서는 null을 반환해 다른 에이전트가 만드는 쪽지 아이콘 자리를
+          비워 둔다. */}
+      <MessageIcon />
       <SideRail />
       <main
         className={
