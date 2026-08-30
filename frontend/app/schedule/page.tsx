@@ -5,6 +5,7 @@ import { useCallback, useEffect, useId, useMemo, useState } from "react";
 import { TaskCheckbox } from "@/components/TaskCheckbox";
 import { DayCompleteCelebration } from "@/components/DayCompleteCelebration";
 import { ScheduleCalendar } from "@/components/ScheduleCalendar";
+import { VerifyGate } from "@/components/VerifyGate";
 import { Button, Card, CloseIcon, EmptyState, Field, PlusIcon } from "@/components/ui";
 import {
   createTodoCategory,
@@ -20,6 +21,7 @@ import { useAuth } from "@/lib/auth-context";
 import { cn } from "@/lib/cn";
 import { celebrateCheck } from "@/lib/feedback";
 import { todayISODate } from "@/lib/format";
+import { useVerifyGuard } from "@/lib/use-verify-guard";
 import type { CalendarDayOut, TodoCategoryOut, TodoColor, TodoItemOut } from "@/lib/types";
 
 // 분류 색은 사용자가 고르는 데이터라 디자인 토큰이 아닌 고정 팔레트를 쓴다.
@@ -35,6 +37,9 @@ const COLORS = Object.keys(COLOR_HEX) as TodoColor[];
 
 export default function SchedulePage() {
   const { user, loading: authLoading } = useAuth();
+  // 백엔드 게이트가 아직 롤아웃 중이라 UI 선제 차단이 1차 방어선이다(과제
+  // 지시 - 서버 403 대기 금지). 쓰기 지점이 6개라 반복을 피하려 훅으로 묶었다.
+  const { verifyGateOpen, closeVerifyGate, guardWrite, handleWriteError } = useVerifyGuard();
 
   const initial = todayISODate();
   const [selectedDate, setSelectedDate] = useState(initial);
@@ -96,6 +101,7 @@ export default function SchedulePage() {
   }
 
   async function toggleItem(item: TodoItemOut) {
+    if (!guardWrite(user)) return;
     const next = !item.is_completed;
     const nextItems = items.map((i) => (i.id === item.id ? { ...i, is_completed: next } : i));
     const completed = nextItems.filter((i) => i.is_completed).length;
@@ -108,7 +114,8 @@ export default function SchedulePage() {
     syncCalendarCell(nextItems);
     try {
       await patchTodoItem(item.id, { is_completed: next });
-    } catch {
+    } catch (err) {
+      handleWriteError(err);
       setItems(items);
       syncCalendarCell(items);
     }
@@ -117,38 +124,71 @@ export default function SchedulePage() {
   async function addItem(categoryId: number, content: string) {
     const trimmed = content.trim();
     if (!trimmed) return;
-    const created = await createTodoItem(categoryId, selectedDate, trimmed);
-    const nextItems = [...items, created];
-    setItems(nextItems);
-    syncCalendarCell(nextItems);
+    if (!guardWrite(user)) return;
+    try {
+      const created = await createTodoItem(categoryId, selectedDate, trimmed);
+      const nextItems = [...items, created];
+      setItems(nextItems);
+      syncCalendarCell(nextItems);
+    } catch (err) {
+      handleWriteError(err);
+    }
   }
 
   async function removeItem(item: TodoItemOut) {
+    if (!guardWrite(user)) return;
+    const prevItems = items;
     const nextItems = items.filter((i) => i.id !== item.id);
     setItems(nextItems);
     syncCalendarCell(nextItems);
-    await deleteTodoItem(item.id);
+    try {
+      await deleteTodoItem(item.id);
+    } catch (err) {
+      handleWriteError(err);
+      setItems(prevItems);
+      syncCalendarCell(prevItems);
+    }
   }
 
   async function addCategory(name: string, color: TodoColor) {
-    const created = await createTodoCategory(name, color);
-    setCategories((prev) => [...prev, created]);
-    setAddingCategory(false);
+    if (!guardWrite(user)) return;
+    try {
+      const created = await createTodoCategory(name, color);
+      setCategories((prev) => [...prev, created]);
+      setAddingCategory(false);
+    } catch (err) {
+      handleWriteError(err);
+    }
   }
 
   async function renameCategory(id: number, name: string, color: TodoColor) {
-    const updated = await patchTodoCategory(id, { name, color });
-    setCategories((prev) => prev.map((c) => (c.id === id ? updated : c)));
+    if (!guardWrite(user)) return;
+    try {
+      const updated = await patchTodoCategory(id, { name, color });
+      setCategories((prev) => prev.map((c) => (c.id === id ? updated : c)));
+    } catch (err) {
+      handleWriteError(err);
+    }
   }
 
   async function removeCategory(id: number) {
+    if (!guardWrite(user)) return;
+    const prevCategories = categories;
+    const prevItems = items;
     setCategories((prev) => prev.filter((c) => c.id !== id));
     setItems((prev) => {
       const nextItems = prev.filter((i) => i.category_id !== id);
       syncCalendarCell(nextItems);
       return nextItems;
     });
-    await deleteTodoCategory(id);
+    try {
+      await deleteTodoCategory(id);
+    } catch (err) {
+      handleWriteError(err);
+      setCategories(prevCategories);
+      setItems(prevItems);
+      syncCalendarCell(prevItems);
+    }
   }
 
   const itemsByCategory = useMemo(() => {
@@ -282,6 +322,7 @@ export default function SchedulePage() {
       )}
 
       {celebrating && <DayCompleteCelebration onDone={() => setCelebrating(false)} />}
+      <VerifyGate open={verifyGateOpen} onClose={closeVerifyGate} />
     </div>
   );
 }

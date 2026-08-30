@@ -368,7 +368,11 @@ export function PostDetail({ postId, initial, showDelete, onDeleted, onPostChang
     try {
       await deletePost(postId);
       onDeleted?.();
-    } catch {
+    } catch (err) {
+      if (isVerifyRequiredError(err)) {
+        setVerifyGateOpen(true);
+        return;
+      }
       setDeleteError(true);
     }
   }

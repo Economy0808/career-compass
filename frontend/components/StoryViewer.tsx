@@ -20,6 +20,7 @@ import {
   type StoryRingEntryDto,
 } from "@/lib/stories-api";
 import { Button, CloseIcon } from "@/components/ui";
+import { VerifyGate, isVerifyRequiredError } from "@/components/VerifyGate";
 
 const AUTO_ADVANCE_MS = 5000;
 
@@ -36,6 +37,7 @@ export function StoryViewer({ ring, startUid, onClose }: StoryViewerProps) {
   const [stories, setStories] = useState<StoryDto[] | null>(null);
   const [index, setIndex] = useState(0);
   const [filled, setFilled] = useState(false);
+  const [verifyGateOpen, setVerifyGateOpen] = useState(false);
   const rootRef = useRef<HTMLDivElement>(null);
 
   const userIdx = ring.findIndex((r) => r.uid === uid);
@@ -148,8 +150,12 @@ export function StoryViewer({ ring, startUid, onClose }: StoryViewerProps) {
     if (!current) return;
     try {
       await deleteStory(current.id);
-    } catch {
-      // ponytail: 삭제 실패해도 다음으로 넘어간다 - 별도 에러 배너는 과함
+    } catch (err) {
+      if (isVerifyRequiredError(err)) {
+        setVerifyGateOpen(true);
+        return;
+      }
+      // ponytail: 그 외 실패는 다음으로 넘어간다 - 별도 에러 배너는 과함
     }
     next();
   }
@@ -211,6 +217,7 @@ export function StoryViewer({ ring, startUid, onClose }: StoryViewerProps) {
         <button type="button" aria-label="이전 스토리" onClick={prev} className={cn("absolute inset-y-0 left-0 w-1/2")} />
         <button type="button" aria-label="다음 스토리" onClick={next} className={cn("absolute inset-y-0 right-0 w-1/2")} />
       </div>
+      <VerifyGate open={verifyGateOpen} onClose={() => setVerifyGateOpen(false)} />
     </div>
   );
 }
