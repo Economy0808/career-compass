@@ -18,6 +18,7 @@ import {
   type CanvasPosition,
 } from "@/components/ConstellationCanvas";
 import { ElementBinPanel, type Bin, type BinItem, type BinDropPayload } from "@/components/ElementBinPanel";
+import { courseItemId, scaleCourseLevel, type CourseDto } from "@/lib/courses-api";
 import { ElementNotesPanel, type ElementNote } from "@/components/ElementNotesPanel";
 import { ConstellationIntakeChat } from "@/components/ConstellationIntakeChat";
 import { DraftReviewStage, binClusterCenter } from "@/components/DraftReviewStage";
@@ -229,6 +230,49 @@ function mapBinDtoToBin(dto: BinDto): Bin {
   return { id: dto.id, label: dto.label, origin: dto.origin, advice: dto.advice, items: dto.items.map(mapBinItemDtoToBinItem) };
 }
 
+// 수업 군집 통합(사용자 지시: "지금 막 경제학과, 산업공학과 이렇게 나눠서
+// 수업 군집을 나눠놓았던데 그냥 하나의 추천수업군집에 경제학과, 응용통계학과,
+// 산업공학과 이런식으로 나눠서 표기하든 알아서 해보고"). 판정은 순수
+// 데이터 기반이다 - 학과명을 코드에 하드코딩하지 않고, bin의 항목이 하나
+// 이상이고 전부 `course:` id를 갖는지만 본다(백엔드 bin_suggestion.py의
+// _course_item 규약). 원래 bin.label(LLM이 붙인 "경제학과 수업" 류 이름)은
+// 각 항목의 groupLabel로 옮겨 칩에 표기해, 통합 후에도 어느 군집 출신인지
+// 알 수 있게 한다.
+//
+// groupLabel은 서버에 저장되지 않는 화면 전용 필드다(BinItemDto에 없음) -
+// ponytail: 저장 후 새로고침하면 배지가 사라지는 게 알려진 한계, 필요해지면
+// BinItemDto에 필드를 추가해 서버 계약을 함께 바꿔야 한다.
+const MERGED_COURSES_BIN_ID = "bin-courses-recommended";
+const MANUAL_COURSES_BIN_ID = "bin-courses-manual";
+
+function isCourseOnlyBin(bin: Bin): boolean {
+  return bin.items.length > 0 && bin.items.every((item) => item.id.startsWith("course:"));
+}
+
+function mergeCourseBins(bins: Bin[]): Bin[] {
+  const courseBins = bins.filter(isCourseOnlyBin);
+  if (courseBins.length <= 1) return bins;
+  const rest = bins.filter((bin) => !isCourseOnlyBin(bin));
+  const mergedItems: BinItem[] = courseBins.flatMap((bin) =>
+    bin.items.map((item) => ({ ...item, groupLabel: item.groupLabel ?? bin.label }))
+  );
+  const advice = courseBins.find((bin) => bin.advice)?.advice;
+  const merged: Bin = { id: MERGED_COURSES_BIN_ID, label: "추천 수업", origin: "llm", items: mergedItems, advice };
+  return [merged, ...rest];
+}
+
+// 사용자가 검색으로 직접 채우는 자리 - 항상 하나 존재해야 한다(사용자 지시:
+// "그냥 수업군집을 하나 기본으로 넣어놓고 거기에는 사용자가 검색필터로 수업을
+// 검색해서 추가할 수 있게 하자"). 이미 있으면(재로드 등) 그대로 둔다.
+function ensureManualCoursesBin(bins: Bin[]): Bin[] {
+  if (bins.some((bin) => bin.id === MANUAL_COURSES_BIN_ID)) return bins;
+  return [...bins, { id: MANUAL_COURSES_BIN_ID, label: "내가 담은 수업", origin: "user", items: [] }];
+}
+
+function normalizeIncomingBins(dtoBins: BinDto[]): Bin[] {
+  return ensureManualCoursesBin(mergeCourseBins(dtoBins.map(mapBinDtoToBin)));
+}
+
 function mapBinToBinDto(bin: Bin): BinDto {
   return {
     id: bin.id,
@@ -344,7 +388,7 @@ const INITIAL_NOTES: Record<string, ElementNote> = {
 type PanelMode = "bins" | "notes";
 
 export default function NewConstellationPage() {
-  const [bins, setBins] = useState<Bin[]>(INITIAL_BINS);
+  const [bins, setBins] = useState<Bin[]>(() => ensureManualCoursesBin(INITIAL_BINS));
   const [nodes, setNodes] = useState<Record<string, CanvasNode>>(INITIAL_NODES);
   const [edges, setEdges] = useState<Record<string, CanvasEdge>>(INITIAL_EDGES);
   // 성단(그룹) - 데모 시드는 없다(요소가 많아진 뒤에야 생기는 개념이라 처음부터
@@ -637,7 +681,7 @@ export default function NewConstellationPage() {
         // 볼트=원본, 서버=유료 동기화 예정 - 볼트가 이미 연결/하이드레이트됐으면
         // (위 볼트 복원 이펙트) 서버에서 받은 노트로 덮어쓰지 않는다.
         if (!vaultHandleRef.current) setNotes(loadedNotes);
-        if (latest.bins) setBins(latest.bins.map(mapBinDtoToBin));
+        if (latest.bins) setBins(normalizeIncomingBins(latest.bins));
         setConstellationId(latest.id);
         setIsPublished(latest.isPublished);
         setLaunchDescription(latest.description ?? "");
@@ -1069,7 +1113,7 @@ export default function NewConstellationPage() {
       constellationTitleRef.current = null;
 
       goalTextRef.current = goalText;
-      const mapped = dtoBins.map(mapBinDtoToBin);
+      const mapped = normalizeIncomingBins(dtoBins);
       setBins(mapped);
       // cid가 이제 없으므로 조용히 no-op - bins는 첫 저장(handleConfirmTitle)
       // payload에 함께 실려 나간다. 그래도 호출은 그대로 둔다 - 이 화면이
@@ -1436,6 +1480,42 @@ export default function NewConstellationPage() {
       setBins((prev) => {
         const next = prev.map((bin) =>
           bin.id === binId ? { ...bin, items: [...bin.items, { id, ...item }] } : bin
+        );
+        persistBins(next);
+        return next;
+      });
+    },
+    [persistBins]
+  );
+
+  // 과목 검색 결과를 보관함에 추가한다 - id는 항상 course:{학정번호} 고정
+  // (courses-api.ts의 courseItemId, 백엔드 _course_item과 동일 규칙)이라
+  // 같은 과목을 LLM 원소로도 갖고 있으면 자연히 겹쳐 중복을 막는다.
+  // CourseSearchPanel이 이미 담긴 항목은 클릭 자체를 막아주지만, 방어적으로
+  // 여기서도 한 번 더 확인한다. level은 검색 API가 원시 학년값(1~4)으로 주므로
+  // scaleCourseLevel로 groupByLevel/tierLabel이 기대하는 천 단위로 보정한다.
+  const handleAddCourseItem = useCallback(
+    (binId: string, course: CourseDto) => {
+      const id = courseItemId(course.code);
+      setBins((prev) => {
+        const alreadyExists = prev.some((bin) => bin.items.some((item) => item.id === id));
+        if (alreadyExists) return prev;
+        const next = prev.map((bin) =>
+          bin.id === binId
+            ? {
+                ...bin,
+                items: [
+                  ...bin.items,
+                  {
+                    id,
+                    label: `${course.code} ${course.name}`,
+                    type: "course",
+                    level: scaleCourseLevel(course.level),
+                    groupLabel: course.department,
+                  },
+                ],
+              }
+            : bin
         );
         persistBins(next);
         return next;
@@ -2112,6 +2192,7 @@ export default function NewConstellationPage() {
             onItemDragToCanvas={placeItem}
             onCreateBin={handleCreateBin}
             onAddItem={handleAddItem}
+            onAddCourseItem={handleAddCourseItem}
             placedItemIds={placedItemIds}
             onStartNewConstellation={handleStartNewConstellation}
             onPlaceAll={handlePlaceAllGroup}
