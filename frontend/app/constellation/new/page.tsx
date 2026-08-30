@@ -567,20 +567,19 @@ export default function NewConstellationPage() {
       try {
         const list = await listConstellations();
         if (cancelled) return;
-        // 플로우 규칙(사용자 확정): "띄우기 이전(작업 중)" 별자리가 있을 때만
-        // 대화·추천 시안을 건너뛰고 바로 캔버스로 온다. 별자리가 하나도 없거나
-        // 전부 띄운(발행된) 상태면 새 별자리를 위해 대화부터 다시 거친다 -
-        // 발행본은 프로필/피드에 그대로 남고, 완료 핸들러가 항상 새 문서로
-        // 시작하므로 덮어쓸 위험은 없다.
-        const inProgress = list
-          .filter((c) => !c.isPublished)
-          .sort((a, b) => b.updatedAt - a.updatedAt)[0];
-        if (!inProgress) {
+        // 플로우 규칙(사용자 지시 2026-08-30: "기존에 인증한 유저들이 별자리
+        // 만들기 눌렀을떄 바로 LLM이 나오면 안돼. 기존에 만들던 별자리가 이어서
+        // 나와야지."): 발행 여부와 무관하게 **가장 최근 별자리를 그대로 이어서**
+        // 연다. 대화·추천 시안은 별자리가 하나도 없는 첫 사용자에게만 자동으로
+        // 뜬다 - 이미 쓰던 사람에게 매번 처음부터 대화를 시키면 안 된다.
+        // 새 별자리를 원하면 보관함의 "새 별자리 만들기"로 명시적으로 시작한다
+        // (그 경로가 항상 새 문서를 만들므로 기존 별자리를 덮어쓸 위험은 없다).
+        const latest = list.sort((a, b) => b.updatedAt - a.updatedAt)[0];
+        if (!latest) {
           setBootState("empty");
           setIntakeOpen(true);
           return;
         }
-        const latest = inProgress;
         const noteDtos = await listNotes(latest.id);
         if (cancelled) return;
 
