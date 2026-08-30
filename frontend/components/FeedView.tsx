@@ -250,7 +250,14 @@ function SimilarPeopleSidebar() {
 
   useEffect(() => {
     listExploreUsers()
-      .then((list) => setUsers(list.slice(0, SIDEBAR_LIMIT)))
+      .then((list) => {
+        const visible = list.slice(0, SIDEBAR_LIMIT);
+        setUsers(visible);
+        // 팔로우 상태의 출처는 서버다 - 이걸 안 심으면 새로고침할 때마다 이미
+        // 팔로우한 사람이 "팔로우"로 되돌아간다(사용자 실사용 지적). isFollowing이
+        // 없는 응답(익명·구버전 서버)은 false로 떨어져 기존 동작을 유지한다.
+        setFollowingUids(new Set(visible.filter((u) => u.isFollowing).map((u) => u.uid)));
+      })
       .catch(() => setUsers([]));
   }, []);
 

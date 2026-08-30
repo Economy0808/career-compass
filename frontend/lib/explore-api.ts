@@ -22,6 +22,11 @@ export interface ExploreUserDto {
   interestTags: string[];
   /** 로그인 시에만: 나의 관심사와 겹치는 태그(카드에서 lit 강조). */
   commonTags?: string[];
+  /** 로그인 상태로 타인을 볼 때만 실린다(익명이면 키 자체가 없음, 본인은 애초에
+   * 목록에서 제외된다 - profiles의 isFollowing 관례와 동일). 계약 `eaf9bb0`.
+   * 추천(/users)은 이미 팔로우한 사람을 아예 빼주므로 여기서는 대개 false지만,
+   * 검색(/search)은 팔로우 중인 사람도 노출하므로 true가 실려 온다. */
+  isFollowing?: boolean;
 }
 
 export function listExploreUsers(): Promise<ExploreUserDto[]> {
