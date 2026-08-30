@@ -37,9 +37,11 @@ class NotificationOut(_CamelModel):
     """
 
     id: str
-    actor_uid: str
+    # note(커뮤니티 익명 쪽지) 알림은 익명성 보장을 위해 actor_uid를 내리지 않는다 -
+    # 라우터가 None으로 지우고 exclude_none이 키 자체를 뺀다.
+    actor_uid: str | None = None
     actor: NotificationActorOut | None = None
-    type: Literal["follow", "like", "comment"]
+    type: Literal["follow", "like", "comment", "dm", "note"]
     post_id: str | None = None
     created_at: int
     read: bool

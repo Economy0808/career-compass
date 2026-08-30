@@ -28,6 +28,19 @@ router = APIRouter(prefix="/api/notifications", tags=["notifications"])
 
 
 def _to_out(notification: Notification, actor_profile: dict[str, Any] | None) -> NotificationOut:
+    # 커뮤니티 쪽지(note)는 양쪽 다 익명이므로 actor를 어떤 형태로도 내리지 않는다 -
+    # 문서에는 라우팅용으로 actor_uid가 저장돼 있지만 여기서 잘라낸다(커뮤니티 글의
+    # is_anonymous 처리와 같은 방식). 이 분기를 지우면 쪽지 발신자가 그대로 노출된다.
+    if notification.type == "note":
+        return NotificationOut(
+            id=notification.id,
+            actor_uid=None,
+            actor=None,
+            type=notification.type,
+            post_id=None,
+            created_at=notification.created_at,
+            read=notification.read,
+        )
     display_name = (actor_profile or {}).get("display_name")
     avatar_emoji = (actor_profile or {}).get("avatar_emoji")
     # follow_repo._bump_count가 팔로우/팔로잉 카운트만 담은 users/{uid} 문서를
@@ -63,7 +76,8 @@ async def list_notifications(
     한 번만 조회한다).
     """
     items, unread_count = notification_repo.list_notifications(db, user.uid)
-    actor_profiles = user_repo.get_profiles(db, [n.actor_uid for n in items])
+    # note는 actor를 내리지 않으므로 프로필 조회 대상에서도 뺀다(불필요한 읽기 방지).
+    actor_profiles = user_repo.get_profiles(db, [n.actor_uid for n in items if n.type != "note"])
     return NotificationListOut(
         items=[_to_out(n, actor_profiles.get(n.actor_uid)) for n in items],
         unread_count=unread_count,

@@ -60,11 +60,18 @@ def _clear_overrides() -> Iterator[None]:
 
 @pytest.fixture
 def authed_as() -> Callable[[str], None]:
-    """주어진 uid로 get_current_user/get_current_user_optional을 함께 override한다."""
+    """주어진 uid로 get_current_user/get_current_user_optional을 함께 override한다.
+
+    yonsei_verified=True가 기본이다 - 팔로우/좋아요/댓글 등 알림을 발생시키는 행동은
+    전부 인증 게이트(require_yonsei_verified) 뒤에 있으므로, 기본값 False로 두면
+    이 스위트가 알림 로직이 아니라 게이트에서 403으로 막힌다(다른 API 테스트 파일과
+    동일한 관례). 미인증 케이스는 dependency_overrides를 직접 세팅해 검증한다.
+    """
 
     def _set(uid: str) -> None:
-        app.dependency_overrides[get_current_user] = lambda: DecodedToken(uid=uid)
-        app.dependency_overrides[get_current_user_optional] = lambda: DecodedToken(uid=uid)
+        token = DecodedToken(uid=uid, yonsei_verified=True)
+        app.dependency_overrides[get_current_user] = lambda: token
+        app.dependency_overrides[get_current_user_optional] = lambda: token
 
     return _set
 
