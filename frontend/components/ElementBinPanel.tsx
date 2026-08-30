@@ -56,6 +56,11 @@ export interface ElementBinPanelProps {
   onAddCourseItem: (binId: string, course: CourseDto) => void;
   /** 이미 캔버스에 배치된 원소는 흐리게 + 체크 표시로 구분한다. */
   placedItemIds?: Set<string>;
+  /** 이미 캔버스에 놓인 항목 칩을 클릭(또는 Enter)하면 호출된다 - 캔버스에서
+   * 그 노드를 회수하고, 이 보관함 항목을 다시 "배치 가능"으로 되돌린다.
+   * item.id(보관함 규약 id)를 그대로 넘긴다 - `element:` 접두사 변환은
+   * 캔버스 쪽(page.tsx)의 책임이다. */
+  onRecallItem?: (itemId: string) => void;
   /** 있으면 패널 하단에 "새 별자리 만들기" 버튼을 보여준다. */
   onStartNewConstellation?: () => void;
   /** 있으면(미인증 사용자) 대화를 여는 진입점("새 별자리 만들기"/"새 보관함
@@ -166,10 +171,13 @@ function ItemChip({
   item,
   placed,
   onDragToCanvas,
+  onRecall,
 }: {
   item: BinItem;
   placed: boolean;
   onDragToCanvas: (item: BinItem, position: CanvasPosition) => void;
+  /** 없으면(onRecallItem 미전달) 이미 놓인 칩은 그냥 비활성 표시로만 남는다. */
+  onRecall?: (itemId: string) => void;
 }) {
   function handleDragStart(e: DragEvent<HTMLDivElement>) {
     if (placed) {
@@ -180,13 +188,22 @@ function ItemChip({
     e.dataTransfer.setData("application/json", JSON.stringify(item));
   }
 
+  // 오조작 방지: 이미 놓인 칩은 클릭 한 번으로 바로 회수된다 - 되돌리기가
+  // 없으므로 hover 시 체크(✓)가 "회수" 글자로 바뀌는 것만으로 의도를
+  // 드러낸다(사용자 지시: 과설계 금지, 확인 대화상자 없음).
+  function handleClick() {
+    if (placed) onRecall?.(item.id);
+  }
+
   function handleKeyDown(e: KeyboardEvent<HTMLDivElement>) {
-    if (placed) return;
-    if (e.key === "Enter" || e.key === " ") {
-      e.preventDefault();
-      dropSeed += 1;
-      onDragToCanvas(item, defaultDropPosition(dropSeed));
+    if (e.key !== "Enter" && e.key !== " ") return;
+    e.preventDefault();
+    if (placed) {
+      onRecall?.(item.id);
+      return;
     }
+    dropSeed += 1;
+    onDragToCanvas(item, defaultDropPosition(dropSeed));
   }
 
   const { code, rest } = splitCourseCode(item.label);
@@ -195,17 +212,19 @@ function ItemChip({
       role="button"
       tabIndex={0}
       draggable={!placed}
-      aria-disabled={placed}
-      aria-label={placed ? `${item.label} - 이미 캔버스에 있음` : `${item.label} - Enter로 캔버스에 놓기`}
-      title={item.subtitle}
+      aria-label={
+        placed ? `${item.label} - 캔버스에 있음, 클릭하거나 Enter로 회수` : `${item.label} - Enter로 캔버스에 놓기`
+      }
+      title={placed ? "클릭하면 캔버스에서 회수돼요" : item.subtitle}
       onDragStart={handleDragStart}
+      onClick={handleClick}
       onKeyDown={handleKeyDown}
       className={cn(
         "group flex items-center gap-1.5 rounded-none border px-2 py-1 text-caption font-semibold",
         "transition-colors select-none",
         "focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-paper-ink/60 focus-visible:ring-offset-2 focus-visible:ring-offset-paper-soft",
         placed
-          ? "cursor-default border-paper-line text-paper-lo opacity-45"
+          ? "cursor-pointer border-paper-line text-paper-lo opacity-45 hover:border-paper-ink/50 hover:text-paper-ink hover:opacity-100"
           : "cursor-grab border-paper-line text-paper-ink hover:border-paper-ink/50 hover:bg-paper active:cursor-grabbing"
       )}
     >
@@ -220,9 +239,14 @@ function ItemChip({
         <span className="shrink-0 rounded-none bg-paper px-1 text-micro text-paper-lo">{item.groupLabel}</span>
       )}
       {placed && (
-        <span aria-hidden className="text-lit">
-          ✓
-        </span>
+        <>
+          <span aria-hidden className="text-lit group-hover:hidden">
+            ✓
+          </span>
+          <span aria-hidden className="hidden text-micro group-hover:inline">
+            회수
+          </span>
+        </>
       )}
     </div>
   );
@@ -246,6 +270,7 @@ function BinSection({
   onAddItem,
   onAddCourseItem,
   onPlaceAll,
+  onRecallItem,
 }: {
   bin: Bin;
   placedItemIds: Set<string>;
@@ -256,6 +281,7 @@ function BinSection({
   onAddItem: (binId: string, item: Omit<BinItem, "id">) => void;
   onAddCourseItem: (binId: string, course: CourseDto) => void;
   onPlaceAll?: (bin: Bin, base: CanvasPosition) => void;
+  onRecallItem?: (itemId: string) => void;
 }) {
   const groups = useMemo(() => groupByLevel(bin.items), [bin.items]);
   const [addLabel, setAddLabel] = useState("");
@@ -414,6 +440,7 @@ function BinSection({
                     item={item}
                     placed={placedItemIds.has(item.id)}
                     onDragToCanvas={onItemDragToCanvas}
+                    onRecall={onRecallItem}
                   />
                 ))}
               </div>
@@ -480,6 +507,7 @@ export function ElementBinPanel({
   placedItemIds,
   onStartNewConstellation,
   onPlaceAll,
+  onRecallItem,
   intakeDisabledReason,
   className,
 }: ElementBinPanelProps) {
@@ -534,6 +562,7 @@ export function ElementBinPanel({
               onAddItem={onAddItem}
               onAddCourseItem={onAddCourseItem}
               onPlaceAll={onPlaceAll}
+              onRecallItem={onRecallItem}
             />
           ))
         )}

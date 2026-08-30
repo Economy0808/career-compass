@@ -1850,6 +1850,15 @@ export default function NewConstellationPage() {
     [enqueueMutation]
   );
 
+  // 보관함 칩 클릭 회수 - item.id(보관함 규약 id)를 캔버스 노드 id로 변환해
+  // 위 handleNodeDelete(엣지/노트 정리 + 서버 cascade 포함)를 그대로 태운다.
+  // 새 서버 계약도, 별도 상태도 필요 없다 - placedItemIds가 nodes에서
+  // 파생되므로 노드가 사라지면 칩은 저절로 "배치 가능"으로 돌아간다.
+  const handleRecallItem = useCallback(
+    (itemId: string) => handleNodeDelete(nodeIdForItem(itemId)),
+    [handleNodeDelete]
+  );
+
   // "노트 N개 ›" 클릭 - 오른쪽 패널을 「군집」에서 「노트」로 스왑한다(새 영역을
   // 여는 게 아니라 같은 자리를 교체) + 상단 탭 선택도 「노트」로 옮긴다.
   const handleOpenNotes = useCallback((nodeId: string) => {
@@ -2156,6 +2165,7 @@ export default function NewConstellationPage() {
         onEdgeCreate={handleEdgeCreate}
         onEdgeDelete={handleEdgeDelete}
         onNodeDelete={handleNodeDelete}
+        onNodeRecall={handleNodeDelete}
         onOpenNotes={handleOpenNotes}
         onExternalDrop={handleExternalDrop}
         onNodeActivate={handleNodeActivate}
@@ -2441,6 +2451,7 @@ export default function NewConstellationPage() {
             placedItemIds={placedItemIds}
             onStartNewConstellation={handleStartNewConstellation}
             onPlaceAll={handlePlaceAllGroup}
+            onRecallItem={handleRecallItem}
             intakeDisabledReason={
               user && !user.yonseiVerified ? "연세대 인증을 마치면 AI가 대화로 초안을 그려줘요" : undefined
             }

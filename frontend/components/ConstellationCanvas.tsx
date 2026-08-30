@@ -114,6 +114,12 @@ export interface ConstellationCanvasProps {
    * 정리는 상태를 들고 있는 부모(page.tsx)의 책임 - 캔버스는 nodes/edges를
    * 그대로 받아 그리기만 하므로 스스로 정리할 수 없다. */
   onNodeDelete?: (nodeId: string) => void;
+  /** 노드를 캔버스 밖(원소 보관함 패널, DOM id="panel-bins")으로 드래그해
+   * 놓으면 호출된다 - "회수"(캔버스에서 제거 + 보관함 항목 재사용 가능
+   * 상태로 복귀)를 위한 훅. onNodeDelete와 정리 책임은 동일하므로 부모는
+   * 보통 같은 함수를 넘기면 된다. 없으면 이 회수 경로 자체가 비활성화된다
+   * (새 드래그 시스템을 만들지 않고 기존 노드 드래그의 놓는 지점만 판별). */
+  onNodeRecall?: (nodeId: string) => void;
   /** 팝오버의 "노트 N개 ›" 행 클릭. 노트 패널 자체는 다음 작업에서 만든다 -
    * 여기서는 훅만 열어 둔다. */
   onOpenNotes?: (nodeId: string) => void;
@@ -507,6 +513,7 @@ export function ConstellationCanvas({
   onEdgeCreate,
   onEdgeDelete,
   onNodeDelete,
+  onNodeRecall,
   onOpenNotes,
   onExternalDrop,
   readOnly = false,
@@ -1046,8 +1053,17 @@ export function ConstellationCanvas({
 
       if (drag.kind === "node") {
         if (drag.moved) {
-          const world = clientToWorld(e.clientX, e.clientY);
-          onNodeDrag(drag.nodeId, world);
+          // 놓은 지점이 원소 보관함 패널(DOM id="panel-bins") 위면 이동이
+          // 아니라 회수다 - 새 드래그 시스템을 만들지 않고, 기존 노드 드래그가
+          // 끝나는 지점만 elementFromPoint로 판별한다(패널이 안 보이는
+          // 상태면 display:none이라 hit-test 자체가 안 되므로 별도 분기 불필요).
+          const dropTarget = document.elementFromPoint(e.clientX, e.clientY);
+          if (onNodeRecall && dropTarget?.closest("#panel-bins")) {
+            onNodeRecall(drag.nodeId);
+          } else {
+            const world = clientToWorld(e.clientX, e.clientY);
+            onNodeDrag(drag.nodeId, world);
+          }
         } else {
           // 임계값 이내로만 움직였다 = 드래그가 아니라 클릭 -> 선택(또는 잇기 대상 지정).
           activateNode(drag.nodeId);
@@ -1078,7 +1094,7 @@ export function ConstellationCanvas({
       }
       // pan의 transform 자체는 별도 처리 불필요 - 이미 최신 상태.
     },
-    [activateNode, clientToWorld, findNodeNear, onEdgeCreate, onNodeDrag, onGroupDrag, diveIntoGroup]
+    [activateNode, clientToWorld, findNodeNear, onEdgeCreate, onNodeDrag, onNodeRecall, onGroupDrag, diveIntoGroup]
   );
 
   const handleNodeKeyDown = useCallback(
