@@ -25,6 +25,7 @@ import {
 } from "react";
 import { cn } from "@/lib/cn";
 import { colorForType } from "@/lib/element-colors";
+import { orderRanksByBarycenter } from "@/lib/layered-order";
 import { SpaceBackdrop } from "@/components/SpaceBackdrop";
 // 성단(접힌 그룹) 성운 비주얼(안개+입자) - DraftReviewStage의 시안 렌더와
 // 이 캔버스가 같은 시각 문법을 쓰도록 시드/입자 생성을 그 파일에서 export해
@@ -202,6 +203,12 @@ const FIT_PADDING_Y = 72;
 // 말 것" - 사용자 지시). 좁게 뭉친 노드 몇 개를 화면 가득 확대하는 것도
 // 부자연스럽다.
 const FIT_MAX_ZOOM = 1;
+// 진입(부트 자동 센터·fitRequest) 전용 줌 하한 - "성운 조금 잘려도 되니까
+// 시작할때 이정도 배율이면 참 좋을듯"(사용자 지시). 전체 fit이 목표가 아니라
+// 성단 라벨이 편히 읽히는 배율이 목표라, fit 결과가 이보다 작으면 이 값으로
+// 고정하고 콘텐츠 중심만 맞춘다(가장자리 성운은 화면 밖으로 잘릴 수 있음 -
+// 의도된 동작). 체감 조정용 노브 - 사용자 피드백에 따라 이 값만 바꾸면 된다.
+const ENTRY_MIN_ZOOM = 0.65;
 
 
 /** djb2 문자열 해시 - [0,1) 실수로 정규화한다. Math.random 금지: 같은
@@ -317,7 +324,8 @@ interface Transform {
 function computeFitTransform(
   nodeList: CanvasNode[],
   rect: { width: number; height: number },
-  maxZoom: number = FIT_MAX_ZOOM
+  maxZoom: number = FIT_MAX_ZOOM,
+  minZoom: number = MIN_ZOOM
 ): Transform {
   const xs = nodeList.map((n) => n.position.x);
   const ys = nodeList.map((n) => n.position.y);
@@ -333,7 +341,7 @@ function computeFitTransform(
   const rightPad = rect.width >= 768 ? FIT_PADDING_X + FIT_RIGHT_PANEL_W : FIT_PADDING_X;
   const availW = Math.max(1, rect.width - FIT_PADDING_X - rightPad);
   const availH = Math.max(1, rect.height - FIT_PADDING_Y * 2);
-  const k = Math.min(maxZoom, Math.max(MIN_ZOOM, Math.min(availW / bboxW, availH / bboxH)));
+  const k = Math.min(maxZoom, Math.max(minZoom, Math.min(availW / bboxW, availH / bboxH)));
   return { x: FIT_PADDING_X + availW / 2 - cx * k, y: rect.height / 2 - cy * k, k };
 }
 
@@ -341,8 +349,11 @@ function computeFitTransform(
 // 위한 값이라, 멤버 몇 개가 world 좌표상 서로 가깝게(나선 배치 등) 놓인
 // 성단에 그대로 쓰면 화면 한구석에 조그맣게 뭉친 채로 보인다("반영이
 // 안 됐다"던 실제 원인의 절반). 다이브인은 "그 안으로 들어간다"는 연출이므로
-// 전역 MAX_ZOOM(2.5)까지는 아니어도 더 당겨도 된다.
-const DIVE_FIT_MAX_ZOOM = 1.8;
+// 기본보다 조금은 더 당긴다. 1.8은 소인원 성단에서 노드·라벨이 뻥튀기됐다
+// ("성운 들어갔을떄 배율은 또 너무 크게해놨음" - 사용자 지시)라 1.15로 내림 -
+// computeDiveLayout이 멤버를 DIVE_MIN_SPACING 이상으로 벌려 놓으니 이 상한으로도
+// 뭉침은 없다. 체감 조정용 노브.
+const DIVE_FIT_MAX_ZOOM = 1.15;
 // 멤버 간 이 거리(월드 단위) 밑이면 라벨이 겹칠 만큼 뭉쳐 있다고 보고
 // 자동 재배치한다(아래 computeDiveLayout).
 const DIVE_MIN_SPACING = 90;
@@ -426,12 +437,15 @@ function computeDiveLayout(
     ? longestPathRank(ids, edgesAmong)
     : new Map(ids.map((id) => [id, Math.floor((levelById.get(id) ?? 2000) / 1000) - 1]));
   const maxRank = Math.max(...Array.from(ranks.values()), 0);
-  const byRank = new Map<number, string[]>();
-  for (const id of ids) {
-    const r = ranks.get(id) ?? 0;
-    if (!byRank.has(r)) byRank.set(r, []);
-    byRank.get(r)!.push(id);
+  // 층 내 순서는 barycenter로 정렬해 간선 교차를 줄인다 - 시안
+  // interiorLayoutFor와 같은 규칙(lib/layered-order 공용).
+  const parentsOf = new Map<string, string[]>(ids.map((id) => [id, []]));
+  for (const e of edgesAmong) {
+    if (e.source !== e.target && idSet.has(e.source) && idSet.has(e.target)) {
+      parentsOf.get(e.target)!.push(e.source);
+    }
   }
+  const byRank = orderRanksByBarycenter(ids, ranks, parentsOf);
   byRank.forEach((idsInRank, rank) => {
     const count = idsInRank.length;
     idsInRank.forEach((id, i) => {
@@ -644,7 +658,7 @@ export function ConstellationCanvas({
     const rect = svg.getBoundingClientRect();
     if (rect.width === 0 || rect.height === 0) return;
     didAutoCenterRef.current = true;
-    setTransform(computeFitTransform(nodeList, rect));
+    setTransform(computeFitTransform(nodeList, rect, FIT_MAX_ZOOM, ENTRY_MIN_ZOOM));
   }, [nodes]);
 
   // 밖에서 오는 fit 요청(시안 확정 등) - 위 부트 자동 중앙 정렬과 달리 매번
@@ -658,7 +672,7 @@ export function ConstellationCanvas({
     if (nodeList.length === 0) return;
     const rect = svg.getBoundingClientRect();
     if (rect.width === 0 || rect.height === 0) return;
-    setTransform(computeFitTransform(nodeList, rect));
+    setTransform(computeFitTransform(nodeList, rect, FIT_MAX_ZOOM, ENTRY_MIN_ZOOM));
     // eslint-disable-next-line react-hooks/exhaustive-deps
   }, [fitRequest]);
 

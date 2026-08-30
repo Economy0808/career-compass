@@ -57,6 +57,7 @@ import {
 } from "react";
 import { cn } from "@/lib/cn";
 import { colorForType } from "@/lib/element-colors";
+import { orderRanksByBarycenter, redundantEdgeKeys } from "@/lib/layered-order";
 import { SpaceBackdrop } from "@/components/SpaceBackdrop";
 import { splitCourseCode, type Bin, type BinItem } from "@/components/ElementBinPanel";
 import type { CanvasPosition } from "@/components/ConstellationCanvas";
@@ -367,6 +368,8 @@ function computeRank(
 const ROW_GAP_MAX = 140; // 층 사이 최대 간격(px)
 const ROW_GAP_VIEWPORT_RATIO = 0.72; // 뷰포트 세로 대비 전체 층 배치가 차지할 비율
 const ROW_X_FILL_RATIO = INTERIOR_FILL_RATIO * 2; // 기존 가로 채움 비율(폴백과 동일 스케일 감각)을 재사용
+const DENSE_ROW_MIN = 5; // 이 인원 이상 층은 지그재그를 켠다(라벨끼리 한 줄 충돌 완화)
+const DENSE_ROW_ZIGZAG_Y = 16; // 지그재그 상하 어긋남(px)
 
 /** 다이브인 내부 뷰의 멤버 배치 - items 순서로 좌표를 돌려준다(호출부가
  * items[i] <-> positions[i]로 인덱싱).
@@ -393,23 +396,30 @@ function interiorLayoutFor(items: BinItem[], seed: number, viewport: { width: nu
   const rowGap = Math.min((viewport.height * ROW_GAP_VIEWPORT_RATIO) / (maxRank + 1), ROW_GAP_MAX);
   const rowWidth = viewport.width * ROW_X_FILL_RATIO;
 
-  // 같은 rank끼리 모아 가로로 균등 분산 + 중앙 정렬.
-  const indicesByRank = new Map<number, number[]>();
-  ranks.forEach((rank, index) => {
-    if (!indicesByRank.has(rank)) indicesByRank.set(rank, []);
-    indicesByRank.get(rank)!.push(index);
-  });
+  // 층 내 순서를 barycenter로 정렬해 간선 교차를 줄인다("안 어지럽게" - 사용자
+  // 승인 계획 ②). 층 배정은 위 rank 그대로, 좌우 순서만 바꾼다.
+  const rankOf = new Map(items.map((item, i) => [item.id, ranks[i]]));
+  const parentsOf = new Map(
+    items.map((item) => [item.id, (item.prereqIds ?? []).filter((pid) => idSet.has(pid) && pid !== item.id)])
+  );
+  const orderedByRank = orderRanksByBarycenter(
+    items.map((item) => item.id),
+    rankOf,
+    parentsOf
+  );
 
-  const positions: Vec2[] = new Array(items.length);
-  indicesByRank.forEach((indices, rank) => {
-    const count = indices.length;
-    indices.forEach((itemIndex, i) => {
+  const posById = new Map<string, Vec2>();
+  orderedByRank.forEach((idsInRank, rank) => {
+    const count = idsInRank.length;
+    idsInRank.forEach((id, i) => {
       const x = count === 1 ? 0 : (i / (count - 1) - 0.5) * rowWidth;
-      const y = (rank - maxRank / 2) * rowGap;
-      positions[itemIndex] = { x, y };
+      // 밀집 층은 살짝 지그재그로 어긋내 라벨이 한 줄에서 서로 부딪히지 않게.
+      const zigzag = count >= DENSE_ROW_MIN ? (i % 2 === 0 ? -1 : 1) * DENSE_ROW_ZIGZAG_Y : 0;
+      const y = (rank - maxRank / 2) * rowGap + zigzag;
+      posById.set(id, { x, y });
     });
   });
-  return positions;
+  return items.map((item) => posById.get(item.id) ?? { x: 0, y: 0 });
 }
 
 // ---- rAF 스프링 - 접힌 성단 중심 -> 전개 좌표로 "튀어나오는" 전환 모션.
@@ -724,6 +734,17 @@ export function DraftReviewStage({
     });
     setTick((t) => t + 1); // 방금 clear한 springsRef를 즉시 반영(전부 중심에서 보이게)
   }, [insideActive, diveBin, viewportSize, startSpringLoop]);
+
+  // 추이적 중복 간선(A→B→C가 있는데 A→C 직행) - 그리기만 생략한다(승인 계획 ②,
+  // 시안 내부 뷰 한정. prereqIds 데이터 자체는 건드리지 않는다).
+  const elidedEdgeKeys = useMemo(() => {
+    if (!diveBin) return new Set<string>();
+    const parentsOf = new Map(diveBin.items.map((item) => [item.id, item.prereqIds ?? []]));
+    return redundantEdgeKeys(
+      diveBin.items.map((item) => item.id),
+      parentsOf
+    );
+  }, [diveBin]);
 
   // ---- 성단 히트 타깃 - stopPropagation + 자기 캡처 + 이동 임계값으로
   // 클릭/드래그를 분리한다(파일 상단 주석의 버그 수정 패턴). ----
@@ -1094,6 +1115,7 @@ export function DraftReviewStage({
               const toNode = springsRef.current.get(`${diveBin.id}::${item.id}`);
               if (!toNode) return null;
               return (item.prereqIds ?? []).map((prereqId) => {
+                if (elidedEdgeKeys.has(`${prereqId}->${item.id}`)) return null; // 추이적 중복 - 더 긴 경로가 이미 그려진다.
                 const fromNode = springsRef.current.get(`${diveBin.id}::${prereqId}`);
                 if (!fromNode) return null; // dangling(같은 bin에 없는 id) - 그릴 게 없다.
                 return (
@@ -1127,16 +1149,19 @@ export function DraftReviewStage({
               const isHovered = hoveredKey === key;
               const dotColor = colorForType(info.item.type);
               return (
+                // 앵커 규칙(픽셀 밀림 수정): 스프링 좌표 = "별점의 중심". 이전엔
+                // 점+라벨 세로 묶음의 중심을 좌표에 놓아 점이 간선 끝보다 위로
+                // 떠 보였다 - 점은 좌표에 정확히 겹치고 라벨만 아래 absolute로.
                 <div
                   key={key}
-                  className="absolute flex -translate-x-1/2 -translate-y-1/2 flex-col items-center gap-1"
+                  className="absolute"
                   style={{ left: `calc(50% + ${node.x}px)`, top: `calc(50% + ${node.y}px)`, zIndex: isHovered ? 30 : 10 }}
                   onMouseEnter={() => setHoveredKey(key)}
                   onMouseLeave={() => setHoveredKey((k) => (k === key ? null : k))}
                 >
                   <span
                     aria-hidden
-                    className="block rounded-full"
+                    className="absolute block -translate-x-1/2 -translate-y-1/2 rounded-full"
                     style={{
                       width: isHovered ? 14 : 10,
                       height: isHovered ? 14 : 10,
@@ -1146,7 +1171,7 @@ export function DraftReviewStage({
                   />
                   <span
                     className={cn(
-                      "max-w-[160px] truncate whitespace-nowrap rounded bg-ink-800/85 px-1.5 py-0.5 text-center font-sans text-body-sm leading-tight",
+                      "absolute left-1/2 top-2.5 max-w-[160px] -translate-x-1/2 truncate whitespace-nowrap rounded bg-ink-800/85 px-1.5 py-0.5 text-center font-sans text-body-sm leading-tight",
                       isHovered ? "text-text-hi" : "text-text-lo"
                     )}
                     title={info.item.label}
