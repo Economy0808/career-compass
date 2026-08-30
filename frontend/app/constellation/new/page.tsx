@@ -25,6 +25,7 @@ import { DraftReviewStage, binClusterCenter } from "@/components/DraftReviewStag
 import { ColorPaletteBar } from "@/components/ColorPaletteBar";
 import { LaunchModal, type LaunchInput } from "@/components/LaunchModal";
 import { Modal } from "@/components/ui/Modal";
+import { VerifyGate, isVerifyRequiredError } from "@/components/VerifyGate";
 import { BgmToggle } from "@/components/BgmToggle";
 import { ChevronLeftIcon, ChevronRightIcon } from "@/components/ui/icons";
 import type { ResolveWikiLink } from "@/lib/markdown";
@@ -78,6 +79,14 @@ import {
   writeVaultNote,
   type VaultHandle,
 } from "@/lib/local-vault";
+// 미인증(로그인은 했지만 yonseiVerified===false) 사용자의 로컬 전용 캔버스
+// 영속화 - 저장/발행/Intake 대화가 전부 막힌 사용자를 위한 유일한 진실 저장소.
+import {
+  saveLocalDraft,
+  loadLocalDraft,
+  clearLocalDraft,
+  type LocalConstellationDraft,
+} from "@/lib/local-constellation";
 
 /** 편집 모드 진입 버튼의 연필 아이콘. 다른 파일(components/ui/icons.tsx)을
  * 건드리지 않기 위해 이 화면 안에서만 쓰는 작은 SVG로 둔다. */
@@ -453,6 +462,15 @@ export default function NewConstellationPage() {
   const [bootState, setBootState] = useState<"loading" | "empty" | "loaded">("loading");
   const [intakeOpen, setIntakeOpen] = useState(false);
   const [isPublished, setIsPublished] = useState(false);
+  // 미인증 사용자의 쓰기 시도(저장/발행/새 별자리 대화) - VerifyGate로 인증
+  // 유도. 미인증 전용 화면 상태라 별도 useState 하나로 충분하다(사용자 지시
+  // "미인증상태에서는... 저장 못하게, 대화 못하게").
+  const [verifyGateOpen, setVerifyGateOpen] = useState(false);
+  // 인증을 마친 시점에 브라우저에 로컬 보관분이 남아 있으면 승계 여부를
+  // 묻는다(사용자 지시: "인증하면 저장할지 묻고... 저장한다고 하면 저장하고
+  // 아니라 하면 폐기해"). 대답 즉시 로컬 보관분을 지우므로 "한 번만" 뜬다.
+  const [promoteModalOpen, setPromoteModalOpen] = useState(false);
+  const [promoting, setPromoting] = useState(false);
   // Intake가 초안(draft)까지 함께 돌려준 경우 - 사용자가 셋 중 하나를 고르거나
   // "직접 그릴래요"로 빠져나갈 때까지 캔버스는 이 상태가 가리키는 초안의
   // 미리보기만 보여준다(로컬 전용 - 서버 뮤테이션 없음, 아래 handleIntakeComplete 참고).
@@ -566,6 +584,11 @@ export default function NewConstellationPage() {
   );
   const enqueueMutation = useCallback(
     (fn: () => Promise<unknown>) => {
+      // 미인증이면 단일 차단점 - 거의 모든 호출부가 이미 `if (cid)`로 막고
+      // 있지만(미인증은 별자리를 만들 수 없어 cid가 늘 null), 새 호출부가
+      // 실수로 그 가드를 빠뜨려도 여기서 한 번 더 막는다(사용자 지시:
+      // "뮤테이션 큐 자체를 미인증이면 no-op로 두는 게 안전하다").
+      if (user && !user.yonseiVerified) return;
       pendingMutationsRef.current += 1;
       setSaveState("saving");
       mutationQueue.enqueue(async () => {
@@ -574,7 +597,7 @@ export default function NewConstellationPage() {
         if (pendingMutationsRef.current === 0) setSaveState("saved");
       });
     },
-    [mutationQueue]
+    [mutationQueue, user]
   );
 
   // 보관함 전체를 서버에 밀어넣는다 - bins state에 useEffect를 걸지 않고(그러면
@@ -593,10 +616,127 @@ export default function NewConstellationPage() {
     [enqueueMutation]
   );
 
-  // 마운트 시: 로그인된 유저의 가장 최근 별자리를 불러온다. 하나도 없으면
-  // 데모 시드를 그대로 유지한다(비로그인과 동일하게 로컬에서 시작). 로그인
-  // 안 됐으면(또는 아직 로딩 중이면) 아무 것도 하지 않는다 - 화면은 완전히
-  // 로컬 데모로만 굴러간다.
+  // 로컬 draft(localStorage)를 캔버스 state로 그대로 옮긴다 - 미인증 복원과
+  // 인증 승계 미리보기(아래 promote 분기) 양쪽에서 재사용한다. 값 자체가
+  // 검증되지 않은 저장소 출신이라 여기서 캐스팅한다(local-constellation.ts가
+  // 일부러 이 파일의 타입을 모르게 분리돼 있는 이유 참고).
+  function applyLocalDraft(draft: LocalConstellationDraft) {
+    setNodes(draft.nodes as Record<string, CanvasNode>);
+    setEdges(draft.edges as Record<string, CanvasEdge>);
+    setGroups(draft.groups as Record<string, CanvasGroup>);
+    setNotes(draft.notes as Record<string, ElementNote>);
+    setBins(draft.bins as Bin[]);
+  }
+
+  // 원본 boot effect의 cancelled 가드와 같은 역할 - 언마운트/재실행 사이에
+  // await가 끼는 지점(listConstellations, listNotes) 뒤에서 값마다 확인한다.
+  // 이 함수는 effect 자동 호출과 handlePromoteDiscard(사용자 클릭) 양쪽에서
+  // 재사용되므로, 두 호출부가 각자 false로 리셋하고 필요할 때만 true로 켠다.
+  const bootCancelledRef = useRef(false);
+
+  // "평소 흐름" - 로그인된 유저의 가장 최근 별자리를 불러온다. 하나도 없으면
+  // 데모 시드를 그대로 유지한다. 인증 승계를 "아니오"로 답한 뒤에도 이
+  // 경로를 그대로 재사용한다(아래 handlePromoteDiscard).
+  const bootFromServer = useCallback(async () => {
+    try {
+      const list = await listConstellations();
+      if (bootCancelledRef.current) return;
+      // 플로우 규칙(사용자 지시 2026-08-30: "기존에 인증한 유저들이 별자리
+      // 만들기 눌렀을떄 바로 LLM이 나오면 안돼. 기존에 만들던 별자리가 이어서
+      // 나와야지."): 발행 여부와 무관하게 **가장 최근 별자리를 그대로 이어서**
+      // 연다. 대화·추천 시안은 별자리가 하나도 없는 첫 사용자에게만 자동으로
+      // 뜬다 - 이미 쓰던 사람에게 매번 처음부터 대화를 시키면 안 된다.
+      // 새 별자리를 원하면 보관함의 "새 별자리 만들기"로 명시적으로 시작한다
+      // (그 경로가 항상 새 문서를 만들므로 기존 별자리를 덮어쓸 위험은 없다).
+      const latest = list.sort((a, b) => b.updatedAt - a.updatedAt)[0];
+      if (!latest) {
+        setBootState("empty");
+        setIntakeOpen(true);
+        return;
+      }
+      const noteDtos = await listNotes(latest.id);
+      if (bootCancelledRef.current) return;
+
+      const loadedNodes: Record<string, CanvasNode> = {};
+      for (const dto of Object.values(latest.nodes)) {
+        loadedNodes[dto.id] = {
+          id: dto.id,
+          label: dto.label,
+          type: dto.type,
+          isCompleted: dto.isCompleted,
+          position: dto.position,
+          level: dto.level,
+          code: dto.code,
+          description: dto.description,
+          color: dto.color,
+          glowEffect: dto.glowEffect,
+        };
+      }
+      const loadedEdges: Record<string, CanvasEdge> = {};
+      for (const dto of Object.values(latest.edges)) {
+        loadedEdges[dto.id] = {
+          id: dto.id,
+          sourceNodeId: dto.sourceNodeId,
+          targetNodeId: dto.targetNodeId,
+          color: dto.color,
+        };
+      }
+      const loadedGroups: Record<string, CanvasGroup> = {};
+      for (const dto of Object.values(latest.groups ?? ({} as Record<string, GroupDto>))) {
+        loadedGroups[dto.id] = {
+          id: dto.id,
+          label: dto.label,
+          memberNodeIds: dto.memberNodeIds,
+          collapsed: dto.collapsed,
+          position: dto.position,
+        };
+      }
+      const loadedNotes: Record<string, ElementNote> = {};
+      for (const dto of noteDtos) {
+        loadedNotes[dto.id] = {
+          id: dto.id,
+          nodeId: dto.nodeId,
+          title: dto.title,
+          body: dto.body,
+          isPublic: dto.isPublic,
+          attachments: dto.attachments.map((a) => ({ id: a.id, name: a.name, mimeType: a.mimeType, url: a.url })),
+          createdAt: dto.createdAt,
+          updatedAt: dto.updatedAt,
+        };
+      }
+
+      setNodes(loadedNodes);
+      setEdges(loadedEdges);
+      setGroups(loadedGroups);
+      // 볼트=원본, 서버=유료 동기화 예정 - 볼트가 이미 연결/하이드레이트됐으면
+      // (위 볼트 복원 이펙트) 서버에서 받은 노트로 덮어쓰지 않는다.
+      if (!vaultHandleRef.current) setNotes(loadedNotes);
+      if (latest.bins) setBins(normalizeIncomingBins(latest.bins));
+      setConstellationId(latest.id);
+      setIsPublished(latest.isPublished);
+      setLaunchDescription(latest.description ?? "");
+      setLaunchContributors(latest.contributors ?? []);
+      constellationTitleRef.current = latest.title;
+      setSaveState("saved");
+      setBootState("loaded");
+      // 기존 별자리가 있으면 대화를 다시 시키지 않는다(사용자 지시: "이미
+      // 만들고 있었으면 처음부터 다시 대화하게 하면 안 된다"). 바로 이어서
+      // 편집하고, 새로 시작하고 싶을 때만 보관함의 "새 별자리 만들기"로
+      // 대화를 연다.
+      setIntakeOpen(false);
+    } catch (err) {
+      // 초기 로드 실패는 조용히 데모 상태로 남긴다 - 화면이 죽으면 안 된다.
+      // 기존 별자리가 있는 사용자일 수 있으므로 대화를 강제로 띄우지 않는다
+      // (일시 오류 때마다 처음부터 대화하게 되는 역효과 방지).
+      console.error("[constellation] 초기 로드 실패", err);
+      setBootState("loaded");
+      setIntakeOpen(false);
+    }
+  }, []);
+
+  // 마운트 시(+ 인증 상태가 바뀔 때마다) 정착 분기 - 비로그인/미인증/인증
+  // 셋으로 갈린다. 로그인 안 됐으면(또는 아직 로딩 중이면) 미인증 분기까지도
+  // 건드리지 않는다.
   useEffect(() => {
     if (authLoading) return; // 로딩 중엔 아무 것도 정착시키지 않는다.
     if (!user) {
@@ -606,107 +746,132 @@ export default function NewConstellationPage() {
       setIntakeOpen(true);
       return;
     }
-    let cancelled = false;
-    (async () => {
-      try {
-        const list = await listConstellations();
-        if (cancelled) return;
-        // 플로우 규칙(사용자 지시 2026-08-30: "기존에 인증한 유저들이 별자리
-        // 만들기 눌렀을떄 바로 LLM이 나오면 안돼. 기존에 만들던 별자리가 이어서
-        // 나와야지."): 발행 여부와 무관하게 **가장 최근 별자리를 그대로 이어서**
-        // 연다. 대화·추천 시안은 별자리가 하나도 없는 첫 사용자에게만 자동으로
-        // 뜬다 - 이미 쓰던 사람에게 매번 처음부터 대화를 시키면 안 된다.
-        // 새 별자리를 원하면 보관함의 "새 별자리 만들기"로 명시적으로 시작한다
-        // (그 경로가 항상 새 문서를 만들므로 기존 별자리를 덮어쓸 위험은 없다).
-        const latest = list.sort((a, b) => b.updatedAt - a.updatedAt)[0];
-        if (!latest) {
-          setBootState("empty");
-          setIntakeOpen(true);
-          return;
-        }
-        const noteDtos = await listNotes(latest.id);
-        if (cancelled) return;
-
-        const loadedNodes: Record<string, CanvasNode> = {};
-        for (const dto of Object.values(latest.nodes)) {
-          loadedNodes[dto.id] = {
-            id: dto.id,
-            label: dto.label,
-            type: dto.type,
-            isCompleted: dto.isCompleted,
-            position: dto.position,
-            level: dto.level,
-            code: dto.code,
-            description: dto.description,
-            color: dto.color,
-            glowEffect: dto.glowEffect,
-          };
-        }
-        const loadedEdges: Record<string, CanvasEdge> = {};
-        for (const dto of Object.values(latest.edges)) {
-          loadedEdges[dto.id] = {
-            id: dto.id,
-            sourceNodeId: dto.sourceNodeId,
-            targetNodeId: dto.targetNodeId,
-            color: dto.color,
-          };
-        }
-        const loadedGroups: Record<string, CanvasGroup> = {};
-        for (const dto of Object.values(latest.groups ?? ({} as Record<string, GroupDto>))) {
-          loadedGroups[dto.id] = {
-            id: dto.id,
-            label: dto.label,
-            memberNodeIds: dto.memberNodeIds,
-            collapsed: dto.collapsed,
-            position: dto.position,
-          };
-        }
-        const loadedNotes: Record<string, ElementNote> = {};
-        for (const dto of noteDtos) {
-          loadedNotes[dto.id] = {
-            id: dto.id,
-            nodeId: dto.nodeId,
-            title: dto.title,
-            body: dto.body,
-            isPublic: dto.isPublic,
-            attachments: dto.attachments.map((a) => ({ id: a.id, name: a.name, mimeType: a.mimeType, url: a.url })),
-            createdAt: dto.createdAt,
-            updatedAt: dto.updatedAt,
-          };
-        }
-
-        setNodes(loadedNodes);
-        setEdges(loadedEdges);
-        setGroups(loadedGroups);
-        // 볼트=원본, 서버=유료 동기화 예정 - 볼트가 이미 연결/하이드레이트됐으면
-        // (위 볼트 복원 이펙트) 서버에서 받은 노트로 덮어쓰지 않는다.
-        if (!vaultHandleRef.current) setNotes(loadedNotes);
-        if (latest.bins) setBins(normalizeIncomingBins(latest.bins));
-        setConstellationId(latest.id);
-        setIsPublished(latest.isPublished);
-        setLaunchDescription(latest.description ?? "");
-        setLaunchContributors(latest.contributors ?? []);
-        constellationTitleRef.current = latest.title;
-        setSaveState("saved");
-        setBootState("loaded");
-        // 기존 별자리가 있으면 대화를 다시 시키지 않는다(사용자 지시: "이미
-        // 만들고 있었으면 처음부터 다시 대화하게 하면 안 된다"). 바로 이어서
-        // 편집하고, 새로 시작하고 싶을 때만 보관함의 "새 별자리 만들기"로
-        // 대화를 연다.
-        setIntakeOpen(false);
-      } catch (err) {
-        // 초기 로드 실패는 조용히 데모 상태로 남긴다 - 화면이 죽으면 안 된다.
-        // 기존 별자리가 있는 사용자일 수 있으므로 대화를 강제로 띄우지 않는다
-        // (일시 오류 때마다 처음부터 대화하게 되는 역효과 방지).
-        console.error("[constellation] 초기 로드 실패", err);
-        setBootState("loaded");
-        setIntakeOpen(false);
-      }
-    })();
+    if (!user.yonseiVerified) {
+      // 미인증(사용자 지시 2026-08-30: "미인증상태에서는 캔버스만 열어놔...
+      // 기존에 만들던 별자리가 이어서 나와야지") - 서버 조회 없이 로컬
+      // 보관분만 복원한다. 보관분이 없으면 기존 데모 시드가 그대로 남는다.
+      const draft = loadLocalDraft(user.uid);
+      if (draft) applyLocalDraft(draft);
+      setConstellationId(null);
+      setSaveState("unsaved");
+      setBootState("loaded");
+      setIntakeOpen(false); // 대화는 절대 자동으로 뜨지 않는다.
+      return;
+    }
+    // 인증 완료 - 로컬 보관분이 있으면 승계 여부부터 묻는다(promote 모달이
+    // 캔버스를 가리므로 베일은 내려도 된다). 없으면 평소 흐름 그대로.
+    const draft = loadLocalDraft(user.uid);
+    if (draft) {
+      applyLocalDraft(draft);
+      setBootState("loaded");
+      setIntakeOpen(false);
+      setPromoteModalOpen(true);
+      return;
+    }
+    bootCancelledRef.current = false;
+    void bootFromServer();
     return () => {
-      cancelled = true;
+      bootCancelledRef.current = true;
     };
-  }, [authLoading, user]);
+  }, [authLoading, user, bootFromServer]);
+
+  // 인증 승계 "예" - 로컬 보관분(지금 캔버스에 이미 미리보기로 떠 있는 값)을
+  // 기존 첫 저장 경로(handleConfirmTitle과 동일 패턴)로 실제 서버에 만든다.
+  // 제목 입력 UI는 따로 없다 - 미인증 상태에선 애초에 제목을 지을 기회가
+  // 없었으므로(대화도 저장 모달도 막혀 있었다) handleConfirmTitle과 같은
+  // 기본값으로 대신한다.
+  const handlePromoteSave = useCallback(async () => {
+    if (!user) return;
+    setPromoting(true);
+    try {
+      const title = constellationTitleRef.current ?? "제목 없는 별자리";
+      const nodeInputs = Object.values(nodesRef.current).map(nodeToCreateInput);
+      const edgeInputs: EdgeCreateInput[] = Object.values(edgesRef.current).map((e) => ({
+        id: e.id,
+        sourceNodeId: e.sourceNodeId,
+        targetNodeId: e.targetNodeId,
+      }));
+      const binInputs: BinDto[] = binsRef.current.map(mapBinToBinDto);
+      const created = await createConstellation({
+        title,
+        goalRawText: title,
+        nodes: nodeInputs,
+        edges: edgeInputs,
+        bins: binInputs,
+      });
+      constellationTitleRef.current = title;
+      setConstellationId(created.id);
+      for (const node of Object.values(nodesRef.current)) {
+        if (node.isCompleted) enqueueMutation(() => patchNodeCompletion(created.id, node.id, true));
+      }
+      for (const group of Object.values(groupsRef.current)) {
+        enqueueMutation(() =>
+          createGroup(created.id, {
+            id: group.id,
+            label: group.label,
+            memberNodeIds: group.memberNodeIds,
+            position: group.position,
+            collapsed: group.collapsed,
+          })
+        );
+      }
+      for (const note of Object.values(notesRef.current)) {
+        enqueueMutation(() =>
+          createNote(created.id, {
+            id: note.id,
+            nodeId: note.nodeId,
+            title: note.title,
+            body: note.body,
+            isPublic: note.isPublic,
+            attachments: [],
+          })
+        );
+      }
+      setSaveState("saved");
+      clearLocalDraft(user.uid);
+      setPromoteModalOpen(false);
+    } catch (err) {
+      console.error("[constellation] 로컬 보관분 승계 실패", err);
+      // 실패하면 로컬 보관분을 지우지 않는다 - 재시도할 수 있어야 한다.
+      window.alert("저장에 실패했어요. 잠시 후 다시 시도해 주세요.");
+    } finally {
+      setPromoting(false);
+    }
+  }, [user, enqueueMutation]);
+
+  // 인증 승계 "아니오" - 로컬 보관분을 폐기하고 평소 흐름(서버 별자리 이어
+  // 열기/없으면 대화)으로 돌아간다. "아니오"는 파괴적이라 모달 문구에서
+  // 미리 경고한다(사용자 지시).
+  const handlePromoteDiscard = useCallback(() => {
+    if (!user) return;
+    clearLocalDraft(user.uid);
+    setPromoteModalOpen(false);
+    setNodes({});
+    setEdges({});
+    setGroups({});
+    setNotes({});
+    setBins([]);
+    setBootState("loading"); // bootFromServer가 정착할 때까지 베일을 다시 덮는다.
+    bootCancelledRef.current = false;
+    void bootFromServer();
+  }, [user, bootFromServer]);
+
+  // 미인증 사용자의 유일한 저장 경로 - nodes/edges/groups/notes/bins 중
+  // 하나라도 바뀌면 500ms 디바운스로 localStorage에 쓴다(사용자 지시: "그거
+  // 브라우저 상에서만 저장해놨다가"). 복원 직후(bootState가 아직 "loading")
+  // 에는 쓰지 않는다 - 막 복원한 값을 그대로 되돌려 쓰는 것 자체는 무해하지만,
+  // 데모 시드가 "빈 draft"로 오인돼 지워지는 경계 사례를 피하려면 정착 이후만
+  // 다룬다. 로그인 안 했거나 인증된 사용자에게는 아무 효과가 없다(그쪽은
+  // 서버가 진실이다).
+  useEffect(() => {
+    if (!user || user.yonseiVerified) return;
+    if (bootState !== "loaded") return;
+    const uid = user.uid;
+    const timer = setTimeout(() => {
+      saveLocalDraft(uid, { nodes, edges, groups, notes, bins });
+    }, 500);
+    return () => clearTimeout(timer);
+  }, [user, bootState, nodes, edges, groups, notes, bins]);
 
   // Intake 대화 오버레이는 위 boot effect의 각 정착 지점(empty/loaded/에러)이
   // setBootState와 같은 동기 블록에서 직접 연다(사용자 지시: "/constellation/new은
@@ -737,6 +902,12 @@ export default function NewConstellationPage() {
       router.push("/login");
       return;
     }
+    // 로그인은 했지만 아직 연세대 인증 전 - 서버로 보내기 전에 선제 차단
+    // (사용자 지시: "저장은 못하게 하고").
+    if (!user.yonseiVerified) {
+      setVerifyGateOpen(true);
+      return;
+    }
     if (constellationId) return;
     // Intake 대화에서 다듬어진 목표가 있으면 기본 제목으로 미리 채워 준다 -
     // 사용자가 굳이 똑같은 말을 다시 타이핑하지 않아도 되게.
@@ -748,6 +919,9 @@ export default function NewConstellationPage() {
   // 실어 보낸 뒤, 완료 표시된 노드(NodeCreateIn엔 isCompleted가 없다)와 기존
   // 로컬 노트들을 뮤테이션 큐에 태워 순서대로 뒤따라 보낸다.
   const handleConfirmTitle = useCallback(async () => {
+    // 방어선 - 이 모달은 handleSaveClick(이미 인증 가드)으로만 열리지만,
+    // 실수로 다른 경로가 생겨도 여기서 한 번 더 막는다.
+    if (!user || !user.yonseiVerified) return;
     const title = titleInput.trim() || "제목 없는 별자리";
     setTitleModalOpen(false);
     setSaveState("saving");
@@ -806,7 +980,7 @@ export default function NewConstellationPage() {
       console.error("[constellation] 별자리 생성 실패", err);
       setSaveState("error");
     }
-  }, [titleInput, enqueueMutation]);
+  }, [titleInput, enqueueMutation, user]);
 
   // 발행 행위 자체는 이제 "별자리 띄우기" 모달(handleLaunchSubmit)로
   // 일원화됐다 - 좌상단 툴바에는 발행 상태를 보여주는 칩만 남는다(사용자 지시).
@@ -949,6 +1123,14 @@ export default function NewConstellationPage() {
   // 없거나 비로그인이면 띄우기 모달로 보낸다(제목/로그인 안내가 필요하므로).
   const [publishToggling, setPublishToggling] = useState(false);
   const handleQuickPublishToggle = useCallback(async () => {
+    // 로그인은 했지만 미인증 - 발행 시도 자체를 막고 인증으로 유도한다
+    // (사용자 지시: "Publishing도 못하게 해"). cid는 미인증이면 어차피 항상
+    // null이라 아래 !cid 분기가 대신 띄우기 모달을 열어버릴 수 있어, 이
+    // 체크가 그보다 먼저 와야 한다.
+    if (user && !user.yonseiVerified) {
+      setVerifyGateOpen(true);
+      return;
+    }
     const cid = constellationIdRef.current;
     if (!user || !cid) {
       setLaunchModalOpen(true);
@@ -964,6 +1146,10 @@ export default function NewConstellationPage() {
         window.setTimeout(() => setJustPublished(false), 1600);
       }
     } catch (err) {
+      if (isVerifyRequiredError(err)) {
+        setVerifyGateOpen(true);
+        return;
+      }
       console.error("[constellation] 발행 상태 전환 실패", err);
     } finally {
       setPublishToggling(false);
@@ -976,6 +1162,12 @@ export default function NewConstellationPage() {
   // 던져 LaunchModal이 인라인 에러를 보여주게 한다.
   const handleLaunchSubmit = useCallback(
     async (input: LaunchInput) => {
+      // 방어선 - 이 모달은 발행 진입점(위 버튼/handleQuickPublishToggle)이
+      // 이미 인증 가드로 열지 못하게 막지만, 실수로 다른 경로가 생겨도
+      // 여기서 한 번 더 막는다. LaunchModal이 catch에서 인라인 에러로 보여준다.
+      if (!user || !user.yonseiVerified) {
+        throw new Error("연세대 인증이 필요해요");
+      }
       let cid = constellationIdRef.current;
       if (!cid) {
         const nodeInputs = Object.values(nodesRef.current).map(nodeToCreateInput);
@@ -1050,7 +1242,7 @@ export default function NewConstellationPage() {
         setTimeout(() => setJustPublished(false), 2600);
       }
     },
-    [enqueueMutation]
+    [enqueueMutation, user]
   );
 
   // "새 별자리 만들기" - 지금 편집 중인 별자리(서버에 있든 로컬 데모든)를
@@ -1059,6 +1251,12 @@ export default function NewConstellationPage() {
   // handleDeleteNote/handleNodeDelete와 같은 이유로 여기서도 회수해야 한다 -
   // 안 그러면 별자리를 여러 번 새로 만들 때마다 계속 샌다.
   const handleStartNewConstellation = useCallback(() => {
+    // 방어선 - ElementBinPanel이 미인증이면 이미 이 버튼을 비활성화하지만,
+    // 여기서도 한 번 더 막는다(Intake 대화를 여는 진입점이므로).
+    if (user && !user.yonseiVerified) {
+      setVerifyGateOpen(true);
+      return;
+    }
     Object.values(notesRef.current).forEach((note) => {
       note.attachments.forEach((att) => URL.revokeObjectURL(att.url));
     });
@@ -1081,7 +1279,7 @@ export default function NewConstellationPage() {
     goalTextRef.current = null;
     constellationTitleRef.current = null;
     setIntakeOpen(true);
-  }, []);
+  }, [user]);
 
   // Intake 대화가 끝나(구간 잡까지 완료) 넘겨준 보관함으로 캔버스를 채운다.
   // 캔버스 노드/엣지는 건드리지 않는다 - 원소를 캔버스에 놓는 건 항상 사용자의
@@ -1871,6 +2069,9 @@ export default function NewConstellationPage() {
   // 경우) 별자리 제목, 그마저 없으면 보관함 이름 자체로 대신한다.
   const handleCreateBin = useCallback(
     (label: string) => {
+      // 방어선 - ElementBinPanel이 미인증이면 이미 이 폼을 비활성화하지만,
+      // LLM이 채워주는 보관함(intake 계열 잡)이므로 여기서도 한 번 더 막는다.
+      if (user && !user.yonseiVerified) return;
       const id = makeId("bin-user");
       setBins((prev) => {
         const next: Bin[] = [...prev, { id, label, origin: "user" as const, items: [], isLoading: true }];
@@ -1924,7 +2125,7 @@ export default function NewConstellationPage() {
           finishBinFill(id);
         });
     },
-    [persistBins, finishBinFill]
+    [persistBins, finishBinFill, user]
   );
 
   // 팔레트가 실제로 화면에 뜰지 - ColorPaletteBar의 렌더 조건과 정확히
@@ -1983,7 +2184,7 @@ export default function NewConstellationPage() {
           onClick={handleSaveClick}
           className="paper-surface rounded-full border border-paper-line bg-paper-soft/95 px-2.5 py-1.5 font-sans text-micro font-medium text-paper-lo shadow-panel backdrop-blur-md transition-colors hover:text-paper-ink focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-1 focus-visible:outline-paper-ink"
         >
-          {SAVE_STATE_LABEL[saveState]}
+          {user && !user.yonseiVerified ? "브라우저에만 저장됨" : SAVE_STATE_LABEL[saveState]}
         </button>
         <button
           type="button"
@@ -2029,7 +2230,13 @@ export default function NewConstellationPage() {
             한다. 화면의 유일한 "완결" 행동이라 밝은 쪽이 위계상으로도 맞다. */}
         <button
           type="button"
-          onClick={() => setLaunchModalOpen(true)}
+          onClick={() => {
+            if (user && !user.yonseiVerified) {
+              setVerifyGateOpen(true);
+              return;
+            }
+            setLaunchModalOpen(true);
+          }}
           className="rounded-full border border-paper-line bg-paper px-4 py-2.5 font-sans text-sm font-semibold text-paper-ink shadow-panel backdrop-blur-md transition-colors hover:bg-paper-soft focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-1 focus-visible:outline-paper-ink"
         >
           별자리 띄우기
@@ -2076,6 +2283,39 @@ export default function NewConstellationPage() {
           router.push("/login");
         }}
       />
+
+      {/* 로그인은 했지만 아직 연세대 인증 전 - 저장/발행/대화 진입점 전부가
+          이 게이트로 모인다(사용자 지시 2026-08-30). */}
+      <VerifyGate open={verifyGateOpen} onClose={() => setVerifyGateOpen(false)} />
+
+      {/* 인증 승계 확인 - 로컬 보관분이 있는 채로 인증을 마치면 딱 한 번 뜬다
+          (boot effect가 열고, 아래 두 버튼 중 하나를 누르면 로컬 보관분을
+          지우므로 다시 뜨지 않는다). "아니오"가 파괴적이라 문구로 미리
+          경고한다(사용자 지시: "보통은 폐기할 것 같긴한데"). */}
+      <Modal open={promoteModalOpen} onClose={() => {}} title="만들던 별자리를 저장할까요?" size="sm">
+        <p className="text-body-sm text-text-lo">
+          인증 전 브라우저에만 있던 별자리예요. 저장하면 계정에 실제로 만들어지고, 폐기하면
+          되돌릴 수 없이 사라져요.
+        </p>
+        <div className="mt-4 flex gap-2">
+          <button
+            type="button"
+            onClick={() => void handlePromoteSave()}
+            disabled={promoting}
+            className="flex-1 rounded-md bg-spec-b px-3 py-1.5 font-sans text-sm font-medium text-ink-900 hover:opacity-90 disabled:cursor-not-allowed disabled:opacity-60"
+          >
+            {promoting ? "저장하는 중…" : "저장"}
+          </button>
+          <button
+            type="button"
+            onClick={handlePromoteDiscard}
+            disabled={promoting}
+            className="rounded-md px-3 py-1.5 font-sans text-sm text-text-lo hover:text-text-hi disabled:cursor-not-allowed disabled:opacity-60"
+          >
+            아니오, 폐기
+          </button>
+        </div>
+      </Modal>
 
       {/* (구 상단 중앙 저장 툴바는 우상단 컨트롤 줄로 통합됨 - 위 참조) */}
 
@@ -2196,6 +2436,9 @@ export default function NewConstellationPage() {
             placedItemIds={placedItemIds}
             onStartNewConstellation={handleStartNewConstellation}
             onPlaceAll={handlePlaceAllGroup}
+            intakeDisabledReason={
+              user && !user.yonseiVerified ? "연세대 인증을 마치면 AI가 대화로 초안을 그려줘요" : undefined
+            }
           />
         </div>
         {/* 볼트 연결 상태 줄 - ElementNotesPanel 바로 위, 「노트」 탭일 때만.

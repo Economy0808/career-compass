@@ -58,6 +58,11 @@ export interface ElementBinPanelProps {
   placedItemIds?: Set<string>;
   /** 있으면 패널 하단에 "새 별자리 만들기" 버튼을 보여준다. */
   onStartNewConstellation?: () => void;
+  /** 있으면(미인증 사용자) 대화를 여는 진입점("새 별자리 만들기"/"새 보관함
+   * 만들기"=AI 채우기)을 비활성화하고 이 문구를 이유로 보여준다. 원소를
+   * 직접 추가하는 기능(onAddItem/onAddCourseItem)은 대화가 아니므로 막지
+   * 않는다. */
+  intakeDisabledReason?: string;
   /** "모두 추가"가 실제로 배치를 끝낸 뒤 알려준다 - 나선 배치의 기준점(base)과
    * 보관함 전체(이미 캔버스에 있던 항목 포함)를 그대로 넘겨, 부모가 원하면
    * 이 보관함을 하나의 성단(그룹)으로 묶을 수 있게 한다. */
@@ -475,6 +480,7 @@ export function ElementBinPanel({
   placedItemIds,
   onStartNewConstellation,
   onPlaceAll,
+  intakeDisabledReason,
   className,
 }: ElementBinPanelProps) {
   const [newBinLabel, setNewBinLabel] = useState("");
@@ -537,6 +543,7 @@ export function ElementBinPanel({
         className="flex items-center gap-1.5 border-t border-paper-line p-3"
         onSubmit={(e) => {
           e.preventDefault();
+          if (intakeDisabledReason) return;
           handleCreateBin();
         }}
       >
@@ -545,27 +552,43 @@ export function ElementBinPanel({
           onChange={(e) => setNewBinLabel(e.target.value)}
           placeholder="새 보관함 이름"
           aria-label="새 보관함 이름"
-          className="min-w-0 flex-1 rounded-none border border-paper-line bg-transparent px-2.5 py-1.5 text-caption text-paper-ink placeholder:text-paper-lo focus:border-paper-ink focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-paper-ink/60"
+          disabled={!!intakeDisabledReason}
+          title={intakeDisabledReason}
+          className="min-w-0 flex-1 rounded-none border border-paper-line bg-transparent px-2.5 py-1.5 text-caption text-paper-ink placeholder:text-paper-lo focus:border-paper-ink focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-paper-ink/60 disabled:cursor-not-allowed disabled:opacity-50"
         />
         <button
           type="submit"
-          disabled={!newBinLabel.trim()}
+          disabled={!newBinLabel.trim() || !!intakeDisabledReason}
+          title={intakeDisabledReason}
           className="shrink-0 rounded-none bg-paper-ink/12 px-2.5 py-1.5 text-caption font-semibold text-paper-ink transition-colors hover:bg-paper-ink/18 disabled:cursor-not-allowed disabled:opacity-40 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-paper-ink/60"
         >
           추가
         </button>
       </form>
+      {/* AI가 채워주는 보관함이라 대화와 같은 취급 - 미인증이면 위 폼 전체를
+          비활성화하고 이유를 짧게 안내한다. */}
+      {intakeDisabledReason && (
+        <p className="border-t border-paper-line px-3 pb-2 pt-1.5 text-micro text-paper-lo">
+          {intakeDisabledReason}
+        </p>
+      )}
 
       {onStartNewConstellation && (
         <div className="border-t border-paper-line px-3 pb-3 pt-2">
           <button
             type="button"
-            onClick={onStartNewConstellation}
-            className="flex w-full items-center justify-center gap-1.5 rounded-lg border border-paper-line bg-paper-soft py-1.5 text-caption font-semibold text-paper-ink transition-colors hover:bg-paper-line/50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-paper-ink/60 md:py-2 md:text-sm"
+            onClick={intakeDisabledReason ? undefined : onStartNewConstellation}
+            disabled={!!intakeDisabledReason}
+            title={intakeDisabledReason}
+            aria-disabled={!!intakeDisabledReason}
+            className="flex w-full items-center justify-center gap-1.5 rounded-lg border border-paper-line bg-paper-soft py-1.5 text-caption font-semibold text-paper-ink transition-colors hover:bg-paper-line/50 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-paper-ink/60 disabled:cursor-not-allowed disabled:opacity-50 md:py-2 md:text-sm"
           >
             <SeedIcon size={14} />
             새 별자리 만들기
           </button>
+          {intakeDisabledReason && (
+            <p className="mt-1.5 text-center text-micro text-paper-lo">{intakeDisabledReason}</p>
+          )}
         </div>
       )}
     </div>
