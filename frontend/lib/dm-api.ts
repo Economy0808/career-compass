@@ -41,8 +41,20 @@ export interface DmMessageDto {
   createdAt: number;
 }
 
+export interface DmPartnerDto {
+  uid: string;
+  displayName?: string;
+  avatarEmoji?: string;
+  hasThread: boolean;
+}
+
 export function listDmThreads(): Promise<DmThreadListDto> {
   return request<DmThreadListDto>("/api/dm");
+}
+
+/** 새 대화를 시작할 수 있는 상대(내 팔로잉 ∪ 팔로워, 표시 이름 오름차순, 최대 100명). */
+export function listDmPartners(): Promise<DmPartnerDto[]> {
+  return request<DmPartnerDto[]>("/api/dm/partners");
 }
 
 /** 최신순 최대 50개. 호출하는 순간 서버에서 이 대화방의 내 안읽음이 0으로
