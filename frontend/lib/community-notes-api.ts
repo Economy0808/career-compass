@@ -87,3 +87,12 @@ export function blockThread(threadId: string): Promise<NoteThreadDto> {
     method: "POST",
   });
 }
+
+/** block과 대칭 - 받는 쪽만 호출 가능하고, 갱신된 스레드(blocked:false)를
+ * 그대로 돌려주므로 호출부가 재조회 없이 상태를 교체하면 된다. 차단되지 않은
+ * 스레드에 불러도 200이다(멱등). */
+export function unblockThread(threadId: string): Promise<NoteThreadDto> {
+  return request<NoteThreadDto>(`/api/community/notes/${encodeURIComponent(threadId)}/unblock`, {
+    method: "POST",
+  });
+}

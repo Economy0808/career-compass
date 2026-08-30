@@ -26,6 +26,7 @@ import {
   getThreadMessages,
   listMyNotes,
   replyToThread,
+  unblockThread,
   type NoteMessageDto,
   type NoteThreadDto,
 } from "@/lib/community-notes-api";
@@ -213,6 +214,25 @@ export function CommunityNoteInbox({ open, onClose }: CommunityNoteInboxProps) {
     }
   }
 
+  async function handleUnblock(): Promise<void> {
+    if (view.kind !== "thread" || blocking) return;
+    setBlocking(true);
+    setError(null);
+    try {
+      // 응답이 갱신된 스레드(blocked:false)를 그대로 주므로 재조회가 필요 없다.
+      const updated = await unblockThread(view.threadId);
+      setThreadDetail(updated);
+    } catch (err) {
+      if (isVerifyRequiredError(err)) {
+        setVerifyGateOpen(true);
+        return;
+      }
+      setError("차단을 해제하지 못했어요.");
+    } finally {
+      setBlocking(false);
+    }
+  }
+
   function handleClose() {
     setReplyBody("");
     onClose();
@@ -271,7 +291,17 @@ export function CommunityNoteInbox({ open, onClose }: CommunityNoteInboxProps) {
               </div>
             )}
             {threadDetail?.blocked ? (
-              <p className="text-caption text-text-lo">이 대화는 차단됐어요</p>
+              // 차단 해제는 받는 쪽만 할 수 있다(서버도 같은 규칙 - 보낸 쪽이 부르면 403).
+              // 보낸 쪽에는 차단 사실만 보이고 되돌릴 버튼은 뜨지 않는다.
+              <div className="flex flex-col gap-2">
+                <p className="text-caption text-text-lo">이 대화는 차단됐어요</p>
+                {error && <p className="text-micro text-spec-m">{error}</p>}
+                {threadDetail.role === "recipient" && (
+                  <Button variant="ghost" size="sm" onClick={handleUnblock} disabled={blocking}>
+                    {blocking ? "해제 중…" : "차단 해제"}
+                  </Button>
+                )}
+              </div>
             ) : (
               <>
                 <Field
