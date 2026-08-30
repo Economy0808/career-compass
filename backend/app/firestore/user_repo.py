@@ -40,7 +40,6 @@ from datetime import UTC, datetime
 from typing import Any
 
 from google.cloud.firestore import Client
-from google.cloud.firestore_v1.base_query import FieldFilter
 
 _COLLECTION = "users"
 
@@ -173,20 +172,18 @@ def list_users_with_interest_tags(db: Client) -> list[tuple[str, dict[str, Any]]
     ]
 
 
-def search_by_display_name_prefix(
-    db: Client, prefix: str, limit: int = 20
-) -> list[tuple[str, dict[str, Any]]]:
-    """display_name이 prefix로 시작하는 유저를 최대 limit명 반환한다.
+def list_all_users(db: Client, limit: int = 500) -> list[tuple[str, dict[str, Any]]]:
+    """유저 전체를 최대 limit명까지 (uid, 문서 dict)로 반환한다.
 
-    where(">=", prefix) AND where("<", prefix + "\\uf8ff")는 Firestore 사전식
-    prefix 매치 표준 관용구다("\\uf8ff"는 유니코드 사용역의 마지막에 가까운 문자라
-    사실상 모든 문자열보다 뒤에 온다). display_name 필드가 없는 문서는 range
-    필터 자체가 자동으로 걸러주므로 별도 None 체크가 필요 없다.
+    Firestore는 부분일치(substring) 검색을 지원하지 않으므로, @닉네임/키워드
+    검색(app/api/explore.py의 search_explore_users)이 후보 집합을 통째로 가져와
+    파이썬에서 필터링하는 용도다. 관심사 태그가 없는 유저도(닉네임/소개만
+    일치하는 경우) 후보에 포함해야 하므로 list_users_with_interest_tags를 재사용할
+    수 없다.
+
+    # ponytail: 유저 수백 명 규모까지는 이 상한(500) 안에서 전체 스캔이 감당된다.
+    # 그 이상으로 유저가 늘면 Algolia/Typesense 같은 검색 인덱스를 도입할 것.
     """
-    query = (
-        db.collection(_COLLECTION)
-        .where(filter=FieldFilter("display_name", ">=", prefix))
-        .where(filter=FieldFilter("display_name", "<", prefix + ""))
-        .limit(limit)
-    )
-    return [(doc.id, doc.to_dict() or {}) for doc in query.stream()]
+    return [
+        (doc.id, doc.to_dict() or {}) for doc in db.collection(_COLLECTION).limit(limit).stream()
+    ]

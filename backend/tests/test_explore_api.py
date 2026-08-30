@@ -222,3 +222,95 @@ async def test_search_missing_q_returns_422() -> None:
     async with _client() as client:
         resp = await client.get("/api/explore/search")
     assert resp.status_code == 422
+
+
+@pytest.mark.asyncio
+async def test_search_at_prefix_matches_nickname_substring() -> None:
+    """`@`로 시작하면 뒤 문자열로 표시 이름 부분일치(중간 포함) 검색을 한다."""
+    _seed_user(
+        "nickname-match",
+        display_name="별빛수집가",
+        interest_tags=[],
+        updated_at=datetime(2026, 1, 1, tzinfo=UTC),
+    )
+    _seed_user(
+        "nickname-no-match",
+        display_name="다른유저",
+        interest_tags=[],
+        updated_at=datetime(2026, 1, 1, tzinfo=UTC),
+    )
+    async with _client() as client:
+        resp = await client.get("/api/explore/search", params={"q": "@빛수집"})
+    assert resp.status_code == 200
+    uids = [item["uid"] for item in resp.json()]
+    assert "nickname-match" in uids
+    assert "nickname-no-match" not in uids
+
+
+@pytest.mark.asyncio
+async def test_search_keyword_matches_interest_tag() -> None:
+    """일반 키워드 검색은 표시 이름/소개뿐 아니라 관심사 태그 부분일치도 걸린다."""
+    _seed_user(
+        "tag-match",
+        display_name="아무개",
+        interest_tags=["백엔드개발"],
+        updated_at=datetime(2026, 1, 1, tzinfo=UTC),
+    )
+    _seed_user(
+        "tag-no-match",
+        display_name="다른아무개",
+        interest_tags=["미술"],
+        updated_at=datetime(2026, 1, 1, tzinfo=UTC),
+    )
+    async with _client() as client:
+        resp = await client.get("/api/explore/search", params={"q": "백엔드"})
+    assert resp.status_code == 200
+    uids = [item["uid"] for item in resp.json()]
+    assert "tag-match" in uids
+    assert "tag-no-match" not in uids
+
+
+@pytest.mark.asyncio
+async def test_search_sorts_by_viewer_interest_overlap_when_logged_in(
+    authed_as: Callable[[str], None],
+) -> None:
+    """로그인 상태면 검색 결과도 뷰어 관심사와 겹치는 태그 수 내림차순으로 정렬된다."""
+    _seed_user(
+        "search-viewer",
+        display_name="검색뷰어",
+        interest_tags=["철학", "논리학", "AI"],
+        updated_at=datetime(2026, 1, 1, tzinfo=UTC),
+    )
+    _seed_user(
+        "search-low-overlap",
+        display_name="검색결과-낮음",
+        interest_tags=["철학"],
+        updated_at=datetime(2026, 1, 1, tzinfo=UTC),
+    )
+    _seed_user(
+        "search-high-overlap",
+        display_name="검색결과-높음",
+        interest_tags=["철학", "논리학", "AI"],
+        updated_at=datetime(2026, 1, 1, tzinfo=UTC),
+    )
+    authed_as("search-viewer")
+    async with _client() as client:
+        resp = await client.get("/api/explore/search", params={"q": "검색결과"})
+    assert resp.status_code == 200
+    uids = [item["uid"] for item in resp.json()]
+    assert uids.index("search-high-overlap") < uids.index("search-low-overlap")
+
+
+@pytest.mark.asyncio
+async def test_search_excludes_self(authed_as: Callable[[str], None]) -> None:
+    _seed_user(
+        "self-search",
+        display_name="셀프검색유저",
+        interest_tags=[],
+        updated_at=datetime(2026, 1, 1, tzinfo=UTC),
+    )
+    authed_as("self-search")
+    async with _client() as client:
+        resp = await client.get("/api/explore/search", params={"q": "셀프검색"})
+    uids = [item["uid"] for item in resp.json()]
+    assert "self-search" not in uids

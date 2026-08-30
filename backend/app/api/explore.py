@@ -9,8 +9,8 @@ app/api/constellation.py의 publish 핸들러 참고). 이 라우터는 그 캐�
 
 ## 정렬은 API 계층의 책임
 
-user_repo의 조회 함수(list_users_with_interest_tags/search_by_display_name_prefix)는
-후보 목록만 돌려주고, "요청자와 얼마나 겹치는가"에 따른 정렬은 요청자
+user_repo의 조회 함수(list_users_with_interest_tags/list_all_users)는 후보
+목록만 돌려주고, "요청자와 얼마나 겹치는가"에 따른 정렬은 요청자
 컨텍스트(로그인 여부, 본인 태그)가 있어야 가능하므로 이 라우터가 담당한다
 (app/api/profiles.py가 is_following 판단을 API 계층에 두는 것과 동일한 층 분리).
 """
@@ -32,6 +32,9 @@ router = APIRouter(prefix="/api/explore", tags=["explore"])
 
 _LIST_LIMIT = 30
 _SEARCH_LIMIT = 20
+# user_repo.list_all_users의 상한 - 그 함수 docstring 참고(ponytail: 유저 수백 명
+# 규모까지는 이 상한 안에서 전체 스캔이 감당된다).
+_SEARCH_SCAN_LIMIT = 500
 
 
 def _to_out(
@@ -112,13 +115,76 @@ async def list_explore_users(
     ]
 
 
+def _keyword_match_count(profile: dict[str, Any], query_lower: str) -> int:
+    """검색어가 프로필의 몇 군데(표시 이름/소개/관심사 태그 각각)에 걸리는지 센다.
+
+    익명 요청(뷰어 관심사를 모름)일 때 정렬 기준으로 쓴다 - 뷰어 관심사와 겹치는
+    수를 잴 수 없으니, 대신 "이 검색어 자체와 얼마나 관련 있어 보이는가"로 대체한다.
+    """
+    tags = profile.get("interest_tags") or []
+    count = sum(1 for tag in tags if query_lower in tag.lower())
+    if query_lower in (profile.get("display_name") or "").lower():
+        count += 1
+    if query_lower in (profile.get("bio") or "").lower():
+        count += 1
+    return count
+
+
+def _matches_keyword(profile: dict[str, Any], query_lower: str) -> bool:
+    """표시 이름·소개·관심사 태그 중 하나라도 검색어를 부분일치로 포함하는가."""
+    return _keyword_match_count(profile, query_lower) > 0
+
+
 @router.get("/search", response_model=list[ExploreUserOut], response_model_exclude_none=True)
 async def search_explore_users(
     q: str = Query(min_length=1, max_length=30),
     user: DecodedToken | None = Depends(get_current_user_optional),
     db: Client = Depends(get_firestore_client),
 ) -> list[ExploreUserOut]:
-    """표시 이름 접두(prefix) 검색. q는 1~30자(빈 값은 422), 익명 열람 허용."""
+    """`@`로 시작하면 닉네임(표시 이름) 부분일치 검색, 아니면 표시 이름·소개·관심사
+    태그 부분일치 키워드 검색이다(사용자 원문: "탐색창에서는 사용자가 키워드검색을
+    하면 사용자의 인적사항과 유사하고, 유사한 관심사를 가진 타유저를 띄우고, @표시
+    붙여서 아이디를 검색하면 비슷한 닉네임의 유저를 띄우기"). q는 1~30자(빈 값은
+    422), 익명 열람 허용(get_current_user_optional). 요청자 본인은 결과에서 제외한다.
+
+    정렬: 로그인 상태면 요청자의 interest_tags와 겹치는 수 내림차순, 익명이면
+    검색어 자체와의 매칭 수(_keyword_match_count) 내림차순이다.
+
+    Firestore는 부분일치 쿼리를 지원하지 않으므로 user_repo.list_all_users로 후보
+    집합(최대 _SEARCH_SCAN_LIMIT명)을 통째로 가져와 파이썬에서 필터링한다(그
+    함수 docstring의 ponytail 참고 - 상한을 넘는 유저 규모가 되면 검색 인덱스로
+    승격할 것).
+    """
     requester_tags = _requester_tags(db, user)
-    results = user_repo.search_by_display_name_prefix(db, q, limit=_SEARCH_LIMIT)
-    return [_to_out(uid, profile, requester_tags=requester_tags) for uid, profile in results]
+    viewer_uid = user.uid if user is not None else None
+    candidates = [
+        (uid, profile)
+        for uid, profile in user_repo.list_all_users(db, limit=_SEARCH_SCAN_LIMIT)
+        if uid != viewer_uid
+    ]
+
+    if q.startswith("@"):
+        nickname_query = q[1:].strip().lower()
+        matches = [
+            (uid, profile)
+            for uid, profile in candidates
+            if nickname_query and nickname_query in (profile.get("display_name") or "").lower()
+        ]
+    else:
+        query_lower = q.lower()
+        matches = [
+            (uid, profile) for uid, profile in candidates if _matches_keyword(profile, query_lower)
+        ]
+
+    if requester_tags is not None:
+        matches.sort(
+            key=lambda item: -len(requester_tags & set(item[1].get("interest_tags") or []))
+        )
+    else:
+        query_for_ranking = q[1:].strip().lower() if q.startswith("@") else q.lower()
+        matches.sort(key=lambda item: -_keyword_match_count(item[1], query_for_ranking))
+
+    return [
+        _to_out(uid, profile, requester_tags=requester_tags)
+        for uid, profile in matches[:_SEARCH_LIMIT]
+    ]
