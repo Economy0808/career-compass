@@ -19,11 +19,16 @@ export function apiUrl(path: string): string {
 export class ApiError extends Error {
   status: number;
   detail: string;
+  /** 403의 X-Auth-Requirement 응답 헤더 - "yonsei-verified"면 인증 유도, 없으면
+   * 일반 권한 없음(소유권 위반 등). detail 문자열 매칭은 i18n·문구 변경에 깨지므로
+   * 호출부는 반드시 이 필드로 분기한다(백엔드 app/auth/deps.py:require_yonsei_verified). */
+  authRequirement?: string;
 
-  constructor(status: number, detail: string) {
+  constructor(status: number, detail: string, authRequirement?: string) {
     super(detail);
     this.status = status;
     this.detail = detail;
+    this.authRequirement = authRequirement;
   }
 }
 
@@ -57,7 +62,7 @@ export async function request<T>(path: string, init?: RequestInit): Promise<T> {
     } catch {
       // JSON이 아닌 에러 응답은 기본 메시지 유지
     }
-    throw new ApiError(res.status, detail);
+    throw new ApiError(res.status, detail, res.headers.get("X-Auth-Requirement") ?? undefined);
   }
   if (res.status === 204) {
     return undefined as T;
