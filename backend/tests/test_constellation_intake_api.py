@@ -24,7 +24,7 @@ import pytest
 import requests
 from httpx import ASGITransport, AsyncClient
 
-from app.auth.deps import get_current_user_optional
+from app.auth.deps import get_current_user, get_current_user_optional
 from app.auth.firebase_auth import DecodedToken
 from app.etl.yonsei_courses import MergedCourse
 from app.firestore.client import get_firestore_client
@@ -74,14 +74,23 @@ def _reset_bin_jobs() -> Iterator[None]:
 
 @pytest.fixture
 def authed_as() -> Callable[[str], None]:
-    """주어진 uid로 get_current_user_optional override를 세팅하는 함수를 돌려준다.
+    """주어진 uid로 인증 override를 세팅하는 함수를 돌려준다.
 
-    이 라우터의 네 엔드포인트 모두 get_current_user_optional을 직접 의존하므로
-    (인증 불필요 - 모듈 docstring 참고) 그 객체를 그대로 키로 override해야 먹는다.
+    이 라우터의 다섯 엔드포인트 모두 require_yonsei_verified(->get_current_user->
+    get_current_user_optional 연쇄)를 직접 의존한다(2026-08-30, 익명 허용 폐지).
+    test_constellation_api.py의 authed_as와 동일한 이유로 get_current_user와
+    get_current_user_optional을 둘 다 override한다.
+
+    yonsei_verified을 항상 True로 만드는 이유도 그 파일과 동일: 이 스위트의
+    인증 테스트 대부분이 인증된 유저를 가정하므로, 미인증(403) 케이스는
+    이 fixture 대신 test_chat_by_unverified_user_returns_403 등에서 직접
+    dependency_overrides를 건드려 표현한다.
     """
 
     def _set(uid: str) -> None:
-        app.dependency_overrides[get_current_user_optional] = lambda: DecodedToken(uid=uid)
+        token = DecodedToken(uid=uid, yonsei_verified=True)
+        app.dependency_overrides[get_current_user] = lambda: token
+        app.dependency_overrides[get_current_user_optional] = lambda: token
 
     return _set
 
@@ -137,54 +146,48 @@ async def _poll_job(client: AsyncClient, job_id: str, *, timeout: float = 10.0) 
     raise AssertionError(f"job {job_id} did not finish within {timeout}s")
 
 
-# --- 인증 (인증 불필요 - 모듈 docstring 참고) ---
+# --- 인증 (연세대 인증 필요, 2026-08-30 - 익명 허용 폐지) ---
 
 
 @pytest.mark.asyncio
-async def test_chat_without_auth_header_succeeds_for_anonymous_visitor() -> None:
-    """렌즈->대화->초안 체인은 로그인 전 방문자도 끝까지 돌려볼 수 있어야 한다."""
+async def test_chat_without_auth_header_returns_401() -> None:
+    """Authorization 헤더 자체가 없으면 401 - 과거의 "익명 허용" 계약은 폐지됐다."""
     async with _client() as client:
         resp = await client.post(
             "/api/constellation-intake/chat",
             json={"goalRawText": "데이터 분석가가 되고 싶어", "messages": []},
         )
-        assert resp.status_code == 200
-        data = resp.json()
-        assert data["done"] is False
-        assert data["reply"] is not None
+        assert resp.status_code == 401
 
 
 @pytest.mark.asyncio
-async def test_anon_bins_job_completes_and_is_pollable_without_auth(
-    authed_as: Callable[[str], None],
-) -> None:
-    """비로그인으로 시작한 /bins 잡을 비로그인 그대로 폴링해 결과를 받을 수 있어야 한다."""
+async def test_bins_without_auth_header_returns_401() -> None:
+    """비로그인으로 /bins 잡 자체를 시작할 수 없다 - 잡 생성도 서버 저장에 준한다."""
     _seed_business_courses()
     async with _client() as client:
         resp = await client.post(
             "/api/constellation-intake/bins", json={"goalText": _BUSINESS_GOAL}
         )
-        assert resp.status_code == 202
-        job_id = resp.json()["jobId"]
-
-        data = await _poll_job(client, job_id)  # 인증 헤더 없이 폴링
-        assert data["status"] == "done"
-        assert data["result"]["bins"]
+        assert resp.status_code == 401
 
 
 @pytest.mark.asyncio
-async def test_authed_user_cannot_read_anon_job(authed_as: Callable[[str], None]) -> None:
-    """익명 잡(uid="anon")은 로그인한 유저의 uid로는 조회되지 않는다(404)."""
+async def test_chat_by_unverified_user_returns_403_with_auth_requirement_header() -> None:
+    """로그인은 했지만 연세대 인증 전인 유저는 LLM 인테이크 대화를 할 수 없다.
+
+    401(로그인 필요)과 구분되는 403 + X-Auth-Requirement 헤더로 프론트가
+    "인증 유도 화면"을 띄울 수 있어야 한다.
+    """
+    token = DecodedToken(uid="unverified-user", yonsei_verified=False)
+    app.dependency_overrides[get_current_user] = lambda: token
+    app.dependency_overrides[get_current_user_optional] = lambda: token
     async with _client() as client:
         resp = await client.post(
-            "/api/constellation-intake/bins", json={"goalText": _BUSINESS_GOAL}
+            "/api/constellation-intake/chat",
+            json={"goalRawText": "데이터 분석가가 되고 싶어", "messages": []},
         )
-        job_id = resp.json()["jobId"]
-
-    authed_as("user-a")
-    async with _client() as client:
-        resp = await client.get(f"/api/constellation-intake/jobs/{job_id}")
-        assert resp.status_code == 404
+        assert resp.status_code == 403
+        assert resp.headers["X-Auth-Requirement"] == "yonsei-verified"
 
 
 # --- 질답 (/chat) ---

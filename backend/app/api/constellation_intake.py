@@ -1,15 +1,11 @@
 """인테이크(intake) 화면 API - 목표 질답 + 원소 보관함(bin) 제안.
 
-인증 불필요 - 렌즈(질답) -> 대화 -> 초안 체인은 방문자(로그인 전)도 끝까지
-돌려볼 수 있어야 한다는 제품 결정(구조는 만들어보되, 결과를 실제로 저장/발행하려면
-그때 가서 로그인을 요구한다 - 그 게이트는 이 모듈이 아니라 별자리 저장 라우터
-쪽에 있다). 그래서 네 라우트 모두 get_current_user_optional을 쓰고, 비로그인
-요청은 uid="anon"으로 잡을 소유한다.
-
-# ponytail: 모든 익명 요청이 uid "anon" 하나를 공유하므로 잡 조회는 "내 uid로
-# 생성됐는가"가 아니라 사실상 "익명 잡 전체"를 대상으로 한다. job_id가 uuid4라
-# 추측 불가능해 실질적 위험은 낮지만, 남용 신호가 보이면 클라이언트별 익명 id
-# (쿠키/디바이스 지문 등)로 승격할 것.
+연세대 인증(require_yonsei_verified) 필요 - 미인증 유저는 캔버스를 로컬로만
+가지고 놀 수 있고 LLM 인테이크 대화(질답/보관함 제안/선후수 추론)는 서버에서
+전부 차단한다는 정책 결정(2026-08-30)에 따른다. 과거에는 익명 방문자도 렌즈
+(질답) -> 대화 -> 초안 체인을 끝까지 돌려볼 수 있게 get_current_user_optional로
+열어뒀었지만(uid="anon" 공유 잡), 그 정책을 이 게이트가 대체한다 - 다섯 라우트
+전부 require_yonsei_verified로 통일한다.
 
 보관함 제안은 웹서치는 아니지만 LLM 호출 + Firestore 조회가 겹쳐 수 초 걸릴 수
 있어, roadmap.py의 /preview와 동일한 "접수 즉시 202 + job_id 폴링" 패턴을 그대로
@@ -22,7 +18,7 @@ from __future__ import annotations
 from fastapi import APIRouter, Depends, HTTPException
 from google.cloud.firestore import Client
 
-from app.auth.deps import get_current_user_optional
+from app.auth.deps import require_yonsei_verified
 from app.auth.firebase_auth import DecodedToken
 from app.core.rate_limit import rate_limit
 from app.firestore.client import get_firestore_client
@@ -45,17 +41,12 @@ from app.services import bin_jobs, bin_suggestion
 router = APIRouter(prefix="/api/constellation-intake", tags=["constellation-intake"])
 
 _JOB_NOT_FOUND = HTTPException(status_code=404, detail="작업을 찾을 수 없어요.")
-_ANON_UID = "anon"  # 비로그인 요청이 공유하는 잡 소유자 - 위 모듈 docstring의 ponytail 노트 참고.
-
-
-def _uid(user: DecodedToken | None) -> str:
-    return user.uid if user is not None else _ANON_UID
 
 
 @router.post("/chat", response_model=IntakeChatOut)
 async def chat(
     payload: IntakeChatIn,
-    user: DecodedToken | None = Depends(get_current_user_optional),
+    user: DecodedToken = Depends(require_yonsei_verified),
     llm: LLMClient = Depends(get_llm_client),
     _: None = Depends(rate_limit("intake-chat", limit=30)),
 ) -> IntakeChatOut:
@@ -87,7 +78,7 @@ async def chat(
 @router.post("/prereqs", response_model=PrereqsOut)
 async def infer_prereqs(
     payload: PrereqsIn,
-    user: DecodedToken | None = Depends(get_current_user_optional),
+    user: DecodedToken = Depends(require_yonsei_verified),
     llm: LLMClient = Depends(get_llm_client),
     _: None = Depends(rate_limit("intake-prereqs", limit=30)),
 ) -> PrereqsOut:
@@ -123,7 +114,7 @@ async def infer_prereqs(
 @router.post("/bins", status_code=202, response_model=JobStartOut)
 async def suggest_bins(
     payload: BinSuggestIn,
-    user: DecodedToken | None = Depends(get_current_user_optional),
+    user: DecodedToken = Depends(require_yonsei_verified),
     llm: LLMClient = Depends(get_llm_client),
     db: Client = Depends(get_firestore_client),
     _: None = Depends(rate_limit("intake-bins", limit=10)),
@@ -134,7 +125,7 @@ async def suggest_bins(
     async def _work() -> dict:
         return await bin_suggestion.suggest_all_bins(db, llm, goal_text)
 
-    job = bin_jobs.create_job(_uid(user))
+    job = bin_jobs.create_job(user.uid)
     bin_jobs.launch(job, _work)
     return JobStartOut(job_id=job.id, status=job.status)
 
@@ -142,7 +133,7 @@ async def suggest_bins(
 @router.post("/bins/fill", status_code=202, response_model=JobStartOut)
 async def fill_bin(
     payload: BinFillIn,
-    user: DecodedToken | None = Depends(get_current_user_optional),
+    user: DecodedToken = Depends(require_yonsei_verified),
     llm: LLMClient = Depends(get_llm_client),
     db: Client = Depends(get_firestore_client),
     _: None = Depends(rate_limit("intake-bins", limit=10)),
@@ -157,7 +148,7 @@ async def fill_bin(
         filled = await bin_suggestion.fill_single_bin(db, llm, goal_text, bin_label)
         return {"bins": [filled]}
 
-    job = bin_jobs.create_job(_uid(user))
+    job = bin_jobs.create_job(user.uid)
     bin_jobs.launch(job, _work)
     return JobStartOut(job_id=job.id, status=job.status)
 
@@ -165,15 +156,10 @@ async def fill_bin(
 @router.get("/jobs/{job_id}", response_model=JobStatusOut)
 async def job_status(
     job_id: str,
-    user: DecodedToken | None = Depends(get_current_user_optional),
+    user: DecodedToken = Depends(require_yonsei_verified),
 ) -> JobStatusOut:
-    """보관함 제안 잡 상태 폴링. 작성자 본인만 조회 가능(타인 잡은 404로 위장).
-
-    익명 요청은 전부 uid="anon"을 공유하므로, 로그인한 유저는 익명 잡을(uid가
-    다르므로) 절대 조회할 수 없다 - 반대로 다른 익명 방문자의 잡은 job_id를
-    알면 조회 가능하다(위 모듈 docstring의 ponytail 노트 참고).
-    """
-    job = bin_jobs.get_job(job_id, _uid(user))
+    """보관함 제안 잡 상태 폴링. 작성자 본인만 조회 가능(타인 잡은 404로 위장)."""
+    job = bin_jobs.get_job(job_id, user.uid)
     if job is None:
         raise _JOB_NOT_FOUND
     return JobStatusOut(status=job.status, result=job.result, detail=job.detail)
