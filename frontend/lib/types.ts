@@ -40,32 +40,3 @@ export interface UserProfileOut {
   is_following: boolean | null;
 }
 
-// ---------- todos (일정) ----------
-
-export type TodoColor = "green" | "sky" | "gold" | "coral" | "violet" | "brown";
-
-export interface TodoCategoryOut {
-  id: number;
-  name: string;
-  color: TodoColor;
-  order_index: number;
-}
-
-export interface TodoItemOut {
-  id: number;
-  category_id: number;
-  content: string;
-  is_completed: boolean;
-  order_index: number;
-}
-
-export interface TodoDayOut {
-  categories: TodoCategoryOut[];
-  items: TodoItemOut[];
-}
-
-export interface CalendarDayOut {
-  date: string;
-  completed_count: number;
-  total_count: number;
-}

@@ -1,13 +1,4 @@
-import type {
-  AuthUser,
-  CalendarDayOut,
-  MeOut,
-  TodoCategoryOut,
-  TodoColor,
-  TodoDayOut,
-  TodoItemOut,
-  UserProfileOut,
-} from "./types";
+import type { AuthUser, MeOut, UserProfileOut } from "./types";
 
 const API_BASE_URL = process.env.NEXT_PUBLIC_API_BASE_URL ?? "http://localhost:8000";
 
@@ -167,51 +158,4 @@ export function followUser(userId: number): Promise<void> {
 
 export function unfollowUser(userId: number): Promise<void> {
   return request<void>(`/api/users/${userId}/follow`, { method: "DELETE" });
-}
-
-// ---------- todos (일정) ----------
-
-export function getTodoDay(date: string): Promise<TodoDayOut> {
-  return request<TodoDayOut>(`/api/todos/day?date=${date}`);
-}
-
-export function getTodoCalendar(year: number, month: number): Promise<CalendarDayOut[]> {
-  return request<CalendarDayOut[]>(`/api/todos/calendar?year=${year}&month=${month}`);
-}
-
-export function createTodoCategory(name: string, color: TodoColor): Promise<TodoCategoryOut> {
-  return request<TodoCategoryOut>("/api/todos/categories", jsonInit("POST", { name, color }));
-}
-
-export function patchTodoCategory(
-  id: number,
-  patch: { name?: string; color?: TodoColor; order_index?: number }
-): Promise<TodoCategoryOut> {
-  return request<TodoCategoryOut>(`/api/todos/categories/${id}`, jsonInit("PATCH", patch));
-}
-
-export function deleteTodoCategory(id: number): Promise<void> {
-  return request<void>(`/api/todos/categories/${id}`, { method: "DELETE" });
-}
-
-export function createTodoItem(
-  categoryId: number,
-  dueDate: string,
-  content: string
-): Promise<TodoItemOut> {
-  return request<TodoItemOut>(
-    "/api/todos/items",
-    jsonInit("POST", { category_id: categoryId, due_date: dueDate, content })
-  );
-}
-
-export function patchTodoItem(
-  id: number,
-  patch: { content?: string; is_completed?: boolean; order_index?: number }
-): Promise<TodoItemOut> {
-  return request<TodoItemOut>(`/api/todos/items/${id}`, jsonInit("PATCH", patch));
-}
-
-export function deleteTodoItem(id: number): Promise<void> {
-  return request<void>(`/api/todos/items/${id}`, { method: "DELETE" });
 }

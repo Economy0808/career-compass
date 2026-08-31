@@ -30,7 +30,7 @@ import { useAuth } from "@/lib/auth-context";
 import { listDmThreads } from "@/lib/dm-api";
 import { subscribeMessagePanel } from "@/lib/message-panel-bus";
 
-const DM_ROUTES = ["/explore", "/feed", "/schedule"];
+const DM_ROUTES = ["/explore", "/feed"];
 const NOTE_ROUTE = "/community";
 
 /** 쪽지(봉투) - 커뮤니티 전용. DM 말풍선과 한눈에 구분되게 다른 도상을 쓴다. */
