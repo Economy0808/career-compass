@@ -98,8 +98,9 @@ export function MessageIcon() {
   // 커뮤니티 한정이야"). 두 아이콘이 동시에 뜨는 경로는 없다.
   const isNoteRoute =
     pathname !== null && (pathname === NOTE_ROUTE || pathname.startsWith(`${NOTE_ROUTE}/`));
-  // 훅은 조건부로 부를 수 없다 - 커뮤니티가 아니면 이 값은 그냥 쓰이지 않는다.
-  const noteUnread = useCommunityNoteUnread();
+  // 훅은 조건부로 부를 수 없으므로, "이 화면에서 배지를 실제로 그리는가"를
+  // 인자로 넘겨 커뮤니티가 아닌 경로(캔버스 등)에서는 조회 자체가 안 나가게 한다.
+  const noteUnread = useCommunityNoteUnread(isNoteRoute);
 
   // 마운트 시 1회 조회 - 뱃지만 채우면 충분, 폴링은 과설계(알림함과 동일 판단).
   useEffect(() => {

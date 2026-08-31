@@ -20,6 +20,7 @@
 import { useEffect, useState } from "react";
 import { Button, EmptyState, Field, Modal } from "@/components/ui";
 import { VerifyGate, isVerifyRequiredError } from "@/components/VerifyGate";
+import { useAuth } from "@/lib/auth-context";
 import { relativeTimeKo } from "@/lib/format";
 import {
   blockThread,
@@ -37,6 +38,10 @@ const MAX_NOTE_BODY_LEN = 1000;
 
 let unreadCount = 0;
 let loaded = false;
+// 이미 나가 있는 배지 조회 - StrictMode의 effect 2회 실행이나 여러 구독자가
+// 동시에 붙어도 실제 네트워크 호출은 하나로 합친다(2908765의 courses-api
+// dedupe와 같은 처리).
+let inFlight: Promise<void> | null = null;
 const listeners = new Set<() => void>();
 
 function setUnreadCount(n: number) {
@@ -45,24 +50,40 @@ function setUnreadCount(n: number) {
   listeners.forEach((l) => l());
 }
 
-/** 셸의 아이콘 배지에서 쓰는 훅 - 마운트 시 한 번 불러오고, 이후 패널의
- * 액션(목록 새로고침·읽음 리셋·차단)이 갱신하면 자동으로 따라간다. */
-export function useCommunityNoteUnread(): number {
+function loadUnreadOnce(): void {
+  if (loaded || inFlight) return;
+  inFlight = listMyNotes()
+    .then((inbox) => setUnreadCount(inbox.unreadCount))
+    .catch(() => {
+      // 조용히 0 유지 - 배지는 부가 정보다.
+    })
+    .finally(() => {
+      inFlight = null;
+    });
+}
+
+/** 셸의 아이콘 배지에서 쓰는 훅 - 이후 패널의 액션(목록 새로고침·읽음 리셋·
+ * 차단)이 갱신하면 자동으로 따라간다.
+ *
+ * enabled: 배지를 실제로 그리는 화면에서만 true를 넘긴다. 훅은 조건부로 부를
+ * 수 없어 셸이 어느 경로에서든 이 훅을 호출하는데, 그때마다 쪽지 조회가
+ * 나가면 커뮤니티가 아닌 화면(캔버스 등)에서도 쓸데없는 요청이 생긴다.
+ *
+ * 인증 게이트: Firebase 인증 복원이 끝나기 전에 부르면 lib/api.ts의 request()가
+ * 그 시점의 currentUser를 못 찾아 토큰 없이 나가고 401을 받는다(라이브에서
+ * 실제로 발생한 경쟁 조건). CourseSearchPanel(2908765)·FeedView와 같은 패턴으로
+ * authLoading이 꺼지고 user가 잡힌 뒤에만 호출한다. */
+export function useCommunityNoteUnread(enabled: boolean): number {
+  const { user, loading: authLoading } = useAuth();
   const [count, setCount] = useState(unreadCount);
   useEffect(() => {
     const listener = () => setCount(unreadCount);
     listeners.add(listener);
-    if (!loaded) {
-      listMyNotes()
-        .then((inbox) => setUnreadCount(inbox.unreadCount))
-        .catch(() => {
-          // 비로그인/미인증이면 조용히 0 유지 - 배지는 셸이 어차피 로그인 상태로 감쌀 것.
-        });
-    }
+    if (enabled && !authLoading && user) loadUnreadOnce();
     return () => {
       listeners.delete(listener);
     };
-  }, []);
+  }, [enabled, authLoading, user]);
   return count;
 }
 
