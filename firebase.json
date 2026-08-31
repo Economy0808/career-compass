@@ -6,6 +6,17 @@
   "storage": {
     "rules": "storage.rules"
   },
+  "hosting": {
+    "rewrites": [
+      {
+        "source": "/api/**",
+        "run": {
+          "serviceId": "ourlab-backend",
+          "region": "asia-northeast3"
+        }
+      }
+    ]
+  },
   "emulators": {
     "auth": {
       "port": 9099

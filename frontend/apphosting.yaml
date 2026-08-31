@@ -1,0 +1,61 @@
+# Firebase App Hosting runtime config for the Next.js 14 (App Router) frontend.
+#
+# Every variable below is NEXT_PUBLIC_* - Next.js inlines these into the
+# client bundle at build time, so they are public by design and none of them
+# belong in Secret Manager. The real secrets (Anthropic, Resend, Solapi,
+# session signing key, ...) live only on the Cloud Run backend - see
+# ../docs/deploy.md.
+#
+# Placeholder values below are marked REPLACE_ME. Fill them in via the
+# Firebase console (App Hosting > Backend > Environment) or by editing this
+# file before `firebase deploy`, per docs/deploy.md.
+
+runConfig:
+  minInstances: 0
+  maxInstances: 2
+  concurrency: 80
+  cpuMi: 1000
+  memoryMiB: 512
+
+env:
+  # Empty string -> frontend calls relative paths ("/api/..."), which the
+  # Firebase Hosting rewrite in firebase.json forwards to the Cloud Run
+  # backend on the SAME domain. This routing has NOT been verified to work
+  # for an App Hosting-served site (App Hosting may serve its own site
+  # outside classic Hosting rewrites) - see the "Unverified" section in
+  # docs/deploy.md. If it does not work, replace this value with the Cloud
+  # Run service's own https URL instead (cross-origin call; the backend's
+  # CORS_ALLOWED_ORIGINS must include this site's domain either way).
+  - variable: NEXT_PUBLIC_API_BASE_URL
+    value: ""
+    availability:
+      - BUILD
+      - RUNTIME
+
+  - variable: NEXT_PUBLIC_FIREBASE_API_KEY
+    value: "REPLACE_ME_FIREBASE_WEB_API_KEY"
+    availability:
+      - BUILD
+      - RUNTIME
+
+  - variable: NEXT_PUBLIC_FIREBASE_AUTH_DOMAIN
+    value: "ourlab-0808.firebaseapp.com"
+    availability:
+      - BUILD
+      - RUNTIME
+
+  - variable: NEXT_PUBLIC_FIREBASE_PROJECT_ID
+    value: "ourlab-0808"
+    availability:
+      - BUILD
+      - RUNTIME
+
+  - variable: NEXT_PUBLIC_FIREBASE_APP_ID
+    value: "REPLACE_ME_FIREBASE_WEB_APP_ID"
+    availability:
+      - BUILD
+      - RUNTIME
+
+  # NEXT_PUBLIC_AUTH_EMULATOR_HOST is intentionally NOT set here. It must
+  # stay unset in production so the client Firebase SDK talks to real
+  # Firebase Auth instead of the local emulator (see frontend/lib/firebase.ts).
