@@ -18,7 +18,6 @@ from app.models.roadmap import (
     Roadmap,
     User,
 )
-from app.models.todo import TodoCategory, TodoItem
 
 TEST_PASSWORD = "test-passw0rd!"
 
@@ -75,8 +74,6 @@ async def delete_user_cascade(session: AsyncSession, user_id: int) -> None:
         (BeanTransaction, BeanTransaction.user_id),
         (PostLike, PostLike.user_id),  # 유저가 타인 글에 남긴 것 포함 (FK)
         (PostComment, PostComment.user_id),
-        (TodoItem, TodoItem.user_id),  # items before categories (FK)
-        (TodoCategory, TodoCategory.user_id),
     ):
         rows = (await session.scalars(select(model).where(col == user_id))).all()
         for row in rows:

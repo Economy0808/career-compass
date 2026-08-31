@@ -21,7 +21,6 @@ from app.models.roadmap import (
     Roadmap,
     User,
 )
-from app.models.todo import TodoCategory, TodoItem
 from tests.auth_utils import (
     TEST_PASSWORD,
     create_session_token,
@@ -176,12 +175,6 @@ async def deletable_user(tmp_path):
             BeanTransaction(user_id=owner.id, amount=10, reason="roadmap_completed"),
         ]
     )
-    cat = TodoCategory(user_id=owner.id, name="분류", color="green", order_index=0)
-    session.add(cat)
-    await session.flush()
-    session.add(
-        TodoItem(user_id=owner.id, category_id=cat.id, content="할일", due_date=date.today())
-    )
     await session.commit()
 
     yield {
@@ -217,10 +210,6 @@ async def test_delete_account_hard_deletes_everything(deletable_user) -> None:
     ).first() is None
     assert (
         await s.scalars(select(BeanTransaction).where(BeanTransaction.user_id == owner.id))
-    ).first() is None
-    assert (await s.scalars(select(TodoItem).where(TodoItem.user_id == owner.id))).first() is None
-    assert (
-        await s.scalars(select(TodoCategory).where(TodoCategory.user_id == owner.id))
     ).first() is None
     # 내가 남 글에 남긴 좋아요/댓글도 삭제 (FK)
     assert (await s.scalars(select(PostLike).where(PostLike.user_id == owner.id))).first() is None

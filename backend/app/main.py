@@ -19,7 +19,6 @@ from app.api.notifications import router as notifications_router
 from app.api.posts import router as posts_router
 from app.api.profiles import router as profiles_router
 from app.api.stories import router as stories_router
-from app.api.todos import router as todos_router
 from app.api.users import router as users_router
 from app.config import get_settings
 
@@ -72,7 +71,6 @@ def create_app() -> FastAPI:
     app.include_router(auth_router)
     app.include_router(auth_sync_router)
     app.include_router(users_router)
-    app.include_router(todos_router)
     app.include_router(constellation_router)
     app.include_router(constellation_intake_router)
     app.include_router(courses_router)

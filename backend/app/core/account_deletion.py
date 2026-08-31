@@ -22,7 +22,6 @@ from app.models.roadmap import (
     Roadmap,
     User,
 )
-from app.models.todo import TodoCategory, TodoItem
 
 
 def _unlink(path_str: str | None) -> None:
@@ -74,8 +73,6 @@ async def delete_account(db: AsyncSession, user: User) -> None:
 
     # 4) 유저 참조 행들
     await db.execute(delete(BeanTransaction).where(BeanTransaction.user_id == uid))
-    await db.execute(delete(TodoItem).where(TodoItem.user_id == uid))  # items before categories
-    await db.execute(delete(TodoCategory).where(TodoCategory.user_id == uid))
     await db.execute(delete(AuthSession).where(AuthSession.user_id == uid))
     await db.execute(delete(EmailVerification).where(EmailVerification.user_id == uid))
     await db.execute(delete(StudentCardVerification).where(StudentCardVerification.user_id == uid))
