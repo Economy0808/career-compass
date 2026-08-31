@@ -232,9 +232,9 @@ function mapBinItemDtoToBinItem(dto: BinItemDto): BinItem {
     subtitle: dto.subtitle,
     description: dto.description,
     prereqIds: dto.prereqIds,
-    // 학과는 이제 서버가 실어 준다(계약 `610c0f0`) - 저장 후 다시 열어도 배지가
-    // 유지된다. 오늘 이전에 저장된 문서엔 키가 없어 undefined로 떨어지고,
-    // 그 경우에만 아래 mergeCourseBins의 bin.label 폴백이 배지를 채운다.
+    // 학과는 서버가 실어 준다(계약 `610c0f0`) - 저장 후 다시 열어도 배지가 유지된다.
+    // 오늘 이전에 저장된 구 문서엔 키가 없어 undefined가 되고, 그때는 배지가 빈다
+    // (성운이 이미 학과 단위로 나뉘어 있어 맥락은 성운 이름이 준다).
     groupLabel: dto.department,
   };
 }
@@ -255,24 +255,14 @@ function mapBinDtoToBin(dto: BinDto): Bin {
 // 1순위다 - 저장 후 다시 열어도 유지된다. 그 필드가 없는 구 문서에서만 원래
 // bin.label("경제학과 수업" 류 LLM 작명)로 폴백한다 - 폴백을 빼면 예전에
 // 저장해 둔 별자리의 배지가 빈다.
-const MERGED_COURSES_BIN_ID = "bin-courses-recommended";
 const MANUAL_COURSES_BIN_ID = "bin-courses-manual";
 
-function isCourseOnlyBin(bin: Bin): boolean {
-  return bin.items.length > 0 && bin.items.every((item) => item.id.startsWith("course:"));
-}
-
-function mergeCourseBins(bins: Bin[]): Bin[] {
-  const courseBins = bins.filter(isCourseOnlyBin);
-  if (courseBins.length <= 1) return bins;
-  const rest = bins.filter((bin) => !isCourseOnlyBin(bin));
-  const mergedItems: BinItem[] = courseBins.flatMap((bin) =>
-    bin.items.map((item) => ({ ...item, groupLabel: item.groupLabel ?? bin.label }))
-  );
-  const advice = courseBins.find((bin) => bin.advice)?.advice;
-  const merged: Bin = { id: MERGED_COURSES_BIN_ID, label: "추천 수업", origin: "llm", items: mergedItems, advice };
-  return [merged, ...rest];
-}
+// ⚠️ LLM이 만든 수업 성운들을 "추천 수업" 하나로 합치는 mergeCourseBins가 여기 있었고,
+// 되돌렸다. 사용자가 원한 건 "검색으로 직접 담는 성운을 하나 기본으로 두는 것"
+// (=아래 ensureManualCoursesBin)이지 AI가 나눠 준 성운을 뭉개는 게 아니었다.
+// 합치면 두 가지가 깨진다: ①한 성운에 100개 넘는 과목이 들어가 라벨이 서로 겹치고
+// ②선수과목 API 입력 상한(_MAX_PREREQ_ITEMS=50)을 넘겨 위계 추론이 통째로 실패한다.
+// 다시 합치지 말 것.
 
 // 사용자가 검색으로 직접 채우는 자리 - 항상 하나 존재해야 한다(사용자 지시:
 // "그냥 수업군집을 하나 기본으로 넣어놓고 거기에는 사용자가 검색필터로 수업을
@@ -283,7 +273,7 @@ function ensureManualCoursesBin(bins: Bin[]): Bin[] {
 }
 
 function normalizeIncomingBins(dtoBins: BinDto[]): Bin[] {
-  return ensureManualCoursesBin(mergeCourseBins(dtoBins.map(mapBinDtoToBin)));
+  return ensureManualCoursesBin(dtoBins.map(mapBinDtoToBin));
 }
 
 function mapBinToBinDto(bin: Bin): BinDto {
