@@ -268,8 +268,16 @@ const MANUAL_COURSES_BIN_ID = "bin-courses-manual";
 // "그냥 수업군집을 하나 기본으로 넣어놓고 거기에는 사용자가 검색필터로 수업을
 // 검색해서 추가할 수 있게 하자"). 이미 있으면(재로드 등) 그대로 둔다.
 function ensureManualCoursesBin(bins: Bin[]): Bin[] {
-  if (bins.some((bin) => bin.id === MANUAL_COURSES_BIN_ID)) return bins;
-  return [...bins, { id: MANUAL_COURSES_BIN_ID, label: "내가 담은 수업", origin: "user", items: [] }];
+  // 사용자 지시: "어떤 별자리든간에 항상 첫번째 군집은 사용자가 임의로 추가할 수
+  // 있는 검색창 군집을 두고". 없으면 맨 앞에 만들고, 이미 있으면(예전에 맨 뒤로
+  // 저장된 별자리) 열 때 맨 앞으로 끌어올린다 - 순서만 바꾸므로 저장 계약과
+  // 무관하고, 다음 저장 때 자연히 이 순서로 굳는다.
+  const existing = bins.find((bin) => bin.id === MANUAL_COURSES_BIN_ID);
+  if (!existing) {
+    return [{ id: MANUAL_COURSES_BIN_ID, label: "내가 담은 수업", origin: "user", items: [] }, ...bins];
+  }
+  if (bins[0]?.id === MANUAL_COURSES_BIN_ID) return bins;
+  return [existing, ...bins.filter((bin) => bin.id !== MANUAL_COURSES_BIN_ID)];
 }
 
 function normalizeIncomingBins(dtoBins: BinDto[]): Bin[] {

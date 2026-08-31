@@ -287,6 +287,10 @@ function BinSection({
   const [addLabel, setAddLabel] = useState("");
   const [addType, setAddType] = useState(ELEMENT_TYPE_OPTIONS[0].value);
   const [adviceOpen, setAdviceOpen] = useState(false);
+  // 직접 채우려고 만든 보관함만 펼친 채로 시작한다 - LLM이 추천한 보관함은
+  // 접어 둬야 목록 전체가 한눈에 들어온다(사용자 지적: 부피가 너무 크다).
+  const [addOpen, setAddOpen] = useState(bin.origin === "user");
+  const addFormId = `bin-add-${bin.id}`;
 
   const allPlaced = bin.items.length > 0 && bin.items.every((item) => placedItemIds.has(item.id));
   const canPlaceAll = !bin.isLoading && bin.items.length > 0 && !allPlaced;
@@ -450,7 +454,40 @@ function BinSection({
       )}
 
       {!bin.isLoading && (
-        <div className="mt-2 border-t border-paper-line pt-2" aria-label={`${bin.label}에 원소 추가`}>
+        <div className="mt-2 border-t border-paper-line pt-2">
+          {/* 사용자 지시: "LLM이 추천해준 군집들에 검색창 다는건 좋은데 부피가
+              너무 크니까 접는버튼 만들어서 처음에는 접히게 하자." 기본 원소
+              종류가 "수업"이라 검색 패널이 늘 펼쳐져 보관함마다 세로를 크게
+              먹었다. 사용자가 직접 채우려고 만든 보관함(origin === "user",
+              맨 앞의 검색 군집 포함)은 그게 존재 이유이므로 펼친 채로 둔다. */}
+          <button
+            type="button"
+            onClick={() => setAddOpen((v) => !v)}
+            aria-expanded={addOpen}
+            aria-controls={addFormId}
+            className="flex w-full items-center justify-between gap-1.5 rounded-none px-0.5 py-1 text-micro font-semibold text-paper-lo transition-colors hover:text-paper-ink focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-paper-ink/60"
+          >
+            <span>원소 추가</span>
+            <svg
+              width="10"
+              height="10"
+              viewBox="0 0 16 16"
+              fill="transparent"
+              stroke="currentColor"
+              strokeWidth="2"
+              strokeLinecap="round"
+              strokeLinejoin="round"
+              aria-hidden
+              className={addOpen ? "rotate-180 transition-transform" : "transition-transform"}
+            >
+              <path d="M4 6 L8 10 L12 6" />
+            </svg>
+          </button>
+        </div>
+      )}
+
+      {!bin.isLoading && addOpen && (
+        <div id={addFormId} className="mt-1" aria-label={`${bin.label}에 원소 추가`}>
           <div className="flex items-center gap-1.5">
             <select
               value={addType}
