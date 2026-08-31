@@ -20,6 +20,23 @@
 
 import { request } from "./api";
 
+// ---------- 동시 중복 요청 합치기 ----------
+// CourseSearchPanel은 원소 보관함(bin) 개수만큼 동시에 마운트된다("수업"이
+// 기본 원소 종류라 보관함마다 검색 패널이 뜬다). 각 인스턴스가 마운트 직후
+// 독립적으로 taxonomy/search를 부르면 페이지 하나에 같은 요청이 N번(+React
+// StrictMode의 effect 2회 실행까지 겹치면 더) 나간다. 이미 나가 있는 "같은
+// 요청"이면 그 Promise를 그대로 돌려줘 실제 네트워크 호출을 하나로 합친다.
+// 완료 즉시 캐시를 비우므로 이후 새 검색어/필터는 정상적으로 새로 나간다.
+const inFlight = new Map<string, Promise<unknown>>();
+
+function dedupe<T>(key: string, fetcher: () => Promise<T>): Promise<T> {
+  const existing = inFlight.get(key);
+  if (existing) return existing as Promise<T>;
+  const p = fetcher().finally(() => inFlight.delete(key));
+  inFlight.set(key, p);
+  return p;
+}
+
 export interface CourseDto {
   code: string;
   name: string;
@@ -50,11 +67,12 @@ export function searchCourses(params: CourseSearchParams = {}): Promise<CourseDt
   if (params.college) qs.set("college", params.college);
   if (params.limit) qs.set("limit", String(params.limit));
   const suffix = qs.toString();
-  return request<CourseDto[]>(`/api/courses/search${suffix ? `?${suffix}` : ""}`);
+  const path = `/api/courses/search${suffix ? `?${suffix}` : ""}`;
+  return dedupe(path, () => request<CourseDto[]>(path));
 }
 
 export function getCourseTaxonomy(): Promise<CourseTaxonomyDto> {
-  return request<CourseTaxonomyDto>("/api/courses/taxonomy");
+  return dedupe("/api/courses/taxonomy", () => request<CourseTaxonomyDto>("/api/courses/taxonomy"));
 }
 
 // ---------- 캔버스 원소 변환 헬퍼 ----------

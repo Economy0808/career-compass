@@ -9,10 +9,16 @@
  * app/explore/page.tsx의 응답 역전 방지(seq 가드) + 디바운스 패턴을 그대로
  * 따른다. 필터는 FILTER_DEFS 배열로 다뤄, 캠퍼스 컬럼이 나중에 채워지면 이
  * 배열에 한 줄만 추가하면 되게 한다(이번 스코프에서는 제외 - 사용자 결정).
+ *
+ * taxonomy/search 호출은 useAuth().loading이 꺼진 뒤에만 나간다 - 첫 로드 때
+ * Firebase 인증 복원이 끝나기 전에 부르면 토큰 없이 나가 401을 받는 경쟁
+ * 조건이 있었다(lib/courses-api.ts에는 동시 중복 요청을 하나로 합치는
+ * dedupe도 있음 - 보관함 개수만큼 이 패널이 동시에 뜨기 때문).
  */
 
 import { useEffect, useRef, useState } from "react";
 import { cn } from "@/lib/cn";
+import { useAuth } from "@/lib/auth-context";
 import { courseItemId, getCourseTaxonomy, searchCourses, type CourseDto } from "@/lib/courses-api";
 
 const SEARCH_DEBOUNCE_MS = 300;
@@ -43,6 +49,11 @@ export interface CourseSearchPanelProps {
 }
 
 export function CourseSearchPanel({ onSelect, existingItemIds, className }: CourseSearchPanelProps) {
+  // Firebase 인증 복원이 끝나기 전에 부르면 토큰 없이 나가 401을 받는다(경쟁
+  // 조건 - lib/api.ts의 request()는 그 시점의 currentUser만 보고 헤더를
+  // 붙인다). FeedView.tsx와 동일하게 authLoading이 꺼질 때까지 호출 자체를
+  // 미룬다.
+  const { loading: authLoading } = useAuth();
   const [q, setQ] = useState("");
   const [filters, setFilters] = useState<Record<FilterKey, string>>({ department: "", college: "" });
   const [taxonomy, setTaxonomy] = useState<TaxonomyByKey | null>(null);
@@ -51,8 +62,11 @@ export function CourseSearchPanel({ onSelect, existingItemIds, className }: Cour
   const [error, setError] = useState(false);
   // 응답 역전 방지 - 마지막 요청만 반영한다(app/explore/page.tsx와 동일 패턴).
   const requestSeq = useRef(0);
+  // "다시 시도" 버튼용 - 값을 바꿔 검색 effect를 같은 조건으로 다시 돌린다.
+  const [retryNonce, setRetryNonce] = useState(0);
 
   useEffect(() => {
+    if (authLoading) return;
     let cancelled = false;
     getCourseTaxonomy()
       .then((dto) => {
@@ -64,9 +78,10 @@ export function CourseSearchPanel({ onSelect, existingItemIds, className }: Cour
     return () => {
       cancelled = true;
     };
-  }, []);
+  }, [authLoading]);
 
   useEffect(() => {
+    if (authLoading) return;
     const seq = ++requestSeq.current;
     const trimmed = q.trim();
     setLoading(true);
@@ -96,7 +111,7 @@ export function CourseSearchPanel({ onSelect, existingItemIds, className }: Cour
       trimmed ? SEARCH_DEBOUNCE_MS : 0
     );
     return () => clearTimeout(timer);
-  }, [q, filters.department, filters.college]);
+  }, [q, filters.department, filters.college, authLoading, retryNonce]);
 
   const hasQueryOrFilter = q.trim() || filters.department || filters.college;
 
@@ -134,7 +149,16 @@ export function CourseSearchPanel({ onSelect, existingItemIds, className }: Cour
         {loading ? (
           <p className="px-1 py-1.5 text-micro text-paper-lo">검색 중…</p>
         ) : error ? (
-          <p className="px-1 py-1.5 text-micro text-paper-lo">검색에 실패했어요. 다시 시도해 주세요.</p>
+          <div className="flex items-center justify-between gap-2 px-1 py-1.5">
+            <p className="text-micro text-paper-lo">검색에 실패했어요. 다시 시도해 주세요.</p>
+            <button
+              type="button"
+              onClick={() => setRetryNonce((n) => n + 1)}
+              className="shrink-0 rounded-none border border-paper-line px-1.5 py-0.5 text-micro font-semibold text-paper-ink hover:bg-paper-ink/8 focus-visible:outline-none focus-visible:ring-2 focus-visible:ring-paper-ink/60"
+            >
+              다시 시도
+            </button>
+          </div>
         ) : !results || results.length === 0 ? (
           <p className="px-1 py-1.5 text-micro text-paper-lo">
             {hasQueryOrFilter ? "일치하는 과목이 없어요." : "검색어를 입력하거나 필터를 골라보세요."}
