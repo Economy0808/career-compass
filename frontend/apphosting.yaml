@@ -6,9 +6,8 @@
 # session signing key, ...) live only on the Cloud Run backend - see
 # ../docs/deploy.md.
 #
-# Placeholder values below are marked REPLACE_ME. Fill them in via the
-# Firebase console (App Hosting > Backend > Environment) or by editing this
-# file before `firebase deploy`, per docs/deploy.md.
+# Values below are the real ourlab-0808 web app config (public by design),
+# fetched via `firebase apps:sdkconfig WEB`. No placeholders remain.
 
 runConfig:
   minInstances: 0
@@ -33,7 +32,7 @@ env:
       - RUNTIME
 
   - variable: NEXT_PUBLIC_FIREBASE_API_KEY
-    value: "REPLACE_ME_FIREBASE_WEB_API_KEY"
+    value: "AIzaSyD466LuRVRhjlkgpl36EY_OK3CtlNmIK9U"
     availability:
       - BUILD
       - RUNTIME
@@ -51,7 +50,7 @@ env:
       - RUNTIME
 
   - variable: NEXT_PUBLIC_FIREBASE_APP_ID
-    value: "REPLACE_ME_FIREBASE_WEB_APP_ID"
+    value: "1:902034641778:web:59c27d5c031035324f83eb"
     availability:
       - BUILD
       - RUNTIME
