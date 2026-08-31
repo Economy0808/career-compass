@@ -1,8 +1,8 @@
-"""NCS 직무 매칭 테스트.
+"""NCS 직무 매칭 테스트 (ncs_repo의 문자열 매칭 축소 경로).
 
-주 경로는 유저가 고른 대분류 안에서 LLM이 판정하는 것이고, 분야를 안 골랐거나
-판정이 실패하면 pg_trgm → ILIKE로 축소한다. LLM은 MockClaudeClient(결정론적
-부분일치)로 대체하므로 네트워크 호출은 없다.
+LLM 판정 경로(roadmap_gen._match_ncs_job)는 콩나무 로드맵 제품과 함께 삭제됐다
+(2026-08-31). ncs_repo 자체는 schemas/roadmap.py가 import 시점에 참조하므로
+남아 있지만, 여기서는 분야 미선택 시 폴백인 pg_trgm → ILIKE 문자열 매칭만 검증한다.
 
 **주의: 이 테스트는 실적재된 NCS(현행 직무 1,094개)와 같은 테이블을 공유한다.**
 그래서 시드 행이 항상 1등이라고 단정하면 안 된다. 실데이터에 같은 이름의 직무가
@@ -15,10 +15,8 @@ import pytest
 from sqlalchemy import delete, func, select
 
 from app.db import get_session_factory
-from app.llm.base import CareerIntent
-from app.llm.mock_client import MockClaudeClient
 from app.models.ncs import NcsJob, NcsLclas, NcsMclas, NcsSclas
-from app.services import ncs_repo, roadmap_gen
+from app.services import ncs_repo
 
 _LCLAS = "98"
 _MCLAS = "9898"
@@ -154,7 +152,7 @@ async def test_falls_back_to_string_matching_without_category(ncs_match_seed) ->
     assert rows and rows[0].name == "빅데이터분석"
 
 
-# ---------------- 분류 기반 LLM 판정 (주 경로) ----------------
+# ---------------- 대분류 조회 (씨앗 심기 진입에서 쓰던 API의 잔존 경로) ----------------
 
 
 @pytest.mark.asyncio
@@ -199,54 +197,3 @@ async def test_get_job_validates_code(ncs_match_seed) -> None:
     async with get_session_factory()() as db:
         assert (await ncs_repo.get_job(db, _JOB_DATA)).name == "빅데이터분석"
         assert await ncs_repo.get_job(db, "NOPE0000") is None
-
-
-@pytest.mark.asyncio
-async def test_match_uses_llm_choice_within_category(ncs_match_seed) -> None:
-    """분야를 고르면 LLM이 그 안에서 고른 직무가 채택된다."""
-    intent = CareerIntent(summary="", direction_keywords=["소프트웨어개발"], current_level="")
-    async with get_session_factory()() as db:
-        job = await roadmap_gen._match_ncs_job(db, MockClaudeClient(), intent, [_LCLAS])
-    assert job is not None and job.code == _JOB_SW
-
-
-@pytest.mark.asyncio
-async def test_match_falls_back_when_llm_finds_nothing(ncs_match_seed) -> None:
-    """LLM이 '맞는 게 없다'고 하면 문자열 매칭으로 내려간다 (빈손 판정을 존중)."""
-    intent = CareerIntent(summary="", direction_keywords=["데이터 분석"], current_level="")
-
-    class NoMatch(MockClaudeClient):
-        async def select_ncs_job(self, intent, candidates):
-            return None
-
-    async with get_session_factory()() as db:
-        job = await roadmap_gen._match_ncs_job(db, NoMatch(), intent, [_LCLAS])
-    assert job is not None and job.name == "빅데이터분석"  # trgm 폴백이 잡음
-
-
-@pytest.mark.asyncio
-async def test_match_rejects_hallucinated_job_code(ncs_match_seed) -> None:
-    """후보에 없는 코드를 지어내면 버리고 폴백한다."""
-    intent = CareerIntent(summary="", direction_keywords=["데이터 분석"], current_level="")
-
-    class Hallucinating(MockClaudeClient):
-        async def select_ncs_job(self, intent, candidates):
-            return "9999FAKE"
-
-    async with get_session_factory()() as db:
-        job = await roadmap_gen._match_ncs_job(db, Hallucinating(), intent, [_LCLAS])
-    assert job is not None and job.name == "빅데이터분석"
-
-
-@pytest.mark.asyncio
-async def test_match_survives_llm_failure(ncs_match_seed) -> None:
-    """판정 호출이 터져도 로드맵 생성을 막지 않는다."""
-    intent = CareerIntent(summary="", direction_keywords=["데이터 분석"], current_level="")
-
-    class Boom(MockClaudeClient):
-        async def select_ncs_job(self, intent, candidates):
-            raise RuntimeError("LLM down")
-
-    async with get_session_factory()() as db:
-        job = await roadmap_gen._match_ncs_job(db, Boom(), intent, [_LCLAS])
-    assert job is not None and job.name == "빅데이터분석"

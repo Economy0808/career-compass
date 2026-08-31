@@ -4,7 +4,6 @@ from httpx import ASGITransport, AsyncClient
 from app.db import get_session_factory
 from app.main import app
 from tests.auth_utils import create_session_token, create_user, delete_user_cascade
-from tests.roadmap_utils import plant_roadmap
 
 
 async def _get_session():
@@ -73,37 +72,3 @@ async def test_follow_requires_yonsei_verification(two_users) -> None:
             assert resp.status_code == 403
     finally:
         await delete_user_cascade(session, unverified.id)
-
-
-@pytest.mark.asyncio
-async def test_following_feed_uses_session_viewer(two_users) -> None:
-    alice, bob, alice_token = two_users
-    session = await _get_session()
-    bob_token = await create_session_token(session, bob)
-
-    # bob이 씨앗을 하나 심는다 (대목표 + 소분류 로드맵들)
-    async with _client() as client:
-        client.cookies.set("cc_session", bob_token)
-        await plant_roadmap(client, "밥의 목표")
-
-    async with _client() as client:
-        client.cookies.set("cc_session", alice_token)
-        # 팔로우 전: 팔로잉 피드에 bob의 카드가 없다
-        resp = await client.get("/api/roadmap/feed", params={"scope": "following"})
-        assert resp.status_code == 200
-        assert all(card["user"]["id"] != bob.id for card in resp.json())
-
-        resp = await client.post(f"/api/users/{bob.id}/follow")
-        assert resp.status_code == 204
-
-        # 팔로우 후: bob의 대목표 관망 카드가 뜬다
-        resp = await client.get("/api/roadmap/feed", params={"scope": "following"})
-        bob_cards = [c for c in resp.json() if c["user"]["id"] == bob.id]
-        assert bob_cards
-        assert bob_cards[0]["kind"] == "goal"
-        assert bob_cards[0]["is_following"] is True
-
-    # 비로그인으로 팔로잉 피드는 401
-    async with _client() as client:
-        resp = await client.get("/api/roadmap/feed", params={"scope": "following"})
-        assert resp.status_code == 401
