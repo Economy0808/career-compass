@@ -1,4 +1,35 @@
-# 백엔드 세션 핸드오프 (2026-08-27 작성, 2026-08-30 22차 갱신)
+# 백엔드 세션 핸드오프 (2026-08-27 작성, 2026-08-31 23차 갱신)
+
+> **23차 (8/31) — 배포했다. 로컬 프로토타입이 아니라 라이브 서비스가 됐다**:
+> - **라이브**: 프론트 `https://ourlab-frontend-902034641778.asia-northeast3.run.app`,
+>   백엔드 `https://ourlab-backend-902034641778.asia-northeast3.run.app`
+>   (Google Cloud Run, 서울 `asia-northeast3`, 운영 Firestore `ourlab-0808`).
+>   체험 계정 `test-observer@yonsei.ac.kr` / `observatory123!`.
+> - **⚠️최대 교훈 — 로컬에서 구조적으로 발현 불가능한 버그가 셋 나왔다.** 배포는 "옮기는 일"이
+>   아니라 **새 종류의 버그를 만나는 일**이었다:
+>   ① **의존성 상한 미잠금** → `pyproject.toml`이 `anthropic>=0.116`(상한 없음)이라 컨테이너가
+>      **1.x를 새로 받았고**, 1.x는 `http_client`로 `httpx2.AsyncClient`를 요구한다. 이 코드는
+>      keepalive·타임아웃 때문에 `httpx.AsyncClient`를 직접 넘기므로 **LLM 호출이 기동 즉시
+>      TypeError**. 로컬 venv엔 0.116이 이미 깔려 있어 4개월간 안 드러났다. `<1`로 잠금(`876e6b0`).
+>      **로컬 재현이 불가능한 유일한 이유가 "로컬엔 이미 옛 버전이 있다"는 것**이었다.
+>   ② **에뮬레이터는 복합 인덱스를 강제하지 않는다** → 운영 Firestore는 강제한다. 커뮤니티·DM이
+>      500으로 떨어졌는데 **결함이 아니라 "인덱스 빌드 중"**이었다. 로그를 먼저 읽어서 멀쩡한
+>      쿼리를 헛되이 고치지 않았다. `firestore.indexes.json`은 이미 완비돼 있었다.
+>   ③ **uid는 데이터의 외래키다** → 계정을 운영에 새로 만들 때 uid를 새로 발급받으면 이미 옮긴
+>      `users/{uid}`·`follows`·`dm_threads/{uidA}_{uidB}`가 **통째로 고아**가 된다. Identity
+>      Toolkit `accounts:batchCreate`에 `localId`를 명시해 보존했다. 마이그레이션에서 위험한 건
+>      데이터 유실이 아니라 **말없이 끊기는 참조**다.
+> - **⚠️라이브 판정은 콘솔이 아니라 서버 로그가 권위다.** 프론트 401 수정을 배포하고 브라우저
+>   콘솔을 보니 401이 그대로 3건 보였는데, **도구의 콘솔 버퍼가 네비게이션을 넘어 이전 항목을
+>   들고 있던 것**이었다. Cloud Run 로그를 `httpRequest.status=401`로 필터하니 0건. 콘솔만 봤으면
+>   "안 고쳐졌다"고 오판했다.
+> - **Postgres 제거**: `auth_router`·`users_router`·`todos`(일정)를 **등록 해제**했다(파일은 보존 —
+>   학생증 인증을 Firestore로 옮길 때 `app/api/auth.py`를 참조할 것). `auth_sync_router`는
+>   Firestore 기반 **현역이라 그대로**다. 해당 테스트 4파일(`test_auth_api`·`test_follow_api`·
+>   `test_account`·`test_student_card`)은 전부 404로 깨지므로 **사유를 명시한 모듈 스킵**을 달았다.
+>   `test_security_core`의 origin 미들웨어 테스트만은 **현역 커버리지**라 살아있는 쓰기 경로로 옮겼다.
+> - **API 키 교체 완료**(노출 이력 2회). 시크릿 버전 3 사용, 1·2는 disabled.
+
 
 > **22차 (8/30) — 사용자 육안 확인 지적 8건 처리. 절반이 "코드가 아니라 데이터" 문제였다**:
 > - **⚠️최대 교훈 — 증상을 코드 탓으로 먼저 몰지 말 것.** 8건 중 3건이 데모 데이터 문제였다:
@@ -712,34 +743,69 @@
 
 ## ① 다음 세션 최우선 작업 (순서 제안)
 
-1. **별자리 HTTP API 배선 (A)** — `constellation_repo.py`는 이미 CRUD+소유권+트랜잭션까지
-   구현·에뮬레이터 테스트 완료 상태(`backend/tests/test_constellation_repo.py`,
-   `test_constellation.py` 존재 확인)인데 그 위에 라우터가 없다. `backend/app/api/`에
-   `constellation.py`가 없다(✅검증됨 — `constellation` 문자열로 api 디렉터리 grep 시 매치 0건).
-   이게 없으면 프론트가 아무것도 저장 못 하므로 최우선.
-2. **`Node` 모델에 `code`/`description`/`note_count` 추가 (A)** — 프론트
-   `ConstellationCanvas.tsx`는 이미 `code?`, `description?`, `noteCount?`를 쓰고 있고, 심지어
-   `code`가 없을 때를 대비한 정규식 라벨 파싱 fallback(`splitCourseCode`, 46~53행·217행 부근)까지
-   임시로 넣어둔 상태다. 백엔드 `app/domain/constellation.py`의 `Node`에는 이 세 필드가 전혀
-   없다(✅검증됨, 실제 파일 읽음). 필드 추가 후 프론트 fallback을 걷어내는 것까지가 한 묶음.
-3. **노트 서브컬렉션 리포 신규 작성 (A)** — `constellations/{id}/notes/{noteId}` 리포가
-   백엔드에 전혀 없다(✅검증됨 — `backend/app/firestore/`에 `constellation_repo.py`,
-   `course_repo.py`, `client.py`뿐, note 관련 파일 0건; `backend/tests/`에도 note 테스트 없음).
-   프론트 `ElementNotesPanel.tsx`는 이미 `title/body/isPublic/attachments` 형태로 노트를
-   다루고 있어 스키마 방향은 이미 확정돼 있다(계획 문서 §"요소=노트 폴더" 참고).
-4. **Firebase 인증 라우트 + 프론트 전환 (B)** — 순서상 1~3보다 늦어도 되지만, 로그인 자체가
-   막혀 있어 QA가 불가능하다. `app/auth/`(`deps.py`, `firebase_auth.py`)는 토큰 검증 로직만
-   있고 signup/login 라우트가 없다(✅검증됨). `frontend/lib/api.ts:107`이 여전히
-   `/api/auth/me`(구 FastAPI)를 호출하고 `auth-context.tsx`가 그걸 그대로 쓴다(✅검증됨,
-   코드 인용: `frontend/lib/api.ts:11` `NEXT_PUBLIC_API_BASE_URL ?? "http://localhost:8000"`,
-   `:107` `return request("/api/auth/me")`). 프론트 `package.json`/`lib`에 Firebase 클라이언트
-   SDK 관련 import가 전혀 없다(✅검증됨 — `firebase/app`, `firebase/auth` grep 매치 0건).
-5. **군집별 AI 조언 `advice` 필드 (C)** — `backend/app/llm/base.py`의 `CourseCluster` 클래스에
-   `advice` 필드가 없다(✅검증됨, 139행 `class CourseCluster`, `advice` grep 매치 0건). 덤프의
-   "에이전트가 손대기 전에 중단됨" 주장과 일치 — 백엔드는 정말 미착수 상태.
+> 22차까지의 ①항 5개(별자리 HTTP API / Node 3필드 / 노트 리포 / Firebase 인증 / advice)는
+> **전부 완료됐다.** 아래는 배포 이후 기준으로 다시 세운 목록이다.
 
-이 5개를 마치면 D(진입 플로우)·E(LLM 방어)·F(비과목 데이터)로 넘어가는 게 자연스럽다(계획 문서
-Phase 3→2→4 순서와도 대략 일치).
+1. **PIPA 국외이전 고지 (최우선 — 법적 사항)** — 서비스가 **실제로 공개 접근 가능해졌으므로**
+   더는 미룰 수 없다. Anthropic(미국)에 대화 내용이, Google Cloud에 개인정보가 전달된다.
+   가입 동의 화면에 국외이전 고지(이전받는 자·목적·항목·보유기간·거부권)를 넣어야 한다.
+   지금은 홍보 전이라 실사용자가 0명인 상태 — **홍보 전에 반드시 처리할 것.**
+2. **Postgres 잔재 제거** — 등록 해제만 해둔 상태다. `app/db.py`, `alembic/`, `asyncpg`
+   의존성, `backend/Dockerfile`의 `COPY alembic`을 걷어낼 수 있다. 선행 확인: `schemas/roadmap.py`의
+   `PreviewRequest`/`NcsCategoryOut`이 `ncs_repo` 체인을 아직 잡고 있다. `/health`가
+   `"db":"error"`를 반환하는 것도 이때 정리(현재는 의도된 상태).
+3. **운영 모니터링 최소선** — 지금 오류를 알 방법이 `gcloud logging read`뿐이다. 애널리틱스가
+   **전혀 없다**(grep 0건). 최소한 5xx 알림 하나는 걸어둘 것.
+4. **Firebase Storage 미설정** — 운영 프로젝트에 Storage가 안 켜져 있다(`firebase deploy --only
+   storage` 실패). 현재 데모 게시물 이미지는 **Firestore에 base64 데이터 URI로** 들어 있어
+   동작에 지장 없지만, 실사용자가 이미지를 올리려면 콘솔에서 Storage를 활성화해야 한다.
+5. **학생증 인증을 Firestore로 이관** — 보존해둔 `app/api/auth.py`(학생증 업로드·승인)를
+   Firestore 기반으로 옮긴다. 현재는 **사전 인증된 데모 계정**으로 대체 중이라 신규 가입자가
+   연세대 인증을 받을 경로가 없다. 홍보 시점의 선행 조건.
+
+---
+
+## ①-B 배포 운영 노트 (실전 명령어 — 이 절만 보면 재배포 가능)
+
+**두 서비스 다 `--source`로 올린다.** 리포 루트의 `docs/`는 빌드 컨텍스트에 포함되지 않는다.
+
+```
+# 백엔드
+gcloud run deploy ourlab-backend --source backend --project ourlab-0808   --region asia-northeast3 --allow-unauthenticated --port 8080 --memory 1Gi   --min-instances 0 --max-instances 3
+
+# 프론트
+gcloud run deploy ourlab-frontend --source frontend --project ourlab-0808   --region asia-northeast3 --allow-unauthenticated --port 8080 --memory 1Gi   --min-instances 0 --max-instances 3
+```
+
+- **⚠️`NEXT_PUBLIC_*`는 빌드 시점에 이미지로 구워진다.** 런타임 env가 아니다. 값을 바꾸려면
+  `frontend/Dockerfile`의 `ARG` 기본값을 고치고 **재빌드**해야 한다. 프론트 세션이 커밋만 해서는
+  라이브가 바뀌지 않으므로, 랜드 후 재배포를 명시적으로 요청받을 것.
+- **⚠️`frontend/next.config.mjs`의 `output: "standalone"`을 지우지 말 것.** 지우면 컨테이너
+  빌드가 깨진다. 빌드 스테이지가 dev 의존성까지 설치하는 이유도 있다 — `next.config.mjs`가
+  devDependency인 `@opennextjs/cloudflare`를 모듈 최상단에서 import한다.
+- **백엔드 `Dockerfile`의 CMD는 셸 형식**이어야 한다(`${PORT:-8000}`) — Cloud Run이 주입하는
+  `$PORT`가 이겨야 한다.
+- **CORS**: 백엔드 `CORS_ALLOWED_ORIGINS`에 프론트 URL이 정확히 들어가야 한다. 그리고
+  `expose_headers=["X-Auth-Requirement"]`가 **빠지면 브라우저에서만** 미인증/권한없음 구분이
+  깨진다(curl로는 안 잡힌다 — `de518aa`).
+
+**시크릿(Anthropic 키) 교체 절차** — 값을 절대 출력하지 말 것:
+```
+# cmd.exe에서 (PowerShell 아님 — printf 없음). echo 금지: 개행이 붙어 109자가 된다.
+<nul set /p="sk-ant-..." > "%TEMP%\k.txt"
+gcloud secrets versions add ANTHROPIC_API_KEY --project=ourlab-0808 --data-file="%TEMP%\k.txt"
+del "%TEMP%\k.txt"
+# 새 인스턴스가 latest를 집도록 리비전 교체
+gcloud run services update ourlab-backend --project=ourlab-0808 --region=asia-northeast3   --update-env-vars=KEY_ROTATED_AT=YYYY-MM-DD
+```
+⚠️`gcloud`가 cmd 창의 PATH에 없으면 `&&` 체인이 끊겨 **키만 `%TEMP%\k.txt`에 평문으로 남는다**
+(실제로 발생). 업로드 실패 시 그 파일이 남아있는지 반드시 확인하고 지울 것.
+
+**에뮬레이터 → 운영 데이터 이관**: REST 문서 표현이 양쪽 동일해 타입 변환이 필요 없다.
+`:listCollectionIds`로 서브컬렉션을 재귀로 훑고 `:commit`으로 배치 쓰기(100건 단위 — 300건은
+페이로드가 크다). 문서 `name`은 URL이 아니라 **리소스 경로**(`projects/.../documents/...`)여야
+한다. 에뮬레이터 REST는 `Authorization: Bearer owner` 헤더가 필요하고, Identity Toolkit은
+`x-goog-user-project` 헤더가 필요하다. 반드시 `--dry-run`으로 건수를 먼저 확인할 것.
 
 ---
 

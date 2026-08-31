@@ -1,15 +1,28 @@
-# 배포 절차 (Firebase App Hosting + Cloud Run)
+# 배포 절차 (Cloud Run x2)
 
-이 문서는 **설정 파일 준비 단계**에서 작성됐다. 아직 아무 배포 명령도 실행되지
-않았다 — 여기 적힌 순서대로 **사람이 직접** 실행해야 한다.
+> **상태: 2026-08-31 배포 완료.** 이 문서는 원래 계획본으로 작성됐다가, 실제
+> 배포 결과에 맞춰 갱신됐다. 아래 구성이 **현재 라이브에서 돌고 있는 것**이다.
+>
+> - 프론트: https://ourlab-frontend-902034641778.asia-northeast3.run.app
+> - 백엔드: https://ourlab-backend-902034641778.asia-northeast3.run.app
+> - 체험 계정: `test-observer@yonsei.ac.kr` / `observatory123!` (연세대 인증 완료)
+>   미인증 상태 확인용은 `demo-unverified@example.com` (같은 비밀번호)
 
 ## 목표 구성
 
-- 프론트(Next.js 14, `frontend/`) → **Firebase App Hosting**
+- 프론트(Next.js 14, `frontend/`) → **Cloud Run** (컨테이너)
 - 백엔드(FastAPI, `backend/`) → **Cloud Run**
 - Firestore·Auth → 기존 Firebase 프로젝트 `ourlab-0808` 그대로 사용
-- `/api/**` 요청은 Firebase Hosting rewrite로 Cloud Run에 연결 (firebase.json)
 - 비밀키는 전부 Secret Manager. 코드·설정 파일에 실제 값 없음.
+
+> **⚠️App Hosting은 쓰지 않기로 했다.** 처음엔 프론트를 Firebase App Hosting에
+> 올릴 계획이었으나, `apphosting:backends:create`가 **GitHub 저장소 연결을
+> 요구**한다. 이 리포는 GitHub에 연결돼 있지 않아 그 자리에서 막혔고, 프론트를
+> 컨테이너로 만들어 Cloud Run에 올리는 쪽으로 바꿨다(`frontend/Dockerfile`,
+> `next.config.mjs`의 `output: "standalone"`). `firebase.json`의 `/api/**`
+> rewrite와 `frontend/apphosting.yaml`은 그 시절 잔재라 **현재 배포 경로에서
+> 쓰이지 않는다** — 프론트는 `NEXT_PUBLIC_API_BASE_URL`로 백엔드를 크로스오리진
+> 직접 호출한다.
 
 ## 0. 사전 확인
 
@@ -196,54 +209,105 @@ gcloud run deploy ourlab-backend \
 curl https://<cloud-run-url>/health
 ```
 
-## 6. App Hosting 배포 (프론트)
+## 6. Cloud Run 배포 (프론트)
 
-1. `frontend/apphosting.yaml`의 `REPLACE_ME_...` 값을 실제 Firebase 웹 앱
-   설정값으로 채운다.
-2. App Hosting 백엔드가 아직 없으면 생성 (최초 1회, 대화형):
-   ```bash
-   firebase apphosting:backends:create --project ourlab-0808
-   ```
-   GitHub 저장소 연결 여부, 루트 디렉터리(`frontend`), 리전(가까운 지원
-   리전 선택 — 지원 리전 목록은 계속 바뀌므로 실행 시점에 CLI가 보여주는
-   목록에서 고를 것)을 물어본다.
-3. 배포:
-   ```bash
-   firebase deploy --only apphosting
-   ```
-4. Hosting rewrite(`firebase.json`)도 함께 반영하려면:
-   ```bash
-   firebase deploy --only hosting
-   ```
+```bash
+gcloud run deploy ourlab-frontend --source frontend --project ourlab-0808   --region asia-northeast3 --allow-unauthenticated --port 8080 --memory 1Gi   --min-instances 0 --max-instances 3
+```
 
-## 7. 배포 후 확인 체크리스트
+- **⚠️`NEXT_PUBLIC_*`는 빌드 시점에 클라이언트 번들로 구워진다.** 런타임 환경변수가
+  아니므로 `--set-env-vars`로는 바뀌지 않는다. 값은 `frontend/Dockerfile`의 `ARG`
+  기본값에 들어 있고(전부 공개 값이라 시크릿 아님), **바꾸려면 재빌드**해야 한다.
+  프론트 코드가 커밋만 돼서는 라이브가 변하지 않는다 — 랜드할 때마다 재배포 필요.
+- **⚠️`next.config.mjs`의 `output: "standalone"`을 지우지 말 것.** 지우면 런타임
+  스테이지가 복사할 `.next/standalone`이 생기지 않아 빌드가 깨진다.
+- 빌드 스테이지는 dev 의존성까지 설치한다(`npm ci`, `--omit=dev` 아님). `next.config.mjs`가
+  devDependency인 `@opennextjs/cloudflare`를 모듈 최상단에서 import하기 때문이다.
+- `gcloud builds submit --substitutions`로 빌드 인자를 넘기려 하지 말 것 — 그 플래그는
+  cloudbuild 템플릿 치환용이라 Docker `ARG`와 무관하다(실제로 이 함정에 한 번 빠졌다).
 
-- [ ] `https://<app-hosting-domain>/` 접속 → 프론트 정상 로드
-- [ ] `https://<app-hosting-domain>/api/health` (또는 Cloud Run URL 직접) → `{"status":"ok",...}`
-- [ ] 로그인/회원가입 등 Firebase Auth 기반 플로우가 실제로 동작하는지
-- [ ] 쓰기 요청(POST 등)이 403(origin not allowed)으로 막히지 않는지 → 3번
-      항목의 `CORS_ALLOWED_ORIGINS` 갱신이 실제 배포 도메인과 일치하는지 재확인
-- [ ] 403 응답에서 `X-Auth-Requirement` 헤더가 브라우저에서 실제로 읽히는지
-- [ ] `/api/auth/*`, `/api/users/*` (Postgres 의존)를 쓰는 화면이 있다면 —
-      Cloud SQL 없이 배포했으므로 이 부분만 에러가 나는 게 정상인지, 아니면
-      이 시점까지 Firestore로 옮겨야 하는지 재확인 (2번 항목 참고)
+## 7. 배포 후 확인 — 실제 수행 결과
 
-## 발견한 걸림돌 / 판단이 필요한 항목 (임의로 결정하지 않고 보고)
+전부 라이브에서 실측 완료했다. 재배포 후 회귀 확인용으로 그대로 재현하면 된다.
 
-1. **App Hosting + 클래식 Hosting rewrite 병행 여부 미검증** (4번 항목).
-   실제 배포 후 첫 확인 대상 1순위.
-2. **`OPENAI_API_KEY`, `SOLAPI_API_KEY`, `SOLAPI_API_SECRET`**이
-   `backend/.env`에는 있지만 `app/config.py`의 `Settings`에도, `app/` 내
-   다른 코드에서도 참조하는 곳을 찾지 못했다 — 죽은 설정값인지, 아직 안 쓰는
-   예정 기능인지 확인 필요. 확인 전까지는 Secret Manager에 안 넣어도 배포에
-   지장 없음.
-3. **레거시 Postgres 세션 인증**(`app/core/deps.py`, `/api/auth/*`,
-   `/api/users/*`)을 이번 배포에서 그대로 죽은 채로 둘지, Cloud SQL을
-   붙일지, Firebase Auth 기반으로 마저 이관할지는 이 작업 범위 밖 — 결정
-   필요.
-4. **`todos` Firestore 이관**이 이 문서 작성 시점에 다른 세션에서 진행
-   중이었다. 이관이 끝난 뒤 앱 임포트/기동을 재확인할 것 (2번 항목).
-5. **App Hosting 리전**을 이 문서에서 확정하지 않았다 (지원 리전이 자주
-   바뀌어 배포 시점에 CLI가 제시하는 목록에서 고르도록 안내만 함). Cloud Run은
-   `asia-northeast3`(서울)로 확정했으나, App Hosting이 같은 리전을 지원하지
-   않을 수 있다 — 배포 시 확인.
+| 확인 | 결과 |
+|---|---|
+| 프론트 `/`, `/demo`, `/constellation/new` | 200 |
+| 백엔드 `/health` | `{"status":"ok","db":"error"}` — `db:error`는 **의도된 상태**(Postgres 미연결) |
+| 비로그인 쓰기 | 401 |
+| 미인증 계정 쓰기 | 403 + `X-Auth-Requirement: yonsei-verified` |
+| 인증 계정 API 11경로 | 전부 200 (커뮤니티·DM·알림·피드·탐색·별자리·수업검색·분류·프로필) |
+| 실제 Claude 호출 | 인테이크 챗 200 / 성운 제안 잡 10개 생성, advice 포함 |
+| 실브라우저 로그인 | 로그인 → 접안렌즈 → 캔버스 → 커뮤니티까지 완주 |
+
+**⚠️판정은 브라우저 콘솔이 아니라 서버 로그로 하라.** 프론트 수정 배포 후 콘솔에
+옛 401이 그대로 남아 있어 "안 고쳐졌다"고 오판할 뻔했다. 권위 있는 확인:
+
+```bash
+gcloud logging read 'resource.type="cloud_run_revision"
+  AND resource.labels.service_name="ourlab-backend"
+  AND httpRequest.status=401' --project ourlab-0808 --freshness=5m   --format="value(timestamp,httpRequest.requestUrl)"
+```
+
+## 8. 데이터 시딩 (최초 1회, 완료됨)
+
+에뮬레이터 → 운영으로 옮겼다. REST 문서 표현이 양쪽 동일해 타입 변환이 필요 없다.
+
+- **Firestore 7,173건**: 수업 7,109 + 커뮤니티/DM/알림/별자리/유저 + 서브컬렉션
+  (쪽지·댓글·좋아요·이미지·노트)까지 `:listCollectionIds` 재귀. `:commit` 배치는
+  **100건 단위**(300건은 페이로드가 커서 끊긴다). 문서 `name`은 URL이 아니라
+  **리소스 경로**여야 한다. 에뮬레이터 REST는 `Authorization: Bearer owner` 필요.
+- **Auth 8계정**: Identity Toolkit `accounts:batchCreate`. **`localId`(uid)를 반드시
+  명시 지정**할 것 — Firestore의 `users/{uid}`, `follows`, `dm_threads/{uidA}_{uidB}`가
+  전부 uid를 참조하므로 새 uid를 받으면 이관한 데이터가 통째로 고아가 된다.
+  `x-goog-user-project: ourlab-0808` 헤더가 없으면 403이 난다.
+- **룰·인덱스**: `firebase deploy --only firestore:rules,firestore:indexes`.
+  ⚠️`storage`는 함께 배포하지 말 것 — 운영 프로젝트에 Storage가 아직 설정되지 않아
+  실패한다(현재 게시물 이미지는 Firestore에 base64 데이터 URI로 들어 있어 지장 없음).
+- ⚠️**복합 인덱스는 빌드에 몇 분 걸린다.** 그 동안 해당 쿼리는 500을 낸다 —
+  "인덱스가 현재 빌드 중"이라는 뜻이지 코드 결함이 아니다. 에뮬레이터는 인덱스를
+  강제하지 않으므로 이 문제는 **운영에서만 드러난다**.
+
+시드 스크립트(`backend/scripts/*.py`)는 전부 `FIRESTORE_EMULATOR_HOST` 가드가 걸려
+있어 운영에 직접 실행되지 않는다. 의도된 안전장치이니 풀지 말 것.
+
+## 9. 시크릿 교체 (Anthropic 키)
+
+값을 **절대 출력하지 말 것**. 검증은 길이·접두사·공백 유무만으로 한다.
+
+```bash
+# cmd.exe에서 실행 (PowerShell에는 printf가 없다).
+# echo 금지 — 개행이 붙어 108자가 109자가 되고 인증이 실패한다.
+<nul set /p="sk-ant-..." > "%TEMP%\k.txt"
+gcloud secrets versions add ANTHROPIC_API_KEY --project=ourlab-0808 --data-file="%TEMP%\k.txt"
+del "%TEMP%\k.txt"
+
+# 새 인스턴스가 latest를 집도록 리비전 교체
+gcloud run services update ourlab-backend --project=ourlab-0808   --region=asia-northeast3 --update-env-vars=KEY_ROTATED_AT=YYYY-MM-DD
+
+# 확인 후 옛 버전 비활성화
+gcloud secrets versions disable <N> --secret=ANTHROPIC_API_KEY --project=ourlab-0808
+```
+
+⚠️`gcloud`가 cmd 창의 PATH에 없으면 `&&` 체인이 첫 명령 뒤에서 끊겨 **키만
+`%TEMP%\k.txt`에 평문으로 남는다**(실제로 발생했다). 업로드 후 시크릿 버전이
+정말 늘었는지 `gcloud secrets versions list`로 확인하고, 임시 파일이 남아 있으면
+반드시 지울 것.
+
+⚠️시크릿 비활성화는 "우리 서버가 안 쓴다"는 뜻일 뿐이다. 노출된 키 자체의 무효화는
+console.anthropic.com에서 삭제해야 한다.
+
+## 10. 남은 항목
+
+1. **PIPA 국외이전 고지** — 서비스가 공개 접근 가능해졌으므로 홍보 전 필수.
+   Anthropic(미국)·Google Cloud로 데이터가 나간다.
+2. **Firebase Storage 미설정** — 실사용자 이미지 업로드를 열려면 콘솔에서 활성화.
+3. **모니터링 없음** — 애널리틱스 0건, 5xx 알림 없음. 지금은 `gcloud logging read`가 유일.
+4. **학생증 인증 미이관** — 현재는 사전 인증된 데모 계정으로 대체 중이라, 신규
+   가입자가 연세대 인증을 받을 경로가 없다.
+5. **`OPENAI_API_KEY`·`SOLAPI_*`** — `.env`에는 있으나 `app/` 어디서도 참조되지
+   않는다(계획 당시 미해결이었고 여전히 동일). Secret Manager에 안 넣어도 지장 없다.
+
+> 계획 당시 "판단 필요"로 남겼던 항목 중 App Hosting 병행·리전·Postgres 처리·todos
+> 이관은 모두 결론이 났다: App Hosting 폐기 / 서울 `asia-northeast3` / Postgres는
+> 라우터 등록 해제로 분리(파일 보존) / 일정(todos) 기능 제거.
