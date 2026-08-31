@@ -156,9 +156,9 @@ function ApertureStage({ zooming, onEnter, onZoomEnd }: { zooming: boolean; onEn
             className="font-serif text-[22px] leading-[1.55] md:text-[27px]"
             style={{ color: "#E8EAF2", wordBreak: "keep-all" }}
           >
-            망원경에 눈을 대면
+            무엇을 좋아하는지부터
             <br />
-            별자리로 이어질게요
+            들여다볼게요
           </span>
         </Eyepiece>
       </button>
