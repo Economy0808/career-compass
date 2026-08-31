@@ -17,6 +17,18 @@ from tests.auth_utils import (
 )
 
 
+
+# 이 파일이 검증하는 라우터(app/api/auth.py, app/api/users.py)는 2026-08-31
+# Postgres 제거 배포에서 **등록만 해제**됐다(app/main.py 참고). 라우터 소스는
+# 학생증 인증을 Firestore로 옮길 때 참조하려고 남겨뒀고, 이 테스트도 같은
+# 이유로 남긴다 - 지우면 그때 되살릴 계약이 사라진다.
+#
+# 등록이 해제된 동안에는 모든 요청이 404라 단언이 전부 깨지므로 모듈째 스킵한다.
+# Firestore로 재이관할 때 이 스킵을 제거하고 경로/의존성만 갱신하면 된다.
+pytestmark = pytest.mark.skip(
+    reason="auth/users 라우터 등록 해제(Postgres 제거). Firestore 이관 시 복구 예정."
+)
+
 async def _get_session():
     return get_session_factory()()
 

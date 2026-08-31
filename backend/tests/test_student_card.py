@@ -11,6 +11,18 @@ from app.models.account import StudentCardVerification
 from app.models.roadmap import User
 from tests.auth_utils import create_session_token, create_user, delete_user_cascade
 
+
+# 이 파일이 검증하는 라우터(app/api/auth.py, app/api/users.py)는 2026-08-31
+# Postgres 제거 배포에서 **등록만 해제**됐다(app/main.py 참고). 라우터 소스는
+# 학생증 인증을 Firestore로 옮길 때 참조하려고 남겨뒀고, 이 테스트도 같은
+# 이유로 남긴다 - 지우면 그때 되살릴 계약이 사라진다.
+#
+# 등록이 해제된 동안에는 모든 요청이 404라 단언이 전부 깨지므로 모듈째 스킵한다.
+# Firestore로 재이관할 때 이 스킵을 제거하고 경로/의존성만 갱신하면 된다.
+pytestmark = pytest.mark.skip(
+    reason="auth/users 라우터 등록 해제(Postgres 제거). Firestore 이관 시 복구 예정."
+)
+
 # 1x1 PNG (매직 바이트 포함 유효 파일)
 PNG_BYTES = bytes.fromhex(
     "89504e470d0a1a0a0000000d49484452000000010000000108060000001f15c489"

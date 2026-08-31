@@ -123,19 +123,21 @@ async def test_rate_limit_dependency_hard_limit_survives_refunds() -> None:
 
 @pytest.mark.asyncio
 async def test_origin_middleware_blocks_cross_site_writes() -> None:
+    # 어떤 POST 경로든 상관없다 - enforce_origin은 라우팅 앞단에서 돈다. 예전엔
+    # /api/auth/login을 썼지만 그 라우터는 Postgres 제거와 함께 등록 해제됐고,
+    # 그러면 화이트리스트 origin 쪽 단언이 401이 아니라 404를 받아 미들웨어와
+    # 무관한 이유로 깨진다. 현역 쓰기 경로로 옮겨 커버리지를 유지한다.
+    write_path = "/api/community/boards/free/posts"
+    body = {"title": "whoever", "content": "whatever1"}
     async with AsyncClient(transport=ASGITransport(app=app), base_url="http://test") as client:
         resp = await client.post(
-            "/api/auth/login",
-            json={"username": "whoever", "password": "whatever1"},
-            headers={"origin": "http://evil.example"},
+            write_path, json=body, headers={"origin": "http://evil.example"}
         )
         assert resp.status_code == 403
         assert resp.json()["detail"] == "origin not allowed"
 
-        # 화이트리스트 origin은 미들웨어를 통과해 정상 처리(401)까지 간다.
+        # 화이트리스트 origin은 미들웨어를 통과해 정상 처리(비로그인이므로 401)까지 간다.
         resp = await client.post(
-            "/api/auth/login",
-            json={"username": "whoever", "password": "whatever1"},
-            headers={"origin": "http://localhost:3000"},
+            write_path, json=body, headers={"origin": "http://localhost:3000"}
         )
         assert resp.status_code == 401
