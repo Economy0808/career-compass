@@ -5,7 +5,6 @@ from fastapi import FastAPI, Request, Response
 from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
 
-from app.api.auth import router as auth_router
 from app.api.auth_sync import router as auth_sync_router
 from app.api.community import router as community_router
 from app.api.community_notes import router as community_notes_router
@@ -19,7 +18,6 @@ from app.api.notifications import router as notifications_router
 from app.api.posts import router as posts_router
 from app.api.profiles import router as profiles_router
 from app.api.stories import router as stories_router
-from app.api.users import router as users_router
 from app.config import get_settings
 
 
@@ -67,10 +65,13 @@ def create_app() -> FastAPI:
                 return JSONResponse(status_code=403, content={"detail": "origin not allowed"})
         return await call_next(request)
 
+    # auth_router(구 세션 인증)와 users_router(레거시 프로필/팔로우, 이미
+    # profiles_router/Firestore로 이관됨)는 Postgres 없이 배포하기 위해
+    # 등록만 해제한다 - 파일은 남겨둔다(학생증 인증을 Firestore로 옮길 때
+    # app/api/auth.py를 참조할 예정). auth_sync_router(Firebase 인증 동기화,
+    # Firestore 기반)는 현역이라 그대로 둔다.
     app.include_router(health_router)
-    app.include_router(auth_router)
     app.include_router(auth_sync_router)
-    app.include_router(users_router)
     app.include_router(constellation_router)
     app.include_router(constellation_intake_router)
     app.include_router(courses_router)
