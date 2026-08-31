@@ -27,6 +27,7 @@ import requests  # noqa: E402
 from app.core import rate_limit  # noqa: E402
 from app.db import reset_engine  # noqa: E402
 from app.firestore.client import reset_client as reset_firestore_client  # noqa: E402
+from app.firestore.course_repo import reset_catalog_cache  # noqa: E402
 
 
 @pytest.fixture(autouse=True)
@@ -51,8 +52,14 @@ def _reset_firestore_emulator():
     FIRESTORE_EMULATOR_HOST가 설정되지 않은 대부분의 로컬/CI 실행(이 스위트의
     나머지 테스트는 Firestore를 전혀 쓰지 않는다)에서는 조용히 아무 것도 하지
     않는다 - 에뮬레이터 부재가 이 프로젝트의 기존 테스트를 실패시키면 안 된다.
+
+    reset_catalog_cache()도 여기서 함께 부른다 - course_repo._catalog_cache는
+    에뮬레이터 유무와 무관한 순수 프로세스 전역 상태라, 리셋하지 않으면 한
+    테스트가 채운 카탈로그 스냅샷이 이후 테스트(에뮬레이터 데이터는 이미
+    지워졌음)에 그대로 새어나간다.
     """
     yield
+    reset_catalog_cache()
     reset_firestore_client()
     emulator_host = os.environ.get("FIRESTORE_EMULATOR_HOST")
     if not emulator_host:

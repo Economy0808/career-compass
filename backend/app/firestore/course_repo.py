@@ -72,6 +72,82 @@ _MIN_DEPARTMENTS_TO_CACHE = 3
 # 둔다.
 _taxonomy_cache: tuple[list[str], list[str]] | None = None
 
+# 과목 카탈로그 전체 캐시 - list_taxonomy와 동일한 지연 로딩(lazy) 패턴을 쓴다: 임포트
+# 시점에는 절대 채우지 않고, search_courses/list_taxonomy의 첫 호출이 들어올 때 딱 한
+# 번만 전체 스캔해서 채운다. Cloud Run은 요청이 없으면 인스턴스가 0으로 스케일되므로,
+# 콜드스타트마다 7,109건을 미리 읽어들이면 부팅이 느려진다 - 그래서 반드시 첫 사용
+# 시점(lazy)이어야 한다.
+#
+# 메모리 사용량: 7,109건(2026-08 기준) x 문서당 필드 10여개(대부분 짧은 한글/영문
+# 문자열) ~= 700바이트/건 -> 약 5MB. 프로세스 상주 메모리로 무리 없는 크기다.
+#
+# 키는 학정번호(code) - get_course/upsert_courses가 이미 문서 id로 code를 쓰므로
+# (_doc_id) 그대로 재사용한다.
+_catalog_cache: dict[str, MergedCourse] | None = None
+
+# _get_catalog 스캔 결과가 이 값 미만이면 "정상적으로 작다"가 아니라 "에뮬레이터/DB가
+# 아직 비어있는 순간에 스캔이 걸렸다"로 간주한다 - list_taxonomy의
+# _MIN_DEPARTMENTS_TO_CACHE와 완전히 동일한 자가 치유 패턴이다(커밋 e76bdad 참고).
+# 실측 카탈로그(7,109건)는 이 임계값의 70배가 넘으므로 정상 스캔이 여기 걸릴 일은 없고,
+# 컬렉션이 막 비었거나 갓 시작된 에뮬레이터가 아직 안 채워진 순간에만 걸린다. 이걸
+# 그대로 캐시에 담으면 list_taxonomy 사고(수업이 눈에 안 띄게 0개가 되는 사고)와 똑같은
+# 구조로, 프로세스 재시작 전까지 모든 검색이 원인 불명으로 텅 비게 된다.
+_MIN_COURSES_TO_CACHE = 100
+
+
+def _load_catalog(db: Client) -> dict[str, MergedCourse]:
+    """course_catalog 전체를 한 번에 스트리밍해 {학정번호: MergedCourse} dict로 만든다.
+
+    Firestore 스트리밍은 (명시적 order_by가 없어도) 문서 id, 즉 학정번호 오름차순으로
+    나오는 게 실측 관례다 - 딕셔너리가 삽입 순서를 보존하므로 department/college
+    필터링 후에도 이 순서가 그대로 유지돼, 기존 Firestore 쿼리 경로와 결과 순서가
+    일치한다.
+    """
+    return {
+        doc.id: MergedCourse.model_validate(doc.to_dict())
+        for doc in db.collection(_COLLECTION).stream()
+    }
+
+
+def _get_catalog(db: Client) -> dict[str, MergedCourse] | None:
+    """캐시된 전체 카탈로그를 반환한다. 캐시가 없으면 한 번 스캔해 채운다.
+
+    스캔이 예외로 실패하거나 결과가 _MIN_COURSES_TO_CACHE 미만이면 캐시에 저장하지
+    않고 None을 반환한다 - 호출자(search_courses/list_taxonomy)는 None을 받으면 반드시
+    기존 Firestore 쿼리 경로로 폴백해야 한다. 캐싱 때문에 기능이 죽어서는 안 된다는
+    원칙(사용자 지시: "캐싱하면 에러날지 모르니까 해보고 안되면 롤백하자")을 함수
+    내부에서 항상 지키는 방식이다.
+    """
+    global _catalog_cache
+    if _catalog_cache is not None:
+        return _catalog_cache
+    try:
+        catalog = _load_catalog(db)
+    except Exception:
+        logger.exception("과목 카탈로그 캐시 적재 실패 - 기존 Firestore 쿼리 경로로 폴백한다")
+        return None
+    if len(catalog) < _MIN_COURSES_TO_CACHE:
+        logger.warning(
+            "과목 카탈로그 스캔 결과(%d건)가 임계값(%d) 미만 - 캐시에 저장하지 않고"
+            " 다음 호출에서 재스캔(또는 기존 쿼리 경로로 폴백)한다",
+            len(catalog),
+            _MIN_COURSES_TO_CACHE,
+        )
+        return None
+    _catalog_cache = catalog
+    return _catalog_cache
+
+
+def reset_catalog_cache() -> None:
+    """테스트 격리용 - 캐시된 카탈로그를 비워 다음 호출이 재적재하게 한다.
+
+    tests/conftest.py의 에뮬레이터 리셋 픽스처가 매 테스트 후 호출한다 - 안 하면 한
+    테스트가 채운 캐시가 에뮬레이터 데이터는 지워진 뒤에도 남아 다음 테스트를
+    오염시킨다.
+    """
+    global _catalog_cache
+    _catalog_cache = None
+
 
 def _is_taxonomy_junk(value: str) -> bool:
     """department/college 필드에 파싱 불량으로 섞여든 문장형 텍스트인지 판단한다.
@@ -165,20 +241,33 @@ def list_taxonomy(db: Client) -> tuple[list[str], list[str]]:
     projection(.select)으로 가져와 페이로드를 최소화한다.
 
     프로세스당 1회만 스캔하도록 모듈 레벨 캐시를 쓴다 - 위 _taxonomy_cache 주석 참고.
+
+    _get_catalog가 이미 카탈로그 전체를 캐시해뒀다면 그걸 그대로 재사용해 별도
+    Firestore 요청을 만들지 않는다. 캐시가 없으면(자가 치유로 폴백한 경우 포함)
+    기존처럼 department/college 두 필드만 projection(.select)으로 가져온다.
     """
     global _taxonomy_cache
     if _taxonomy_cache is not None:
         return _taxonomy_cache
+
     departments: set[str] = set()
     colleges: set[str] = set()
-    for doc in db.collection(_COLLECTION).select(["department", "college"]).stream():
-        data = doc.to_dict() or {}
-        dept = data.get("department")
-        college = data.get("college")
-        if dept:
-            _add_if_clean(departments, dept, "department")
-        if college:
-            _add_if_clean(colleges, college, "college")
+    catalog = _get_catalog(db)
+    if catalog is not None:
+        for course in catalog.values():
+            if course.department:
+                _add_if_clean(departments, course.department, "department")
+            if course.college:
+                _add_if_clean(colleges, course.college, "college")
+    else:
+        for doc in db.collection(_COLLECTION).select(["department", "college"]).stream():
+            data = doc.to_dict() or {}
+            dept = data.get("department")
+            college = data.get("college")
+            if dept:
+                _add_if_clean(departments, dept, "department")
+            if college:
+                _add_if_clean(colleges, college, "college")
 
     result = (sorted(departments), sorted(colleges))
     if len(departments) < _MIN_DEPARTMENTS_TO_CACHE:
@@ -223,6 +312,70 @@ def search_courses(
     campus 필터는 아직 받지 않는다 - 사용자가 나중에 course_catalog 문서에 campus
     필드를 직접 적재할 예정이며(2026-08-30 결정), 그때 아래 필터 단계에 조건 한
     줄만 추가하면 된다(현재는 원천 데이터에 필드 자체가 없어 필터링할 대상이 없음).
+
+    _get_catalog가 캐시를 채울 수 있으면(카탈로그가 정상 크기면) 모든 분기를 메모리
+    위에서 처리해 Firestore 읽기를 0으로 만든다(_search_from_catalog). 캐시가 없으면
+    (자가 치유로 폴백한 경우 포함) 기존 Firestore 쿼리 경로(_search_via_firestore)를
+    그대로 쓴다 - 그쪽의 분기 설명은 그 함수의 docstring 참고.
+    """
+    catalog = _get_catalog(db)
+    if catalog is not None:
+        return _search_from_catalog(
+            catalog, q=q, department=department, college=college, limit=limit
+        )
+    return _search_via_firestore(db, q=q, department=department, college=college, limit=limit)
+
+
+def _search_from_catalog(
+    catalog: dict[str, MergedCourse],
+    *,
+    q: str | None,
+    department: str | None,
+    college: str | None,
+    limit: int,
+) -> list[MergedCourse]:
+    """캐시된 전체 카탈로그 위에서 _search_via_firestore와 동일한 분기 순서 및 필터
+    의미로 처리한다 - Firestore 요청 없이 파이썬 딕셔너리만 스캔한다.
+
+    _load_catalog가 채운 dict는 컬렉션 스트리밍 순서(실측상 학정번호 오름차순)를
+    보존하므로, department/college로 걸러도 순서가 기존 Firestore 쿼리 결과와 같다.
+
+    q만 있는 분기(과목명 스캔)는 _NAME_SEARCH_SCAN_LIMIT을 그대로 유지한다 - 캐시라서
+    상한을 없애면 전체 7,109건에서 매칭을 찾아 기존 Firestore 경로(2,000건까지만
+    스캔)보다 결과가 더 많아질 수 있는데, 그건 "캐싱이 기존 동작을 조금이라도 바꾸면
+    안 된다"는 지시를 어기는 것이다. 상한을 없애고 싶어지면 그건 별도 스코프의
+    의도적 개선이지 캐싱의 부수효과여선 안 된다.
+    """
+    if department:
+        candidates = [c for c in catalog.values() if c.department == department]
+        if college:
+            candidates = [c for c in candidates if c.college == college]
+    elif college:
+        candidates = [c for c in catalog.values() if c.college == college]
+    elif q and _looks_like_course_code(q):
+        code_prefix = q.strip().upper()
+        matches = [c for c in catalog.values() if code_prefix <= c.code < code_prefix + ""]
+        return sorted(matches, key=lambda c: c.code)[:limit]
+    elif q:
+        candidates = list(catalog.values())[:_NAME_SEARCH_SCAN_LIMIT]
+    else:
+        return list(catalog.values())[:limit]
+
+    if q:
+        q_lower = q.strip().lower()
+        candidates = [c for c in candidates if _matches_query(c, q_lower)]
+    return candidates[:limit]
+
+
+def _search_via_firestore(
+    db: Client,
+    *,
+    q: str | None,
+    department: str | None,
+    college: str | None,
+    limit: int,
+) -> list[MergedCourse]:
+    """search_courses의 캐시 미적재 시 폴백 경로 - 캐싱 도입 전 원본 구현 그대로다.
 
     Firestore는 부분일치 쿼리를 지원하지 않으므로, 다음 우선순위로 "어떤 조건을
     Firestore 쿼리로 먼저 좁힐지"를 정하고 나머지는 파이썬에서 거른다:
