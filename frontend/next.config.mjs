@@ -4,6 +4,9 @@ const nextConfig = {
   // .next dir corrupt each other's chunks (recurring 500/404 on _next/static).
   // Give the secondary server its own build dir via NEXT_DIST_DIR.
   distDir: process.env.NEXT_DIST_DIR || ".next",
+  // Cloud Run 배포용: 런타임에 필요한 파일만 추린 standalone 번들을 만든다.
+  // 이게 없으면 컨테이너에 node_modules 전체를 넣어야 해서 이미지가 커진다.
+  output: "standalone",
 };
 
 export default nextConfig;
