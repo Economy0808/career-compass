@@ -1194,13 +1194,19 @@ export default function NewConstellationPage() {
   // 발행 = 완결(사용자 지시: "발행하면 캔버스 비우고 프로필로 옮겨"). 화면
   // 이동은 하지 않는다 - 사용자가 명시적으로 정정했다("발행하자마자 프로필로
   // 화면이동하라고 한 적은 없어. 데이터만 프로필칸에 적재하라는거지"). 발행본은
-  // 서버에 남아 프로필 별자리 탭에 쌓이고, 이 화면은 빈 캔버스 + 다음 별자리를
-  // 위한 대화로 넘어간다(빈 화면을 남기지 않으려고 대화를 함께 연다).
+  // 서버에 남아 프로필 별자리 탭에 쌓인다.
+  //
+  // ⚠️Intake 대화를 여기서 열지 않는다. 처음엔 "빈 화면을 남기지 않으려고"
+  // 함께 열었는데 사용자가 정정했다("지금 별자리 publishing하면 캔버스가
+  // 비워져서 바로 LLM창으로 넘어가지는데 이거좀 고치셈. 그냥 빈 캔버스가
+  // 떴으면 좋겠어"). 방금 하나를 끝낸 사람에게 곧바로 다음 대화를 들이미는
+  // 꼴이라, 다음 행동은 사용자가 고르게 둔다 - 대화가 필요하면 보관함의
+  // "새 별자리 만들기"가 명시적 진입점이다. 발행 안내(3.2초)만 남겨
+  // 작업물이 어디로 갔는지 알린다.
   const finishAfterPublish = useCallback(() => {
     resetCanvasState();
     setPublishedNotice(true);
     window.setTimeout(() => setPublishedNotice(false), 3200);
-    setIntakeOpen(true);
   }, [resetCanvasState]);
 
   const handleQuickPublishToggle = useCallback(async () => {
