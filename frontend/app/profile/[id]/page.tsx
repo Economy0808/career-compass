@@ -246,21 +246,34 @@ export default function ProfilePage({ params }: { params: { id: string } }) {
   const [hasActiveStories, setHasActiveStories] = useState(false);
 
   useEffect(() => {
+    // ⚠️ 인증 복원 레이스(이 리포에서 네 번째) - lib/api.ts의 request()는 호출
+    // 시점의 currentUser만 보고 헤더를 붙인다. 복원 전에 발사하면 토큰 없이
+    // 나가 401을 받는데, 그 401이 postsAuthRequired로 눌러앉아 **복원된 뒤에도
+    // 풀리지 않았다**(로그인 상태인데 "로그인하고 볼 수 있어요"가 뜨던 실버그).
+    // 그래서 ①authLoading이 꺼진 뒤에만 부르고 ②user가 바뀌면 다시 시도한다.
+    if (authLoading) return;
     let cancelled = false;
     setPosts(null);
     setPostsAuthRequired(false);
     setItems(null);
-    listUserPosts(params.id)
-      .then((list) => {
-        if (!cancelled) setPosts(list);
-      })
-      .catch((err) => {
-        if (cancelled) return;
-        if (err instanceof ApiError && err.status === 401) {
-          setPostsAuthRequired(true);
-        }
-        setPosts([]);
-      });
+    if (user) {
+      listUserPosts(params.id)
+        .then((list) => {
+          if (!cancelled) setPosts(list);
+        })
+        .catch((err) => {
+          if (cancelled) return;
+          if (err instanceof ApiError && err.status === 401) {
+            setPostsAuthRequired(true);
+          }
+          setPosts([]);
+        });
+    } else {
+      // 비로그인이 확정된 상태 - 401이 뻔하므로 헛걸음하지 않고 바로 유도한다.
+      setPosts([]);
+      setPostsAuthRequired(true);
+    }
+    // 별자리 목록은 발행본 공개라 익명도 200이다 - 로그인 여부와 무관하게 부른다.
     listUserConstellations(params.id)
       .then((list) => {
         if (!cancelled) setItems(list);
@@ -271,10 +284,14 @@ export default function ProfilePage({ params }: { params: { id: string } }) {
     return () => {
       cancelled = true;
     };
-  }, [params.id]);
+  }, [params.id, authLoading, user]);
 
   // 본인이 스토리를 새로 올리면(ringRefreshKey) 아바타 링도 즉시 갱신한다.
   useEffect(() => {
+    // 위 게시물 effect와 같은 이유로 인증 복원을 기다린다 - 스토리 열람도
+    // 로그인이 필요해졌는데(SNS 열람 모델 전환) 이 호출만 복원 전에 나가면
+    // 조용히 실패해 **로그인했는데도 스토리 링이 안 뜨는** 상태가 된다.
+    if (authLoading) return;
     let cancelled = false;
     setHasActiveStories(false);
     listUserStories(params.id)
@@ -287,7 +304,7 @@ export default function ProfilePage({ params }: { params: { id: string } }) {
     return () => {
       cancelled = true;
     };
-  }, [params.id, ringRefreshKey]);
+  }, [params.id, ringRefreshKey, authLoading, user]);
 
   useEffect(() => {
     let cancelled = false;
