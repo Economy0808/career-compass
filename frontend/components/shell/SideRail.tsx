@@ -39,7 +39,7 @@ export function SideRail() {
           onClick={() => router.push(navTarget(item, user))}
           className={cn(ITEM, isNavActive(item, pathname, user) ? ITEM_ACTIVE : ITEM_INACTIVE)}
         >
-          <item.Icon />
+          <item.Icon size={20} />
           {item.label}
         </button>
       ))}

@@ -194,9 +194,15 @@ export function LaunchModal({
                   isPublished ? "bg-paper-ink" : "bg-paper-line"
                 )}
               >
+                {/* left-0이 없으면 손잡이가 트랙 왼쪽이 아니라 **버튼의 기본
+                    가운데 정렬 위치**에서 출발한다(button은 콘텐츠를 중앙
+                    정렬한다). 그 상태로 translate를 더하니 두 상태 모두
+                    오른쪽으로 밀려 트랙 밖으로 삐져나왔다 - 사용자가 본
+                    "이상한 배치"의 원인. 왼쪽에 고정하면 off=2px,
+                    on=22px(44 트랙 - 20 손잡이 - 2)로 좌우 여백이 맞는다. */}
                 <span
                   className={cn(
-                    "absolute top-0.5 h-5 w-5 rounded-full bg-paper transition-transform",
+                    "absolute left-0 top-0.5 h-5 w-5 rounded-full bg-paper transition-transform",
                     isPublished ? "translate-x-[22px]" : "translate-x-0.5"
                   )}
                 />

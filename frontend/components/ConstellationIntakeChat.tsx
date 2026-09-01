@@ -68,6 +68,50 @@ const MAX_POLL_ATTEMPTS = 400;
 /** 진행 표시가 채울 총 질문 칸 수(시안 보드 3: "Q n / 6"). */
 const TOTAL_QUESTION_SLOTS = 6;
 
+// ---- 대화 진행분 임시 보관(뒤로가기 방어) ----------------------------------
+// 탭 단위 보관이라 탭을 닫으면 사라진다. 서버로 보내지 않는다.
+const DRAFT_CHAT_KEY = "ourlab-intake-draft";
+
+interface DraftChat {
+  messages: ChatMessageDto[];
+  goalText: string | null;
+}
+
+/** 보관분 복원 - 프라이빗 모드·저장소 차단이면 접근 자체가 throw 하므로
+ * 전부 감싼다. 형식이 깨졌으면 조용히 버리고 빈 대화로 시작한다. */
+function loadDraftChat(): DraftChat {
+  try {
+    const raw = sessionStorage.getItem(DRAFT_CHAT_KEY);
+    if (!raw) return { messages: [], goalText: null };
+    const parsed = JSON.parse(raw) as Partial<DraftChat>;
+    if (!Array.isArray(parsed.messages)) return { messages: [], goalText: null };
+    return {
+      messages: parsed.messages,
+      goalText: typeof parsed.goalText === "string" ? parsed.goalText : null,
+    };
+  } catch {
+    return { messages: [], goalText: null };
+  }
+}
+
+function saveDraftChat(draft: DraftChat): void {
+  try {
+    sessionStorage.setItem(DRAFT_CHAT_KEY, JSON.stringify(draft));
+  } catch {
+    // 용량 초과·차단 - 보존은 부가 기능이라 조용히 포기한다.
+  }
+}
+
+/** 대화가 끝났거나(완료) 사용자가 빠져나간(이탈) 시점에 비운다. 안 비우면
+ * "새 별자리 만들기"로 새 대화를 열었을 때 옛 대화가 되살아난다. */
+function clearDraftChat(): void {
+  try {
+    sessionStorage.removeItem(DRAFT_CHAT_KEY);
+  } catch {
+    // 무시 - 다음 로드에서 형식 검사가 걸러 준다.
+  }
+}
+
 type Phase = "chat" | "generating";
 
 /** 질문 하나 + (있다면) 그에 대한 답. 인트로 문구도 첫 "질문"으로 취급한다. */
@@ -106,8 +150,23 @@ export function ConstellationIntakeChat({
   // messages는 서버가 마지막으로 돌려준 "전체 히스토리"를 그대로 담는다(단,
   // 아직 첫 응답을 받기 전에는 로컬에서 낙관적으로 채운다). 첫 유저 메시지가
   // 곧 goalRawText다 - 이후 요청에서도 그 값을 그대로 재사용한다.
-  const [messages, setMessages] = useState<ChatMessageDto[]>([]);
-  const [goalText, setGoalText] = useState<string | null>(null);
+  // 뒤로가기 한 번에 대화가 통째로 날아가던 문제(베타 테스트 다수 보고) -
+  // 이 컴포넌트가 언마운트되면 메모리 상태가 사라지기 때문이었다. 진행분을
+  // sessionStorage에 얹어 뒤로/앞으로 가도 이어지게 한다.
+  //
+  // 왜 sessionStorage인가(사용자 질문: "쿠키나 캐시나 그런걸로 해결 못하나"):
+  // **탭 단위로 살고 탭을 닫으면 사라진다** - 공용 데모 계정에서 다음 사람이
+  // 남의 대화를 물려받지 않는다. 쿠키는 매 요청에 실려 가 낭비고, localStorage는
+  // 영구라 지우는 시점을 계속 관리해야 해서 오히려 지저분해진다.
+  const [messages, setMessages] = useState<ChatMessageDto[]>(() => loadDraftChat().messages);
+  const [goalText, setGoalText] = useState<string | null>(() => loadDraftChat().goalText);
+  // 진행분이 바뀔 때마다 보관해 둔다(뒤로가기 대비). 빈 대화는 저장하지 않아
+  // 새로 연 대화가 옛 보관분을 덮어쓰기만 하고 끝나는 일이 없게 한다.
+  useEffect(() => {
+    if (messages.length === 0 && goalText === null) return;
+    saveDraftChat({ messages, goalText });
+  }, [messages, goalText]);
+
   const [draft, setDraft] = useState("");
   const [pending, setPending] = useState(false);
   const [chatError, setChatError] = useState<string | null>(null);
@@ -169,6 +228,9 @@ export function ConstellationIntakeChat({
         .then((status) => {
           if (status.status === "done") {
             stopPolling();
+            // 대화가 결과로 넘어갔으니 보관분을 비운다 - 안 비우면 다음에
+            // "새 별자리 만들기"로 연 대화에 옛 내용이 되살아난다.
+            clearDraftChat();
             onComplete(status.result?.bins ?? [], goal, status.result?.drafts);
             return;
           }
@@ -290,10 +352,18 @@ export function ConstellationIntakeChat({
     if (lastFailedText) void sendMessage(lastFailedText);
   }
 
+  /** 이탈 경로(Escape·"이어서 편집" 배지)를 한 곳으로 모은다 - 나가는 건
+   * 대화를 접겠다는 뜻이므로 보관분도 함께 비운다. 두 호출부가 각자 비우면
+   * 한쪽을 빠뜨린다. */
+  function handleDismiss() {
+    clearDraftChat();
+    onDismiss?.();
+  }
+
   function handleKeyDown(e: ReactKeyboardEvent<HTMLDivElement>) {
     if (e.key === "Escape" && onDismiss) {
       e.stopPropagation();
-      onDismiss();
+      handleDismiss();
     }
   }
 
@@ -324,7 +394,7 @@ export function ConstellationIntakeChat({
       {existingNotice && onDismiss && (
         <button
           type="button"
-          onClick={onDismiss}
+          onClick={handleDismiss}
           className="fixed right-6 top-6 z-20 rounded-full border border-rule bg-ink-800/90 px-3.5 py-2 font-sans text-caption text-text-lo transition-colors hover:text-text-hi"
         >
           {existingNotice} · 이어서 편집

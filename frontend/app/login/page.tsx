@@ -221,7 +221,7 @@ function PaperField({
 function LoginForm() {
   const router = useRouter();
   const searchParams = useSearchParams();
-  const { login } = useAuth();
+  const { login, user, loading: authLoading } = useAuth();
   const [email, setEmail] = useState("");
   const [password, setPassword] = useState("");
   const [pending, setPending] = useState(false);
@@ -237,6 +237,22 @@ function LoginForm() {
   useEffect(() => {
     router.prefetch("/constellation/new");
   }, [router]);
+
+  // 캔버스·대화에서 뒤로가기를 누르면 이 화면으로 돌아오는데, 여기에 "이미
+  // 로그인한 사용자" 처리가 없어서 로그인 폼이 그대로 떴다 - 사용자는 그걸
+  // **로그아웃됐다**고 읽는다(실제로는 Firebase 세션이 IndexedDB에 멀쩡히
+  // 살아 있다). 인증된 채로 도달하면 폼을 보이지 말고 목적지로 되돌린다.
+  //
+  // 가드가 두 개인 이유: 방금 로그인에 성공한 경로(stage가 "aperture"로 바뀌는
+  // 순간)에서 이 effect가 끼어들면 접안렌즈 연출이 잘린다. login() 안에서
+  // setUser가 setStage보다 먼저 커밋되는 배치 실패까지 대비해 pending도 함께 본다.
+  // history를 더럽히지 않도록 push가 아니라 replace다.
+  useEffect(() => {
+    if (authLoading || !user || pending || stage !== "form") return;
+    if (!user.yonseiVerified) router.replace("/verify");
+    else if (isSafeNextPath(nextParam)) router.replace(nextParam);
+    else router.replace("/constellation/new");
+  }, [authLoading, user, pending, stage, nextParam, router]);
 
   async function submit(e: React.FormEvent) {
     e.preventDefault();

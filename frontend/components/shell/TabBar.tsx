@@ -34,7 +34,7 @@ export function TabBar() {
               onClick={() => router.push(target)}
               className="-mt-4 flex h-12 w-12 items-center justify-center rounded-full bg-[linear-gradient(160deg,#9DB4FF,#FFF3C4)] text-ink-900 shadow-fab"
             >
-              <item.Icon size={22} />
+              <item.Icon size={24} />
             </button>
           );
         }
@@ -49,7 +49,7 @@ export function TabBar() {
               isNavActive(item, pathname, user) ? "text-paper-ink" : "text-paper-lo"
             )}
           >
-            <item.Icon size={20} />
+            <item.Icon size={22} />
             {item.shortLabel}
           </button>
         );
