@@ -1392,7 +1392,9 @@ export function ConstellationCanvas({
             // 커스텀 선 색은 점등/미점등 기본색을 모두 대체한다(미점등일 땐
             // 같은 색을 흐리게) - "색을 골랐는데 미점등이라 안 보임"을 피한다.
             const litStroke = edge.color ?? "var(--lit)";
-            const unlitStroke = edge.color ?? "var(--rule)";
+            // --rule(차트 격자용)이 아니라 --rule-edge. 이유는 globals.css의
+            // 토큰 주석 참고 - 미점등 선이 1.4:1이라 사실상 안 보였다.
+            const unlitStroke = edge.color ?? "var(--rule-edge)";
             const edgeInteractive = !readOnly && (onEdgeActivate || onEdgeDelete);
             return (
               <g key={edge.id}>
@@ -1405,8 +1407,13 @@ export function ConstellationCanvas({
                   // 오버레이 선이 그 위를 "그어" 나간다 - 끝나면 이 선이 그대로
                   // 점등 스타일로 승격된다.
                   stroke={lit && !drawing ? litStroke : unlitStroke}
+                  // 미점등 굵기는 1px 그대로다. "확실히 보이게"를 굵기로 풀면
+                  // 볼펜으로 그은 균일한 실선이 되어 성도가 아니게 된다(사용자
+                  // 금지 조건) - 명도(--rule-edge)로만 올린다. 색 지정 간선도
+                  // 같은 0.7을 쓴다(옛 0.55는 3.5:1로 이미 통과했지만 두 경로가
+                  // 다르면 "왜 이 선만 흐리냐"가 다시 생긴다).
                   strokeWidth={lit && !drawing ? 2 : 1}
-                  opacity={lit && !drawing ? 1 : edge.color ? 0.55 : 0.8}
+                  opacity={lit && !drawing ? 1 : 0.7}
                   filter={lit && !drawing ? "url(#const-glow)" : undefined}
                   style={lit && !drawing ? { animation: "edgeGlowPulse 3.2s ease-in-out infinite" } : undefined}
                   onClick={
@@ -1497,10 +1504,14 @@ export function ConstellationCanvas({
             // 색은 이제 완료 여부와 무관하게 처음부터 켜져 있다 - 캔버스를 보는
             // 즉시 "여기 어떤 유형의 원소가 있는지"가 읽혀야 하기 때문(색이
             // 완료의 보상이던 예전 설계는 미완료 캔버스가 거의 텅 비어 보였다).
-            // 대신 "밝기"가 아니라 "빛번짐"으로 달성을 표현한다 - 미완료는 보통
-            // 밝기의 분광형 별(글로우 없음), 완료는 더 밝아지고(opacity 1)
-            // const-glow 발광 + 십자 회절 스파이크(아래 spikeLength)가 붙는다.
-            const magOpacity = node.isCompleted ? 1 : 0.82 - magT * 0.08;
+            //
+            // (2026-09-02 사양 변경) 예전엔 미완료를 0.74~0.82로 깔고 "달성은
+            // 밝기가 아니라 빛번짐"이라고 뒀는데, 실사용 지적이 "달성 전에 노드가
+            // 너무 희미하다"였다. 미완료 바닥을 0.88~0.95로 올려 그 자체로 또렷한
+            // 별이 되게 하고, 벌어진 격차는 달성 쪽에서 되돌린다 - 아래
+            // whiteCore(백색 고온부)를 얹어 "달성하면 확 밝아진다"를 글로우와
+            // 별개로 눈에 보이게 만든다. magT 계수는 남겨 둔다(겉보기 등급 은유).
+            const magOpacity = node.isCompleted ? 1 : 0.95 - magT * 0.07;
             const spikeLength = r * SPIKE_LENGTH_MULT;
             // node.code가 있으면 그걸 그대로 쓰고(라벨은 순수 이름), 없으면
             // 과거처럼 라벨에서 정규식으로 분리한다(하위호환 fallback).
@@ -1567,11 +1578,11 @@ export function ConstellationCanvas({
                   />
                 )}
 
-                {/* 미완료 = 분광형 색으로 채워진 보통 밝기의 별(글로우 없음).
-                    완료 = 더 밝아지고(opacity 1) + const-glow 발광 + 아래
-                    십자 회절 스파이크까지 붙는다 - "승급"이 밝기 하나가 아니라
-                    빛번짐이라는 눈에 띄는 사건으로 읽히게 하는 게 새 디자인의
-                    핵심이다. */}
+                {/* 미완료 = 분광형 색으로 또렷하게 채워진 별(글로우 없음).
+                    완료 = 백색 고온부 + const-glow 발광 + 십자 회절 스파이크.
+                    "승급"은 밝기 하나가 아니라 빛번짐이라는 사건으로 읽혀야
+                    하지만, 그렇다고 미완료가 흐려선 안 된다(2026-09-02 지적).
+                    둘 다 성립시키는 게 위 magOpacity + 아래 백색 고온부다. */}
                 {/* (과거 버그 메모) 예전엔 미완료 노드가 fill="transparent"였는데,
                     SVG가 fill="none" 영역을 클릭 판정에서 빼버리는 함정 때문에
                     "군집에서 끌어온 요소는 연결이 안 된다"는 버그가 난 적이 있다.
@@ -1636,6 +1647,22 @@ export function ConstellationCanvas({
                   opacity={magOpacity}
                   filter={node.isCompleted ? "url(#const-glow)" : undefined}
                 />
+                {/* 달성 별의 백색 고온부. 미완료 바닥을 올린 만큼(위 magOpacity
+                    주석) 불투명도 차이만으로는 "확 밝아진다"가 안 읽히므로,
+                    실제 밝은 항성처럼 중심을 흰빛으로 태운다. 새 색을 만들지
+                    않으려고 A형(백색) 토큰을 그대로 쓴다. 상시 애니메이션은
+                    붙이지 않는다 - 디자인 인계 가이드 §3-4(배경/상시 모션 금지),
+                    숨쉬기는 이미 스파이크 쪽 spikeBreathe가 담당한다. */}
+                {node.isCompleted && (
+                  <circle
+                    aria-hidden="true"
+                    pointerEvents="none"
+                    r={r * 0.45}
+                    fill="var(--spec-a)"
+                    opacity={0.9}
+                    filter="url(#const-glow)"
+                  />
+                )}
 
                 {/* "요소가 뭔지 글자가 아주 조금만 더 잘보였으면"(사용자 지시) -
                     크기 +1px, 미완료 불투명도 0.6->0.8만 소폭 상향. 색 토큰과
@@ -1707,7 +1734,9 @@ export function ConstellationCanvas({
                     opacity={allCompleted ? 0.9 : 0.4}
                     filter={allCompleted ? "url(#const-glow)" : undefined}
                   />
-                  <circle r={radius} fill="transparent" stroke="var(--rule)" strokeWidth={1} opacity={0.7} />
+                  {/* 성운 경계선도 간선과 같은 이유로 --rule-edge다 - --rule은
+                      1.4:1이라 접힌 성단의 윤곽이 사실상 안 보였다. */}
+                  <circle r={radius} fill="transparent" stroke="var(--rule-edge)" strokeWidth={1} opacity={0.7} />
                   {/* 자글자글한 성운 입자 - hashSeed(group.id) 결정론, Math.random
                       없음(리렌더·드래그마다 자리가 안 흔들린다). */}
                   {particles.map((p, pi) => (

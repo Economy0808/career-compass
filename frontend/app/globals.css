@@ -15,6 +15,12 @@
   --rule: #2a3350; /* hairlines, chart grid */
   --text-hi: #e8eaf2; /* primary text */
   --text-lo: #8891ac; /* secondary text */
+  /* 미점등 간선 전용 선색. --rule은 "차트 격자"용이라 ink-900 위에서 1.4:1로,
+     비텍스트 최소 대비 3:1에 한참 못 미친다(실측) - 별을 이어놨는데 선이 안
+     보인다는 지적의 원인이었다. 굵기를 올려 해결하면 "볼펜으로 그은 것"처럼
+     되므로 굵기(1px)는 그대로 두고 명도만 올린다. opacity 0.7에서 3.6:1.
+     새 hex를 만들지 않으려고 --text-lo 값을 그대로 참조한다. */
+  --rule-edge: var(--text-lo);
 
   /* 항성 분광형 악센트 — 요소 종류를 실제 천문 어휘로 표현 */
   --spec-b: #9db4ff; /* 수업 (course) */
