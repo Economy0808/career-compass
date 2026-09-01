@@ -22,7 +22,11 @@ import { useEffect, useRef, useState } from "react";
 import { Button, EmptyState, Modal } from "@/components/ui";
 import { VerifyGate, isVerifyRequiredError } from "@/components/VerifyGate";
 import { MiniConstellation } from "@/components/MiniConstellation";
-import { listUserConstellations, type ConstellationDto } from "@/lib/constellation-api";
+import {
+  deleteConstellation,
+  listUserConstellations,
+  type ConstellationDto,
+} from "@/lib/constellation-api";
 import { getProfile, followUser, unfollowUser, type ProfileDto } from "@/lib/profiles-api";
 import { createPost, listUserPosts, type PostDto } from "@/lib/posts-api";
 import { PostDetail } from "@/components/PostDetail";
@@ -88,12 +92,81 @@ function KebabIcon({ size = 18 }: { size?: number }) {
   );
 }
 
-function ConstellationTile({ item }: { item: ConstellationDto }) {
+/** 본인 프로필에서만 뜨는 타일 케밥 - 수정(캔버스로 불러오기)/삭제.
+ * 타일 전체가 <Link>라 케밥 조작이 링크 이동으로 새지 않게 이벤트를 막는다. */
+function TileMenu({ item, onDelete }: { item: ConstellationDto; onDelete: () => void }) {
+  const [open, setOpen] = useState(false);
+  function stop(e: React.MouseEvent) {
+    e.preventDefault();
+    e.stopPropagation();
+  }
+  return (
+    <span className="absolute right-1 top-1 z-10" onClick={stop}>
+      <button
+        type="button"
+        aria-label={`${item.title} 관리 메뉴`}
+        aria-expanded={open}
+        onClick={(e) => {
+          stop(e);
+          setOpen((v) => !v);
+        }}
+        className="flex h-8 w-8 items-center justify-center rounded-full bg-ink-900/70 text-text-hi opacity-0 backdrop-blur-sm transition-opacity group-hover:opacity-100 focus-visible:opacity-100 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-1 focus-visible:outline-spec-b"
+      >
+        <KebabIcon size={16} />
+      </button>
+      {open && (
+        <>
+          {/* 바깥 클릭으로 닫기 - 이 파일의 프로필 케밥과 같은 패턴 */}
+          <button
+            type="button"
+            aria-label="메뉴 닫기"
+            onClick={(e) => {
+              stop(e);
+              setOpen(false);
+            }}
+            className="fixed inset-0 z-10 cursor-default"
+          />
+          <span className="absolute right-0 z-20 mt-1 flex w-32 flex-col overflow-hidden rounded-lg border border-rule bg-ink-800/95 shadow-panel backdrop-blur-md">
+            <Link
+              href={`/constellation/new?id=${encodeURIComponent(item.id)}`}
+              onClick={(e) => e.stopPropagation()}
+              className="px-3 py-2 text-left font-sans text-body-sm text-text-hi no-underline transition-colors hover:bg-ink-700"
+            >
+              수정
+            </Link>
+            <button
+              type="button"
+              onClick={(e) => {
+                stop(e);
+                setOpen(false);
+                onDelete();
+              }}
+              className="px-3 py-2 text-left font-sans text-body-sm text-spec-m transition-colors hover:bg-ink-700"
+            >
+              삭제
+            </button>
+          </span>
+        </>
+      )}
+    </span>
+  );
+}
+
+function ConstellationTile({
+  item,
+  canManage,
+  onDelete,
+}: {
+  item: ConstellationDto;
+  canManage: boolean;
+  onDelete: (item: ConstellationDto) => void;
+}) {
   return (
     <Link
       href={`/constellation/${item.id}`}
       className="group relative block aspect-square overflow-hidden bg-ink-900 no-underline transition-transform duration-150 hover:scale-[1.02]"
     >
+      {canManage && <TileMenu item={item} onDelete={() => onDelete(item)} />}
       <div className="bg-radec-grid pointer-events-none absolute inset-0" aria-hidden />
       <MiniConstellation
         nodes={item.nodes}
@@ -124,6 +197,32 @@ export default function ProfilePage({ params }: { params: { id: string } }) {
   const [followPending, setFollowPending] = useState(false);
   const [followError, setFollowError] = useState<string | null>(null);
   const [verifyGateOpen, setVerifyGateOpen] = useState(false);
+  // 별자리 타일 삭제 - 되돌릴 수 없으므로 확인 모달을 한 번 거친다.
+  const [pendingDelete, setPendingDelete] = useState<ConstellationDto | null>(null);
+  const [deletingConstellation, setDeletingConstellation] = useState(false);
+  const [deleteConstellationError, setDeleteConstellationError] = useState<string | null>(null);
+
+  async function handleDeleteConstellation(): Promise<void> {
+    const target = pendingDelete;
+    if (!target || deletingConstellation) return;
+    setDeletingConstellation(true);
+    setDeleteConstellationError(null);
+    try {
+      await deleteConstellation(target.id);
+      // 서버가 지웠으니 목록에서도 뺀다 - 재조회 없이 로컬에서 걷어낸다.
+      setItems((prev) => (prev ?? []).filter((c) => c.id !== target.id));
+      setPendingDelete(null);
+    } catch (err) {
+      if (isVerifyRequiredError(err)) {
+        setPendingDelete(null);
+        setVerifyGateOpen(true);
+        return;
+      }
+      setDeleteConstellationError("삭제하지 못했어요. 잠시 후 다시 시도해주세요.");
+    } finally {
+      setDeletingConstellation(false);
+    }
+  }
 
   // 케밥 메뉴/모달/컴포저/라이트박스 상태
   const [menuOpen, setMenuOpen] = useState(false);
@@ -534,7 +633,12 @@ export default function ProfilePage({ params }: { params: { id: string } }) {
         ) : (
           <div className="grid grid-cols-3 gap-1">
             {items.map((item) => (
-              <ConstellationTile key={item.id} item={item} />
+              <ConstellationTile
+                key={item.id}
+                item={item}
+                canManage={isOwn}
+                onDelete={setPendingDelete}
+              />
             ))}
           </div>
         )}
@@ -683,6 +787,44 @@ export default function ProfilePage({ params }: { params: { id: string } }) {
 
       <AccountDeleteModal open={deleteOpen} onClose={() => setDeleteOpen(false)} onDeleted={() => router.push("/")} />
       <VerifyGate open={verifyGateOpen} onClose={() => setVerifyGateOpen(false)} />
+
+      {/* 별자리 삭제 확인 - 되돌릴 수 없다는 걸 문구로 분명히 한다. */}
+      <Modal
+        open={pendingDelete !== null}
+        onClose={() => {
+          if (!deletingConstellation) setPendingDelete(null);
+        }}
+        title="별자리를 삭제할까요?"
+        size="sm"
+      >
+        <div className="flex flex-col gap-3">
+          <p className="text-body-sm leading-relaxed text-text-lo">
+            <span className="font-semibold text-text-hi">{pendingDelete?.title}</span>과(와) 그 안의 요소·노트가
+            모두 지워져요. <span className="text-text-hi">되돌릴 수 없어요.</span>
+          </p>
+          {deleteConstellationError && (
+            <p className="text-caption text-spec-m">{deleteConstellationError}</p>
+          )}
+          <div className="flex justify-end gap-2">
+            <Button
+              variant="ghost"
+              size="sm"
+              onClick={() => setPendingDelete(null)}
+              disabled={deletingConstellation}
+            >
+              취소
+            </Button>
+            <Button
+              variant="danger"
+              size="sm"
+              onClick={() => void handleDeleteConstellation()}
+              disabled={deletingConstellation}
+            >
+              {deletingConstellation ? "삭제 중…" : "삭제"}
+            </Button>
+          </div>
+        </div>
+      </Modal>
     </>
   );
 }

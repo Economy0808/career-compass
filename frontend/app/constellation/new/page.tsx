@@ -47,6 +47,8 @@ import {
   getBinJob,
   inferPrereqs,
   listConstellations,
+  type ConstellationDto,
+  getConstellation,
   listNotes,
   patchGroup,
   patchNodeColor,
@@ -449,7 +451,9 @@ export default function NewConstellationPage() {
   // (사용자 지시: 세계관 내 확인). 저장 툴바의 "발행됨" 칩에 shadow-glow-bloom을
   // 잠깐 얹었다 스스로 꺼진다. prefers-reduced-motion은 globals.css의 전역
   // transition-duration 킬스위치가 처리하므로 여기서 따로 분기하지 않는다.
-  const [justPublished, setJustPublished] = useState(false);
+  // 발행 직후 캔버스가 비워지므로, 별자리가 어디로 갔는지 짧게 알려 준다
+  // (칩 발광만으로는 빈 화면이 된 이유가 전달되지 않는다).
+  const [publishedNotice, setPublishedNotice] = useState(false);
 
   // --- 부팅 상태 + Intake 오버레이 ---------------------------------------
   // "loading"(인증 확인 중) -> "empty"(로그인했는데 별자리가 하나도 없음, 대화
@@ -643,19 +647,38 @@ export default function NewConstellationPage() {
     try {
       const list = await listConstellations();
       if (bootCancelledRef.current) return;
-      // 플로우 규칙(사용자 지시 2026-08-30: "기존에 인증한 유저들이 별자리
-      // 만들기 눌렀을떄 바로 LLM이 나오면 안돼. 기존에 만들던 별자리가 이어서
-      // 나와야지."): 발행 여부와 무관하게 **가장 최근 별자리를 그대로 이어서**
-      // 연다. 대화·추천 시안은 별자리가 하나도 없는 첫 사용자에게만 자동으로
-      // 뜬다 - 이미 쓰던 사람에게 매번 처음부터 대화를 시키면 안 된다.
-      // 새 별자리를 원하면 보관함의 "새 별자리 만들기"로 명시적으로 시작한다
-      // (그 경로가 항상 새 문서를 만들므로 기존 별자리를 덮어쓸 위험은 없다).
-      const latest = list.sort((a, b) => b.updatedAt - a.updatedAt)[0];
+      // 플로우 규칙 - 두 지시가 겹쳐 있고 서로 충돌하지 않는다:
+      //  (1) 2026-08-30 "기존에 만들던 별자리가 이어서 나와야지" → **만들던 것**은
+      //      매번 이어서 연다. 쓰던 사람에게 처음부터 대화를 시키면 안 된다.
+      //  (2) 2026-09-01 "발행하면 캔버스 비우고 프로필로 옮겨" → **발행한 것**은
+      //      완결된 결과물이라 캔버스로 되돌아오지 않는다. 프로필 별자리 탭에
+      //      쌓이고, 거기서 케밥 > 수정을 눌러야 `?id=`로 다시 열린다.
+      // 그래서 여기서 고르는 대상은 "미발행 중 최신"이다. 발행본만 있는
+      // 계정은 별자리가 없는 것과 같이 취급돼 대화가 뜬다 - 그게 (2)의 의도다.
+      const latest = list
+        .filter((c) => !c.isPublished)
+        .sort((a, b) => b.updatedAt - a.updatedAt)[0];
       if (!latest) {
         setBootState("empty");
         setIntakeOpen(true);
         return;
       }
+      await applyServerConstellation(latest);
+    } catch (err) {
+      // 초기 로드 실패는 조용히 데모 상태로 남긴다 - 화면이 죽으면 안 된다.
+      // 기존 별자리가 있는 사용자일 수 있으므로 대화를 강제로 띄우지 않는다
+      // (일시 오류 때마다 처음부터 대화하게 되는 역효과 방지).
+      console.error("[constellation] 초기 로드 실패", err);
+      setBootState("loaded");
+      setIntakeOpen(false);
+    }
+    // eslint-disable-next-line react-hooks/exhaustive-deps
+  }, []);
+
+  // 서버 별자리 하나를 캔버스에 싣는다 - "미발행 최신 이어 열기"와 "프로필에서
+  // ?id=로 특정 별자리 수정" 두 경로가 공유한다.
+  const applyServerConstellation = useCallback(
+    async (latest: ConstellationDto) => {
       const noteDtos = await listNotes(latest.id);
       if (bootCancelledRef.current) return;
 
@@ -726,15 +749,9 @@ export default function NewConstellationPage() {
       // 편집하고, 새로 시작하고 싶을 때만 보관함의 "새 별자리 만들기"로
       // 대화를 연다.
       setIntakeOpen(false);
-    } catch (err) {
-      // 초기 로드 실패는 조용히 데모 상태로 남긴다 - 화면이 죽으면 안 된다.
-      // 기존 별자리가 있는 사용자일 수 있으므로 대화를 강제로 띄우지 않는다
-      // (일시 오류 때마다 처음부터 대화하게 되는 역효과 방지).
-      console.error("[constellation] 초기 로드 실패", err);
-      setBootState("loaded");
-      setIntakeOpen(false);
-    }
-  }, []);
+    },
+    []
+  );
 
   // 마운트 시(+ 인증 상태가 바뀔 때마다) 정착 분기 - 비로그인/미인증/인증
   // 셋으로 갈린다. 로그인 안 됐으면(또는 아직 로딩 중이면) 미인증 분기까지도
@@ -772,11 +789,33 @@ export default function NewConstellationPage() {
       return;
     }
     bootCancelledRef.current = false;
+    // 프로필 별자리 타일의 "수정"이 `?id=`로 들어온다 - 그 별자리를 콕 집어
+    // 연다. **발행본이어도 이 경로로는 열린다**(발행본을 다시 손보는 유일한
+    // 진입점이다 - 평소 마운트 로드는 미발행만 고른다). useSearchParams 대신
+    // location을 읽는 이유: 이 페이지를 Suspense로 감싸는 큰 구조 변경 없이
+    // 클라이언트 전용 effect 안에서 안전하게 읽을 수 있다.
+    const requestedId = new URLSearchParams(window.location.search).get("id");
+    if (requestedId) {
+      void (async () => {
+        try {
+          const dto = await getConstellation(requestedId);
+          if (bootCancelledRef.current) return;
+          await applyServerConstellation(dto);
+        } catch (err) {
+          // 없거나 남의 것이면 평소 흐름으로 조용히 되돌아간다.
+          console.error("[constellation] 지정 별자리 로드 실패", err);
+          void bootFromServer();
+        }
+      })();
+      return () => {
+        bootCancelledRef.current = true;
+      };
+    }
     void bootFromServer();
     return () => {
       bootCancelledRef.current = true;
     };
-  }, [authLoading, user, bootFromServer, router]);
+  }, [authLoading, user, bootFromServer, applyServerConstellation, router]);
 
   // 인증 승계 "예" - 로컬 보관분(지금 캔버스에 이미 미리보기로 떠 있는 값)을
   // 기존 첫 저장 경로(handleConfirmTitle과 동일 패턴)로 실제 서버에 만든다.
@@ -1125,6 +1164,45 @@ export default function NewConstellationPage() {
   // 이미 서버에 있는 별자리는 모달 없이 즉시 발행 상태를 뒤집는다. 아직 서버에
   // 없거나 비로그인이면 띄우기 모달로 보낸다(제목/로그인 안내가 필요하므로).
   const [publishToggling, setPublishToggling] = useState(false);
+  // 캔버스를 빈 상태로 되돌린다 - "새 별자리 만들기"와 "발행 완료" 두 경로가
+  // 공유한다. 노트 첨부 objectURL 회수와 보관함 채우기 폴링 정리가 여기 들어
+  // 있어서, 복제해 쓰면 반드시 하나를 빠뜨린다(누수·유령 폴링).
+  const resetCanvasState = useCallback(() => {
+    Object.values(notesRef.current).forEach((note) => {
+      note.attachments.forEach((att) => URL.revokeObjectURL(att.url));
+    });
+    fillPollsRef.current.forEach((interval) => clearInterval(interval));
+    fillPollsRef.current.clear();
+    setConstellationId(null);
+    setNodes({});
+    setEdges({});
+    setGroups({});
+    setNotes({});
+    setBins([]);
+    setDraftOffer(null);
+    setSaveState("unsaved");
+    setPanelMode("bins");
+    setNotesNodeId(null);
+    setIsPublished(false);
+    setLaunchDescription("");
+    setLaunchContributors([]);
+    pendingMutationsRef.current = 0;
+    goalTextRef.current = null;
+    constellationTitleRef.current = null;
+  }, []);
+
+  // 발행 = 완결(사용자 지시: "발행하면 캔버스 비우고 프로필로 옮겨"). 화면
+  // 이동은 하지 않는다 - 사용자가 명시적으로 정정했다("발행하자마자 프로필로
+  // 화면이동하라고 한 적은 없어. 데이터만 프로필칸에 적재하라는거지"). 발행본은
+  // 서버에 남아 프로필 별자리 탭에 쌓이고, 이 화면은 빈 캔버스 + 다음 별자리를
+  // 위한 대화로 넘어간다(빈 화면을 남기지 않으려고 대화를 함께 연다).
+  const finishAfterPublish = useCallback(() => {
+    resetCanvasState();
+    setPublishedNotice(true);
+    window.setTimeout(() => setPublishedNotice(false), 3200);
+    setIntakeOpen(true);
+  }, [resetCanvasState]);
+
   const handleQuickPublishToggle = useCallback(async () => {
     // 로그인은 했지만 미인증 - 발행 시도 자체를 막고 인증으로 유도한다
     // (사용자 지시: "Publishing도 못하게 해"). cid는 미인증이면 어차피 항상
@@ -1145,8 +1223,9 @@ export default function NewConstellationPage() {
       const updated = await patchPublish(cid, { isPublished: !isPublished });
       setIsPublished(updated.isPublished);
       if (updated.isPublished) {
-        setJustPublished(true);
-        window.setTimeout(() => setJustPublished(false), 1600);
+        // 발행은 완결이라 모달 경로와 똑같이 캔버스를 비운다. 발행 "취소"는
+        // 그대로 두고 편집을 이어간다(사용자 지시대로 취소는 리셋 대상 아님).
+        finishAfterPublish();
       }
     } catch (err) {
       if (isVerifyRequiredError(err)) {
@@ -1157,7 +1236,7 @@ export default function NewConstellationPage() {
     } finally {
       setPublishToggling(false);
     }
-  }, [user, isPublished, publishToggling]);
+  }, [user, isPublished, publishToggling, finishAfterPublish]);
 
   // "별자리 띄우기" 제출 - 로그인 + 미저장이면 모달의 이름으로 먼저 생성한
   // 뒤(기존 handleConfirmTitle과 같은 payload 구성) 발행 패치까지 이어서
@@ -1239,13 +1318,12 @@ export default function NewConstellationPage() {
       setLaunchContributors(input.contributors);
       setLaunchModalOpen(false);
       if (input.isPublished) {
-        // 발행 칩("발행됨")이 이미 위 setIsPublished로 전환됐으니, 그 칩에
-        // 잠깐 별빛 발광을 얹어 "띄워졌다"는 걸 알린다 - alert 대신.
-        setJustPublished(true);
-        setTimeout(() => setJustPublished(false), 2600);
+        // 발행하면 이 캔버스는 완결된다 - 비우고 다음 별자리로 넘어간다.
+        // 발행본은 서버에 남아 프로필 별자리 탭에서 열 수 있다.
+        finishAfterPublish();
       }
     },
-    [enqueueMutation, user]
+    [enqueueMutation, user, finishAfterPublish]
   );
 
   // "새 별자리 만들기" - 지금 편집 중인 별자리(서버에 있든 로컬 데모든)를
@@ -1260,29 +1338,9 @@ export default function NewConstellationPage() {
       setVerifyGateOpen(true);
       return;
     }
-    Object.values(notesRef.current).forEach((note) => {
-      note.attachments.forEach((att) => URL.revokeObjectURL(att.url));
-    });
-    fillPollsRef.current.forEach((interval) => clearInterval(interval));
-    fillPollsRef.current.clear();
-    setConstellationId(null);
-    setNodes({});
-    setEdges({});
-    setGroups({});
-    setNotes({});
-    setBins([]);
-    setDraftOffer(null);
-    setSaveState("unsaved");
-    setPanelMode("bins");
-    setNotesNodeId(null);
-    setIsPublished(false);
-    setLaunchDescription("");
-    setLaunchContributors([]);
-    pendingMutationsRef.current = 0;
-    goalTextRef.current = null;
-    constellationTitleRef.current = null;
+    resetCanvasState();
     setIntakeOpen(true);
-  }, [user]);
+  }, [user, resetCanvasState]);
 
   // Intake 대화가 끝나(구간 잡까지 완료) 넘겨준 보관함으로 캔버스를 채운다.
   // 캔버스 노드/엣지는 건드리지 않는다 - 원소를 캔버스에 놓는 건 항상 사용자의
@@ -2208,12 +2266,21 @@ export default function NewConstellationPage() {
             isPublished
               ? "border-paper-ink bg-paper-ink font-semibold text-lit"
               : "border-paper-line bg-paper-soft/95 text-paper-lo hover:text-paper-ink",
-            justPublished && "shadow-glow-bloom",
             publishToggling && "opacity-60"
           )}
         >
           {isPublished ? "발행됨" : "비공개"}
         </button>
+        {/* 발행 직후 캔버스가 비워지므로 별자리가 어디로 갔는지 짧게 알린다 -
+            안내가 없으면 "내 작업이 사라졌다"로 읽힌다. */}
+        {publishedNotice && (
+          <span
+            role="status"
+            className="paper-surface rounded-full border border-paper-line bg-paper-soft/95 px-2.5 py-1.5 font-sans text-micro font-medium text-paper-ink shadow-panel backdrop-blur-md"
+          >
+            별자리를 띄웠어요 — 프로필에 담겼습니다
+          </span>
+        )}
         <button
           type="button"
           aria-pressed={editMode}
