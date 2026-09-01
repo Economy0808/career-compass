@@ -103,8 +103,12 @@ function saveDraftChat(draft: DraftChat): void {
 }
 
 /** 대화가 끝났거나(완료) 사용자가 빠져나간(이탈) 시점에 비운다. 안 비우면
- * "새 별자리 만들기"로 새 대화를 열었을 때 옛 대화가 되살아난다. */
-function clearDraftChat(): void {
+ * "새 별자리 만들기"로 새 대화를 열었을 때 옛 대화가 되살아난다.
+ *
+ * export인 이유: "새 별자리 만들기"는 **부모(page.tsx) 쪽 경로**라 이 컴포넌트의
+ * onComplete·onDismiss를 거치지 않는다. 실제로 그 경로에서 옛 대화가 되살아나는
+ * 버그가 났고(라이브 실측), 키를 두 곳에 복제하지 않으려고 함수를 공개한다. */
+export function clearDraftChat(): void {
   try {
     sessionStorage.removeItem(DRAFT_CHAT_KEY);
   } catch {

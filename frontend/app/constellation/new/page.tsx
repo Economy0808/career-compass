@@ -20,7 +20,7 @@ import {
 import { ElementBinPanel, type Bin, type BinItem, type BinDropPayload } from "@/components/ElementBinPanel";
 import { courseItemId, scaleCourseLevel, type CourseDto } from "@/lib/courses-api";
 import { ElementNotesPanel, type ElementNote } from "@/components/ElementNotesPanel";
-import { ConstellationIntakeChat } from "@/components/ConstellationIntakeChat";
+import { ConstellationIntakeChat, clearDraftChat } from "@/components/ConstellationIntakeChat";
 import { DraftReviewStage, binClusterCenter } from "@/components/DraftReviewStage";
 import { ColorPaletteBar } from "@/components/ColorPaletteBar";
 import { LaunchModal, type LaunchInput } from "@/components/LaunchModal";
@@ -467,6 +467,11 @@ export default function NewConstellationPage() {
   // "loading" 동안은 아래 JSX의 전면 베일이 화면을 가린다.
   const [bootState, setBootState] = useState<"loading" | "empty" | "loaded">("loading");
   const [intakeOpen, setIntakeOpen] = useState(false);
+  // 챗을 강제로 새로 마운트시키는 토큰. "새 별자리 만들기"를 눌렀을 때 챗이
+  // **이미 떠 있으면** setIntakeOpen(true)가 no-op이라 리마운트가 일어나지 않고
+  // 컴포넌트 내부 state(주고받은 메시지)가 그대로 남는다 - 라이브에서 실제로
+  // 옛 대화가 새 대화창에 되살아났다. 이 값을 key로 넘겨 확실히 갈아끼운다.
+  const [intakeSession, setIntakeSession] = useState(0);
   const [isPublished, setIsPublished] = useState(false);
   // 미인증 사용자의 쓰기 시도(저장/발행/새 별자리 대화) - VerifyGate로 인증
   // 유도. 미인증 전용 화면 상태라 별도 useState 하나로 충분하다(사용자 지시
@@ -1345,6 +1350,10 @@ export default function NewConstellationPage() {
       return;
     }
     resetCanvasState();
+    // 새로 시작하는 대화다 - 보관된 진행분을 지우고(이 경로는 챗의
+    // onComplete/onDismiss를 거치지 않는다) 챗 자체도 새 인스턴스로 갈아끼운다.
+    clearDraftChat();
+    setIntakeSession((n) => n + 1);
     setIntakeOpen(true);
   }, [user, resetCanvasState]);
 
@@ -2418,6 +2427,7 @@ export default function NewConstellationPage() {
 
       {intakeOpen && (
         <ConstellationIntakeChat
+          key={intakeSession}
           onComplete={handleIntakeComplete}
           onDismiss={() => setIntakeOpen(false)}
           // 이 시점에 constellationId가 있으면(로그인 유저가 이미 별자리를 저장해
