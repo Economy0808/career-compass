@@ -109,7 +109,13 @@ export function StarBody({ type, done, hex, r }: { type: string; done: boolean; 
   const haloR = done ? r * 2.4 : r * 1.15;
   const haloOp = done ? 0.8 : 0.5;
   const L = done ? r * 3.4 : r * 1.35; // 달성 긴 바늘 ≈ 캔버스 기존 SPIKE_LENGTH_MULT(3.5r)와 같은 급
-  const w = done ? r * 0.09 : r * 0.075;
+  // 바늘 폭에 픽셀 하한을 깐다(2026-09-02 사용자 지적: "십자가가 잘 안뜬다 특히
+  // 이미 달성해서 불 켜져있는 애들이"). 순수 비례(r×0.09)는 시안 카드(한 변
+  // 148px)에서는 3px대지만 실제 노드 r 7~9에서는 0.5~0.8px 서브픽셀이 되어
+  // 렌더러가 사실상 지워 버린다 — 특히 달성 별은 헤일로(r×2.4)가 밝아 완전히
+  // 묻힌다. 하한은 r이 커지면 자연히 비례식에 자리를 내주므로 시안 화면의
+  // 승인된 비율은 그대로 유지된다.
+  const w = Math.max(done ? r * 0.09 : r * 0.075, done ? 1.4 : 1.0);
   const spOp = done ? 1 : 0.8;
   const coreR = r * 0.34;
 

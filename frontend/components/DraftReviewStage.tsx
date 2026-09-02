@@ -394,8 +394,14 @@ function interiorLayoutFor(items: BinItem[], seed: number, viewport: { width: nu
     anyEdges ? computeRank(item, byId, memo, visiting) : Math.floor((item.level ?? 2000) / 1000) - 1
   );
   const maxRank = Math.max(...ranks, 0);
-  const rowGap = Math.min((viewport.height * ROW_GAP_VIEWPORT_RATIO) / (maxRank + 1), ROW_GAP_MAX);
-  const rowWidth = viewport.width * ROW_X_FILL_RATIO;
+  // 배치 기준을 뷰포트 "짧은 변"으로 통일한다(2026-09-02 사용자 지적: "시안
+  // 페이지에서 성운 내의 요소들이 너무 산포되어있음"). 다이브인 글로우 원의
+  // 지름이 짧은 변 × 0.9라서, 가로폭(width) 기준으로 층을 펴면 와이드 화면에서
+  // 좌우 열이 원 밖까지 나간다. 짧은 변 기준이면 가로 반폭 0.34s < 원 반경
+  // 0.45s, 세로 반높이 0.36s + 지그재그 16px ≤ 0.45s — 항상 원 안에 담긴다.
+  const shortSide = Math.min(viewport.width, viewport.height);
+  const rowGap = Math.min((shortSide * ROW_GAP_VIEWPORT_RATIO) / (maxRank + 1), ROW_GAP_MAX);
+  const rowWidth = shortSide * ROW_X_FILL_RATIO;
 
   // 층 내 순서를 barycenter로 정렬해 간선 교차를 줄인다("안 어지럽게" - 사용자
   // 승인 계획 ②). 층 배정은 위 rank 그대로, 좌우 순서만 바꾼다.
