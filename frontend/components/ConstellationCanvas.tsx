@@ -509,6 +509,11 @@ interface DragEdgeState {
   kind: "edge";
   pointerId: number;
   sourceNodeId: string;
+  // 클릭 판정용 시작 좌표 - 핸들 링(r 10~22 구간)에서 시작한 제스처가 거의
+  // 안 움직였으면 "엣지 드래그 실패"가 아니라 노드 클릭이다(더블클릭 페어링
+  // 포함). 이게 없으면 링 위 더블클릭은 영원히 토글이 안 된다(실측 회귀).
+  startClientX: number;
+  startClientY: number;
 }
 
 interface DragGroupState {
@@ -796,6 +801,31 @@ export function ConstellationCanvas({
     [onNodeToggleComplete]
   );
 
+  /** 노드 위 "클릭 한 번"의 공통 처리 - 직전 클릭과 짝이 되면 더블클릭(달성
+   * 토글), 아니면 선택 + 이번 클릭을 기록. 노드 몸통(node 드래그 경로)과
+   * 핸들 링(edge 드래그 경로) **양쪽**이 이 함수를 타야 한다 - 몸통/링 어디를
+   * 두 번 찍어도, 심지어 몸통→링 순서로 찍어도 짝이 맞는다. 한쪽에만 달면
+   * 링 위 더블클릭이 영원히 실패한다(캡처 리타깃 실측으로 잡은 회귀). */
+  const registerNodeClick = useCallback(
+    (nodeId: string, e: ReactPointerEvent<SVGSVGElement>) => {
+      const last = lastClickRef.current;
+      const pairs =
+        !!last &&
+        last.nodeId === nodeId &&
+        e.timeStamp - last.t <= DOUBLE_CLICK_MS &&
+        Math.hypot(e.clientX - last.x, e.clientY - last.y) <= DOUBLE_CLICK_SLOP;
+      if (pairs) {
+        lastClickRef.current = null;
+        toggleNodeComplete(nodeId);
+      } else {
+        activateNode(nodeId);
+        lastClickRef.current = { nodeId, t: e.timeStamp, x: e.clientX, y: e.clientY };
+      }
+      return pairs;
+    },
+    [activateNode, toggleNodeComplete]
+  );
+
   const beginNodeDrag = useCallback(
     (nodeId: string) => (e: ReactPointerEvent<SVGGElement>) => {
       if (e.button !== 0) return;
@@ -943,7 +973,13 @@ export function ConstellationCanvas({
     (nodeId: string) => (e: ReactPointerEvent<SVGCircleElement>) => {
       if (readOnly || e.button !== 0) return;
       e.stopPropagation();
-      dragRef.current = { kind: "edge", pointerId: e.pointerId, sourceNodeId: nodeId };
+      dragRef.current = {
+        kind: "edge",
+        pointerId: e.pointerId,
+        sourceNodeId: nodeId,
+        startClientX: e.clientX,
+        startClientY: e.clientY,
+      };
       setEdgeCursor(clientToWorld(e.clientX, e.clientY));
       (e.currentTarget as Element).setPointerCapture(e.pointerId);
     },
@@ -1128,15 +1164,8 @@ export function ConstellationCanvas({
           Math.hypot(e.clientX - last.x, e.clientY - last.y) <= DOUBLE_CLICK_SLOP;
 
         if (!drag.moved) {
-          if (pairs) {
-            // 두 번째 클릭 = 더블클릭 -> 달성 토글(수동 페어링, 상수 주석 참고).
-            lastClickRef.current = null;
-            toggleNodeComplete(drag.nodeId);
-          } else {
-            // 임계값 이내로만 움직였다 = 드래그가 아니라 클릭 -> 선택(또는 잇기 대상 지정).
-            activateNode(drag.nodeId);
-            lastClickRef.current = { nodeId: drag.nodeId, t: e.timeStamp, x: e.clientX, y: e.clientY };
-          }
+          // 클릭(또는 짝이 맞으면 더블클릭=토글) - registerNodeClick이 판정한다.
+          registerNodeClick(drag.nodeId, e);
         } else if (pairs && moveDist <= DOUBLE_CLICK_SLOP) {
           // 두 번째 클릭이 지터로 드래그 분류된 경우 - 이동을 커밋하지 않고
           // 더블클릭으로 판정한다(커밋하면 노드가 1~3px 밀리고 토글은 실패).
@@ -1163,6 +1192,16 @@ export function ConstellationCanvas({
         }
         setDragPosition(null);
       } else if (drag.kind === "edge") {
+        // 핸들 링(r 10~22 구간)에서 시작했어도 거의 안 움직였으면 엣지가 아니라
+        // **노드 클릭**이다 - 몸통과 같은 클릭/더블클릭 판정을 태운다. 이게
+        // 없으면 링 위 더블클릭이 무반응이 된다(옛 네이티브 dblclick은 링에서도
+        // 버블돼 성공했으므로 수동 페어링 전환 시 놓치면 회귀다 - 실측으로 확인).
+        const edgeMoveDist = Math.hypot(e.clientX - drag.startClientX, e.clientY - drag.startClientY);
+        if (edgeMoveDist <= CLICK_THRESHOLD) {
+          registerNodeClick(drag.sourceNodeId, e);
+          setEdgeCursor(null);
+          return;
+        }
         const world = clientToWorld(e.clientX, e.clientY);
         const targetId = findNodeNear(world, drag.sourceNodeId);
         if (targetId) {
@@ -1196,7 +1235,7 @@ export function ConstellationCanvas({
       }
       // pan의 transform 자체는 별도 처리 불필요 - 이미 최신 상태.
     },
-    [activateNode, toggleNodeComplete, clientToWorld, findNodeNear, findCollapsedGroupNear, onEdgeCreate, onNodeDrag, onNodeRecall, onGroupDrag, diveIntoGroup]
+    [registerNodeClick, toggleNodeComplete, clientToWorld, findNodeNear, findCollapsedGroupNear, onEdgeCreate, onNodeDrag, onNodeRecall, onGroupDrag, diveIntoGroup]
   );
 
   const handleNodeKeyDown = useCallback(
