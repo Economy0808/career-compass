@@ -5,6 +5,13 @@ description = "OurCompass - AI career masterplan service backend"
 requires-python = ">=3.11"
 dependencies = [
     "fastapi[standard]>=0.115",
+    # 2026-09-02 security audit: fastapi puts no upper-bound pressure on
+    # starlette, and the venv resolved to 1.0.0 which sits in the PYSEC
+    # advisory range. Current registered routes never parse forms or echo
+    # request.url, so the advisories do not bite today - these floors are
+    # there so a future form-handling route cannot silently reintroduce them.
+    "starlette>=1.3.1",
+    "python-multipart>=0.0.31",
     "sqlalchemy[asyncio]>=2.0",
     "alembic>=1.13",
     "pydantic-settings>=2.7",
