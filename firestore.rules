@@ -33,15 +33,15 @@ service cloud.firestore {
         resource.data.is_published == true
       );
 
-      allow create: if isSignedIn() &&
-        request.resource.data.owner_id == request.auth.uid;
-
-      allow update: if isSignedIn() &&
-        resource.data.owner_id == request.auth.uid &&
-        request.resource.data.owner_id == resource.data.owner_id;
-
-      allow delete: if isSignedIn() &&
-        resource.data.owner_id == request.auth.uid;
+      // 2026-09-02 보안감사 B-1(High, 재현 성공): 기존 create/update/delete는
+      // yonsei_verified 클레임을 검사하지 않아, 미인증 로그인 유저가 SDK/REST로
+      // 직접 붙으면 서버의 require_yonsei_verified 게이트를 우회해 별자리를
+      // 생성·발행할 수 있었다. 클레임 검사 추가가 아니라 전면 차단을 택한 이유:
+      // ①규칙은 deps.py의 stale 클레임 라이브 재조회를 재현할 수 없고 ②모든
+      // 실제 쓰기는 Admin SDK(constellation_repo, 규칙 우회) 경유이며 프론트는
+      // firebase/auth만 import한다 — 클라이언트 쓰기 경로가 정상 플로우에 없다.
+      // 인증된 소유자의 임의 필드 쓰기(스키마 우회)까지 함께 닫힌다.
+      allow write: if false;
     }
 
     // --- users/{uid} ---
@@ -49,7 +49,9 @@ service cloud.firestore {
     // only the owner can write their own doc.
     match /users/{uid} {
       allow read: if isSignedIn();
-      allow write: if isOwner(uid);
+      // B-1' (2026-09-02): 프로필 쓰기도 전부 서버(/api/profiles, Admin SDK)
+      // 경유다 - 클라이언트 직접 쓰기를 열어 둘 이유가 없어 함께 닫는다.
+      allow write: if false;
     }
 
     // --- follows/{followId} ---
@@ -69,13 +71,12 @@ service cloud.firestore {
     match /follows/{followId} {
       allow read: if isSignedIn();
 
-      allow create: if isSignedIn() &&
-        followId.matches(request.auth.uid + '_.*');
-
-      allow delete: if isSignedIn() &&
-        followId.matches(request.auth.uid + '_.*');
-
-      allow update: if false; // follows are create/delete only, never edited
+      // B-1b (2026-09-02 보안감사): 기존 create는 문서 id 접두사만 검사했는데
+      // follow_repo.py는 id가 아니라 follower_id/followee_id "필드"를 조회한다
+      // - id 접두사만 맞추고 필드를 제3자 uid로 채우면 남의 팔로우 간선을
+      // 위조할 수 있었다. 쓰기는 전부 서버(profiles 라우터, Admin SDK) 경유라
+      // 클라이언트 쓰기를 전면 차단한다.
+      allow write: if false;
     }
 
     // --- course_catalog/{deptCode}/courses/{courseCode} ---
