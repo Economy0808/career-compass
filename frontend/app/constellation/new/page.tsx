@@ -21,6 +21,16 @@ import { ElementBinPanel, type Bin, type BinItem, type BinDropPayload } from "@/
 import { courseItemId, scaleCourseLevel, type CourseDto } from "@/lib/courses-api";
 import { ElementNotesPanel, type ElementNote } from "@/components/ElementNotesPanel";
 import { ConstellationIntakeChat, clearDraftChat } from "@/components/ConstellationIntakeChat";
+
+// 시안(DraftReviewStage)·미저장 캔버스 상태의 뒤로가기 보존 키(2026-09-02 사용자
+// 지시: "시안까지 뽑힌상황 또는 시안을 선택하여 메인 캔버스로 이동한 상황에서
+// 뒤로가기 누르면 초기화됨. 앞으로가기 했을때 다시 나왔으면 좋겠음. LLM대화를
+// 복구하는게 아니라, 성운시안과 메인캔버스상의 별자리들"). 챗 보존(ourlab-
+// intake-draft)과 같은 sessionStorage 계약 - 탭 단위 수명이라 공용 데모 계정이
+// 남의 작업을 물려받지 않는다. 서버에 저장된 별자리는 서버가 진실이므로 대상이
+// 아니고, constellationId가 생기는 순간 스냅샷은 지워진다. 노트는 첨부가
+// objectURL(직렬화 불가)이라 의도적으로 제외한다.
+const STAGE_SNAPSHOT_KEY = "ourlab-stage-snapshot";
 import { DraftReviewStage, binClusterCenter } from "@/components/DraftReviewStage";
 import { ColorPaletteBar } from "@/components/ColorPaletteBar";
 import { LaunchModal, type LaunchInput } from "@/components/LaunchModal";
@@ -664,6 +674,39 @@ export default function NewConstellationPage() {
         .filter((c) => !c.isPublished)
         .sort((a, b) => b.updatedAt - a.updatedAt)[0];
       if (!latest) {
+        // 서버에 미발행 별자리가 없어도, 이 탭에서 뒤로가기로 잃은 시안/미저장
+        // 캔버스 스냅샷이 있으면 대화 대신 그걸 되살린다(위 STAGE_SNAPSHOT_KEY
+        // 주석의 사용자 지시). 파싱 실패·형식 불일치면 조용히 평소 흐름(대화)으로.
+        try {
+          const raw = sessionStorage.getItem(STAGE_SNAPSHOT_KEY);
+          if (raw) {
+            const snap = JSON.parse(raw);
+            const restorable =
+              snap?.v === 1 &&
+              (snap.stage === "draft"
+                ? snap.draftOffer?.drafts?.length > 0
+                : snap.stage === "canvas" && snap.nodes && Object.keys(snap.nodes).length > 0);
+            if (restorable) {
+              goalTextRef.current = snap.goalText ?? null;
+              setBins(
+                (Array.isArray(snap.bins) ? snap.bins : []).map((bin: Bin) => ({ ...bin, isLoading: false }))
+              );
+              if (snap.stage === "draft") {
+                setDraftOffer(snap.draftOffer);
+              } else {
+                setNodes(snap.nodes ?? {});
+                setEdges(snap.edges ?? {});
+                setGroups(snap.groups ?? {});
+                setSaveState("unsaved");
+              }
+              setIntakeOpen(false);
+              setBootState("loaded");
+              return;
+            }
+          }
+        } catch {
+          // sessionStorage 접근 불가(프라이빗 모드 등)/손상 스냅샷 - 무시하고 대화로.
+        }
         setBootState("empty");
         setIntakeOpen(true);
         return;
@@ -848,6 +891,12 @@ export default function NewConstellationPage() {
       });
       constellationTitleRef.current = title;
       setConstellationId(created.id);
+      // 서버 문서가 생겼다 - 이제부터 서버가 진실이므로 로컬 스냅샷은 지운다.
+      try {
+        sessionStorage.removeItem(STAGE_SNAPSHOT_KEY);
+      } catch {
+        /* 무시 */
+      }
       for (const node of Object.values(nodesRef.current)) {
         if (node.isCompleted) enqueueMutation(() => patchNodeCompletion(created.id, node.id, true));
       }
@@ -989,6 +1038,12 @@ export default function NewConstellationPage() {
       });
       constellationTitleRef.current = title;
       setConstellationId(created.id);
+      // 서버 문서가 생겼다 - 이제부터 서버가 진실이므로 로컬 스냅샷은 지운다.
+      try {
+        sessionStorage.removeItem(STAGE_SNAPSHOT_KEY);
+      } catch {
+        /* 무시 */
+      }
 
       let anyEnqueued = false;
       for (const node of Object.values(nodesRef.current)) {
@@ -1194,7 +1249,54 @@ export default function NewConstellationPage() {
     pendingMutationsRef.current = 0;
     goalTextRef.current = null;
     constellationTitleRef.current = null;
+    // 리셋은 스냅샷도 함께 버린다 - 발행/새 별자리 뒤 뒤로가기로 옛 작업이
+    // 되살아나면 안 된다(아래 저장 effect의 빈 상태 제거와 이중 안전벨트).
+    try {
+      sessionStorage.removeItem(STAGE_SNAPSHOT_KEY);
+    } catch {
+      /* 접근 불가 환경 - 무시 */
+    }
   }, []);
+
+  // 시안/미저장 캔버스 스냅샷 저장 - STAGE_SNAPSHOT_KEY 주석의 계약 그대로.
+  // 서버 문서가 생기면(constellationId) 서버가 진실이라 저장하지 않고, 부트가
+  // 끝나기 전(loading)에는 복원 대상을 덮지 않는다. 시안도 노드도 없는 빈
+  // 상태는 스냅샷을 지운다(시안 폐기·리셋 후 잔존분이 복원되는 것 방지).
+  // bins의 isLoading은 영속화 금지 - 로딩 스피너가 새 탭에서 되살아난다.
+  useEffect(() => {
+    if (bootState === "loading" || constellationId) return;
+    try {
+      if (draftOffer) {
+        sessionStorage.setItem(
+          STAGE_SNAPSHOT_KEY,
+          JSON.stringify({
+            v: 1,
+            stage: "draft",
+            goalText: goalTextRef.current,
+            bins: bins.map((bin) => ({ ...bin, isLoading: false })),
+            draftOffer,
+          })
+        );
+      } else if (Object.keys(nodes).length > 0) {
+        sessionStorage.setItem(
+          STAGE_SNAPSHOT_KEY,
+          JSON.stringify({
+            v: 1,
+            stage: "canvas",
+            goalText: goalTextRef.current,
+            bins: bins.map((bin) => ({ ...bin, isLoading: false })),
+            nodes,
+            edges,
+            groups,
+          })
+        );
+      } else {
+        sessionStorage.removeItem(STAGE_SNAPSHOT_KEY);
+      }
+    } catch {
+      /* 용량 초과/접근 불가 - 보존은 편의 기능이라 조용히 강등 */
+    }
+  }, [draftOffer, nodes, edges, groups, bins, constellationId, bootState]);
 
   // 발행 = 완결(사용자 지시: "발행하면 캔버스 비우고 프로필로 옮겨"). 화면
   // 이동은 하지 않는다 - 사용자가 명시적으로 정정했다("발행하자마자 프로필로
