@@ -19,7 +19,6 @@ import {
   useRef,
   useState,
   type KeyboardEvent as ReactKeyboardEvent,
-  type MouseEvent as ReactMouseEvent,
   type PointerEvent as ReactPointerEvent,
   type RefObject,
 } from "react";
@@ -200,6 +199,14 @@ const ORBIT_RADIUS = HANDLE_RADIUS; // a - 확대된 핸들 링 위를 대략 �
 const SATELLITE_RADIUS = 2.4;
 /** 클릭과 드래그를 구분하는 임계값(px, 화면 좌표 기준). 이보다 적게 움직이면 클릭 = 선택(정보 카드 열기). */
 const CLICK_THRESHOLD = 4;
+// 더블클릭(달성 토글) 수동 페어링 - 네이티브 dblclick을 쓰지 않는 이유:
+// OS의 더블클릭 허용 사각형이 아주 좁아(Windows 기본 4px) 두 클릭 사이
+// 미세 지터만으로 dblclick 이벤트 자체가 안 만들어진다. 게다가 첫 클릭이
+// CLICK_THRESHOLD를 넘겨 드래그로 분류되면 노드가 1~3px 움직여 실패가
+// 증폭됐다 - "성운 내부의 별자리가 더블클릭해도 안 밝아지는 경우"(간헐)의
+// 원인. 포인터 경로에서 직접 페어링하면 허용값을 우리가 정한다.
+const DOUBLE_CLICK_MS = 400;
+const DOUBLE_CLICK_SLOP = 12; // px, 화면 좌표 - 두 클릭 사이 허용 이동
 const MIN_ZOOM = 0.35;
 const MAX_ZOOM = 2.5;
 // fit-to-content 여백 - 좌측 레일(196px)과 우측 「군집/노트」 패널(md에서
@@ -776,6 +783,19 @@ export function ConstellationCanvas({
     [onNodeActivate]
   );
 
+  // 수동 더블클릭 페어링 상태(DOUBLE_CLICK_* 상수 주석 참고). 직전 클릭의
+  // 노드/시각/화면 좌표를 기억해 다음 pointerup에서 짝을 판정한다.
+  const lastClickRef = useRef<{ nodeId: string; t: number; x: number; y: number } | null>(null);
+  // 달성 토글 - lastToggledNodeRef(아래 드로우온 블록의 ref, 실행 시점엔
+  // 초기화 완료)에 "방금 달성된 쪽" 힌트를 남기고 부모에 위임한다.
+  const toggleNodeComplete = useCallback(
+    (nodeId: string) => {
+      lastToggledNodeRef.current = nodeId;
+      onNodeToggleComplete(nodeId);
+    },
+    [onNodeToggleComplete]
+  );
+
   const beginNodeDrag = useCallback(
     (nodeId: string) => (e: ReactPointerEvent<SVGGElement>) => {
       if (e.button !== 0) return;
@@ -1098,7 +1118,31 @@ export function ConstellationCanvas({
       dragRef.current = null;
 
       if (drag.kind === "node") {
-        if (drag.moved) {
+        const moveDist = Math.hypot(e.clientX - drag.startClientX, e.clientY - drag.startClientY);
+        const last = lastClickRef.current;
+        // 직전 클릭과 짝이 되는가 - 같은 노드, 400ms 안, 두 클릭 사이 12px 안.
+        const pairs =
+          !!last &&
+          last.nodeId === drag.nodeId &&
+          e.timeStamp - last.t <= DOUBLE_CLICK_MS &&
+          Math.hypot(e.clientX - last.x, e.clientY - last.y) <= DOUBLE_CLICK_SLOP;
+
+        if (!drag.moved) {
+          if (pairs) {
+            // 두 번째 클릭 = 더블클릭 -> 달성 토글(수동 페어링, 상수 주석 참고).
+            lastClickRef.current = null;
+            toggleNodeComplete(drag.nodeId);
+          } else {
+            // 임계값 이내로만 움직였다 = 드래그가 아니라 클릭 -> 선택(또는 잇기 대상 지정).
+            activateNode(drag.nodeId);
+            lastClickRef.current = { nodeId: drag.nodeId, t: e.timeStamp, x: e.clientX, y: e.clientY };
+          }
+        } else if (pairs && moveDist <= DOUBLE_CLICK_SLOP) {
+          // 두 번째 클릭이 지터로 드래그 분류된 경우 - 이동을 커밋하지 않고
+          // 더블클릭으로 판정한다(커밋하면 노드가 1~3px 밀리고 토글은 실패).
+          lastClickRef.current = null;
+          toggleNodeComplete(drag.nodeId);
+        } else {
           // 놓은 지점이 원소 보관함 패널(DOM id="panel-bins") 위면 이동이
           // 아니라 회수다 - 새 드래그 시스템을 만들지 않고, 기존 노드 드래그가
           // 끝나는 지점만 elementFromPoint로 판별한다(패널이 안 보이는
@@ -1110,9 +1154,12 @@ export function ConstellationCanvas({
             const world = clientToWorld(e.clientX, e.clientY);
             onNodeDrag(drag.nodeId, world);
           }
-        } else {
-          // 임계값 이내로만 움직였다 = 드래그가 아니라 클릭 -> 선택(또는 잇기 대상 지정).
-          activateNode(drag.nodeId);
+          // 지터 드래그(12px 이내)는 "첫 클릭"으로도 쳐 준다 - 첫 클릭이
+          // 드래그로 새서 다음 클릭이 또 처음부터 시작하던 반쪽 실패를 구제.
+          lastClickRef.current =
+            moveDist <= DOUBLE_CLICK_SLOP
+              ? { nodeId: drag.nodeId, t: e.timeStamp, x: e.clientX, y: e.clientY }
+              : null;
         }
         setDragPosition(null);
       } else if (drag.kind === "edge") {
@@ -1149,7 +1196,7 @@ export function ConstellationCanvas({
       }
       // pan의 transform 자체는 별도 처리 불필요 - 이미 최신 상태.
     },
-    [activateNode, clientToWorld, findNodeNear, findCollapsedGroupNear, onEdgeCreate, onNodeDrag, onNodeRecall, onGroupDrag, diveIntoGroup]
+    [activateNode, toggleNodeComplete, clientToWorld, findNodeNear, findCollapsedGroupNear, onEdgeCreate, onNodeDrag, onNodeRecall, onGroupDrag, diveIntoGroup]
   );
 
   const handleNodeKeyDown = useCallback(
@@ -1173,20 +1220,12 @@ export function ConstellationCanvas({
     [readOnly, activateNode]
   );
 
-  // 더블클릭 = 달성 토글. 단일 클릭(선택)과는 별개의 네이티브 dblclick
-  // 이벤트로 처리하므로, 클릭-드래그 임계값(CLICK_THRESHOLD) 로직과 서로
-  // 간섭하지 않는다 - 첫 클릭의 pointerup에서 이미 선택 처리가 끝난 뒤에
-  // 브라우저가 두 번째 클릭까지 보고 나서야 이 이벤트를 한 번 더 얹어 준다.
-  const handleNodeDoubleClick = useCallback(
-    (nodeId: string) => (e: ReactMouseEvent<Element>) => {
-      if (readOnly) return;
-      e.stopPropagation();
-      // 드로우온 방향 판정용 - 이 노드가 "방금 달성된 쪽"이라는 힌트.
-      lastToggledNodeRef.current = nodeId;
-      onNodeToggleComplete(nodeId);
-    },
-    [readOnly, onNodeToggleComplete]
-  );
+  // 더블클릭 = 달성 토글. 예전엔 네이티브 dblclick 이벤트였지만 이제
+  // handlePointerUp의 수동 페어링(DOUBLE_CLICK_* 상수 주석 참고)이 담당한다 -
+  // OS의 좁은 더블클릭 허용 사각형과 클릭-드래그 임계값(CLICK_THRESHOLD)의
+  // 상호작용으로 간헐 실패하던 것을 관대한 자체 판정(400ms/12px)으로 대체.
+  // 네이티브 onDoubleClick을 남겨 두면 수동 판정과 겹쳐 토글이 두 번 실행
+  // (= 원상복구)되므로 반드시 한쪽만 있어야 한다.
 
   // --- 엣지 드로우온(달성 순간 연출) ---------------------------------------
   // 엣지가 "막 켜진"(unlit -> lit) 순간, 이미 켜져 있던 별에서 방금 달성한
@@ -1599,7 +1638,6 @@ export function ConstellationCanvas({
                 onPointerEnter={() => setHoveredNodeId(node.id)}
                 onPointerLeave={() => setHoveredNodeId((cur) => (cur === node.id ? null : cur))}
                 onPointerDown={beginNodeDrag(node.id)}
-                onDoubleClick={!readOnly ? handleNodeDoubleClick(node.id) : undefined}
                 style={{ cursor: "pointer", outline: "none" }}
               >
                 {/* 엣지 생성용 핸들 링 - 항상 존재하는 히트 영역이지만, 평소에는
@@ -1652,11 +1690,11 @@ export function ConstellationCanvas({
                     별상 전환 후에도 규칙은 같다: 헤일로 원이 그라디언트로 채워져
                     본체 전체가 판정에 들어간다 - 새 장식 path를 추가할 때 절대
                     fill="none"을 쓰지 말 것(윤곽선은 fill="transparent"). */}
-                {/* onDoubleClick은 여기가 아니라 위 <g>에 달려 있다 - 몸통(r≈8)만
-                    노렸던 예전 방식은 핸들 링(r=22, 위성 작업으로 확대됨)이 대부분의
-                    면적을 덮어버려 살짝만 빗나가도 더블클릭이 엣지 드래그로 새는
-                    버그였다. <g>에 달면 몸통이든 링이든 어디를 더블클릭해도(네이티브
-                    dblclick 이벤트는 버블링된다) 판정 영역이 r=22 전체로 넓어진다. */}
+                {/* 더블클릭(달성 토글)은 이 노드 <g>의 pointerdown에서 시작해
+                    handlePointerUp의 수동 페어링으로 판정한다(네이티브 dblclick
+                    아님 - DOUBLE_CLICK_* 상수 주석 참고). 판정 영역은 여전히
+                    <g> 전체(r=22) - 몸통만 노리던 예전 방식이 "살짝 빗나가면
+                    엣지 드래그로 샌다"는 버그를 냈던 역사는 그대로 유효하다. */}
                 {node.isCompleted && node.glowEffect !== "quiet" && (
                   // 달성 연출 - GLOW_PRESETS의 id별 변주. 공통: 노드 색을
                   // currentColor로 상속, const-glow로 번짐, spikeBreathe(opacity
