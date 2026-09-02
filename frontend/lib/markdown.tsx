@@ -115,6 +115,42 @@ function parseBlocks(source: string): Block[] {
 const INLINE_RE =
   /\[\[([^\]]+)\]\]|\[([^\]]+)\]\(([^)]+)\)|\*\*([^*]+)\*\*|`([^`]+)`|\*([^*]+)\*/g;
 
+// 링크 href 스킴 허용목록(보안 감사 2026-09-02 E-1) - javascript: 류 스킴이
+// 앵커로 렌더되는 것을 막는다. 지금은 노트가 작성자 본인 화면에만 렌더되지만
+// (self-XSS 급), 노트에 isPublic/ownerId가 이미 있어 공개 노트 뷰어가 생기는
+// 순간 stored XSS로 승격되는 지점이라 지금 잠근다. 검사 전에 아스키
+// 제어문자·공백을 벗겨 "JaVa\tScRiPt:" 같은 삽입 변형도 같은 규칙에 걸리게
+// 한다(브라우저의 URL 정규화와 동일 방향). 통과 못 하면 앵커가 아니라 평문
+// 강등 - 정상 http/https/mailto는 무변화, 스킴 없는 상대경로도 강등된다
+// (외부 링크 전용 문법이라 감수).
+const SAFE_HREF_RE = /^(https?:|mailto:)/i;
+
+/** 허용 스킴이면 정리된 href를, 아니면 null을 돌려준다. 순수 함수 -
+ * runMarkdownSelfCheck가 검증한다. */
+export function safeLinkHref(url: string): string | null {
+  const cleaned = url.replace(/[\u0000-\u0020]/g, "");
+  return SAFE_HREF_RE.test(cleaned) ? cleaned : null;
+}
+
+/** 순수 헬퍼만 검증하는 최소 자가 점검 - local-vault의 runLocalVaultSelfCheck와
+ * 같은 관례(프레임워크 없이 assert만, 자동 실행 없음 - 로직을 건드릴 때
+ * 콘솔에서 수동 호출). */
+export function runMarkdownSelfCheck(): void {
+  const assert = (cond: boolean, msg: string) => {
+    if (!cond) throw new Error(`markdown self-check 실패: ${msg}`);
+  };
+  assert(safeLinkHref("https://x") === "https://x", "https 통과");
+  assert(safeLinkHref("http://example.com/a?b=c") !== null, "http 통과");
+  assert(safeLinkHref("mailto:a@b.c") !== null, "mailto 통과");
+  assert(safeLinkHref(" \nhttps://x") === "https://x", "선행 공백·개행 제거 후 통과");
+  assert(safeLinkHref("javascript:alert(1)") === null, "javascript: 차단");
+  assert(safeLinkHref("JaVaScRiPt:alert(1)") === null, "대소문자 변형 차단");
+  assert(safeLinkHref("java\tscript:alert(1)") === null, "제어문자 삽입 변형 차단");
+  assert(safeLinkHref("data:text/html,hi") === null, "data: 차단");
+  assert(safeLinkHref("vbscript:x") === null, "vbscript: 차단");
+  assert(safeLinkHref("//evil.example") === null, "프로토콜 상대 경로 차단");
+}
+
 function renderInline(
   text: string,
   resolveLink: ResolveWikiLink | undefined,
@@ -162,18 +198,24 @@ function renderInline(
         );
       }
     } else if (match[2] !== undefined) {
-      // [text](url)
-      out.push(
-        <a
-          key={key}
-          href={match[3]}
-          target="_blank"
-          rel="noreferrer noopener"
-          className="text-spec-b underline underline-offset-2 hover:text-text-hi"
-        >
-          {match[2]}
-        </a>
-      );
+      // [text](url) - 스킴 허용목록(safeLinkHref)을 통과할 때만 앵커, 아니면
+      // 라벨을 평문으로 강등한다(보안 감사 2026-09-02 E-1: javascript: 링크).
+      const href = safeLinkHref(match[3]);
+      if (href) {
+        out.push(
+          <a
+            key={key}
+            href={href}
+            target="_blank"
+            rel="noreferrer noopener"
+            className="text-spec-b underline underline-offset-2 hover:text-text-hi"
+          >
+            {match[2]}
+          </a>
+        );
+      } else {
+        out.push(match[2]);
+      }
     } else if (match[4] !== undefined) {
       out.push(<strong key={key} className="font-semibold text-text-hi">{match[4]}</strong>);
     } else if (match[5] !== undefined) {
