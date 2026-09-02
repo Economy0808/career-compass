@@ -122,6 +122,9 @@ type Phase = "chat" | "generating";
 interface Turn {
   question: string;
   answer?: string;
+  /** answer가 messages 배열의 몇 번째 항목인지 - 답 번복(revise)이 이 지점
+   * 직전까지 히스토리를 자르는 데 쓴다. answer 없으면 의미 없음. */
+  answerIndex?: number;
 }
 
 function detailOf(err: unknown, fallback: string): string {
@@ -132,13 +135,14 @@ function detailOf(err: unknown, fallback: string): string {
  * user 메시지는 직전 질문의 답으로, assistant 메시지는 새 질문으로 취급한다. */
 function buildTurns(messages: ChatMessageDto[]): Turn[] {
   const turns: Turn[] = [{ question: INTRO_GREETING }];
-  for (const m of messages) {
+  messages.forEach((m, i) => {
     if (m.role === "user") {
       turns[turns.length - 1].answer = m.content;
+      turns[turns.length - 1].answerIndex = i;
     } else {
       turns.push({ question: m.content });
     }
-  }
+  });
   return turns;
 }
 
@@ -274,6 +278,34 @@ export function ConstellationIntakeChat({
   function retryGenerating() {
     if (!goalText) return;
     beginGenerating(goalText);
+  }
+
+  /** 과거 답 번복 - 그 답 "직전"까지 히스토리를 자르고 입력창에 옛 답을
+   * 프리필한다. 챗은 stateless(프론트가 messages 전체를 매번 재전송)라
+   * 서버 변경 없이 배열만 자르면 대화가 그 지점부터 다시 이어진다. */
+  function reviseAnswer(answerIndex: number) {
+    if (pending) return; // 전송 중 번복 금지(버튼도 비활성이지만 이중 방어)
+    const old = messages[answerIndex];
+    if (!old || old.role !== "user") return;
+
+    setMessages(messages.slice(0, answerIndex));
+    if (answerIndex === 0) {
+      // 첫 답 = goalRawText 자체다. 안 지우면 새 답을 보내도 옛 목표로
+      // 군집이 생성된다. 그리고 빈 대화는 저장 effect가 건너뛰므로(덮어쓰기
+      // 방지 가드) sessionStorage의 옛 초안을 여기서 직접 지운다 - 안 그러면
+      // 뒤로가기 복원이 번복 전 상태로 돌아간다.
+      setGoalText(null);
+      clearDraftChat();
+    }
+    // 현재 질문의 칩/힌트는 번복 전 질문 것이다 - 비워 두면 재전송 응답이
+    // 새 질문 것으로 다시 채운다.
+    setHint(null);
+    setOptions([]);
+    setSelectedOptions([]);
+    setOtherSelected(false);
+    setChatError(null);
+    setLastFailedText(null);
+    setDraft(old.content);
   }
 
   async function sendMessage(rawText: string) {
@@ -415,21 +447,41 @@ export function ConstellationIntakeChat({
             className="canvas-scroll fixed left-1/2 top-[150px] bottom-[150px] w-[min(720px,92vw)] -translate-x-1/2 overflow-y-auto"
           >
             <div className="flex flex-col gap-[34px] pb-2">
-              {pastTurns.map((t, idx) => (
-                <div key={idx} className="flex flex-col gap-3 opacity-[0.45]">
-                  <div className="flex items-start gap-3">
-                    <StarGlyph size={16} className="mt-1 shrink-0" />
-                    <p className="whitespace-pre-wrap text-base leading-[1.7] text-text-hi">
-                      {t.question}
-                    </p>
+              {pastTurns.map((t, idx) => {
+                const answerIndex = t.answerIndex;
+                return (
+                  <div key={idx} className="flex flex-col gap-3 opacity-[0.45]">
+                    <div className="flex items-start gap-3">
+                      <StarGlyph size={16} className="mt-1 shrink-0" />
+                      <p className="whitespace-pre-wrap text-base leading-[1.7] text-text-hi">
+                        {t.question}
+                      </p>
+                    </div>
+                    {t.answer && (
+                      <div className="flex max-w-[480px] flex-col items-end gap-1 self-end">
+                        <p className="whitespace-pre-wrap rounded-md border border-rule bg-ink-800 px-[18px] py-3 text-[15px] leading-[1.65] text-text-hi">
+                          {t.answer}
+                        </p>
+                        {/* 답 번복 - 이 답 직전으로 대화를 되감고 입력창에
+                            프리필한다(reviseAnswer). 이후 답들은 함께 사라지므로
+                            라벨로 그 사실을 미리 알린다. */}
+                        {answerIndex !== undefined && (
+                          <button
+                            type="button"
+                            disabled={pending}
+                            onClick={() => reviseAnswer(answerIndex)}
+                            aria-label="이 답부터 다시 답하기 (이후 대화는 사라져요)"
+                            title="이 답부터 다시 답하기 - 이후 대화는 사라져요"
+                            className="font-sans text-caption text-text-lo underline-offset-2 transition-colors hover:text-text-hi hover:underline disabled:opacity-50"
+                          >
+                            수정
+                          </button>
+                        )}
+                      </div>
+                    )}
                   </div>
-                  {t.answer && (
-                    <p className="max-w-[480px] self-end whitespace-pre-wrap rounded-md border border-rule bg-ink-800 px-[18px] py-3 text-[15px] leading-[1.65] text-text-hi">
-                      {t.answer}
-                    </p>
-                  )}
-                </div>
-              ))}
+                );
+              })}
 
               {openTurn ? (
                 <div className="flex flex-col gap-3">
