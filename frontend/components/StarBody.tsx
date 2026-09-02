@@ -24,7 +24,7 @@
  *   연출 프리셋 레이어)가 담당한다.
  */
 
-import { Fragment } from "react";
+import { Fragment, type ReactElement } from "react";
 import { mixHex } from "@/lib/element-colors";
 
 /** 오목 곡선으로 가늘어지는 회절침 - 다이아몬드가 아니라 바늘. 시안의
@@ -141,7 +141,7 @@ export function StarBody({ type, done, hex, r }: { type: string; done: boolean; 
       <circle r={radius} fill="transparent" stroke={mixHex(hex, 0.3)} strokeWidth={1} opacity={0.09} />
     ) : null;
 
-  let body: JSX.Element;
+  let body: ReactElement; // React 19: 전역 JSX 네임스페이스가 사라져 ReactElement로.
   if (type === "certification") {
     // 육각 회절 - 육각 거울(JWST)의 별상. 달성 시 수평 부침.
     body = (
