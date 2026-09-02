@@ -56,10 +56,11 @@ import {
   type PointerEvent as ReactPointerEvent,
 } from "react";
 import { cn } from "@/lib/cn";
-import { colorForType } from "@/lib/element-colors";
+import { colorForType, hexForNode } from "@/lib/element-colors";
 import { orderRanksByBarycenter, redundantEdgeKeys } from "@/lib/layered-order";
 import { SpaceBackdrop } from "@/components/SpaceBackdrop";
 import { splitCourseCode, type Bin, type BinItem } from "@/components/ElementBinPanel";
+import { StarBody, StarColorDefs } from "@/components/StarBody";
 import type { CanvasPosition } from "@/components/ConstellationCanvas";
 import { inferPrereqs, type DraftDto } from "@/lib/constellation-api";
 
@@ -1048,6 +1049,14 @@ export function DraftReviewStage({
         >
           <SpaceBackdrop />
 
+          {/* 별상 그라디언트 defs - 멤버 svg들이 url(#starHalo-…)로 참조한다.
+              url(#id)는 같은 문서 전역에서 풀리므로 숨은 svg 한 곳이면 충분. */}
+          <svg aria-hidden width={0} height={0} className="absolute">
+            <defs>
+              <StarColorDefs hexes={Array.from(new Set(diveBin.items.map((item) => hexForNode(item.type))))} />
+            </defs>
+          </svg>
+
           {/* 확대된 성운 안개 - 성단 미리보기와 같은 buildNebulaParticles를
               재사용하되, 지름을 뷰포트 짧은 변 기준으로 크게 잡는다. */}
           {(() => {
@@ -1147,7 +1156,6 @@ export function DraftReviewStage({
               if (!info || info.bin.id !== diveBin.id) return null;
               const { code, rest } = splitCourseCode(info.item.label);
               const isHovered = hoveredKey === key;
-              const dotColor = colorForType(info.item.type);
               return (
                 // 앵커 규칙(픽셀 밀림 수정): 스프링 좌표 = "별점의 중심". 이전엔
                 // 점+라벨 세로 묶음의 중심을 좌표에 놓아 점이 간선 끝보다 위로
@@ -1159,16 +1167,21 @@ export function DraftReviewStage({
                   onMouseEnter={() => setHoveredKey(key)}
                   onMouseLeave={() => setHoveredKey((k) => (k === key ? null : k))}
                 >
-                  <span
+                  {/* 별상(StarBody) - 캔버스 노드와 같은 형태 문법("LLM시안에서
+                      보이는 성운 내 요소들은 적용 안된듯" - 사용자 지적으로 옛
+                      단색 점을 교체). 초안 멤버는 달성 개념이 없으므로 전부
+                      미달성 사양(블러 0, 짧은 바늘) - 성능 부담 없음. 그라디언트
+                      defs는 아래 숨은 svg 한 곳에 있다(url(#)은 문서 전역). */}
+                  <svg
                     aria-hidden
-                    className="absolute block -translate-x-1/2 -translate-y-1/2 rounded-full"
-                    style={{
-                      width: isHovered ? 14 : 10,
-                      height: isHovered ? 14 : 10,
-                      background: dotColor,
-                      boxShadow: `0 0 8px ${dotColor}`,
-                    }}
-                  />
+                    width={40}
+                    height={40}
+                    viewBox="-20 -20 40 40"
+                    className="absolute transition-transform"
+                    style={{ transform: `translate(-50%, -50%) scale(${isHovered ? 1.3 : 1})` }}
+                  >
+                    <StarBody type={info.item.type} done={false} hex={hexForNode(info.item.type)} r={7} />
+                  </svg>
                   <span
                     className={cn(
                       "absolute left-1/2 top-2.5 max-w-[160px] -translate-x-1/2 truncate whitespace-nowrap rounded bg-ink-800/85 px-1.5 py-0.5 text-center font-sans text-body-sm leading-tight",
