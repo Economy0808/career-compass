@@ -32,3 +32,37 @@ export const DEFAULT_TYPE_COLOR = "var(--text-lo)"; // 모르는 type도 이 색
 export function colorForType(type: string): string {
   return TYPE_COLOR[type] ?? DEFAULT_TYPE_COLOR;
 }
+
+// ── 실제 hex가 필요한 곳(별상 그라디언트·팔레트 비교)용 ──────────────────────
+// 별상(星像) 렌더는 SVG 그라디언트 stop에 실색을 구워야 한다 - currentColor가
+// 그라디언트 정의 위치 기준으로 풀리는 SVG 함정 때문에 CSS 변수 참조를 못 쓴다.
+// 값은 globals.css --spec-*/--text-lo와 1:1 - 토큰을 바꾸면 여기도 같이 볼 것.
+export const TYPE_DEFAULT_HEX: Record<string, string> = {
+  course: "#9DB4FF",
+  certification: "#E8ECFF",
+  organization: "#FFD98A",
+  activity: "#FFA76B",
+  networking: "#FF7B72",
+};
+
+export const DEFAULT_TYPE_HEX = "#8891AC"; // --text-lo 실값
+
+const HEX_PATTERN = /^#[0-9a-fA-F]{6}$/;
+
+/** 노드의 실색 hex. 커스텀 색(#RRGGBB)이 있으면 그것, 아니면 유형 기본값.
+ * CSS 변수 문자열 등 hex가 아닌 값이 들어와도 기본값으로 안전 강등된다. */
+export function hexForNode(type: string, color?: string): string {
+  if (color && HEX_PATTERN.test(color)) return color;
+  return TYPE_DEFAULT_HEX[type] ?? DEFAULT_TYPE_HEX;
+}
+
+/** hex를 흰색 쪽으로 t(0~1)만큼 섞는다 - 별상 시안 Rev.B의 mix() 그대로.
+ * 임의 사용자 색에서 고온부·바늘 틴트를 파생하는 유일한 통로다. */
+export function mixHex(hex: string, t: number): string {
+  const n = parseInt(hex.slice(1), 16);
+  const f = (c: number): string =>
+    Math.round(c + (255 - c) * t)
+      .toString(16)
+      .padStart(2, "0");
+  return "#" + f((n >> 16) & 255) + f((n >> 8) & 255) + f(n & 255);
+}

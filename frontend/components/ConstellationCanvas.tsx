@@ -13,6 +13,7 @@
  */
 
 import {
+  Fragment,
   useCallback,
   useEffect,
   useMemo,
@@ -24,7 +25,7 @@ import {
   type RefObject,
 } from "react";
 import { cn } from "@/lib/cn";
-import { colorForType } from "@/lib/element-colors";
+import { colorForType, hexForNode, mixHex } from "@/lib/element-colors";
 import { orderRanksByBarycenter } from "@/lib/layered-order";
 import { SpaceBackdrop } from "@/components/SpaceBackdrop";
 // 성단(접힌 그룹) 성운 비주얼(안개+입자) - DraftReviewStage의 시안 렌더와
@@ -222,6 +223,216 @@ const FIT_MAX_ZOOM = 1;
 // 고정하고 콘텐츠 중심만 맞춘다(가장자리 성운은 화면 밖으로 잘릴 수 있음 -
 // 의도된 동작). 체감 조정용 노브 - 사용자 피드백에 따라 이 값만 바꾸면 된다.
 const ENTRY_MIN_ZOOM = 0.65;
+
+// ── 별상(星像) Rev.B - 유형은 형태가, 색은 사용자가 ─────────────────────────
+// 참조 구현: 별상 시안 Rev.B의 star() 빌더(스크래치패드 star-plate.html).
+// 다섯 형태는 전부 실제 망원경 사진의 광학 현상: 십자/육각 회절, 쌍성, 유성,
+// 산개성단. 층 구조(헤일로 → 바늘 → 에어리 링 → 핵)와 그라디언트 스톱값은
+// 시안 그대로, 치수만 캔버스 노드 반지름 r 기준으로 다시 잰다(시안은 148px
+// 카드용이라 핵 비율이 캔버스에선 너무 작다 - 미달성도 또렷해야 한다는
+// 2026-09-02 사양에 맞춰 핵을 키웠다).
+//
+// 규칙(인계 가이드 §3):
+// - 새 path 전부 fill 실값(그라디언트 포함) - fill="none" 금지(§3-1).
+//   에어리 링만 윤곽선이라 fill="transparent"를 쓴다.
+// - 블러는 공유 #const-glow 하나를 달성 별 전체에 1회 래핑 - 미달성 블러 0.
+//   시안의 별마다 feGaussianBlur는 이식하지 않는다(노드 수백 개 성능).
+// - 상시 애니메이션 추가 없음(§3-4) - 숨쉬기는 기존 spikeBreathe(달성 연출
+//   프리셋 레이어)가 담당한다.
+
+/** 오목 곡선으로 가늘어지는 회절침 - 다이아몬드가 아니라 바늘. 시안의
+ * needle() 그대로(세로 기준, rotate로 각도를 준다). */
+function starNeedlePath(L: number, w: number): string {
+  return `M0 ${-L} Q ${w * 0.22} ${-L * 0.12} ${w} 0 Q ${w * 0.22} ${L * 0.12} 0 ${L} Q ${-w * 0.22} ${L * 0.12} ${-w} 0 Q ${-w * 0.22} ${-L * 0.12} 0 ${-L} Z`;
+}
+
+/** 회절침 한 벌 - 길고 옅은 바늘 + 짧고 진한 심지 두 겹으로 길이 방향 감쇠를
+ * 만든다. 시안의 블러 사본 층은 뺐다(위 규칙 - 달성 별은 const-glow 래핑이
+ * 같은 번짐을 준다). */
+function StarSpikeSet({
+  cx = 0,
+  cy = 0,
+  L,
+  w,
+  angles,
+  op,
+  hex,
+}: {
+  cx?: number;
+  cy?: number;
+  L: number;
+  w: number;
+  angles: number[];
+  op: number;
+  hex: string;
+}) {
+  return (
+    <>
+      {angles.map((a) => (
+        <g key={a} transform={`translate(${cx} ${cy}) rotate(${a})`}>
+          <path d={starNeedlePath(L, w)} fill={mixHex(hex, 0.25)} opacity={op * 0.55} />
+          <path d={starNeedlePath(L * 0.42, w * 1.25)} fill={mixHex(hex, 0.6)} opacity={op} />
+        </g>
+      ))}
+    </>
+  );
+}
+
+/** 노드 색별 그라디언트 defs - 노드마다가 아니라 "쓰이는 색마다" 하나씩만
+ * 만든다(자유 RGB라도 실사용 색은 십수 개 수준). currentColor는 그라디언트
+ * 정의 위치 기준으로 풀리는 SVG 함정이 있어 실색을 스톱에 굽는다(시안 주석
+ * 그대로). 스톱값은 시안 정본과 동일. */
+function StarColorDefs({ hexes }: { hexes: string[] }) {
+  return (
+    <>
+      {hexes.map((hex) => {
+        const k = hex.slice(1).toLowerCase();
+        return (
+          <Fragment key={k}>
+            <radialGradient id={`starHalo-${k}`}>
+              <stop offset="0" stopColor={mixHex(hex, 0.8)} stopOpacity="0.9" />
+              <stop offset="0.14" stopColor={mixHex(hex, 0.35)} stopOpacity="0.5" />
+              <stop offset="0.38" stopColor={hex} stopOpacity="0.18" />
+              <stop offset="0.7" stopColor={hex} stopOpacity="0.05" />
+              <stop offset="1" stopColor={hex} stopOpacity="0" />
+            </radialGradient>
+            <radialGradient id={`starCore-${k}`}>
+              <stop offset="0" stopColor="#ffffff" stopOpacity="0.95" />
+              <stop offset="0.45" stopColor={mixHex(hex, 0.5)} stopOpacity="0.5" />
+              <stop offset="1" stopColor={hex} stopOpacity="0" />
+            </radialGradient>
+            <linearGradient id={`starTail-${k}`} x1="0" y1="1" x2="0" y2="0">
+              <stop offset="0" stopColor={mixHex(hex, 0.4)} />
+              <stop offset="1" stopColor={hex} stopOpacity="0" />
+            </linearGradient>
+          </Fragment>
+        );
+      })}
+    </>
+  );
+}
+
+/** 별상 본체 - 노드 <g>(이미 위치로 translate됨) 안에서 원점 기준으로 그린다.
+ * 히트 영역: 헤일로 원이 그라디언트로 채워져 있어(투명 스톱 포함) 본체 전체가
+ * 클릭 판정에 들어간다 - 예전 단색 원(r≈9)보다 오히려 넓다. */
+function StarBody({ type, done, hex, r }: { type: string; done: boolean; hex: string; r: number }) {
+  const k = hex.slice(1).toLowerCase();
+  // 시안 cfg의 done/undone 두 벌 - S(카드 한 변) 대신 r(노드 반지름) 기준.
+  const haloR = done ? r * 2.4 : r * 1.15;
+  const haloOp = done ? 0.8 : 0.5;
+  const L = done ? r * 3.4 : r * 1.35; // 달성 긴 바늘 ≈ 기존 SPIKE_LENGTH_MULT(3.5r)와 같은 급
+  const w = done ? r * 0.09 : r * 0.075;
+  const spOp = done ? 1 : 0.8;
+  const coreR = r * 0.34;
+
+  const halo = (cx: number, cy: number, radius: number, op: number) => (
+    <circle cx={cx} cy={cy} r={radius} fill={`url(#starHalo-${k})`} opacity={op} />
+  );
+  // 핵 - 달성은 백색 고온핵(기존 "백색 고온부"의 일반화), 미달성은 채색 핵.
+  const core = (cx: number, cy: number, scale = 1) =>
+    done ? (
+      <>
+        <circle cx={cx} cy={cy} r={r * 1.2 * scale} fill={`url(#starCore-${k})`} />
+        <circle cx={cx} cy={cy} r={coreR * scale} fill="#ffffff" />
+      </>
+    ) : (
+      <>
+        <circle cx={cx} cy={cy} r={r * 0.9 * scale} fill={`url(#starCore-${k})`} opacity={0.6} />
+        <circle cx={cx} cy={cy} r={coreR * scale} fill={mixHex(hex, 0.55)} />
+      </>
+    );
+  // 에어리 링 - 달성 별에만 아주 희미하게. 윤곽선이라 fill은 transparent(§3-1).
+  const airy = (radius: number) =>
+    done ? (
+      <circle r={radius} fill="transparent" stroke={mixHex(hex, 0.3)} strokeWidth={1} opacity={0.09} />
+    ) : null;
+
+  let body: JSX.Element;
+  if (type === "certification") {
+    // 육각 회절 - 육각 거울(JWST)의 별상. 달성 시 수평 부침.
+    body = (
+      <>
+        {halo(0, 0, haloR, haloOp)}
+        <StarSpikeSet L={L * 0.9} w={w} angles={[0, 60, 120]} op={spOp} hex={hex} />
+        {done && <StarSpikeSet L={L * 0.3} w={w * 0.8} angles={[90]} op={0.45} hex={hex} />}
+        {airy(r * 1.75)}
+        {core(0, 0)}
+      </>
+    );
+  } else if (type === "organization") {
+    // 쌍성 - 두 핵이 한 외광을 나눠 쓴다(주핵 > 부핵).
+    const d = done ? r * 0.65 : r * 0.5;
+    const ax = -d;
+    const ay = d * 0.4;
+    const bx = d;
+    const by = -d * 0.4;
+    body = (
+      <>
+        {halo(0, 0, haloR * 1.12, haloOp * 0.9)}
+        <StarSpikeSet cx={ax} cy={ay} L={L * 0.62} w={w} angles={[0, 90]} op={spOp} hex={hex} />
+        <StarSpikeSet cx={bx} cy={by} L={L * 0.44} w={w * 0.9} angles={[0, 90]} op={spOp * 0.8} hex={hex} />
+        {airy(r * 2.1)}
+        {core(ax, ay)}
+        {core(bx, by, 0.75)}
+      </>
+    );
+  } else if (type === "activity") {
+    // 유성 - -45° 이중 꼬리(좁고 밝게 + 넓고 옅게). 지나간 자리의 움직임.
+    const tailL = done ? r * 3.2 : r * 1.55;
+    const tailW = done ? r * 0.25 : r * 0.16;
+    const tail = (ww: number, op: number) => (
+      <path d={`M0 0 L${-ww} ${-tailL} L${ww} ${-tailL} Z`} fill={`url(#starTail-${k})`} opacity={op} />
+    );
+    body = (
+      <>
+        <g transform="rotate(-45)">
+          {tail(tailW * 2.6, done ? 0.35 : 0.25)}
+          {tail(tailW, done ? 0.85 : 0.6)}
+        </g>
+        {halo(0, 0, haloR * 0.9, haloOp)}
+        <StarSpikeSet L={L * 0.5} w={w} angles={[0, 90]} op={spOp * 0.9} hex={hex} />
+        {core(0, 0)}
+      </>
+    );
+  } else if (type === "networking") {
+    // 산개성단 - 주성 곁에 잇닿은 위성별 3(크기 체감). 사람에서 사람으로.
+    const sats: [number, number, number][] = [
+      [1.7, -1.3, 0.55],
+      [-1.45, 1.45, 0.45],
+      [1.2, 1.85, 0.38],
+    ];
+    body = (
+      <>
+        {halo(0, 0, haloR * 1.2, haloOp * 0.85)}
+        <StarSpikeSet L={L * 0.68} w={w} angles={[0, 90]} op={spOp} hex={hex} />
+        {airy(r * 2)}
+        {core(0, 0, 0.92)}
+        {sats.map(([sx, sy, sk], i) => (
+          <g key={i}>
+            <StarSpikeSet cx={sx * r} cy={sy * r} L={L * 0.24} w={w * 0.9} angles={[0, 90]} op={spOp * 0.7} hex={hex} />
+            {core(sx * r, sy * r, sk)}
+          </g>
+        ))}
+      </>
+    );
+  } else {
+    // 수업(course) + 미지의 type 폴백 - 십자 회절, 가장 기본의 별상.
+    // 달성 시 45° 부침이 짧고 옅게 따라붙는다(수업 전용 - 폴백에도 해가 없다).
+    body = (
+      <>
+        {halo(0, 0, haloR, haloOp)}
+        {done && <StarSpikeSet L={L * 0.38} w={w * 0.8} angles={[45, 135]} op={0.4} hex={hex} />}
+        <StarSpikeSet L={L} w={w} angles={[0, 90]} op={spOp} hex={hex} />
+        {airy(r * 1.9)}
+        {core(0, 0)}
+      </>
+    );
+  }
+
+  // 달성 별만 공유 블러(#const-glow)로 1회 래핑 - blur+원본 merge라 시안의
+  // "블러 사본 + 선명한 바늘" 층 구조를 필터 하나로 대신한다.
+  return done ? <g filter="url(#const-glow)">{body}</g> : body;
+}
 
 
 /** djb2 문자열 해시 - [0,1) 실수로 정규화한다. Math.random 금지: 같은
@@ -1301,6 +1512,13 @@ export function ConstellationCanvas({
     [diveGroupId, groups]
   );
 
+  // 별상 그라디언트에 쓸 실색 목록 - 노드마다가 아니라 색마다 defs 한 벌.
+  const starHexes = useMemo(() => {
+    const set = new Set<string>();
+    for (const n of Object.values(nodes)) set.add(hexForNode(n.type, n.color));
+    return Array.from(set);
+  }, [nodes]);
+
   interface EdgeEndpoint {
     key: string;
     position: CanvasPosition;
@@ -1422,6 +1640,8 @@ export function ConstellationCanvas({
             <stop offset="55%" stopColor="currentColor" stopOpacity="0.3" />
             <stop offset="78%" stopColor="currentColor" stopOpacity="0" />
           </radialGradient>
+          {/* 별상 그라디언트 - 실사용 중인 색마다 한 벌(StarColorDefs 주석 참고). */}
+          <StarColorDefs hexes={starHexes} />
         </defs>
         {/* 배경 격자는 SVG가 아니라 컨테이너의 .bg-radec-grid(적경/적위 좌표선,
             globals.css)로 깐다 - "차트 위에 찍는 중"이라는 인상만 아주 옅게. */}
@@ -1539,6 +1759,9 @@ export function ConstellationCanvas({
             .map((node) => {
             const pos = positionOf(node.id);
             const color = node.color ?? colorForType(node.type);
+            // 별상 본체용 실색 - color(CSS 변수 가능)와 달리 그라디언트에 구울
+            // 수 있는 hex 보장값. 위성·선택 링 등 단색 소비처는 계속 color를 쓴다.
+            const hexColor = hexForNode(node.type, node.color);
             const isHovered = hoveredNodeId === node.id;
             const isFocused = focusedNodeId === node.id;
             const isSelected = selectedNodeId === node.id;
@@ -1625,18 +1848,16 @@ export function ConstellationCanvas({
                   />
                 )}
 
-                {/* 미완료 = 분광형 색으로 또렷하게 채워진 별(글로우 없음).
-                    완료 = 백색 고온부 + const-glow 발광 + 십자 회절 스파이크.
-                    "승급"은 밝기 하나가 아니라 빛번짐이라는 사건으로 읽혀야
-                    하지만, 그렇다고 미완료가 흐려선 안 된다(2026-09-02 지적).
-                    둘 다 성립시키는 게 위 magOpacity + 아래 백색 고온부다. */}
+                {/* 본체 = 별상(StarBody, 유형별 형태). 미완료도 또렷한 채색
+                    별이어야 하고(2026-09-02 지적, magOpacity 0.88~0.95 유지),
+                    달성은 백색 고온핵 + 헤일로 확장 + 바늘 신장 + 에어리 링
+                    이라는 사건으로 읽힌다. */}
                 {/* (과거 버그 메모) 예전엔 미완료 노드가 fill="transparent"였는데,
                     SVG가 fill="none" 영역을 클릭 판정에서 빼버리는 함정 때문에
                     "군집에서 끌어온 요소는 연결이 안 된다"는 버그가 난 적이 있다.
-                    지금은 미완료도 항상 분광형 색으로 채워지므로 이 함정 자체가
-                    구조적으로 사라졌다 - 그래도 새 원소 타입을 추가할 때 절대
-                    fill="none"을 쓰지 말 것(DEFAULT_TYPE_COLOR로 안전 강등되는
-                    색도 실제 색이지 none이 아니다). */}
+                    별상 전환 후에도 규칙은 같다: 헤일로 원이 그라디언트로 채워져
+                    본체 전체가 판정에 들어간다 - 새 장식 path를 추가할 때 절대
+                    fill="none"을 쓰지 말 것(윤곽선은 fill="transparent"). */}
                 {/* onDoubleClick은 여기가 아니라 위 <g>에 달려 있다 - 몸통(r≈8)만
                     노렸던 예전 방식은 핸들 링(r=22, 위성 작업으로 확대됨)이 대부분의
                     면적을 덮어버려 살짝만 빗나가도 더블클릭이 엣지 드래그로 새는
@@ -1688,28 +1909,9 @@ export function ConstellationCanvas({
                     })()}
                   </g>
                 )}
-                <circle
-                  r={r}
-                  fill={color}
-                  opacity={magOpacity}
-                  filter={node.isCompleted ? "url(#const-glow)" : undefined}
-                />
-                {/* 달성 별의 백색 고온부. 미완료 바닥을 올린 만큼(위 magOpacity
-                    주석) 불투명도 차이만으로는 "확 밝아진다"가 안 읽히므로,
-                    실제 밝은 항성처럼 중심을 흰빛으로 태운다. 새 색을 만들지
-                    않으려고 A형(백색) 토큰을 그대로 쓴다. 상시 애니메이션은
-                    붙이지 않는다 - 디자인 인계 가이드 §3-4(배경/상시 모션 금지),
-                    숨쉬기는 이미 스파이크 쪽 spikeBreathe가 담당한다. */}
-                {node.isCompleted && (
-                  <circle
-                    aria-hidden="true"
-                    pointerEvents="none"
-                    r={r * 0.45}
-                    fill="var(--spec-a)"
-                    opacity={0.9}
-                    filter="url(#const-glow)"
-                  />
-                )}
+                <g opacity={magOpacity}>
+                  <StarBody type={node.type} done={node.isCompleted} hex={hexColor} r={r} />
+                </g>
 
                 {/* "요소가 뭔지 글자가 아주 조금만 더 잘보였으면"(사용자 지시) -
                     크기 +1px, 미완료 불투명도 0.6->0.8만 소폭 상향. 색 토큰과
