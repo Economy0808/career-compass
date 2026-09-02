@@ -166,11 +166,15 @@ async def cluster_courses(
         # 입력 후보는 있었는데 군집이 하나도 안 나왔다 - LLM이 전부 무관하다고
         # 판단했거나(정상일 수 있음) 환각 code만 내서 by_code 검증에서 전부 걸러졌을
         # 수도 있다(비정상). 계약(빈 결과 반환)은 그대로 두고 원인 추적용 로그만 남긴다.
+        # 목표 원문은 개인 진로 고민이라 PII에 준한다(2026-09-02 보안감사 C-1) -
+        # 운영 로그(Cloud Logging, 계정 삭제 경로 밖)에는 길이만 남기고 원문은
+        # debug(운영 미수집)로 강등한다.
         logger.warning(
-            "cluster_courses: 후보 과목 %d개가 있었는데 군집 결과가 0개 - 목표: %r",
+            "cluster_courses: 후보 과목 %d개가 있었는데 군집 결과가 0개 - 목표 길이: %d자",
             len(undergrad_courses),
-            goal_text[:80],
+            len(goal_text),
         )
+        logger.debug("cluster_courses: 군집 0개 목표 원문: %r", goal_text[:80])
     return CourseClusterResult(clusters=clusters)
 
 
@@ -195,11 +199,13 @@ async def suggest_course_bin(
         llm, goal_text, known_departments, known_colleges
     )
     if not departments:
+        # C-1과 동일: 목표 원문은 debug로만(위 cluster_courses 주석 참고).
         logger.warning(
-            "suggest_course_bin: 학과 선택 결과가 0개 - 목표: %r (카탈로그 학과 수: %d)",
-            goal_text[:80],
+            "suggest_course_bin: 학과 선택 결과가 0개 - 목표 길이: %d자 (카탈로그 학과 수: %d)",
+            len(goal_text),
             len(known_departments),
         )
+        logger.debug("suggest_course_bin: 학과 0개 목표 원문: %r", goal_text[:80])
         return CourseClusterResult(clusters=[])
 
     seen_codes: set[str] = set()

@@ -133,6 +133,26 @@ async def test_cluster_courses_no_undergrad_candidates_returns_empty() -> None:
 
 
 @pytest.mark.asyncio
+async def test_cluster_courses_empty_result_warning_omits_goal_text(
+    caplog: pytest.LogCaptureFixture,
+) -> None:
+    """군집 0개 경고 로그에 사용자 목표 원문이 실리면 안 된다(2026-09-02 보안감사
+    C-1). 목표 원문은 개인 진로 고민이라 PII에 준하고, 운영 Cloud Logging은 계정
+    삭제 경로 밖이다 - WARNING에는 길이만, 원문은 debug로만 남긴다."""
+    import logging
+
+    llm = MockClaudeClient()
+    sentinel = "의사를 그만두고 스타트업을 하고 싶어요"  # 합성 목표 - 실데이터 아님
+    courses = [_course("BIZ6001", "박사 세미나", level=6)]
+    with caplog.at_level(logging.WARNING, logger="app.services.course_clustering"):
+        await cluster_courses(llm, sentinel, courses)
+    warnings = [r.getMessage() for r in caplog.records if r.levelno >= logging.WARNING]
+    assert warnings, "군집 0개면 추적용 WARNING은 남아야 한다"
+    assert all(sentinel not in msg for msg in warnings)
+    assert any("목표 길이" in msg for msg in warnings)
+
+
+@pytest.mark.asyncio
 async def test_cluster_courses_advice_propagates_from_base_to_view() -> None:
     """base.CourseCluster.advice가 서비스 CourseClusterView.advice까지 그대로 흘러야 한다
     (A1 회귀 가드 — 섀도 타입이 조용히 필드를 떨어뜨리는 걸 방지)."""
