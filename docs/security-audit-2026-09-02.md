@@ -119,7 +119,8 @@
 | `545e305` | DEP-1 완화 프론트 Cloud Run 전용 SA(`ourlab-frontend-runtime@ourlab-0808`) | **PASS(노트)** | `deploy.md:215` `--service-account` 추가. 프론트는 GCP API 호출 0건이라 무권한 SA로 무영향. **노트**: SA 생성(`gcloud iam service-accounts create ...`) 단계가 문서에 없어 SA 존재·역할 0 상태를 리포만으로 검증 불가 → 백엔드 세션이 라이브에서 확인하고 문서에 생성 단계 추가 요청 |
 | `90cfd5a` | C-1 `course_clustering.py` 로그 | **PASS** | WARNING 두 곳(:172-176, :203-207)은 `len(goal_text)`만, 원문은 `logger.debug`(:177, :208)로. 테스트 `test_cluster_courses_empty_result_warning_omits_goal_text`가 WARNING 이상에서 sentinel 부재 assert. 클러스터링 로직 무변경 |
 | `d3c3a9d` | E-1 `markdown.tsx` 링크 스킴 허용목록 | **PASS** | `SAFE_HREF_RE=/^(https?:\|mailto:)/i`(:126), `safeLinkHref`가 `[ - ]` 제거 후 검사(:130-133), 불일치는 평문(:217), `rel="noreferrer noopener"` 유지(:210). 셀프체크 10케이스(`javascript:`, 대소문자 변형, 탭 삽입, `data:`, `vbscript:`, `//` 포함). 커밋 파일에 리터럴 제어 바이트 0 확인 |
-| — | starlette≥1.3.1 핀 (§6 #6) | 대기 | 백엔드 세션 작업 중 |
+| `5e0ed22` | §6 #6 `pyproject.toml` `starlette>=1.3.1`, `python-multipart>=0.0.31` | **PASS** | §4 판정과 일치, 근거 주석 포함. fastapi 범프 없음 |
+| `1a22ca3` | C-1 테스트 보강 | **PASS** | 학부 후보가 있는데 군집 0개를 내는 스텁으로 실제 경고 분기를 태움(기존 6000단위 입력은 조기 리턴이라 경로를 못 타던 문제 수정) |
 | — | Next 15.5.16 업그레이드 (§6 #3) | 진행 중 | 프론트 세션이 사용자 승인 후 격리 worktree에서 착수(`docs/plan-next15-upgrade.md`). 완료 시 그쪽 `/security-review` 결과를 여기 추가 |
 
 새로 도입된 취약점: 없음. 배포(규칙 `firebase deploy --only firestore:rules`, 프론트 SA 재배포)는 백엔드 세션 지휘.
