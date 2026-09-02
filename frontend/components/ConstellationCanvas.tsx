@@ -2037,7 +2037,9 @@ const POPOVER_GAP = 12; // 노드 가장자리와 팝오버 사이 여백
 interface ElementPopoverProps {
   node: CanvasNode;
   transform: Transform;
-  containerRef: RefObject<SVGSVGElement>;
+  // React 19 타입: useRef<T>(null)이 RefObject<T | null>을 돌려준다 - 소비처는
+  // 어차피 current null 가드를 하므로 선언만 실제 타입에 맞춘다.
+  containerRef: RefObject<SVGSVGElement | null>;
   onOpenNotes?: () => void;
   onDismiss: () => void;
 }

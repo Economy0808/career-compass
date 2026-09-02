@@ -17,7 +17,7 @@
  */
 
 import Link from "next/link";
-import { useRouter } from "next/navigation";
+import { useParams, useRouter } from "next/navigation";
 import { useEffect, useRef, useState } from "react";
 import { Button, EmptyState, Modal } from "@/components/ui";
 import { VerifyGate, isVerifyRequiredError } from "@/components/VerifyGate";
@@ -182,7 +182,11 @@ function ConstellationTile({
   );
 }
 
-export default function ProfilePage({ params }: { params: { id: string } }) {
+// Next 15: page의 params prop이 Promise가 됐다. 이 페이지만 prop으로 받고
+// 있었는데(형제 동적 페이지 5개는 전부 useParams 훅), React.use() 언랩보다
+// 형제들과 같은 훅 패턴으로 통일한다 - 아래 params.id 소비처는 무변경.
+export default function ProfilePage() {
+  const params = useParams<{ id: string }>();
   const router = useRouter();
   const { user, loading: authLoading } = useAuth();
   const isOwn = !authLoading && user?.uid === params.id;
