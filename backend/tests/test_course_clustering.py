@@ -141,9 +141,21 @@ async def test_cluster_courses_empty_result_warning_omits_goal_text(
     삭제 경로 밖이다 - WARNING에는 길이만, 원문은 debug로만 남긴다."""
     import logging
 
-    llm = MockClaudeClient()
+    from app.llm.base import CourseClusterResult as RawClusterResult
+
+    class _EmptyClusterLLM(MockClaudeClient):
+        """학부 후보가 있는데도 군집 0개를 내는 스텁 - 정확히 경고 분기를 태운다.
+
+        (학부 후보 자체가 0이면 cluster_courses가 로그 없이 조기 리턴하므로,
+        6000단위 입력으로는 이 경고 경로를 검증할 수 없다.)
+        """
+
+        async def cluster_courses(self, goal_text, courses, rules_context=None):  # type: ignore[override]
+            return RawClusterResult(clusters=[])
+
+    llm = _EmptyClusterLLM()
     sentinel = "의사를 그만두고 스타트업을 하고 싶어요"  # 합성 목표 - 실데이터 아님
-    courses = [_course("BIZ6001", "박사 세미나", level=6)]
+    courses = [_course("BIZ2101", "경영통계", level=2)]
     with caplog.at_level(logging.WARNING, logger="app.services.course_clustering"):
         await cluster_courses(llm, sentinel, courses)
     warnings = [r.getMessage() for r in caplog.records if r.levelno >= logging.WARNING]
