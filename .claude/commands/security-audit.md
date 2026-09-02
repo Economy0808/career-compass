@@ -38,7 +38,7 @@ C. LLM path — `backend/app/llm/*`, `backend/app/api/constellation_intake.py`, 
    (what can prompt injection steer through structured output; is model-returned data re-validated before use; PII into prompts/logs; job owner isolation).
 D. Secrets, config, infrastructure — `.env*`, `backend/app/config.py`, Dockerfiles, `docker-compose.yml`, `docs/deploy.md`,
    `wrangler*`, `next.config.mjs`, `firebase.json` (leaked history, production flags, emulator settings leaking into prod builds, missing security headers).
-E. Frontend rendering & uploads — `frontend/lib/markdown.tsx` (uses `dangerouslySetInnerHTML`; wiki links, external links),
+E. Frontend rendering & uploads — `frontend/lib/markdown.tsx` (custom parser building React elements; no `dangerouslySetInnerHTML` anywhere in frontend/ as of 2026-09-02 — re-grep; link href scheme handling, wiki links, external links),
    note attachment upload path, user-supplied URLs/images, `localStorage`/`sessionStorage` contents.
 
 OBJECTIVE:
