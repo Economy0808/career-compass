@@ -1277,7 +1277,19 @@ export default function NewConstellationPage() {
             draftOffer,
           })
         );
-      } else if (Object.keys(nodes).length > 0) {
+      } else if (
+        Object.keys(nodes).length > 0 &&
+        // 손대지 않은 데모 시드는 저장하지 않는다 - 저장하면 다음 empty 부트가
+        // 시드를 "복원할 작업"으로 오인해 첫 사용자 대화를 막는다(라이브 실측
+        // 회귀). 키 집합 비교라 시드 노드를 "이동만" 한 경우도 스킵되는데,
+        // 데모 시드의 좌표 보존은 가치가 없어 의도적으로 감수한다. 노드를
+        // 추가·삭제하는 순간부터는 키가 달라져 정상 저장된다.
+        !(
+          Object.keys(nodes).length === Object.keys(INITIAL_NODES).length &&
+          Object.keys(nodes).every((id) => id in INITIAL_NODES) &&
+          Object.keys(edges).every((id) => id in INITIAL_EDGES)
+        )
+      ) {
         sessionStorage.setItem(
           STAGE_SNAPSHOT_KEY,
           JSON.stringify({
