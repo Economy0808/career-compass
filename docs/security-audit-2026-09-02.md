@@ -121,7 +121,7 @@
 | `d3c3a9d` | E-1 `markdown.tsx` 링크 스킴 허용목록 | **PASS** | `SAFE_HREF_RE=/^(https?:\|mailto:)/i`(:126), `safeLinkHref`가 `[ - ]` 제거 후 검사(:130-133), 불일치는 평문(:217), `rel="noreferrer noopener"` 유지(:210). 셀프체크 10케이스(`javascript:`, 대소문자 변형, 탭 삽입, `data:`, `vbscript:`, `//` 포함). 커밋 파일에 리터럴 제어 바이트 0 확인 |
 | `5e0ed22` | §6 #6 `pyproject.toml` `starlette>=1.3.1`, `python-multipart>=0.0.31` | **PASS** | §4 판정과 일치, 근거 주석 포함. fastapi 범프 없음 |
 | `1a22ca3` | C-1 테스트 보강 | **PASS** | 학부 후보가 있는데 군집 0개를 내는 스텁으로 실제 경고 분기를 태움(기존 6000단위 입력은 조기 리턴이라 경로를 못 타던 문제 수정) |
-| — | Next 15.5.16 업그레이드 (§6 #3) | 진행 중 | 프론트 세션이 사용자 승인 후 격리 worktree에서 착수(`docs/plan-next15-upgrade.md`). 완료 시 그쪽 `/security-review` 결과를 여기 추가 |
+| `c760406` `55ae728` `f3b1743` (worktree `feature/next15-upgrade`) | §6 #3 Next 15.5.25 + React 19 (DEP-1 근본 수정) | **PASS** | next 15.5.25(수정판 15.5.16 이상), react 19.2.8, @opennextjs/cloudflare 1.20.6, `output: "standalone"` 유지, 계획 외 의존성 없음. 코드 변경은 `profile/[id]` useParams 전환 + 타입 2건뿐(보안 무관). 프론트 세션 검증: tsc 0·lint 클린·`next build` 20라우트·OpenNext 빌드 완주·3002 포트 스모크 콘솔 에러 0·`/security-review` 무발견, nanoid 어드바이저리도 해소. 잔존 런타임 어드바이저리는 next 내장 postcss(수정=next 16, 비범위). 머지·배포는 백엔드 세션 차수 |
 
 새로 도입된 취약점: 없음.
 
