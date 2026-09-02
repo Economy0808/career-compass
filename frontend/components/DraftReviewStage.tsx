@@ -95,6 +95,54 @@ export function binClusterCenter(index: number): CanvasPosition {
   return { x: Math.round(Math.cos(angle) * radius), y: Math.round(Math.sin(angle) * radius) };
 }
 
+// ---- plan C: 형제 성운 묶음(2026-09-02 사용자: "일단 그냥 C를 해보고 아니다
+// 싶으면 롤백해서 B하자") - LLM이 큰 군집을 쪼갤 때 이름을 "상위 주제 — 하위
+// 주제"로 짓는다(백엔드 4bc82e7). 구분자는 ' — '(공백-엠대시-공백) 하나로
+// 고정 - 과목명에 흔한 가운뎃점('재무·회계')과 충돌하지 않는 선택. 백엔드
+// 프롬프트와 이 파싱은 한 몸이라 바꾸면 같이 바꿔야 한다.
+const PARENT_TOPIC_SEPARATOR = " — ";
+// 형제들이 가족 슬롯 중심 둘레에 앉는 소원형 반경. 성단 최대 지름(84px)보다
+// 넉넉해 형제끼리는 안 겹치고, 나선 슬롯 간격(240·√ 스케일)보다 작아 "한
+// 가족이 한 자리"로 읽힌다.
+const FAMILY_RING_RADIUS = 130;
+
+/** "상위 주제 — 하위 주제" 라벨 분해. 구분자가 없으면 parent는 null. */
+export function splitParentTopic(label: string): { parent: string | null; leaf: string } {
+  const i = label.indexOf(PARENT_TOPIC_SEPARATOR);
+  if (i === -1) return { parent: null, leaf: label };
+  return { parent: label.slice(0, i), leaf: label.slice(i + PARENT_TOPIC_SEPARATOR.length) };
+}
+
+/** 라벨 배열 → 각 군집의 중심 좌표(index 대응). 같은 상위 주제의 형제가 2개
+ * 이상이면 그 가족이 나선 슬롯 **하나**를 차지하고 형제들은 슬롯 중심 둘레
+ * 소원형에 앉는다 - 골든앵글 나선은 연속 index가 공간적으로 인접하지 않으므로
+ * (137.5° 점프) 배열 순서만으로는 묶음이 안 보인다. 단독 군집(구분자가 있어도
+ * 형제가 없으면 단독)은 기존처럼 슬롯 하나. 결정론적 - Math.random 없음. */
+export function binClusterCenters(labels: string[]): CanvasPosition[] {
+  const parents = labels.map((l) => splitParentTopic(l).parent);
+  const familySize = new Map<string, number>();
+  for (const p of parents) if (p) familySize.set(p, (familySize.get(p) ?? 0) + 1);
+
+  let slot = 0;
+  const familyState = new Map<string, { center: CanvasPosition; placed: number; size: number }>();
+  return labels.map((_, i) => {
+    const p = parents[i];
+    const size = p ? familySize.get(p) ?? 0 : 0;
+    if (!p || size < 2) return binClusterCenter(slot++);
+    let fam = familyState.get(p);
+    if (!fam) {
+      fam = { center: binClusterCenter(slot++), placed: 0, size };
+      familyState.set(p, fam);
+    }
+    // 12시 방향부터 시계 방향 균등 분할 - 형제 순서(배열 순서)가 곧 자리 순서.
+    const angle = (fam.placed++ / fam.size) * Math.PI * 2 - Math.PI / 2;
+    return {
+      x: Math.round(fam.center.x + Math.cos(angle) * FAMILY_RING_RADIUS),
+      y: Math.round(fam.center.y + Math.sin(angle) * FAMILY_RING_RADIUS),
+    };
+  });
+}
+
 // ConstellationCanvas의 성단 반지름 공식과 같은 상수를 그대로 옮겨왔다(§DESIGN
 // "은은하게 크게") - 이 화면은 world 좌표가 아니라 고정 px 원(HTML span)이라
 // *2로 지름 스케일만 맞춘다. MAX_DIAMETER 68→84는 "성단 많다고 과축소된" 실측
@@ -481,12 +529,14 @@ export function DraftReviewStage({
 }: DraftReviewStageProps) {
   const currentDraft = drafts[selected] as DraftDto | undefined;
 
-  // 군집 중심 좌표 - bins 개수에만 의존한다(내용이 바뀌어도 자리는 안 흔들려야
-  // 하므로 bins.length를 dep으로 둔다, bins 배열 자체가 아니라).
+  // 군집 중심 좌표 - plan C(형제 성운 묶음)로 라벨 기반 배치가 되면서 dep이
+  // 개수가 아니라 **라벨 서명**이다. "자리 안 흔들림" 의도는 그대로 지켜진다 -
+  // 시안 단계 동안 bins 라벨은 불변이라(내용물만 채워짐) 서명이 안 바뀐다.
+  const clusterLabelSignature = bins.map((b) => b.label).join("\n");
   const clusterCenters = useMemo(
-    () => bins.map((_, index) => binClusterCenter(index)),
+    () => binClusterCenters(bins.map((b) => b.label)),
     // eslint-disable-next-line react-hooks/exhaustive-deps
-    [bins.length]
+    [clusterLabelSignature]
   );
   const toPct = usePreviewLayout(clusterCenters);
 
@@ -957,15 +1007,33 @@ export function DraftReviewStage({
                         {count}
                       </span>
                     </div>
-                    <span
-                      className={cn(
-                        "mt-1.5 max-w-[140px] truncate text-center font-serif text-body-sm",
-                        isCore ? "text-text-hi" : "text-text-lo"
-                      )}
-                      title={bin.label}
-                    >
-                      {bin.label}
-                    </span>
+                    {/* plan C 묶음 라벨 - "상위 — 하위" 형제 군집은 상위 주제를
+                        작은 eyebrow 줄로 공유하고 하위만 본 라벨로 보여준다.
+                        같은 eyebrow가 반복되는 것 자체가 묶음의 시각 신호다
+                        (점선 외곽 같은 추가 장식은 일부러 없음). title은 풀
+                        라벨 유지 - 정보는 안 잃는다. */}
+                    {(() => {
+                      const { parent, leaf } = splitParentTopic(bin.label);
+                      return (
+                        <>
+                          {parent && (
+                            <span className="mt-1.5 max-w-[140px] truncate text-center font-sans text-[10px] tracking-wide text-text-lo/80">
+                              {parent}
+                            </span>
+                          )}
+                          <span
+                            className={cn(
+                              "max-w-[140px] truncate text-center font-serif text-body-sm",
+                              parent ? "mt-0" : "mt-1.5",
+                              isCore ? "text-text-hi" : "text-text-lo"
+                            )}
+                            title={bin.label}
+                          >
+                            {leaf}
+                          </span>
+                        </>
+                      );
+                    })()}
                   </div>
                 );
               })}

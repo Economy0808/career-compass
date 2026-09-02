@@ -31,7 +31,7 @@ import { ConstellationIntakeChat, clearDraftChat } from "@/components/Constellat
 // 아니고, constellationId가 생기는 순간 스냅샷은 지워진다. 노트는 첨부가
 // objectURL(직렬화 불가)이라 의도적으로 제외한다.
 const STAGE_SNAPSHOT_KEY = "ourlab-stage-snapshot";
-import { DraftReviewStage, binClusterCenter } from "@/components/DraftReviewStage";
+import { DraftReviewStage, binClusterCenters } from "@/components/DraftReviewStage";
 import { ColorPaletteBar } from "@/components/ColorPaletteBar";
 import { LaunchModal, type LaunchInput } from "@/components/LaunchModal";
 import { Modal } from "@/components/ui/Modal";
@@ -1567,9 +1567,13 @@ export default function NewConstellationPage() {
       const nextGroups: Record<string, CanvasGroup> = {};
       const repNodeIdByLabel = new Map<string, string>();
 
+      // plan C: 형제 성운(같은 "상위 주제 — " 접두사)이 인접 배치되도록 라벨
+      // 기반 좌표를 쓴다 - 시안(DraftReviewStage의 clusterCenters)과 같은 함수를
+      // 공유해야 "스테이지에서 본 자리 부근" 약속이 유지된다.
+      const clusterBases = binClusterCenters(binsRef.current.map((b) => b.label));
       binsRef.current.forEach((bin, binIndex) => {
         if (bin.items.length === 0) return; // 안 채워진 군집 - 노드도 그룹도 만들 게 없다.
-        const base = binClusterCenter(binIndex);
+        const base = clusterBases[binIndex];
         const sorted = sortItemsByLevel(bin.items);
         // 층형 배치(사용자 지시: "선수과목 순으로 위계가 한눈에") - level 값이
         // 같은 항목을 한 행으로 묶어 행마다 y를 내려가며 쌓는다. 층 간격×층수를
