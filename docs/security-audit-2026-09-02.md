@@ -123,7 +123,13 @@
 | `1a22ca3` | C-1 테스트 보강 | **PASS** | 학부 후보가 있는데 군집 0개를 내는 스텁으로 실제 경고 분기를 태움(기존 6000단위 입력은 조기 리턴이라 경로를 못 타던 문제 수정) |
 | — | Next 15.5.16 업그레이드 (§6 #3) | 진행 중 | 프론트 세션이 사용자 승인 후 격리 worktree에서 착수(`docs/plan-next15-upgrade.md`). 완료 시 그쪽 `/security-review` 결과를 여기 추가 |
 
-새로 도입된 취약점: 없음. 배포(규칙 `firebase deploy --only firestore:rules`, 프론트 SA 재배포)는 백엔드 세션 지휘.
+새로 도입된 취약점: 없음.
+
+**라이브 반영 상태 (백엔드 세션 보고, 2026-09-02 19:30)**
+- **B-1 닫힘**: `7aacdef` 직후 `firebase deploy --only firestore:rules --project ourlab-0808` 완료. 운영 규칙 = 재게이트한 커밋본. 배포 후 라이브 스모크(별자리 4건 조회·게시판 6개) 정상.
+- **DEP-1 완화 적용**: `ourlab-frontend-runtime@ourlab-0808` 라이브 검증 — `describe` 활성, `get-iam-policy` 필터 결과 역할 0개, `run services describe`에서 `serviceAccountName` 적용 확인. 프론트 리비전 `ourlab-frontend-00020-44q`(재빌드 없는 `services update`), 스모크 `/`·`/demo`·`/login` 200. `545e305`의 노트는 `306f2a0`(deploy.md에 SA 생성 명령 + 역할 0 검증 명령 추가)로 해소.
+- starlette: venv 실측 1.0.0 → **1.6.0**, `app.main` import 정상, 핵심 테스트 20통과.
+- 백엔드 재배포(C-1 로그 + 핀 반영): 진행 중, 리비전 번호 추후 기입.
 
 ### 남은 백로그 (감사 종료 후 별건)
 §5 목록 그대로 + 위 노트(SA 생성 단계 문서화). 다음 감사 때 `/security-audit`로 전체 재실행, 수정분은 내장 `/security-review`.
