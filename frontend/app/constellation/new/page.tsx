@@ -1283,7 +1283,9 @@ export default function NewConstellationPage() {
         // 시드를 "복원할 작업"으로 오인해 첫 사용자 대화를 막는다(라이브 실측
         // 회귀). 키 집합 비교라 시드 노드를 "이동만" 한 경우도 스킵되는데,
         // 데모 시드의 좌표 보존은 가치가 없어 의도적으로 감수한다. 노드를
-        // 추가·삭제하는 순간부터는 키가 달라져 정상 저장된다.
+        // 추가·삭제하는 순간부터는 키가 달라져 정상 저장된다. **엣지만 삭제**한
+        // 상태도 부분집합 검사라 시드 취급(스킵+스냅샷 제거)이다 - 좌표 이동과
+        // 같은 급의 감수(시드에서 선 하나 지운 것만 보존할 가치가 없다).
         !(
           Object.keys(nodes).length === Object.keys(INITIAL_NODES).length &&
           Object.keys(nodes).every((id) => id in INITIAL_NODES) &&
