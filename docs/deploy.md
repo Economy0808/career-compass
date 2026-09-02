@@ -212,8 +212,14 @@ curl https://<cloud-run-url>/health
 ## 6. Cloud Run 배포 (프론트)
 
 ```bash
-gcloud run deploy ourlab-frontend --source frontend --project ourlab-0808   --region asia-northeast3 --allow-unauthenticated --port 8080 --memory 1Gi   --min-instances 0 --max-instances 3
+gcloud run deploy ourlab-frontend --source frontend --project ourlab-0808   --region asia-northeast3 --allow-unauthenticated --port 8080 --memory 1Gi   --min-instances 0 --max-instances 3   --service-account ourlab-frontend-runtime@ourlab-0808.iam.gserviceaccount.com
 ```
+
+> `--service-account`는 2026-09-02 보안감사 DEP-1 완화로 추가됐다. 프론트는 GCP
+> API를 호출하지 않으므로 **역할 0개짜리 전용 SA**를 쓴다 - 기본 compute SA
+> (프로젝트 Editor)로 두면 next 14.x WebSocket SSRF로 메타데이터 토큰이 샐 때
+> 프로젝트 전체가 노출된다. 플래그를 빼먹으면 리비전이 기본 SA로 돌아가니
+> **재배포 시 반드시 포함할 것.**
 
 - **⚠️`NEXT_PUBLIC_*`는 빌드 시점에 클라이언트 번들로 구워진다.** 런타임 환경변수가
   아니므로 `--set-env-vars`로는 바뀌지 않는다. 값은 `frontend/Dockerfile`의 `ARG`
