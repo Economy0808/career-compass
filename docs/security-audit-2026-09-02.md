@@ -1,7 +1,10 @@
 # 내부 보안 감사 보고서 — 2026-09-02
 
-> **상태: 검증·재현 완료, 수정 항목 선택 대기(§6).** 감사 세션(03-code-b0)은 소스를 수정하지 않는다. 백엔드·인프라 수정 = 03-code-43, 프론트 수정 = 03-code-b7.
-> 재개 지점: §6에서 사용자가 항목을 고르면 Step 3(소유 세션에 위임) → §7 재게이트.
+> **상태: 사용자 승인(2026-09-02 18:40, "너가 하려는 대로 해 / 프론트세션 깨워") → 수정 위임 완료, 구현 대기.** 감사 세션(03-code-f0, 구 03-code-b0)은 소스를 수정하지 않는다.
+> - 백엔드·인프라 세션(03-code-b3, 구 03-code-43): §6 #1(규칙 차단, 선택 1' 포함 여부는 그쪽 판단) → #2(최소권한 SA) → #5(로그) → #6(starlette 핀). 착수 확인됨(`firestore.rules` 편집 중).
+> - 프론트 세션("프론트엔드 작업", CCD 메시지로 깨움): #4(markdown 스킴, 즉시) → #3(Next 15.5.16, 계획 먼저·사용자 승인 후 착수).
+> - 감사 세션: #8 완료(`f403f5f`). 각 수정 커밋이 보고되면 내장 `/security-review`를 그 diff에 실행해 §7에 기록.
+> 재개 지점: §7이 비어 있으면 소유 세션의 커밋 보고를 기다리는 중.
 
 ## 0. 방법
 
@@ -106,6 +109,20 @@
 
 권장 순서: 1 → 2 → 4 → 5 → 6 → 3(별도 계획) → 7. 선택되면 감사 세션이 finding+수정안+사용자 지시 원문을 각 소유 세션에 전달 → 소유 세션이 구현·커밋 → 배포 차수는 03-code-43 지휘 → 수정 diff에 내장 `/security-review` 실행 결과를 §7에 기입.
 
-## 7. 재게이트 결과
+## 7. 재게이트 결과 (2026-09-02 19:20 기준)
 
-(수정 후 기입)
+내장 `/security-review` 방법론(변경분 전용, 신뢰도 0.8 이상만)을 수정 커밋 범위에 적용 + B-1은 격리 에뮬레이터에서 재현 스크립트 재실행.
+
+| 커밋 | 항목 | 판정 | 근거 |
+|---|---|---|---|
+| `7aacdef` | B-1/B-1b/1' `firestore.rules` constellations·follows·users 클라이언트 쓰기 차단 | **PASS** | 읽기 규칙 불변(:31-34, :51, :72), 다른 match 블록 바이트 동일, 기본 거부 catch-all 유지(:129-131). 프론트에 `setDoc`/`updateDoc`/`addDoc`/`deleteDoc` 호출 0건. **에뮬레이터 재검증**: 미인증 생성 403, 팔로우 위조 403, users 자기쓰기 403, Admin 쓰기 200, 게시 문서 읽기 200, 익명 읽기 403(`REPRO-B1.txt` RE-GATE 블록) |
+| `545e305` | DEP-1 완화 프론트 Cloud Run 전용 SA(`ourlab-frontend-runtime@ourlab-0808`) | **PASS(노트)** | `deploy.md:215` `--service-account` 추가. 프론트는 GCP API 호출 0건이라 무권한 SA로 무영향. **노트**: SA 생성(`gcloud iam service-accounts create ...`) 단계가 문서에 없어 SA 존재·역할 0 상태를 리포만으로 검증 불가 → 백엔드 세션이 라이브에서 확인하고 문서에 생성 단계 추가 요청 |
+| `90cfd5a` | C-1 `course_clustering.py` 로그 | **PASS** | WARNING 두 곳(:172-176, :203-207)은 `len(goal_text)`만, 원문은 `logger.debug`(:177, :208)로. 테스트 `test_cluster_courses_empty_result_warning_omits_goal_text`가 WARNING 이상에서 sentinel 부재 assert. 클러스터링 로직 무변경 |
+| `d3c3a9d` | E-1 `markdown.tsx` 링크 스킴 허용목록 | **PASS** | `SAFE_HREF_RE=/^(https?:\|mailto:)/i`(:126), `safeLinkHref`가 `[ - ]` 제거 후 검사(:130-133), 불일치는 평문(:217), `rel="noreferrer noopener"` 유지(:210). 셀프체크 10케이스(`javascript:`, 대소문자 변형, 탭 삽입, `data:`, `vbscript:`, `//` 포함). 커밋 파일에 리터럴 제어 바이트 0 확인 |
+| — | starlette≥1.3.1 핀 (§6 #6) | 대기 | 백엔드 세션 작업 중 |
+| — | Next 15.5.16 업그레이드 (§6 #3) | 진행 중 | 프론트 세션이 사용자 승인 후 격리 worktree에서 착수(`docs/plan-next15-upgrade.md`). 완료 시 그쪽 `/security-review` 결과를 여기 추가 |
+
+새로 도입된 취약점: 없음. 배포(규칙 `firebase deploy --only firestore:rules`, 프론트 SA 재배포)는 백엔드 세션 지휘.
+
+### 남은 백로그 (감사 종료 후 별건)
+§5 목록 그대로 + 위 노트(SA 생성 단계 문서화). 다음 감사 때 `/security-audit`로 전체 재실행, 수정분은 내장 `/security-review`.
