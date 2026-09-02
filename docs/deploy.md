@@ -215,6 +215,18 @@ curl https://<cloud-run-url>/health
 gcloud run deploy ourlab-frontend --source frontend --project ourlab-0808   --region asia-northeast3 --allow-unauthenticated --port 8080 --memory 1Gi   --min-instances 0 --max-instances 3   --service-account ourlab-frontend-runtime@ourlab-0808.iam.gserviceaccount.com
 ```
 
+SA는 최초 1회 이렇게 만든다(역할 바인딩을 **아무것도 걸지 않는 것**이 핵심):
+
+```bash
+gcloud iam service-accounts create ourlab-frontend-runtime   --display-name "OurLab frontend runtime (least privilege, no roles)"   --project ourlab-0808
+```
+
+역할 0개 검증(감사 재게이트용 — 아무 역할도 출력되지 않아야 정상):
+
+```bash
+gcloud projects get-iam-policy ourlab-0808 --flatten="bindings[].members"   --filter="bindings.members:ourlab-frontend-runtime" --format="value(bindings.role)"
+```
+
 > `--service-account`는 2026-09-02 보안감사 DEP-1 완화로 추가됐다. 프론트는 GCP
 > API를 호출하지 않으므로 **역할 0개짜리 전용 SA**를 쓴다 - 기본 compute SA
 > (프로젝트 Editor)로 두면 next 14.x WebSocket SSRF로 메타데이터 토큰이 샐 때
