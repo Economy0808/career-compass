@@ -36,13 +36,8 @@ sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
 from firebase_admin import auth as fb_auth  # noqa: E402
 
-from app.auth.firebase_auth import grant_yonsei_verified  # noqa: E402
 from app.firestore import user_repo  # noqa: E402
 from app.firestore.client import get_firestore_client  # noqa: E402
-
-# 기존 데모 계정(demo-analyst 등)과 동일한 고정 비밀번호 - 데모 전용이며 실제
-# 계정에는 절대 재사용하지 않는다.
-_DEMO_PASSWORD = "observatory123!"
 
 # (email, display_name, avatar_emoji, bio, interest_tags)
 #
@@ -91,11 +86,17 @@ _DEMO_USERS: list[tuple[str, str, str, str, list[str]]] = [
 
 
 def _get_or_create_uid(email: str) -> str:
-    """이메일로 Firebase Auth 계정을 찾고, 없으면 새로 만들어 uid를 반환한다(idempotent)."""
+    """이메일로 Firebase Auth 계정을 찾고, 없으면 새로 만들어 uid를 반환한다(idempotent).
+
+    비밀번호를 아예 만들지 않고 disabled=True로 생성한다(2026-09-03 보안 조치).
+    이 계정들의 용도는 탐색 화면의 팔로우 후보 카드(Firestore 프로필)뿐이라
+    로그인이 필요 없다 - 로그인 가능한 시드 계정은 리포에 비밀번호가 남아
+    누구든 인증 학생 행세를 할 수 있는 구멍이 된다.
+    """
     try:
         return fb_auth.get_user_by_email(email).uid
     except fb_auth.UserNotFoundError:
-        user = fb_auth.create_user(email=email, email_verified=True, password=_DEMO_PASSWORD)
+        user = fb_auth.create_user(email=email, email_verified=True, disabled=True)
         return user.uid
 
 
@@ -114,7 +115,9 @@ def main() -> None:
 
     for email, display_name, avatar_emoji, bio, interest_tags in _DEMO_USERS:
         uid = _get_or_create_uid(email)
-        grant_yonsei_verified(uid)
+        # yonsei_verified 클레임은 부여하지 않는다(2026-09-03 보안 조치): 클레임은
+        # 쓰기 게이트(require_yonsei_verified) 전용이고 탐색 카드 노출은 Firestore
+        # 프로필만 읽는다 - 로그인 안 하는 시드 계정에 전권 클레임을 줄 이유가 없다.
         # 두 리포지토리 함수를 그대로 재사용한다(read-merge-write, created_at
         # "최초 1회만" 규칙을 이 스크립트가 다시 구현할 필요가 없다).
         user_repo.update_profile(
