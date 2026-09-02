@@ -129,7 +129,9 @@
 - **B-1 닫힘**: `7aacdef` 직후 `firebase deploy --only firestore:rules --project ourlab-0808` 완료. 운영 규칙 = 재게이트한 커밋본. 배포 후 라이브 스모크(별자리 4건 조회·게시판 6개) 정상.
 - **DEP-1 완화 적용**: `ourlab-frontend-runtime@ourlab-0808` 라이브 검증 — `describe` 활성, `get-iam-policy` 필터 결과 역할 0개, `run services describe`에서 `serviceAccountName` 적용 확인. 프론트 리비전 `ourlab-frontend-00020-44q`(재빌드 없는 `services update`), 스모크 `/`·`/demo`·`/login` 200. `545e305`의 노트는 `306f2a0`(deploy.md에 SA 생성 명령 + 역할 0 검증 명령 추가)로 해소.
 - starlette: venv 실측 1.0.0 → **1.6.0**, `app.main` import 정상, 핵심 테스트 20통과.
-- 백엔드 재배포(C-1 로그 + 핀 반영): 진행 중, 리비전 번호 추후 기입.
+- 백엔드 재배포 완료: 리비전 `ourlab-backend-00010-w98`(C-1 `90cfd5a`+`1a22ca3`, starlette 1.6.0 핀 `5e0ed22` 반영), `/health` 200(`db:error`는 의도 상태).
+
+**감사 마감 (2026-09-02 19:45)**: 선택된 항목 중 백엔드·인프라 몫 전부 라이브 반영. 프론트 몫 E-1은 커밋·재게이트 완료(배포는 다음 프론트 차수), Next 15.5.16 업그레이드는 프론트 세션이 `docs/plan-next15-upgrade.md`대로 격리 worktree에서 진행 중이며 완료 시 그쪽 `/security-review` 결과를 이 표에 추가한다.
 
 ### 남은 백로그 (감사 종료 후 별건)
 §5 목록 그대로 + 위 노트(SA 생성 단계 문서화). 다음 감사 때 `/security-audit`로 전체 재실행, 수정분은 내장 `/security-review`.
