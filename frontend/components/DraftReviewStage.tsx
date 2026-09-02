@@ -1017,7 +1017,7 @@ export function DraftReviewStage({
                       return (
                         <>
                           {parent && (
-                            <span className="mt-1.5 max-w-[140px] truncate text-center font-sans text-[10px] tracking-wide text-text-lo/80">
+                            <span className="mt-1.5 max-w-[140px] truncate text-center font-sans text-micro tracking-wide text-text-lo/80">
                               {parent}
                             </span>
                           )}
