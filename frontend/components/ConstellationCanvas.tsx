@@ -176,6 +176,13 @@ const CLUSTER_BASE_RADIUS = 16;
 const CLUSTER_RADIUS_SCALE = 5;
 const CLUSTER_MAX_RADIUS = 34;
 
+// 성운 반지름은 그리기(groupNebula)와 간선 드롭 히트 판정(findCollapsedGroupNear)
+// 두 곳에서 쓰인다. 두 값이 어긋나면 "보이는 성운과 반응하는 영역이 다른" 버그가
+// 되므로 공식을 여기 한 곳에 둔다.
+function nebulaRadius(memberCount: number): number {
+  return Math.min(CLUSTER_MAX_RADIUS, CLUSTER_BASE_RADIUS + Math.log2(memberCount + 1) * CLUSTER_RADIUS_SCALE);
+}
+
 const NODE_RADIUS = 9;
 const HANDLE_RADIUS = 22;
 // 달성 노드의 십자 회절 스파이크 크기 - 반지름의 배수로 길이를 정해 큰
@@ -611,6 +618,16 @@ export function ConstellationCanvas({
   // 맵을 참조하는 groupPositionOf가 따로 있어 별도 state로 둔다.
   const [dragGroupPosition, setDragGroupPosition] = useState<{ groupId: string; position: CanvasPosition } | null>(null);
   const [edgeCursor, setEdgeCursor] = useState<CanvasPosition | null>(null);
+  // (B안, 2026-09-02) 접힌 성운 위에 간선을 놓았을 때 뜨는 안내. 예전엔 아무
+  // 반응이 없어 사용자가 "안 이어진다"고만 느꼈다 - 실패를 침묵으로 처리하지
+  // 않는 게 이 상태의 존재 이유다. 값은 문구, null이면 숨김.
+  const [edgeBlockNotice, setEdgeBlockNotice] = useState<string | null>(null);
+  const edgeBlockTimerRef = useRef<ReturnType<typeof setTimeout> | null>(null);
+  useEffect(() => {
+    return () => {
+      if (edgeBlockTimerRef.current) clearTimeout(edgeBlockTimerRef.current);
+    };
+  }, []);
   const [hoveredNodeId, setHoveredNodeId] = useState<string | null>(null);
   const [focusedNodeId, setFocusedNodeId] = useState<string | null>(null);
   // 선택된 노드 - 정보 카드(이름/코드/설명/노트)를 여는 트리거이자 Delete 키
@@ -910,11 +927,18 @@ export function ConstellationCanvas({
 
   const findNodeNear = useCallback(
     (world: CanvasPosition, excludeId?: string): string | null => {
+      // 접힌 성운의 멤버는 화면에 없지만 world 좌표는 그대로 갖고 있다 - 여기서
+      // 안 걸러내면 성운 위에 간선을 놓았을 때 "보이지 않는 노드"에 몰래
+      // 이어지는 버그가 된다((B안): 접힌 상태에서는 잇지 않고 안내만 준다).
+      const hidden = new Set<string>();
+      for (const g of Object.values(groups)) {
+        if (g.collapsed) for (const m of g.memberNodeIds) hidden.add(m);
+      }
       const hitR = HANDLE_RADIUS / transform.k;
       let best: string | null = null;
       let bestDist = Infinity;
       for (const n of Object.values(nodes)) {
-        if (n.id === excludeId) continue;
+        if (n.id === excludeId || hidden.has(n.id)) continue;
         const dx = n.position.x - world.x;
         const dy = n.position.y - world.y;
         const dist = Math.hypot(dx, dy);
@@ -925,7 +949,24 @@ export function ConstellationCanvas({
       }
       return best;
     },
-    [nodes, transform.k]
+    [nodes, groups, transform.k]
+  );
+
+  // 접힌 성운 히트 판정 - 간선을 성운 위에 놓았는지/드래그 중 성운 위를 지나는지.
+  // 그리기와 같은 nebulaRadius 공식을 쓴다(어긋나면 보이는 성운과 반응 영역이
+  // 달라진다). 성운은 몇 개 수준이라 매 호출 순회해도 비용이 없다.
+  const findCollapsedGroupNear = useCallback(
+    (world: CanvasPosition): string | null => {
+      for (const g of Object.values(groups)) {
+        if (!g.collapsed) continue;
+        const memberCount = g.memberNodeIds.filter((m) => nodes[m]).length;
+        if (memberCount === 0) continue;
+        const pos = groupPositionOf(g.id);
+        if (Math.hypot(pos.x - world.x, pos.y - world.y) <= nebulaRadius(memberCount)) return g.id;
+      }
+      return null;
+    },
+    [groups, nodes, groupPositionOf]
   );
 
   // --- 선택 ------------------------------------------------------------------
@@ -1072,7 +1113,16 @@ export function ConstellationCanvas({
       } else if (drag.kind === "edge") {
         const world = clientToWorld(e.clientX, e.clientY);
         const targetId = findNodeNear(world, drag.sourceNodeId);
-        if (targetId) onEdgeCreate(drag.sourceNodeId, targetId);
+        if (targetId) {
+          onEdgeCreate(drag.sourceNodeId, targetId);
+        } else if (findCollapsedGroupNear(world)) {
+          // (B안) 접힌 성운 위에 놓았다 - 잇지 않고 이유를 알려준다. 모달은
+          // 드래그 흐름을 끊으므로 드래그 배너와 같은 자리의 필로 3.2초만 띄운다
+          // (page.tsx 발행 안내와 같은 지속시간).
+          if (edgeBlockTimerRef.current) clearTimeout(edgeBlockTimerRef.current);
+          setEdgeBlockNotice("접힌 성운에는 이을 수 없어요 · 성운을 펼친 뒤 별끼리 이어 주세요");
+          edgeBlockTimerRef.current = setTimeout(() => setEdgeBlockNotice(null), 3200);
+        }
         setEdgeCursor(null);
       } else if (drag.kind === "pan") {
         const dx = e.clientX - drag.startClientX;
@@ -1094,7 +1144,7 @@ export function ConstellationCanvas({
       }
       // pan의 transform 자체는 별도 처리 불필요 - 이미 최신 상태.
     },
-    [activateNode, clientToWorld, findNodeNear, onEdgeCreate, onNodeDrag, onNodeRecall, onGroupDrag, diveIntoGroup]
+    [activateNode, clientToWorld, findNodeNear, findCollapsedGroupNear, onEdgeCreate, onNodeDrag, onNodeRecall, onGroupDrag, diveIntoGroup]
   );
 
   const handleNodeKeyDown = useCallback(
@@ -1228,10 +1278,7 @@ export function ConstellationCanvas({
       const firstType = memberNodes[0].type;
       const color = memberNodes.every((n) => n.type === firstType) ? colorForType(firstType) : "var(--text-hi)";
       const allCompleted = memberNodes.every((n) => n.isCompleted);
-      const radius = Math.min(
-        CLUSTER_MAX_RADIUS,
-        CLUSTER_BASE_RADIUS + Math.log2(memberNodes.length + 1) * CLUSTER_RADIUS_SCALE
-      );
+      const radius = nebulaRadius(memberNodes.length);
       const particles = buildNebulaParticles(hashSeed(group.id), memberNodes, radius * 2, color);
       map.set(group.id, { color, radius, allCompleted, memberCount: memberNodes.length, particles });
     }
@@ -1795,15 +1842,30 @@ export function ConstellationCanvas({
         </div>
       )}
 
-      {/* 연결 드래그 배너 - 핸들 링에서 드래그를 시작한 동안만 뜬다. */}
+      {/* 연결 드래그 배너 - 핸들 링에서 드래그를 시작한 동안만 뜬다.
+          접힌 성운 위를 지나는 중이면 놓기 전에 미리 "여기엔 못 놓는다"를
+          알린다((B안) - 놓고 나서 실패를 알리는 것보다 낫다). */}
       {!readOnly && dragEdgeSource && (
         <div
           className="pointer-events-none absolute left-1/2 top-4 -translate-x-1/2 rounded-full border border-rule bg-ink-800/90 px-4 py-1.5 font-sans text-xs text-text-hi shadow-lg"
           role="status"
         >
-          {hoveredNodeId && hoveredNodeId !== dragEdgeSource && isLinked(dragEdgeSource, hoveredNodeId)
-            ? "이미 이어져 있음 · 다시 누르면 끊어집니다"
-            : "연결하는 중 · 대상 노드에서 놓으세요"}
+          {edgeCursor && findCollapsedGroupNear(edgeCursor)
+            ? "접힌 성운에는 이을 수 없어요 · 펼친 뒤 별끼리 이어 주세요"
+            : hoveredNodeId && hoveredNodeId !== dragEdgeSource && isLinked(dragEdgeSource, hoveredNodeId)
+              ? "이미 이어져 있음 · 다시 누르면 끊어집니다"
+              : "연결하는 중 · 대상 노드에서 놓으세요"}
+        </div>
+      )}
+
+      {/* (B안) 접힌 성운에 간선을 놓은 직후의 안내 - 위 드래그 배너와 같은 자리,
+          같은 시각 언어. 드래그가 끝난 상태라 배너와 동시에 뜰 일은 없다. */}
+      {edgeBlockNotice && !dragEdgeSource && (
+        <div
+          className="pointer-events-none absolute left-1/2 top-4 -translate-x-1/2 rounded-full border border-rule bg-ink-800/90 px-4 py-1.5 font-sans text-xs text-text-hi shadow-lg"
+          role="status"
+        >
+          {edgeBlockNotice}
         </div>
       )}
 
