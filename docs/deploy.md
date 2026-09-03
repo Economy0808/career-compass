@@ -196,6 +196,19 @@ gcloud run deploy ourlab-backend \
 > 참조해 리비전 생성이 통째로 실패하며(기본 컴퓨트 SA 권한 거부로 표시되지만
 > 실체는 시크릿 부재), 성공했다 해도 `CORS_ALLOWED_ORIGINS`를 날려버린다.
 > env를 바꿀 때는 `--update-env-vars KEY=value`(기존 값 보존·해당 키만 갱신)를 쓴다.
+>
+> **함정: 실패한 배포도 서비스 템플릿을 오염시킨다.** 잘못된 플래그로 배포가
+> 실패하면 리비전은 안 생겨도 spec.template에는 그 플래그가 남아, 이후의
+> 무플래그 배포가 오염을 그대로 승계해 같은 오류로 또 실패한다. 이때는 아래
+> 전체 복원 플래그로 한 번 배포해 템플릿을 되돌린다(2026-09-03 라이브
+> 리비전 실측값):
+>
+> ```bash
+> gcloud run deploy ourlab-backend --source . --project ourlab-0808 \
+>   --region asia-northeast3 --allow-unauthenticated \
+>   --set-env-vars "APP_ENV=production,FIRESTORE_PROJECT_ID=ourlab-0808,CORS_ALLOWED_ORIGINS=https://ourlab-frontend-902034641778.asia-northeast3.run.app,KEY_ROTATED=1,KEY_ROTATED_AT=2026-08-31" \
+>   --set-secrets "ANTHROPIC_API_KEY=ANTHROPIC_API_KEY:latest"
+> ```
 
 - `--source .`는 `backend/Dockerfile`을 그대로 써서 Cloud Build가 이미지를
   빌드한다 (수정 완료 — `$PORT` 지원, 아래 "수정 사항" 참고).
