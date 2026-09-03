@@ -89,6 +89,7 @@
 - B: `users/{uid}`의 `consent_at`이 로그인 사용자 전체에 읽힘(Low).
 - C: `synthesize_roadmap`/`extract_intent`/`select_ncs_job`/`research_job` 구현돼 있으나 등록 라우터 없음 — 의도적 휴면인지 확인. `preview_jobs.py`는 없고 `bin_jobs.py`가 실체.
 - C: Anthropic 무보존·비학습 진술이 `docs/`에 없음 → PIPA 국외이전 고지(기지)에 포함.
+- **C(라이브 갭, 2026-09-03 원가절감 논의 중 발견)**: 인테이크 진로 자유서술(`goal_text`)이 chat·prereqs·bins·cluster 전 경로에서 Anthropic으로 전송된다(`anthropic_client.py:802` 등). 자유서술은 PIPA 23조 **민감정보**(건강·사상·신념)를 우발적으로 담을 수 있는데, 23조는 **별도 명시동의**를 요구한다 — 현재 signup의 단일 수집·이용 체크박스(`signup/page.tsx:199`)로는 불충분할 수 있다. ⑤ 임베딩 사전필터(원문 goal을 Vertex로) 채택 시 같은 데이터가 위탁처 하나로 소폭 확장되나, **갭 자체는 ⑤와 무관하게 현행 라이브에 이미 존재**. 대응(사용자·법무 결정): (a) 인테이크 별도 민감정보 동의 UX(권장, 기존 체크박스에 묶으면 무효 소지) + 처리방침 명시 병행. (b) LLM 사전필터는 역설·불완전로 비권장. (c) 고지-only는 민감정보엔 23조상 부족 공산. 국외이전 고지 미결과 묶어 처리.
 - A: 인메모리 레이트리밋 / 계정 삭제 구 FastAPI+Postgres 의존 / data.go.kr 키 히스토리 잔존(공개 전환 전 재발급+히스토리 정리).
 - 사용자 승인 트레이드오프(재확인만): 데모 계정 공유 비밀번호 문서 평문, `seed_demo_data.py:41` `demo1234`(격리 데모 DB).
 - 감사 커맨드 정정: `.claude/commands/security-audit.md` Area E의 "uses `dangerouslySetInnerHTML`"은 오류(리포 grep 0건). 다음 커밋에서 수정.
