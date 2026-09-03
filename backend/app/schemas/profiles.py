@@ -6,10 +6,15 @@ app/schemas/auth_sync.py와 동일한 `_CamelModel` 관례(alias_generator=to_ca
 
 from __future__ import annotations
 
+from typing import Annotated
+
 from pydantic import BaseModel, ConfigDict, Field
 from pydantic.alias_generators import to_camel
 
 _MAX_BIO_LEN = 500
+_MAX_DECLARED_TAG_LEN = 20
+_MAX_CAREER_TEXT_LEN = 1000
+_STUDENT_ID_PATTERN = r"^\d{10}$"
 
 
 class _CamelModel(BaseModel):
@@ -41,3 +46,42 @@ class ProfileOut(_CamelModel):
     follower_count: int = 0
     following_count: int = 0
     is_following: bool | None = None
+
+
+class OnboardingConsentsIn(_CamelModel):
+    """가입 온보딩 동의 항목.
+
+    service(서비스 이용약관)와 overseas(개인정보 국외이전, Vertex AI가 asia-northeast3
+    리전이라 필요)는 필수 - 라우터가 둘 다 True인지 검사해 하나라도 False면 422로
+    막는다. marketing(마케팅 정보 수신)은 선택이라 기본값 False.
+    """
+
+    service: bool
+    overseas: bool
+    marketing: bool = False
+
+
+class ProfileOnboardingIn(_CamelModel):
+    """가입 직후 확장 프로필 온보딩 요청.
+
+    민감도별로 3개 목적지(users/user_private/student_verifications)에 나뉘어
+    저장된다 - 라우터(app/api/profiles.py의 POST /onboarding) 참고. 여기서는
+    와이어 형태만 검증한다 - declared_tags 트림/중복제거/재검증 같은 비즈니스
+    로직은 라우터가 담당한다(스키마 검증은 원시 입력 형태만 본다).
+    """
+
+    student_id: str = Field(pattern=_STUDENT_ID_PATTERN)
+    department: str = Field(max_length=40)
+    double_major: str | None = Field(default=None, max_length=40)
+    grade: int = Field(ge=1, le=6)
+    declared_tags: list[Annotated[str, Field(max_length=_MAX_DECLARED_TAG_LEN)]] = Field(
+        min_length=1, max_length=10
+    )
+    career_text: str | None = Field(default=None, max_length=_MAX_CAREER_TEXT_LEN)
+    consents: OnboardingConsentsIn
+
+
+class ProfileOnboardingOut(ProfileOut):
+    """온보딩 완료 응답 - 공개 프로필(ProfileOut)에 완료 플래그만 얹는다."""
+
+    onboarding_complete: bool

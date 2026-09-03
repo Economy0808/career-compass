@@ -164,6 +164,26 @@ def set_interest_tags(db: Client, uid: str, interest_tags: list[str]) -> dict[st
     return data
 
 
+def set_declared_tags(db: Client, uid: str, declared_tags: list[str]) -> dict[str, Any]:
+    """유저가 온보딩에서 직접 밝힌 관심사 태그(declared_tags)를 갈아끼운다.
+
+    별자리 발행으로 자동 계산되는 interest_tags(set_interest_tags 참고)와는
+    별개 필드다 - 온보딩 시점엔 아직 발행 별자리가 없어 interest_tags가 비어
+    있을 수 있으므로, 유저가 스스로 밝힌 관심사를 탐색/검색에 즉시 반영하기
+    위해 둔다(app/api/explore.py가 두 필드의 합집합을 신호로 쓴다). 학과·학번·
+    진로 자유서술처럼 민감한 필드는 이 컬렉션(전유저 read)에 절대 넣지 않는다 -
+    그 필드들은 user_private_repo가 별도 컬렉션에 저장한다.
+    """
+    doc_ref, data = _read_existing(db, uid)
+    now = datetime.now(UTC)
+    data["declared_tags"] = declared_tags
+    if "created_at" not in data or data.get("created_at") is None:
+        data["created_at"] = now
+    data["updated_at"] = now
+    doc_ref.set(data)
+    return data
+
+
 def get_profiles(db: Client, uids: list[str]) -> dict[str, dict[str, Any]]:
     """uids 중 실제로 존재하는 프로필만 {uid: 문서 dict}로 배치 조회한다.
 

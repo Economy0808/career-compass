@@ -18,11 +18,23 @@ from google.cloud.firestore import Client
 
 from app.auth.deps import get_current_user, get_current_user_optional, require_yonsei_verified
 from app.auth.firebase_auth import DecodedToken
+from app.config import get_settings
 from app.core.rate_limit import rate_limit
-from app.firestore import follow_repo, notification_repo, user_repo
+from app.firestore import (
+    follow_repo,
+    notification_repo,
+    student_verification_repo,
+    user_private_repo,
+    user_repo,
+)
 from app.firestore.client import get_firestore_client
 from app.firestore.follow_repo import SelfFollowError
-from app.schemas.profiles import ProfileOut, ProfilePatchIn
+from app.schemas.profiles import (
+    ProfileOnboardingIn,
+    ProfileOnboardingOut,
+    ProfileOut,
+    ProfilePatchIn,
+)
 from app.services.profile_embedding import refresh_profile_embedding
 
 router = APIRouter(prefix="/api/profiles", tags=["profiles"])
@@ -84,6 +96,64 @@ async def patch_my_profile(
     if payload.bio is not None:
         await refresh_profile_embedding(db, user.uid)
     return _to_out(user.uid, profile, is_following=None)
+
+
+@router.post("/onboarding", response_model=ProfileOnboardingOut, response_model_exclude_none=True)
+async def onboard_profile(
+    payload: ProfileOnboardingIn,
+    user: DecodedToken = Depends(get_current_user),
+    db: Client = Depends(get_firestore_client),
+) -> ProfileOnboardingOut:
+    """가입 직후 확장 프로필 온보딩 - 민감도별로 3개 목적지에 필드를 나눠 쓴다
+    (보안 세션이 확정한 PIPA 아키텍처).
+
+    - users/{uid}(전 로그인 유저 read 가능): declared_tags만. 학과·학번·진로
+      자유서술은 여기 절대 넣지 않는다(전유저에게 새어나가므로).
+    - user_private/{uid}(본인만 read): 학과/학년/복수전공/진로서술/동의시점.
+    - student_verifications/{uid}(클라 read 불가): 학번의 HMAC 해시만(원문은
+      어디에도 상시저장하지 않는다).
+
+    서비스 이용·개인정보 국외이전 동의는 둘 다 필수라 하나라도 False면 422다
+    (마케팅 동의는 선택). declared_tags는 트림·빈 값 제외·중복 제거 후 다시
+    1~10개 범위인지 확인한다(스키마 검증은 원시 입력 개수만 본다 - 트림 후
+    전부 공백이었다면 원시 개수 검증을 통과해도 실질적으로는 0개가 될 수 있다).
+
+    마지막으로 프로필 임베딩을 재계산한다(declared_tags/career_text가 반영되도록
+    - app/domain/constellation.py의 compute_profile_text, app/services/
+    profile_embedding.py 참고). 임베딩 실패는 그 서비스 내부에서 이미 삼켜지므로
+    온보딩 자체를 막지 않는다.
+    """
+    if not (payload.consents.service and payload.consents.overseas):
+        raise HTTPException(
+            status_code=422,
+            detail="서비스 이용 및 개인정보 국외이전 동의가 모두 필요합니다.",
+        )
+
+    declared_tags = list(dict.fromkeys(tag.strip() for tag in payload.declared_tags if tag.strip()))
+    if not (1 <= len(declared_tags) <= 10):
+        raise HTTPException(
+            status_code=422, detail="관심사 태그는 1개 이상 10개 이하로 입력해주세요."
+        )
+
+    user_repo.set_declared_tags(db, user.uid, declared_tags)
+    user_private_repo.set_private_profile(
+        db,
+        user.uid,
+        department=payload.department,
+        grade=payload.grade,
+        double_major=payload.double_major,
+        career_text=payload.career_text,
+        consents=payload.consents.model_dump(),
+    )
+    student_verification_repo.store_student_id_hash(
+        db, user.uid, payload.student_id, secret_key=get_settings().secret_key
+    )
+
+    await refresh_profile_embedding(db, user.uid)
+
+    profile = user_repo.get_user_profile(db, user.uid) or {}
+    out = _to_out(user.uid, profile, is_following=None)
+    return ProfileOnboardingOut(**out.model_dump(), onboarding_complete=True)
 
 
 @router.post("/{uid}/follow", response_model=ProfileOut, response_model_exclude_none=True)

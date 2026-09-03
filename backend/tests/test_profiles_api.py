@@ -318,3 +318,149 @@ async def test_patch_me_without_bio_does_not_call_embedder(
         resp = await client.patch("/api/profiles/me", json={"displayName": "이름만변경"})
     assert resp.status_code == 200
     assert calls == []
+
+
+# --- POST /api/profiles/onboarding ---
+
+
+def _onboarding_payload(**overrides: object) -> dict:
+    payload: dict = {
+        "studentId": "2024123456",
+        "department": "철학과",
+        "doubleMajor": None,
+        "grade": 1,
+        "declaredTags": ["데이터", "창업"],
+        "careerText": "아직 진로를 정하지 못했습니다.",
+        "consents": {"service": True, "overseas": True, "marketing": False},
+    }
+    payload.update(overrides)
+    return payload
+
+
+@pytest.mark.asyncio
+async def test_onboarding_requires_auth() -> None:
+    async with _client() as client:
+        resp = await client.post("/api/profiles/onboarding", json=_onboarding_payload())
+    assert resp.status_code == 401
+
+
+@pytest.mark.asyncio
+async def test_onboarding_routes_fields_to_three_destinations(
+    authed_as: Callable[[str], None],
+) -> None:
+    """민감도별 3목적지 라우팅 - users/{uid}에 학과·학번·career_text가 새지 않는지 명시 검증."""
+    authed_as("onboard-user-a")
+    async with _client() as client:
+        resp = await client.post("/api/profiles/onboarding", json=_onboarding_payload())
+    assert resp.status_code == 200
+    assert resp.json()["onboardingComplete"] is True
+
+    db = get_firestore_client()
+
+    # 1) users/{uid}: declared_tags만. 학과·학번·career_text·grade·복수전공은 절대 없어야 한다.
+    user_doc = db.collection("users").document("onboard-user-a").get().to_dict()
+    assert user_doc is not None
+    assert user_doc.get("declared_tags") == ["데이터", "창업"]
+    for leaked_field in ("department", "student_id", "career_text", "grade", "double_major"):
+        assert leaked_field not in user_doc
+
+    # 2) user_private/{uid}: 학과/학년/복수전공/career_text/동의시점.
+    private_doc = db.collection("user_private").document("onboard-user-a").get().to_dict()
+    assert private_doc is not None
+    assert private_doc["department"] == "철학과"
+    assert private_doc["grade"] == 1
+    assert private_doc["career_text"] == "아직 진로를 정하지 못했습니다."
+    assert private_doc.get("consent_service_at") is not None
+    assert private_doc.get("consent_overseas_at") is not None
+    assert "consent_marketing_at" not in private_doc  # marketing=False라 기록 안 됨
+    assert "student_id" not in private_doc  # 학번 원문은 여기도 없다
+
+    # 3) student_verifications/{uid}: 해시만, 학번 원문은 문서 어디에도 없다.
+    verif_doc = db.collection("student_verifications").document("onboard-user-a").get().to_dict()
+    assert verif_doc is not None
+    assert "student_id_hmac" in verif_doc
+    assert "2024123456" not in str(verif_doc.values())
+    assert verif_doc["verified"] is False
+
+
+@pytest.mark.asyncio
+async def test_onboarding_requires_service_consent(authed_as: Callable[[str], None]) -> None:
+    authed_as("onboard-user-b")
+    async with _client() as client:
+        resp = await client.post(
+            "/api/profiles/onboarding",
+            json=_onboarding_payload(consents={"service": False, "overseas": True}),
+        )
+    assert resp.status_code == 422
+
+
+@pytest.mark.asyncio
+async def test_onboarding_requires_overseas_consent(authed_as: Callable[[str], None]) -> None:
+    authed_as("onboard-user-c")
+    async with _client() as client:
+        resp = await client.post(
+            "/api/profiles/onboarding",
+            json=_onboarding_payload(consents={"service": True, "overseas": False}),
+        )
+    assert resp.status_code == 422
+
+
+@pytest.mark.asyncio
+async def test_onboarding_rejects_empty_declared_tags(authed_as: Callable[[str], None]) -> None:
+    authed_as("onboard-user-d")
+    async with _client() as client:
+        resp = await client.post(
+            "/api/profiles/onboarding", json=_onboarding_payload(declaredTags=[])
+        )
+    assert resp.status_code == 422
+
+
+@pytest.mark.asyncio
+async def test_onboarding_rejects_eleven_declared_tags(authed_as: Callable[[str], None]) -> None:
+    authed_as("onboard-user-e")
+    async with _client() as client:
+        resp = await client.post(
+            "/api/profiles/onboarding",
+            json=_onboarding_payload(declaredTags=[f"태그{i}" for i in range(11)]),
+        )
+    assert resp.status_code == 422
+
+
+@pytest.mark.asyncio
+async def test_onboarding_rejects_declared_tags_blank_after_trim(
+    authed_as: Callable[[str], None],
+) -> None:
+    """스키마 단계(원시 개수 1개)는 통과하지만, 트림 후 실질 0개가 되는 경우 - 422여야 한다."""
+    authed_as("onboard-user-f")
+    async with _client() as client:
+        resp = await client.post(
+            "/api/profiles/onboarding", json=_onboarding_payload(declaredTags=["   "])
+        )
+    assert resp.status_code == 422
+
+
+@pytest.mark.asyncio
+async def test_onboarding_rejects_invalid_student_id_length(
+    authed_as: Callable[[str], None],
+) -> None:
+    authed_as("onboard-user-g")
+    async with _client() as client:
+        resp = await client.post(
+            "/api/profiles/onboarding", json=_onboarding_payload(studentId="123456789")
+        )
+    assert resp.status_code == 422
+
+
+@pytest.mark.asyncio
+async def test_onboarding_trims_and_dedupes_declared_tags(
+    authed_as: Callable[[str], None],
+) -> None:
+    authed_as("onboard-user-h")
+    async with _client() as client:
+        resp = await client.post(
+            "/api/profiles/onboarding",
+            json=_onboarding_payload(declaredTags=["데이터", " 데이터 ", "창업"]),
+        )
+    assert resp.status_code == 200
+    user_doc = get_firestore_client().collection("users").document("onboard-user-h").get().to_dict()
+    assert user_doc["declared_tags"] == ["데이터", "창업"]
