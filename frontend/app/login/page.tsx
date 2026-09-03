@@ -27,8 +27,10 @@
 
 import Link from "next/link";
 import { useRouter, useSearchParams } from "next/navigation";
-import { Suspense, useEffect, useState } from "react";
+import { Suspense, useCallback, useEffect, useState } from "react";
 import { useAuth } from "@/lib/auth-context";
+import { getOnboardingStatus } from "@/lib/api";
+import type { AuthUser } from "@/lib/types";
 
 /** Firebase Auth 에러 코드를 한국어 문구로 변환한다. */
 function toKoreanError(err: unknown): string {
@@ -247,12 +249,34 @@ function LoginForm() {
   // 순간)에서 이 effect가 끼어들면 접안렌즈 연출이 잘린다. login() 안에서
   // setUser가 setStage보다 먼저 커밋되는 배치 실패까지 대비해 pending도 함께 본다.
   // history를 더럽히지 않도록 push가 아니라 replace다.
+  // 로그인 후 도착지 - 온보딩(프로필) 미완이면 프로필부터 채우게 되돌린다
+  // (limbo 방지, 백엔드 03-code-78 신호). 신호를 못 받으면(네트워크 등) 로그인
+  // 자체를 막지 않고 통과시킨다 - 온보딩은 다음 기회에 다시 판정된다.
+  const resolveDestination = useCallback(
+    async (u: AuthUser): Promise<string> => {
+      try {
+        const { onboardingComplete } = await getOnboardingStatus();
+        if (!onboardingComplete) return "/onboarding";
+      } catch {
+        /* 신호 실패 시 온보딩 라우팅만 건너뛴다 */
+      }
+      if (!u.yonseiVerified) return "/verify";
+      if (isSafeNextPath(nextParam)) return nextParam;
+      return "/constellation/new";
+    },
+    [nextParam]
+  );
+
   useEffect(() => {
     if (authLoading || !user || pending || stage !== "form") return;
-    if (!user.yonseiVerified) router.replace("/verify");
-    else if (isSafeNextPath(nextParam)) router.replace(nextParam);
-    else router.replace("/constellation/new");
-  }, [authLoading, user, pending, stage, nextParam, router]);
+    let cancelled = false;
+    void resolveDestination(user).then((dest) => {
+      if (!cancelled) router.replace(dest);
+    });
+    return () => {
+      cancelled = true;
+    };
+  }, [authLoading, user, pending, stage, router, resolveDestination]);
 
   async function submit(e: React.FormEvent) {
     e.preventDefault();
@@ -261,12 +285,11 @@ function LoginForm() {
     setError(null);
     try {
       const u = await login(email.trim(), password);
-      // 인증 전이면 인증 화면이 먼저. 그 외에는 보내진 곳(내비게이션 의도)을
-      // 우선하고, 없을 때만 캔버스로 - 거기서 "이어서 열기 / 첫 사용자 대화"가
-      // 갈린다(사용자 확정 규칙: 쓰던 사람에게 LLM이 튀어나오면 안 된다).
-      if (!u.yonseiVerified) setDestination("/verify");
-      else if (isSafeNextPath(nextParam)) setDestination(nextParam);
-      else setDestination("/constellation/new");
+      // 도착지 규칙(resolveDestination): 온보딩 미완이면 프로필부터, 인증 전이면
+      // 인증 화면, 그 외에는 보내진 곳(내비게이션 의도) 우선, 없으면 캔버스 -
+      // 거기서 "이어서 열기 / 첫 사용자 대화"가 갈린다(사용자 확정 규칙: 쓰던
+      // 사람에게 LLM이 튀어나오면 안 된다).
+      setDestination(await resolveDestination(u));
       setStage("aperture");
     } catch (err) {
       setError(toKoreanError(err));

@@ -169,6 +169,13 @@ export function postProfileOnboarding(
   return request("/api/profiles/onboarding", jsonInit("POST", input));
 }
 
+/** 온보딩(프로필) 완료 여부 - 로그인 후 미완이면 /onboarding으로 되돌리기 위한
+ * 신호(백엔드 03-code-78, GET /api/profiles/me/onboarding). user_private 문서
+ * 존재 여부로 판정. */
+export function getOnboardingStatus(): Promise<{ onboardingComplete: boolean }> {
+  return request("/api/profiles/me/onboarding");
+}
+
 export function postSchoolEmailRequest(email: string): Promise<{ detail: string }> {
   return request("/api/auth/school-email/request", jsonInit("POST", { email }));
 }
