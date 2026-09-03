@@ -23,6 +23,7 @@ from app.firestore import follow_repo, notification_repo, user_repo
 from app.firestore.client import get_firestore_client
 from app.firestore.follow_repo import SelfFollowError
 from app.schemas.profiles import ProfileOut, ProfilePatchIn
+from app.services.profile_embedding import refresh_profile_embedding
 
 router = APIRouter(prefix="/api/profiles", tags=["profiles"])
 logger = logging.getLogger(__name__)
@@ -68,7 +69,11 @@ async def patch_my_profile(
     user: DecodedToken = Depends(get_current_user),
     db: Client = Depends(get_firestore_client),
 ) -> ProfileOut:
-    """본인 프로필(표시 이름/아바타/소개) 부분 갱신."""
+    """본인 프로필(표시 이름/아바타/소개) 부분 갱신.
+
+    bio가 바뀔 때만 프로필 임베딩을 재계산한다(app/services/profile_embedding.py) -
+    표시 이름/아바타만 바꾸는 흔한 경우까지 매번 임베딩 API를 부르면 낭비다.
+    """
     profile = user_repo.update_profile(
         db,
         user.uid,
@@ -76,6 +81,8 @@ async def patch_my_profile(
         avatar_emoji=payload.avatar_emoji,
         bio=payload.bio,
     )
+    if payload.bio is not None:
+        await refresh_profile_embedding(db, user.uid)
     return _to_out(user.uid, profile, is_following=None)
 
 

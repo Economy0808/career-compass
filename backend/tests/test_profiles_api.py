@@ -277,3 +277,44 @@ async def test_patch_me_does_not_require_yonsei_verification() -> None:
         resp = await client.patch("/api/profiles/me", json={"displayName": "미인증 유저"})
     assert resp.status_code == 200
     assert resp.json()["displayName"] == "미인증 유저"
+
+
+# --- PATCH /api/profiles/me: 프로필 임베딩 재계산 ---
+
+
+@pytest.mark.asyncio
+async def test_patch_me_bio_change_creates_profile_embedding(
+    authed_as: Callable[[str], None],
+) -> None:
+    authed_as("embed-profile-user")
+    async with _client() as client:
+        resp = await client.patch(
+            "/api/profiles/me", json={"bio": "철학과 1학년, 데이터 분야에 관심 있어요"}
+        )
+    assert resp.status_code == 200
+
+    doc = get_firestore_client().collection("users").document("embed-profile-user").get().to_dict()
+    assert doc is not None
+    assert len(doc["profile_embedding"]) == 768
+
+
+@pytest.mark.asyncio
+async def test_patch_me_without_bio_does_not_call_embedder(
+    authed_as: Callable[[str], None], monkeypatch: pytest.MonkeyPatch
+) -> None:
+    calls = []
+
+    class _SpyEmbedder:
+        async def embed(self, text: str, *, kind: str) -> list[float]:
+            calls.append(text)
+            return [0.0] * 768
+
+    monkeypatch.setattr(
+        "app.services.profile_embedding.get_embedding_client", lambda: _SpyEmbedder()
+    )
+
+    authed_as("embed-profile-user-2")
+    async with _client() as client:
+        resp = await client.patch("/api/profiles/me", json={"displayName": "이름만변경"})
+    assert resp.status_code == 200
+    assert calls == []
