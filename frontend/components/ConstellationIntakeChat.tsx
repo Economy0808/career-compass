@@ -191,6 +191,12 @@ export function ConstellationIntakeChat({
   const [quota, setQuota] = useState<IntakeQuota | null>(null);
   // 무료·크레딧 소진(429 no-credit) 시 요금제 안내.
   const [planOpen, setPlanOpen] = useState(false);
+  // 대화 도중 이탈할 때 "저장돼서 이어 만들 수 있다"고 안심시키는 확인 모달.
+  // 사용자 요청("뒤로가기 누르면 경고 띄우기")을 실제 동작에 맞춰 옮긴 것:
+  // 뒤로/그만두기는 이 사이클을 지우지 않고 저장한다 - 소모는 "새 별자리"를
+  // 시작할 때만 일어난다(page.tsx가 discardIntakeCycle 호출). 대화 시작 전이면
+  // 걸린 게 없으니 이 모달 없이 바로 나간다.
+  const [exitConfirm, setExitConfirm] = useState(false);
 
   useEffect(() => {
     let cancelled = false;
@@ -429,18 +435,29 @@ export function ConstellationIntakeChat({
     if (lastFailedText) void sendMessage(lastFailedText);
   }
 
-  /** 이탈 경로(Escape·"이어서 편집" 배지)를 한 곳으로 모은다 - 나가는 건
-   * 대화를 접겠다는 뜻이므로 보관분도 함께 비운다. 두 호출부가 각자 비우면
-   * 한쪽을 빠뜨린다. */
-  function handleDismiss() {
-    clearDraftChat();
+  /** 이탈 요청(Escape·"저장하고 그만두기"·"이어서 편집" 배지)을 한 곳으로 모은다.
+   * 나가기는 더 이상 대화를 버리지 않는다 - 저장분(sessionStorage 초안 + 백엔드
+   * open_cycle)이 곧 이어가기 수단이라 보관분을 그대로 둔다. 대화를 이미
+   * 시작했으면(무료권/크레딧이 이 사이클에 걸린 상태) 나가기 전에 안심 모달을
+   * 띄우고, 시작 전이면 걸린 게 없으니 바로 나간다. */
+  function requestDismiss() {
+    if (goalText !== null) {
+      setExitConfirm(true);
+      return;
+    }
+    onDismiss?.();
+  }
+
+  /** 안심 모달에서 "저장하고 나가기" 확정 - 보관분을 지우지 않는다(이어가기용). */
+  function confirmDismiss() {
+    setExitConfirm(false);
     onDismiss?.();
   }
 
   function handleKeyDown(e: ReactKeyboardEvent<HTMLDivElement>) {
     if (e.key === "Escape" && onDismiss) {
       e.stopPropagation();
-      handleDismiss();
+      requestDismiss();
     }
   }
 
@@ -553,13 +570,50 @@ export function ConstellationIntakeChat({
         credits={quota?.credits}
       />
 
+      {/* 이탈 안심 모달 - 대화를 시작한 뒤 나가려 할 때만 뜬다. "차감"이 아니라
+          "저장·이어감"을 알린다: 뒤로가기는 사이클을 지우지 않는다(백엔드 확정).
+          이 이용권은 "새 별자리"를 시작할 때만 소모된다. */}
+      {exitConfirm && (
+        <div
+          className="fixed inset-0 z-50 flex items-center justify-center bg-ink-900/70 p-4 backdrop-blur-sm"
+          role="dialog"
+          aria-modal="true"
+          aria-label="나가기 확인"
+        >
+          <div className="w-full max-w-sm rounded-xl border border-rule bg-ink-800 p-5 shadow-lg">
+            <h2 className="font-serif text-title font-bold text-text-hi">저장하고 나갈까요?</h2>
+            <p className="mt-2 font-sans text-body-sm leading-relaxed text-text-lo">
+              지금까지 만든 이 별자리는 <b className="text-text-hi">저장</b>돼서 언제든 이어서
+              만들 수 있어요. 이 이용권은 <b className="text-text-hi">‘새 별자리’를 시작할
+              때만</b> 소모돼요.
+            </p>
+            <div className="mt-5 flex justify-end gap-2">
+              <button
+                type="button"
+                onClick={() => setExitConfirm(false)}
+                className="rounded-md px-3 py-1.5 font-sans text-body-sm text-text-lo transition-colors hover:text-text-hi focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-1 focus-visible:outline-spec-b"
+              >
+                계속 만들기
+              </button>
+              <button
+                type="button"
+                onClick={confirmDismiss}
+                className="cta-ink rounded-md bg-spec-b px-4 py-1.5 font-sans text-body-sm font-semibold text-ink-900 transition-[filter] hover:brightness-110 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-1 focus-visible:outline-spec-b"
+              >
+                저장하고 나가기
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
+
       {/* 우상단 "기존 별자리가 있어요" 배지 - 빠져나갈 곳(onDismiss)이 있을
           때만 뜬다. 대화는 그대로 진행 중일 수 있으므로 대화 UI 위(z-20)에
           겹쳐도 방해되지 않게 작고 조용하게 둔다. */}
       {existingNotice && onDismiss && (
         <button
           type="button"
-          onClick={handleDismiss}
+          onClick={requestDismiss}
           className="fixed right-6 top-6 z-20 rounded-full border border-rule bg-ink-800/90 px-3.5 py-2 font-sans text-caption text-text-lo transition-colors hover:text-text-hi"
         >
           {existingNotice} · 이어서 편집
@@ -723,7 +777,7 @@ export function ConstellationIntakeChat({
       {onDismiss && (
         <button
           type="button"
-          onClick={onDismiss}
+          onClick={requestDismiss}
           className="fixed bottom-[52px] left-[60px] z-10 font-sans text-xs text-text-lo transition-colors hover:text-text-hi"
         >
           저장하고 그만두기
