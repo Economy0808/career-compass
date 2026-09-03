@@ -61,6 +61,7 @@ from app.schemas.constellation import (
     node_from_create_in,
     note_to_out,
 )
+from app.services.profile_embedding import refresh_profile_embedding
 
 router = APIRouter(prefix="/api/constellations", tags=["constellations"])
 
@@ -206,6 +207,10 @@ async def set_published(
     별자리 전체를 다시 읽어 통째로 재계산한다(app/domain/constellation.py의
     compute_interest_tags 참고) - 발행 트랜잭션이 끝난 뒤, 트랜잭션 밖에서
     수행하므로 느슨한 일관성만 보장한다(user_repo.set_interest_tags 참고).
+
+    프로필 임베딩(users.profile_embedding)도 같은 참에 재계산한다
+    (app/services/profile_embedding.py 참고) - 실패해도(임베딩 API 오류 등)
+    이 핸들러의 응답에는 영향을 주지 않는다(자체적으로 예외를 삼킨다).
     """
     updated = _translate_repo_errors(constellation_repo.set_published)(
         db,
@@ -218,6 +223,7 @@ async def set_published(
     )
     published = constellation_repo.list_published_by_owner(db, user.uid)
     user_repo.set_interest_tags(db, user.uid, compute_interest_tags(published))
+    await refresh_profile_embedding(db, user.uid, published=published)
     return constellation_to_out(updated)
 
 

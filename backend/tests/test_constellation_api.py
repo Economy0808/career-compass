@@ -1543,3 +1543,87 @@ async def test_user_gallery_route_does_not_shadow_constellation_id_route(
         resp = await client.get("/api/constellations/user/user-a")
         assert resp.status_code == 200
         assert isinstance(resp.json(), list)
+
+
+# --- 프로필 임베딩 재계산 (발행 시) ---
+
+
+def _get_raw_user_doc(uid: str) -> dict | None:
+    db = get_firestore_client()
+    snapshot = db.collection("users").document(uid).get()
+    return snapshot.to_dict() if snapshot.exists else None
+
+
+@pytest.mark.asyncio
+async def test_publish_refreshes_profile_embedding(authed_as: Callable[[str], None]) -> None:
+    authed_as("embed-user-a")
+    async with _client() as client:
+        cid = (
+            await client.post(
+                "/api/constellations",
+                json={"title": "데이터 분석가 되기", "goalRawText": "통계와 파이썬을 배운다"},
+            )
+        ).json()["id"]
+
+        resp = await client.patch(f"/api/constellations/{cid}/publish", json={"isPublished": True})
+        assert resp.status_code == 200
+
+    doc = _get_raw_user_doc("embed-user-a")
+    assert doc is not None
+    embedding = list(doc["profile_embedding"])
+    assert len(embedding) == 768
+    assert all(isinstance(v, float) for v in embedding)
+
+
+@pytest.mark.asyncio
+async def test_publish_succeeds_even_if_embedder_raises(
+    authed_as: Callable[[str], None], monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """임베딩 API가 실패해도 발행 자체는 성공해야 한다 - 실패는 조용히 로그만 남긴다."""
+
+    class _RaisingEmbedder:
+        async def embed(self, text: str, *, kind: str) -> list[float]:
+            raise RuntimeError("임베딩 서비스 다운 시뮬레이션")
+
+    monkeypatch.setattr(
+        "app.services.profile_embedding.get_embedding_client", lambda: _RaisingEmbedder()
+    )
+
+    authed_as("embed-user-b")
+    async with _client() as client:
+        cid = (
+            await client.post(
+                "/api/constellations", json={"title": "임베더 실패 케이스", "goalRawText": "x"}
+            )
+        ).json()["id"]
+
+        resp = await client.patch(f"/api/constellations/{cid}/publish", json={"isPublished": True})
+        assert resp.status_code == 200
+
+    doc = _get_raw_user_doc("embed-user-b")
+    assert doc is not None
+    assert "profile_embedding" not in doc
+
+
+@pytest.mark.asyncio
+async def test_unpublishing_all_constellations_deletes_profile_embedding(
+    authed_as: Callable[[str], None],
+) -> None:
+    authed_as("embed-user-c")
+    async with _client() as client:
+        cid = (
+            await client.post(
+                "/api/constellations", json={"title": "발행 취소 케이스", "goalRawText": "목표"}
+            )
+        ).json()["id"]
+        await client.patch(f"/api/constellations/{cid}/publish", json={"isPublished": True})
+
+        doc = _get_raw_user_doc("embed-user-c")
+        assert doc is not None and "profile_embedding" in doc
+
+        resp = await client.patch(f"/api/constellations/{cid}/publish", json={"isPublished": False})
+        assert resp.status_code == 200
+
+    doc = _get_raw_user_doc("embed-user-c")
+    assert doc is not None
+    assert "profile_embedding" not in doc
