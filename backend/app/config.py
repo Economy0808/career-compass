@@ -62,6 +62,9 @@ class Settings(BaseSettings):
     # find_nearest의 distance_threshold(COSINE). 배포 후 실사용 검색어로 튜닝할
     # 값 - 너무 낮으면 벡터 검색이 사실상 안 뜨고, 너무 높으면 무관한 유저가 낀다.
     embedding_distance_threshold: float = 0.45
+    # 별자리 "1사이클" 쿼터 - 가입 시 1회 지급하는 무료 사이클 수(일회성, 일일
+    # 리셋 없음). app/firestore/quota_repo.py의 lazy-grant가 이 값을 쓴다.
+    quota_free_grant: int = 1
 
     @property
     def cookie_secure(self) -> bool:
