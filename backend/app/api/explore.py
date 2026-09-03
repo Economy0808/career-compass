@@ -48,6 +48,18 @@ _SEARCH_SCAN_LIMIT = 500
 _FOLLOWING_SCAN_LIMIT = 10_000
 
 
+def _combined_tags(profile: dict[str, Any]) -> list[str]:
+    """자동 계산된 interest_tags와 유저가 직접 밝힌 declared_tags의 합집합(순서보존 중복제거).
+
+    declared_tags는 가입 온보딩(app/api/profiles.py의 POST /onboarding)이
+    채우는 필드다 - 온보딩 시점엔 아직 발행 별자리가 없어 interest_tags가
+    비어있을 수 있으므로, "공통 관심사"/키워드 매칭 신호에도 함께 반영한다.
+    """
+    tags: list[str] = profile.get("interest_tags") or []
+    declared: list[str] = profile.get("declared_tags") or []
+    return list(dict.fromkeys(tags + declared))
+
+
 def _to_out(
     uid: str,
     profile: dict[str, Any],
@@ -56,7 +68,11 @@ def _to_out(
     is_following: bool | None,
 ) -> ExploreUserOut:
     tags: list[str] = profile.get("interest_tags") or []
-    common_tags = None if requester_tags is None else [t for t in tags if t in requester_tags]
+    common_tags = (
+        None
+        if requester_tags is None
+        else [t for t in _combined_tags(profile) if t in requester_tags]
+    )
     return ExploreUserOut(
         uid=uid,
         display_name=profile.get("display_name"),
@@ -81,11 +97,11 @@ def _sort_key(profile: dict[str, Any], *, requester_tags: set[str]) -> tuple[int
 
 
 def _requester_tags(db: Client, user: DecodedToken | None) -> set[str] | None:
-    """로그인 요청자면 본인 관심사 태그 집합을, 익명이면 None을 반환한다."""
+    """로그인 요청자면 본인 관심사 태그(interest_tags ∪ declared_tags) 집합을, 익명이면 None을 반환한다."""
     if user is None:
         return None
     profile = user_repo.get_user_profile(db, user.uid)
-    return set((profile or {}).get("interest_tags") or [])
+    return set(_combined_tags(profile or {}))
 
 
 def _requester_following_ids(db: Client, user: DecodedToken | None) -> set[str]:
@@ -206,8 +222,9 @@ def _keyword_match_count(profile: dict[str, Any], query_lower: str) -> int:
 
     익명 요청(뷰어 관심사를 모름)일 때 정렬 기준으로 쓴다 - 뷰어 관심사와 겹치는
     수를 잴 수 없으니, 대신 "이 검색어 자체와 얼마나 관련 있어 보이는가"로 대체한다.
+    interest_tags뿐 아니라 declared_tags도 본다(_combined_tags 참고).
     """
-    tags = profile.get("interest_tags") or []
+    tags = _combined_tags(profile)
     count = sum(1 for tag in tags if _tag_matches_query(tag.lower(), query_lower))
     if query_lower in (profile.get("display_name") or "").lower():
         count += 1

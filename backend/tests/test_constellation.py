@@ -523,3 +523,46 @@ def test_compute_profile_text_includes_non_course_support_labels() -> None:
     text = compute_profile_text(constellations, bio=None, interest_tags=[])
     assert "준비 요소: 정보처리기사, 토익 900+" in text
     assert "철학개론" not in text
+
+
+def test_compute_profile_text_declared_tags_and_career_text_default_to_empty() -> None:
+    """기존 호출부(declared_tags/career_text를 모르는 경로)가 인자를 안 넘겨도 무영향."""
+    assert compute_profile_text([], bio=None, interest_tags=[]) == ""
+
+
+def test_compute_profile_text_declared_tags_and_career_text_ordered_after_interest_before_goal() -> (
+    None
+):
+    """선언 관심사/진로 서술은 관심사 태그 다음, 별자리 목표보다 앞에 온다."""
+    constellations = [
+        _make_profile_constellation(
+            "c1", title="데이터 분석가", goal_raw_text="목표 원문", updated_at=datetime(2026, 1, 1)
+        )
+    ]
+    text = compute_profile_text(
+        constellations,
+        bio="자기소개",
+        interest_tags=["빅데이터"],
+        declared_tags=["창업"],
+        career_text="아직 정하지 못했지만 데이터 쪽에 관심 있습니다.",
+    )
+    lines = text.split("\n")
+    assert lines[0] == "관심사: 빅데이터"
+    assert lines[1] == "선언 관심사: 창업"
+    assert lines[2] == "진로 서술: 아직 정하지 못했지만 데이터 쪽에 관심 있습니다."
+    assert lines[3] == "목표: 데이터 분석가 - 목표 원문"
+    assert lines[-1] == "소개: 자기소개"
+
+
+def test_compute_profile_text_career_text_truncated_to_500_chars() -> None:
+    long_career_text = "가" * 3000
+    text = compute_profile_text([], bio=None, interest_tags=[], career_text=long_career_text)
+    line = next(line for line in text.split("\n") if line.startswith("진로 서술:"))
+    assert len(line) == len("진로 서술: ") + 500
+
+
+def test_compute_profile_text_empty_declared_tags_and_career_text_add_no_lines() -> None:
+    text = compute_profile_text(
+        [], bio="자기소개", interest_tags=["철학"], declared_tags=[], career_text=None
+    )
+    assert text == "관심사: 철학\n소개: 자기소개"

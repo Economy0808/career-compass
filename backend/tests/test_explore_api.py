@@ -84,12 +84,19 @@ def _seed_user(
     display_name: str | None,
     interest_tags: list[str],
     updated_at: datetime,
+    declared_tags: list[str] | None = None,
 ) -> None:
-    """탐색 API가 읽는 users 문서를 리포지토리를 거치지 않고 직접 세팅한다(테스트 셋업 전용)."""
+    """탐색 API가 읽는 users 문서를 리포지토리를 거치지 않고 직접 세팅한다(테스트 셋업 전용).
+
+    declared_tags는 가입 온보딩(app/api/profiles.py의 POST /onboarding)이
+    채우는 필드다 - 기본값 None(필드 자체를 안 씀)이라 기존 테스트는 그대로다.
+    """
     db = get_firestore_client()
     doc: dict[str, object] = {"interest_tags": interest_tags, "updated_at": updated_at}
     if display_name is not None:
         doc["display_name"] = display_name
+    if declared_tags is not None:
+        doc["declared_tags"] = declared_tags
     db.collection("users").document(uid).set(doc)
 
 
@@ -761,3 +768,53 @@ async def test_search_rate_limited_after_60_requests_per_minute(
             assert resp.status_code == 200
         resp = await client.get("/api/explore/search", params={"q": "아무거나"})
     assert resp.status_code == 429
+
+
+# ---------------------------------------------------------------------------
+# declared_tags(가입 온보딩 선언 관심사) 반영 - interest_tags와의 합집합
+# ---------------------------------------------------------------------------
+
+
+@pytest.mark.asyncio
+async def test_list_users_common_tags_include_declared_tags(
+    authed_as: Callable[[str], None],
+) -> None:
+    """요청자·후보 양쪽 다 declared_tags로만 겹쳐도 commonTags에 잡혀야 한다."""
+    _seed_user(
+        "declared-requester",
+        display_name="나",
+        interest_tags=[],
+        declared_tags=["창업"],
+        updated_at=datetime(2026, 1, 1, tzinfo=UTC),
+    )
+    _seed_user(
+        "declared-candidate",
+        display_name="후보",
+        interest_tags=[],
+        declared_tags=["창업"],
+        updated_at=datetime(2026, 1, 1, tzinfo=UTC),
+    )
+    authed_as("declared-requester")
+    async with _client() as client:
+        resp = await client.get("/api/explore/users")
+    body = resp.json()
+    candidate = next(item for item in body if item["uid"] == "declared-candidate")
+    assert candidate["commonTags"] == ["창업"]
+
+
+@pytest.mark.asyncio
+async def test_search_keyword_matches_declared_tag(authed_as: Callable[[str], None]) -> None:
+    """자동 계산된 interest_tags가 비어있어도 declared_tags로 키워드 검색에 걸려야 한다."""
+    _seed_user(
+        "declared-search-target",
+        display_name="검색대상",
+        interest_tags=[],
+        declared_tags=["데이터사이언스"],
+        updated_at=datetime(2026, 1, 1, tzinfo=UTC),
+    )
+    authed_as("declared-search-viewer")
+    async with _client() as client:
+        resp = await client.get("/api/explore/search", params={"q": "데이터사이언스"})
+    assert resp.status_code == 200
+    uids = [item["uid"] for item in resp.json()]
+    assert "declared-search-target" in uids

@@ -400,26 +400,43 @@ def _profile_support_labels(constellation: Constellation) -> list[str]:
 
 
 def compute_profile_text(
-    constellations: list[Constellation], *, bio: str | None, interest_tags: list[str]
+    constellations: list[Constellation],
+    *,
+    bio: str | None,
+    interest_tags: list[str],
+    declared_tags: list[str] | None = None,
+    career_text: str | None = None,
 ) -> str:
     """프로필 임베딩용 합성 텍스트를 만든다 (users.profile_embedding 입력).
 
     호출부(app/services/profile_embedding.py)가 owner의 발행 별자리 전체 +
-    bio + interest_tags를 넘긴다 - 이 함수는 Firestore를 전혀 모르는 순수
-    함수다. "빅데이터"로 검색해도 "데이터사이언티스트"류 관심사 유저가 뜨게
-    하려는 목적이므로, 태그뿐 아니라 목표 원문/군집 라벨/준비 요소까지 폭넓게
+    bio + interest_tags(+ 가입 온보딩에서 받은 declared_tags/career_text)를
+    넘긴다 - 이 함수는 Firestore를 전혀 모르는 순수 함수다. "빅데이터"로
+    검색해도 "데이터사이언티스트"류 관심사 유저가 뜨게 하려는 목적이므로,
+    태그뿐 아니라 목표 원문/군집 라벨/준비 요소·진로 자유서술까지 폭넓게
     담아 임베딩 모델이 의미적 근접성을 판단할 재료를 준다.
 
-    합성 순서(관심사 -> 별자리별 목표/군집/준비요소 -> 소개)는 그대로 절단
-    우선순위다 - 상한(PROFILE_TEXT_MAX_CHARS)을 넘으면 뒤(소개, 오래된 별자리)부터
-    잘려나간다. 빈 항목(태그 없음/목표 없음/군집 없음/준비요소 없음/소개 없음)은
-    아예 줄을 만들지 않는다. 별자리도 태그도 bio도 전혀 없으면 빈 문자열을
-    반환한다 - 호출부가 이를 "임베딩할 게 없다"는 신호로 보고 profile_embedding
-    필드를 삭제한다.
+    declared_tags/career_text는 기본값이 빈 리스트/None이라 기존 호출부(발행
+    핸들러 등 온보딩 필드를 모르는 경로)를 그대로 둬도 무영향이다.
+
+    합성 순서(관심사 -> 선언 관심사 -> 진로 서술 -> 별자리별 목표/군집/준비요소 ->
+    소개)는 그대로 절단 우선순위다 - 상한(PROFILE_TEXT_MAX_CHARS)을 넘으면
+    뒤(소개, 오래된 별자리)부터 잘려나간다. 선언 관심사/진로 서술을 관심사 태그
+    바로 다음, 별자리 목표보다 앞에 두는 이유: 온보딩 시점엔 아직 발행 별자리가
+    없어 그 아래 항목이 전부 비어 있을 수 있으므로, 유저가 스스로 밝힌 신호를
+    앞쪽(절단에서 더 안전한 위치)에 배치한다. 빈 항목(태그 없음/목표 없음/군집
+    없음/준비요소 없음/소개 없음)은 아예 줄을 만들지 않는다. 별자리도 태그도
+    bio도 전혀 없으면 빈 문자열을 반환한다 - 호출부가 이를 "임베딩할 게 없다"는
+    신호로 보고 profile_embedding 필드를 삭제한다.
     """
     parts: list[str] = []
     if interest_tags:
         parts.append(f"관심사: {', '.join(interest_tags)}")
+    if declared_tags:
+        parts.append(f"선언 관심사: {', '.join(declared_tags)}")
+    career_text_stripped = (career_text or "").strip()[:_PROFILE_TEXT_GOAL_MAX_CHARS]
+    if career_text_stripped:
+        parts.append(f"진로 서술: {career_text_stripped}")
 
     ranked = sorted(constellations, key=lambda c: c.updated_at, reverse=True)
     for constellation in ranked[:_PROFILE_TEXT_MAX_CONSTELLATIONS]:

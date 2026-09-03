@@ -48,8 +48,19 @@ _COLLECTION = "users"
 # 탐색 API(app/api/explore.py)가 후보 목록을 통째로 스캔할 때 실제로 읽는 필드만
 # 요청한다 - profile_embedding(768차 벡터)처럼 큰 필드를 매번 통째로 끌어오면
 # 스캔 규모가 커질수록 낭비가 커진다(get_profiles/get_user_profile처럼 단건
-# 조회는 이 프로젝션을 쓰지 않는다 - 그쪽은 프로필 전체가 필요하다).
-_LIST_PROJECTION = ["display_name", "avatar_emoji", "bio", "interest_tags", "updated_at"]
+# 조회는 이 프로젝션을 쓰지 않는다 - 그쪽은 프로필 전체가 필요하다). declared_tags(가입
+# 온보딩이 채우는 필드)도 탐색 API가 commonTags/키워드 매칭에 쓰므로(app/api/
+# explore.py의 _combined_tags) 함께 프로젝션에 넣는다 - 빠지면 이 함수들이 돌려주는
+# dict에 declared_tags 키 자체가 없어(Firestore 프로젝션 쿼리는 요청한 필드만
+# 돌려준다) 있는데도 없는 것처럼 보이는 조용한 버그가 된다.
+_LIST_PROJECTION = [
+    "display_name",
+    "avatar_emoji",
+    "bio",
+    "interest_tags",
+    "declared_tags",
+    "updated_at",
+]
 
 
 def _doc_ref(db: Client, uid: str) -> Any:

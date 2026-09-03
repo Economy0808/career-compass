@@ -17,7 +17,7 @@ from app.config import get_settings
 from app.domain.constellation import Constellation, compute_profile_text
 from app.embedding import get_embedding_client
 from app.embedding.base import EmbeddingClient
-from app.firestore import constellation_repo, user_repo
+from app.firestore import constellation_repo, user_private_repo, user_repo
 
 logger = logging.getLogger("app.services.profile_embedding")
 
@@ -29,7 +29,11 @@ async def refresh_profile_embedding(
     published: list[Constellation] | None = None,
     embedder: EmbeddingClient | None = None,
 ) -> None:
-    """uid의 프로필 임베딩을 발행 별자리 + bio + interest_tags로 다시 계산해 저장한다.
+    """uid의 프로필 임베딩을 발행 별자리 + bio + interest_tags + declared_tags +
+    career_text로 다시 계산해 저장한다. declared_tags는 users/{uid}에서,
+    career_text는 user_private/{uid}에서 읽는다(app/api/profiles.py의 POST
+    /onboarding이 채우는 필드 - 온보딩을 거치지 않은 유저는 둘 다 비어있어도
+    무영향이다).
 
     published를 안 넘기면(예: bio만 바뀐 경우) 직접 owner의 발행 별자리를
     다시 읽는다 - publish 핸들러는 이미 방금 계산한 목록을 넘겨 중복 조회를
@@ -47,10 +51,13 @@ async def refresh_profile_embedding(
         if published is None:
             published = constellation_repo.list_published_by_owner(db, uid)
         profile = user_repo.get_user_profile(db, uid) or {}
+        private_profile = user_private_repo.get_private_profile(db, uid) or {}
         text = compute_profile_text(
             published,
             bio=profile.get("bio"),
             interest_tags=profile.get("interest_tags") or [],
+            declared_tags=profile.get("declared_tags") or [],
+            career_text=private_profile.get("career_text"),
         )
         values = None
         if text:

@@ -464,3 +464,34 @@ async def test_onboarding_trims_and_dedupes_declared_tags(
     assert resp.status_code == 200
     user_doc = get_firestore_client().collection("users").document("onboard-user-h").get().to_dict()
     assert user_doc["declared_tags"] == ["데이터", "창업"]
+
+
+@pytest.mark.asyncio
+async def test_onboarding_feeds_declared_tags_and_career_text_into_embedding(
+    authed_as: Callable[[str], None], monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """온보딩이 끝나면 declared_tags/career_text가 실제로 임베딩 합성 텍스트에 반영된다
+    (app/domain/constellation.py의 compute_profile_text, app/services/profile_embedding.py)."""
+    captured: list[str] = []
+
+    class _SpyEmbedder:
+        async def embed(self, text: str, *, kind: str) -> list[float]:
+            captured.append(text)
+            return [0.0] * 768
+
+    monkeypatch.setattr(
+        "app.services.profile_embedding.get_embedding_client", lambda: _SpyEmbedder()
+    )
+
+    authed_as("onboard-embed-user")
+    async with _client() as client:
+        resp = await client.post(
+            "/api/profiles/onboarding",
+            json=_onboarding_payload(
+                declaredTags=["데이터사이언스"], careerText="창업을 준비 중입니다."
+            ),
+        )
+    assert resp.status_code == 200
+    assert captured  # 임베딩이 실제로 호출됐다
+    assert "선언 관심사: 데이터사이언스" in captured[0]
+    assert "진로 서술: 창업을 준비 중입니다." in captured[0]
