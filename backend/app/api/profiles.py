@@ -124,10 +124,10 @@ async def onboard_profile(
     profile_embedding.py 참고). 임베딩 실패는 그 서비스 내부에서 이미 삼켜지므로
     온보딩 자체를 막지 않는다.
     """
-    if not (payload.consents.service and payload.consents.overseas):
+    if not payload.consents.service:
         raise HTTPException(
             status_code=422,
-            detail="서비스 이용 및 개인정보 국외이전 동의가 모두 필요합니다.",
+            detail="서비스 이용 동의가 필요합니다.",
         )
 
     declared_tags = list(dict.fromkeys(tag.strip() for tag in payload.declared_tags if tag.strip()))

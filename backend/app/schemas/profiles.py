@@ -51,13 +51,17 @@ class ProfileOut(_CamelModel):
 class OnboardingConsentsIn(_CamelModel):
     """가입 온보딩 동의 항목.
 
-    service(서비스 이용약관)와 overseas(개인정보 국외이전, Vertex AI가 asia-northeast3
-    리전이라 필요)는 필수 - 라우터가 둘 다 True인지 검사해 하나라도 False면 422로
-    막는다. marketing(마케팅 정보 수신)은 선택이라 기본값 False.
+    service(서비스 이용약관)가 필수 - False면 422로 막는다. marketing(마케팅 정보
+    수신)은 선택이라 기본값 False.
+
+    개인정보 국외이전(overseas) 동의는 여기서 받지 않는다(2026-09-04 사용자 결정):
+    온보딩 데이터(학번·학과·career_text)는 국내(Vertex asia-northeast3)에만
+    저장되고 Anthropic으로 가지 않으므로, 국외이전 동의는 실제 이전이 일어나는
+    인테이크 대화 진입 시점에서 별도로 받는다(아직 안 일어난 이전에 대한 선동의를
+    프로필 화면에서 받는 어색함 방지).
     """
 
     service: bool
-    overseas: bool
     marketing: bool = False
 
 
