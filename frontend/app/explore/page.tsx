@@ -24,6 +24,7 @@
 import Link from "next/link";
 import type { MouseEvent } from "react";
 import { useEffect, useRef, useState } from "react";
+import { useRouter } from "next/navigation";
 import { EmptyState } from "@/components/ui";
 import { SearchIcon } from "@/components/ui/icons";
 import { VerifyGate } from "@/components/VerifyGate";
@@ -110,21 +111,34 @@ function UserCard({
 }
 
 export default function ExplorePage() {
-  const { user } = useAuth();
+  const { user, loading: authLoading } = useAuth();
+  const router = useRouter();
   const [query, setQuery] = useState("");
   const [users, setUsers] = useState<ExploreUserDto[] | null>(null);
   const [error, setError] = useState(false);
   const [verifyGateOpen, setVerifyGateOpen] = useState(false);
   // 응답 역전 방지 - 마지막 요청만 반영한다.
   const requestSeq = useRef(0);
-  // 로그인은 했지만 미인증 - 검색·카드 진입을 잠근다(비로그인은 그대로 열람 가능).
+  // 로그인은 했지만 미인증 - 검색·카드 진입을 잠근다. 비로그인은 이제 열람도
+  // 불가(아래 마운트 가드) - "비로그인 열람 = /demo만"(사용자 지시 2026-09-03
+  // "ㅇㅇ그것도 막아", 백엔드 /api/explore도 익명 401로 전환됨).
   const locked = user !== null && !user.yonseiVerified;
+
+  // 마운트 가드 - URL 직접 진입도 네비 클릭과 같은 동선으로 통일. 인증 복원이
+  // 끝나기 전엔 판단하지 않는다(12차 §2 인증 복원 레이스 처방).
+  useEffect(() => {
+    if (authLoading || user) return;
+    router.replace(`/login?next=${encodeURIComponent("/explore")}`);
+  }, [authLoading, user, router]);
 
   const trimmedQuery = query.trim();
   const isIdMode = trimmedQuery.startsWith("@");
   const idHandle = isIdMode ? trimmedQuery.slice(1).trim() : "";
 
   useEffect(() => {
+    // 인증 복원 전/비로그인엔 쏘지 않는다 - 복원 전에 쏘면 토큰 없이 401(12차
+    // §2 레이스), 비로그인은 어차피 위 가드가 로그인으로 보낸다(401 플래시 방지).
+    if (authLoading || !user) return;
     const seq = ++requestSeq.current;
     const q = query.trim();
     setUsers(null);
@@ -145,7 +159,7 @@ export default function ExplorePage() {
       q ? SEARCH_DEBOUNCE_MS : 0
     );
     return () => clearTimeout(timer);
-  }, [query]);
+  }, [query, authLoading, user]);
 
   return (
     <div className="mx-auto max-w-4xl px-4 py-10 md:px-8">
