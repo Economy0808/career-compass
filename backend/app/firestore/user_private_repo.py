@@ -76,3 +76,26 @@ def get_private_profile(db: Client, uid: str) -> dict[str, Any] | None:
     if not snapshot.exists:
         return None
     return snapshot.to_dict()
+
+
+def set_overseas_consent(db: Client, uid: str, version: str) -> None:
+    """개인정보 국외이전(PIPA) 동의를 기록한다(merge).
+
+    위 set_private_profile의 consent_{key}_at들과 달리 "최초 1회만" 기록하는
+    관례를 따르지 않는다 - 여기서는 매 호출마다 시점/버전을 최신값으로
+    덮어쓴다. 법적 문구가 개정돼 버전이 올라가면 유저가 다시 동의해야 하고,
+    그 재동의 시점이 곧 이 값의 최신 갱신 시점이어야 하기 때문이다(과거 구버전
+    동의 시점을 그대로 두면 새 동의를 한 적이 없는 것처럼 보인다).
+    """
+    _doc_ref(db, uid).set(
+        {"consent_overseas_at": datetime.now(UTC), "consent_overseas_version": version},
+        merge=True,
+    )
+
+
+def get_overseas_consent_version(db: Client, uid: str) -> str | None:
+    """uid가 마지막으로 동의한 국외이전 동의 판본. 문서/필드가 없으면 None."""
+    snapshot = _doc_ref(db, uid).get()
+    if not snapshot.exists:
+        return None
+    return snapshot.to_dict().get("consent_overseas_version")

@@ -65,6 +65,14 @@ class Settings(BaseSettings):
     # 별자리 "1사이클" 쿼터 - 가입 시 1회 지급하는 무료 사이클 수(일회성, 일일
     # 리셋 없음). app/firestore/quota_repo.py의 lazy-grant가 이 값을 쓴다.
     quota_free_grant: int = 1
+    # 개인정보 국외이전(PIPA) 동의 판본. 유저가 동의한 시점의 문구 버전과 이
+    # 값이 다르면(법적 문구 개정 등) 재동의가 필요하다 - app/firestore/
+    # user_private_repo.py의 consent_overseas_version과 비교된다.
+    current_overseas_consent_version: str = "2026-09-04-v1"
+    # 인테이크 대화(Anthropic 전송) 진입을 국외이전 동의로 강제할지 여부.
+    # 기본 False(강제 안 함, 기존 동작 유지) - 프론트 동의 모달이 준비된 뒤
+    # 메인 세션이 env로 켠다(app/auth/consent_deps.py 참고).
+    overseas_gate_enabled: bool = False
 
     @property
     def cookie_secure(self) -> bool:

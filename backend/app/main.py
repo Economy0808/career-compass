@@ -8,6 +8,7 @@ from fastapi.responses import JSONResponse
 from app.api.auth_sync import router as auth_sync_router
 from app.api.community import router as community_router
 from app.api.community_notes import router as community_notes_router
+from app.api.consents import router as consents_router
 from app.api.constellation import router as constellation_router
 from app.api.constellation_intake import router as constellation_intake_router
 from app.api.courses import router as courses_router
@@ -72,6 +73,7 @@ def create_app() -> FastAPI:
     # Firestore 기반)는 현역이라 그대로 둔다.
     app.include_router(health_router)
     app.include_router(auth_sync_router)
+    app.include_router(consents_router)
     app.include_router(constellation_router)
     app.include_router(constellation_intake_router)
     app.include_router(courses_router)
