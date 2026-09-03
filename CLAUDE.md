@@ -9,8 +9,9 @@
 
 ## Tech Stack (locked-in)
 - Backend: Python 3.11+ / FastAPI / Pydantic v2
-- DB: PostgreSQL 16 + pgvector
-- Embedding: OpenAI text-embedding-3-small (benchmark vs bge-m3 for Korean later)
+- DB: Firestore (primary, includes users.profile_embedding vectors) + PostgreSQL 16 (legacy, schedules only)
+- Embedding: Google Vertex AI gemini-embedding-001 (768d, asia-northeast3), stored as a Firestore
+  vector field and queried via find_nearest() (COSINE)
 - Frontend: Next.js 14 (App Router) + TailwindCSS
 - LLM: Anthropic Claude Sonnet 5 default; Opus 5 for complex work
 - Notifications: Resend (email) + Solapi (KakaoTalk)

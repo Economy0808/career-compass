@@ -71,6 +71,8 @@ printf '%s' "<새 값>" | gcloud secrets versions add secret-key --data-file=-
 | `CORS_ALLOWED_ORIGINS` | App Hosting 배포 도메인 (콤마로 여러 개 가능) | 아래 "3. Origin 화이트리스트" 참고 — **배포 순서상 나중에 채워야 함** |
 | `FIRESTORE_PROJECT_ID` | `ourlab-0808` | 안 넣으면 `app/firestore/client.py`가 데모 프로젝트(`demo-ourlab`)로 기본 폴백함 — 운영에서 반드시 명시 |
 | `DATABASE_URL` | (설정 안 해도 됨) | Cloud SQL을 안 붙일 예정이므로 미설정 → 기본값(`localhost:5432`)으로 남음. Postgres 의존 라우트만 요청 시점에 실패 (아래 "2. Postgres 없이 기동" 참고) |
+| `EMBEDDING_ENABLED` | (설정 안 해도 됨, 기본 `true`) | 프로필 임베딩(Vertex AI) 킬 스위치. `false`로 끄면 발행/bio 수정 시 재임베딩과 탐색 검색의 벡터 합집합을 모두 건너뛰고 부분일치 검색만 남는다 |
+| `EMBEDDING_DISTANCE_THRESHOLD` | (설정 안 해도 됨, 기본 `0.45`) | `find_nearest()`의 COSINE 거리 상한. 배포 후 `scripts/probe_profile_search.py`로 실사용 검색어 거리 분포를 본 뒤 튜닝할 값 |
 
 ### 프론트 (App Hosting) — `frontend/apphosting.yaml`에 이미 채워둠
 
@@ -309,6 +311,36 @@ gcloud logging read 'resource.type="cloud_run_revision"
 시드 스크립트(`backend/scripts/*.py`)는 전부 `FIRESTORE_EMULATOR_HOST` 가드가 걸려
 있어 운영에 직접 실행되지 않는다. 의도된 안전장치이니 풀지 말 것.
 
+## 8-1. 프로필 임베딩 벡터 인덱스 배포 + 백필 (constellation S3)
+
+탐색 검색에 벡터 검색을 얹는 기능(`users.profile_embedding`, Vertex AI
+gemini-embedding-001, 768d, `asia-northeast3`). 에뮬레이터는 벡터 인덱스 없이도
+`find_nearest()`가 동작하지만(실측 확인됨), **운영 Firestore는 인덱스를 배포하지
+않으면 벡터 쿼리가 실패한다** — 위 §8의 "복합 인덱스는 빌드에 몇 분 걸린다"와
+같은 함정이 여기도 그대로 적용된다.
+
+1. **인덱스 배포**: `firestore.indexes.json`에 이미 `users.profile_embedding`
+   vectorConfig(dimension 768, flat)가 들어 있다 — §8과 같은 명령으로 함께 배포됨
+   (`firebase deploy --only firestore:rules,firestore:indexes`). 배포 후 빌드 완료를
+   Firebase 콘솔(Firestore > 색인)에서 확인할 것.
+2. **백필**: 인덱스 배포가 끝난 뒤에만 실행한다(그 전에 돌리면 쓰기는 되지만
+   조회가 실패해 순서를 헷갈리기 쉽다).
+   ```bash
+   cd backend
+   export GCLOUD_ACCESS_TOKEN=$(gcloud auth print-access-token)
+   .venv/Scripts/python.exe scripts/backfill_profile_embeddings.py --project ourlab-0808 --dry-run  # 먼저 텍스트 길이만 확인
+   .venv/Scripts/python.exe scripts/backfill_profile_embeddings.py --project ourlab-0808
+   ```
+3. **거리 임계값 튜닝**: `EMBEDDING_DISTANCE_THRESHOLD` 기본값 0.45는 실사용
+   검색어로 검증 전인 잠정값이다. 백필 후 아래로 실사용 유저 데이터에 대한 거리
+   분포를 눈으로 보고 조정할 것.
+   ```bash
+   .venv/Scripts/python.exe scripts/probe_profile_search.py --project ourlab-0808 "빅데이터" "밴드동아리"
+   ```
+4. **킬 스위치**: 벡터 검색이 문제를 일으키면(비용 폭주, 이상한 매칭 등)
+   `EMBEDDING_ENABLED=false`로 즉시 끌 수 있다 — 기존 `profile_embedding` 데이터는
+   그대로 남고, 탐색 검색은 부분일치만으로 계속 동작한다(§10의 "남은 항목" 참고).
+
 ## 9. 시크릿 교체 (Anthropic 키)
 
 값을 **절대 출력하지 말 것**. 검증은 길이·접두사·공백 유무만으로 한다.
@@ -345,6 +377,9 @@ console.anthropic.com에서 삭제해야 한다.
    가입자가 연세대 인증을 받을 경로가 없다.
 5. **`OPENAI_API_KEY`·`SOLAPI_*`** — `.env`에는 있으나 `app/` 어디서도 참조되지
    않는다(계획 당시 미해결이었고 여전히 동일). Secret Manager에 안 넣어도 지장 없다.
+6. **프로필 임베딩 벡터 인덱스 배포·백필·거리 임계값 튜닝 미실행** — 코드는
+   준비됐으나(§8-1 참고) 인덱스 배포·백필·`EMBEDDING_DISTANCE_THRESHOLD` 튜닝은
+   아직 라이브에 반영 전이다.
 
 > 계획 당시 "판단 필요"로 남겼던 항목 중 App Hosting 병행·리전·Postgres 처리·todos
 > 이관은 모두 결론이 났다: App Hosting 폐기 / 서울 `asia-northeast3` / Postgres는

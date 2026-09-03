@@ -29,7 +29,16 @@ export default function PrivacyPage() {
           </p>
         </section>
         <section>
-          <h2 className="mb-1.5 text-body font-bold text-text-hi">4. 문의</h2>
+          <h2 className="mb-1.5 text-body font-bold text-text-hi">4. 처리위탁</h2>
+          <p>
+            발행한 로드맵의 목표·관심사와 소개글은 유사한 관심사를 가진 이용자를 찾는
+            탐색 검색을 위해 Google Cloud Vertex AI(임베딩 생성)에 처리를 위탁해요.
+            처리는 서울 리전(asia-northeast3)에서 이루어지며, 위탁받은 정보는 AI 모델
+            학습에 사용되지 않아요. 이 위탁은 국외로 정보를 이전하는 것이 아니에요.
+          </p>
+        </section>
+        <section>
+          <h2 className="mb-1.5 text-body font-bold text-text-hi">5. 문의</h2>
           <p>개인정보 관련 문의는 운영자 이메일로 연락해주세요.</p>
         </section>
       </div>
