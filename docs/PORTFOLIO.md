@@ -12,7 +12,6 @@
 - **상태**: **배포 완료** — Google Cloud Run(서울, `asia-northeast3`) 프론트/백엔드 2개 서비스 + Firestore 운영 프로젝트(`ourlab-0808`). 실제 Claude API 호출까지 라이브에서 동작
 - **URL**: https://ourlab-frontend-902034641778.asia-northeast3.run.app
 - **체험 계정** (비밀번호 전부 `observatory123!`)
-  - **처음부터 보려면 `demo-somin@yonsei.ac.kr`** — 로그인하면 접안렌즈를 지나 **AI 대화가 바로 시작**된다. 서비스의 출발점인 "질문에 답하면 로드맵이 생긴다"를 그대로 보여주는 계정
   - **완성된 결과를 보려면 `test-observer@yonsei.ac.kr`** — 이미 만들어 둔 별자리와 노드가 채워진 캔버스로 바로 들어간다. *이미 쓰던 사람에게는 AI 대화를 다시 띄우지 않는다*는 설계 규칙이 적용된 상태
   - **차단을 보려면 `demo-unverified@example.com`** — 열람은 되고 클릭·작성은 막히는 3계층 접근 모델을 그대로 확인할 수 있다
   - 로그인 없이 둘러보려면 `/demo`
