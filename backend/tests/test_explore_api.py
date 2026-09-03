@@ -601,3 +601,163 @@ async def test_list_users_primary_ranked_before_fallback(
     fallback_item = next(item for item in body if item["uid"] == "rank-fallback")
     assert "commonTags" in primary_item
     assert fallback_item["commonTags"] == []
+
+
+# ---------------------------------------------------------------------------
+# 검색 - 벡터 검색 합집합 (S6)
+# ---------------------------------------------------------------------------
+
+
+async def _seed_embedding(uid: str, text: str) -> None:
+    """FakeEmbeddingClient로 만든 벡터를 uid의 profile_embedding에 심는다(테스트 셋업 전용)."""
+    from app.embedding.fake_client import FakeEmbeddingClient
+    from app.firestore import user_repo
+
+    vector = await FakeEmbeddingClient().embed(text, kind="document")
+    user_repo.set_profile_embedding(get_firestore_client(), uid, vector)
+
+
+@pytest.mark.asyncio
+async def test_search_includes_vector_hit_with_no_keyword_overlap(
+    authed_as: Callable[[str], None],
+) -> None:
+    """부분일치로는 절대 안 걸리는 유저도, 벡터가 질의와 가까우면(같은 텍스트를
+    심어 거리 0으로 만듦) 결과에 포함되고 commonTags는 태그가 안 겹치니 []다."""
+    _seed_user(
+        "vector-only-hit",
+        display_name="아무개",
+        interest_tags=["패션"],
+        updated_at=datetime(2026, 1, 1, tzinfo=UTC),
+    )
+    await _seed_embedding("vector-only-hit", "데이터과학")
+    authed_as("vector-search-viewer")
+    async with _client() as client:
+        resp = await client.get("/api/explore/search", params={"q": "데이터과학"})
+    assert resp.status_code == 200
+    body = resp.json()
+    uids = [item["uid"] for item in body]
+    assert "vector-only-hit" in uids
+    hit = next(item for item in body if item["uid"] == "vector-only-hit")
+    assert hit["commonTags"] == []
+
+
+@pytest.mark.asyncio
+async def test_search_excludes_vector_hit_beyond_distance_threshold(
+    authed_as: Callable[[str], None],
+) -> None:
+    """질의와 무관한 텍스트로 만든 벡터(거리가 임계값 밖)는 결과에 섞이지 않는다."""
+    _seed_user(
+        "vector-far-hit",
+        display_name="다른사람",
+        interest_tags=["미술"],
+        updated_at=datetime(2026, 1, 1, tzinfo=UTC),
+    )
+    await _seed_embedding("vector-far-hit", "완전히 무관한 임의의 텍스트 조각")
+    authed_as("vector-search-viewer-2")
+    async with _client() as client:
+        resp = await client.get("/api/explore/search", params={"q": "데이터과학"})
+    assert resp.status_code == 200
+    uids = [item["uid"] for item in resp.json()]
+    assert "vector-far-hit" not in uids
+
+
+@pytest.mark.asyncio
+async def test_search_does_not_duplicate_keyword_and_vector_hit(
+    authed_as: Callable[[str], None],
+) -> None:
+    """키워드로도 걸리고 벡터로도 걸리는 유저는 결과에 한 번만 나와야 한다."""
+    _seed_user(
+        "dedup-hit",
+        display_name="아무개",
+        interest_tags=["데이터과학"],
+        updated_at=datetime(2026, 1, 1, tzinfo=UTC),
+    )
+    await _seed_embedding("dedup-hit", "데이터과학")
+    authed_as("dedup-viewer")
+    async with _client() as client:
+        resp = await client.get("/api/explore/search", params={"q": "데이터과학"})
+    uids = [item["uid"] for item in resp.json()]
+    assert uids.count("dedup-hit") == 1
+
+
+@pytest.mark.asyncio
+async def test_search_falls_back_to_keyword_only_when_embedder_raises(
+    authed_as: Callable[[str], None], monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """임베딩 클라이언트가 실패해도 부분일치 검색만으로 200을 돌려줘야 한다."""
+
+    class _RaisingEmbedder:
+        async def embed(self, text: str, *, kind: str) -> list[float]:
+            raise RuntimeError("임베딩 실패 시뮬레이션")
+
+    monkeypatch.setattr("app.api.explore.get_embedding_client", lambda: _RaisingEmbedder())
+    _seed_user(
+        "keyword-only-hit",
+        display_name="키워드매치",
+        interest_tags=[],
+        updated_at=datetime(2026, 1, 1, tzinfo=UTC),
+    )
+    authed_as("fallback-viewer")
+    async with _client() as client:
+        resp = await client.get("/api/explore/search", params={"q": "키워드매치"})
+    assert resp.status_code == 200
+    uids = [item["uid"] for item in resp.json()]
+    assert "keyword-only-hit" in uids
+
+
+@pytest.mark.asyncio
+async def test_search_at_prefix_does_not_call_embedder(
+    authed_as: Callable[[str], None], monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """`@`닉네임 검색은 정확 닉네임 검색 의도이므로 임베딩을 호출하지 않는다."""
+    calls = []
+
+    class _SpyEmbedder:
+        async def embed(self, text: str, *, kind: str) -> list[float]:
+            calls.append(text)
+            return [0.0] * 768
+
+    monkeypatch.setattr("app.api.explore.get_embedding_client", lambda: _SpyEmbedder())
+    authed_as("at-prefix-viewer")
+    async with _client() as client:
+        resp = await client.get("/api/explore/search", params={"q": "@아무개"})
+    assert resp.status_code == 200
+    assert calls == []
+
+
+@pytest.mark.asyncio
+async def test_search_ignores_vector_hits_when_embedding_disabled(
+    authed_as: Callable[[str], None], monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """EMBEDDING_ENABLED=false(킬 스위치)면 벡터 경로 자체를 건드리지 않는다."""
+    from app.config import get_settings
+
+    monkeypatch.setattr(
+        "app.api.explore.get_settings",
+        lambda: get_settings().model_copy(update={"embedding_enabled": False}),
+    )
+    _seed_user(
+        "kill-switch-hit",
+        display_name="아무개",
+        interest_tags=["패션"],
+        updated_at=datetime(2026, 1, 1, tzinfo=UTC),
+    )
+    await _seed_embedding("kill-switch-hit", "데이터과학")
+    authed_as("kill-switch-viewer")
+    async with _client() as client:
+        resp = await client.get("/api/explore/search", params={"q": "데이터과학"})
+    uids = [item["uid"] for item in resp.json()]
+    assert "kill-switch-hit" not in uids
+
+
+@pytest.mark.asyncio
+async def test_search_rate_limited_after_60_requests_per_minute(
+    authed_as: Callable[[str], None],
+) -> None:
+    authed_as("rate-limit-viewer")
+    async with _client() as client:
+        for _ in range(60):
+            resp = await client.get("/api/explore/search", params={"q": "아무거나"})
+            assert resp.status_code == 200
+        resp = await client.get("/api/explore/search", params={"q": "아무거나"})
+    assert resp.status_code == 429

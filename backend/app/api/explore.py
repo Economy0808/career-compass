@@ -17,18 +17,23 @@ user_repo의 조회 함수(list_users_with_interest_tags/list_all_users)는 후�
 
 from __future__ import annotations
 
+import logging
 from typing import Any
 
-from fastapi import APIRouter, Depends, Query
+from fastapi import APIRouter, Depends, HTTPException, Query
 from google.cloud.firestore import Client
 
 from app.auth.deps import get_current_user
 from app.auth.firebase_auth import DecodedToken
+from app.config import get_settings
+from app.core import rate_limit
+from app.embedding import get_embedding_client
 from app.firestore import follow_repo, user_repo
 from app.firestore.client import get_firestore_client
 from app.schemas.explore import ExploreUserOut
 
 router = APIRouter(prefix="/api/explore", tags=["explore"])
+logger = logging.getLogger(__name__)
 
 _LIST_LIMIT = 30
 _SEARCH_LIMIT = 20
@@ -216,6 +221,27 @@ def _matches_keyword(profile: dict[str, Any], query_lower: str) -> bool:
     return _keyword_match_count(profile, query_lower) > 0
 
 
+async def _vector_hits(db: Client, query: str) -> list[tuple[str, dict[str, Any]]]:
+    """질의를 임베딩해 의미적으로 가까운 유저를 찾는다 ("빅데이터"로 검색해도
+    "데이터사이언티스트"류 관심사 유저가 뜨게 하는 3단계 검색).
+
+    임베딩 API 실패·차원 불일치·(배포 전) 벡터 인덱스 부재 등 어떤 이유로든
+    실패해도 조용히 빈 리스트를 반환한다 - 벡터 검색은 부분일치 검색을 보강하는
+    부가 기능이지, 이게 죽었다고 검색 자체가 500이 되면 안 된다.
+    """
+    try:
+        vector = await get_embedding_client().embed(query, kind="query")
+        return user_repo.find_nearest_users(
+            db,
+            vector,
+            limit=_SEARCH_LIMIT + 1,
+            distance_threshold=get_settings().embedding_distance_threshold,
+        )
+    except Exception:
+        logger.warning("탐색 검색 벡터 조회 실패", exc_info=True)
+        return []
+
+
 @router.get("/search", response_model=list[ExploreUserOut], response_model_exclude_none=True)
 async def search_explore_users(
     q: str = Query(min_length=1, max_length=30),
@@ -236,7 +262,21 @@ async def search_explore_users(
     집합(최대 _SEARCH_SCAN_LIMIT명)을 통째로 가져와 파이썬에서 필터링한다(그
     함수 docstring의 ponytail 참고 - 상한을 넘는 유저 규모가 되면 검색 인덱스로
     승격할 것).
+
+    일반 키워드 검색(`@` 아님)에는 부분일치 결과에 벡터 검색 결과를 합집합으로
+    얹는다(_vector_hits) - "빅데이터"로 검색해도 부분일치로는 안 걸리는
+    "데이터사이언티스트"류 관심사 유저까지 찾아낸다. `@`닉네임 검색은 정확히
+    닉네임을 찾는 의도이므로 임베딩을 부르지 않는다.
+
+    임베딩 API는 유저가 직접 호출을 촉발하는 경로라 남용 방지를 위해 uid당
+    분당 60회로 제한한다(IP가 아니라 uid 기준 - 여러 유저가 같은 IP를 공유하는
+    캠퍼스 네트워크에서 서로를 막지 않게).
     """
+    if not rate_limit.allow(f"explore-search:{user.uid}", 60, 60.0):
+        raise HTTPException(
+            status_code=429, detail="검색 요청이 너무 많습니다. 잠시 후 다시 시도해주세요."
+        )
+
     requester_tags = _requester_tags(db, user)
     following_ids = _requester_following_ids(db, user)
     viewer_uid = user.uid if user is not None else None
@@ -258,6 +298,12 @@ async def search_explore_users(
         matches = [
             (uid, profile) for uid, profile in candidates if _matches_keyword(profile, query_lower)
         ]
+        if get_settings().embedding_enabled:
+            seen_uids = {uid for uid, _ in matches}
+            for uid, profile in await _vector_hits(db, q):
+                if uid != viewer_uid and uid not in seen_uids:
+                    seen_uids.add(uid)
+                    matches.append((uid, profile))
 
     if requester_tags is not None:
         matches.sort(
