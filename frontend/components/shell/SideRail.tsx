@@ -2,9 +2,11 @@
 
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
+import { useState } from "react";
 import { cn } from "@/lib/cn";
 import { KeyIcon } from "@/components/ui/icons";
 import { useAuth } from "@/lib/auth-context";
+import { PlanComparisonModal } from "@/components/PlanComparisonModal";
 import { NAV_ITEMS, navTarget, isNavActive } from "./nav-items";
 
 const ITEM =
@@ -19,6 +21,7 @@ export function SideRail() {
   const pathname = usePathname();
   const router = useRouter();
   const { user, loading, logout } = useAuth();
+  const [planOpen, setPlanOpen] = useState(false);
 
   async function handleLogout() {
     await logout();
@@ -61,6 +64,15 @@ export function SideRail() {
                 </span>
               )}
             </Link>
+            {/* 요금제 - 상시 진입점. 무료권/크레딧 잔량 배선은 백엔드 quota
+                엔드포인트 나오면 붙는다(지금은 잔량 없이 열려 "기본 제공" 표시). */}
+            <button
+              type="button"
+              onClick={() => setPlanOpen(true)}
+              className="rounded-sm px-3 py-1.5 text-left text-caption text-paper-lo transition-colors hover:bg-paper-soft hover:text-paper-ink"
+            >
+              요금제
+            </button>
             <button
               type="button"
               onClick={handleLogout}
@@ -83,6 +95,8 @@ export function SideRail() {
           </button>
         )}
       </div>
+
+      <PlanComparisonModal open={planOpen} onClose={() => setPlanOpen(false)} />
     </nav>
   );
 }
