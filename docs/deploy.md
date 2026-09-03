@@ -183,12 +183,19 @@ cd backend
 
 gcloud run deploy ourlab-backend \
   --source . \
+  --project ourlab-0808 \
   --region asia-northeast3 \
-  --platform managed \
-  --allow-unauthenticated \
-  --set-env-vars APP_ENV=production,FIRESTORE_PROJECT_ID=ourlab-0808 \
-  --set-secrets SECRET_KEY=secret-key:latest,ANTHROPIC_API_KEY=anthropic-api-key:latest,RESEND_API_KEY=resend-api-key:latest,DATA_GO_KR_API_KEY=data-go-kr-api-key:latest
+  --allow-unauthenticated
 ```
+
+> **환경변수/시크릿 플래그를 붙이지 말 것 (2026-09-03 실측).** 서비스에 이미
+> `APP_ENV`, `FIRESTORE_PROJECT_ID`, `CORS_ALLOWED_ORIGINS`, `KEY_ROTATED(_AT)`
+> 일반 env와 `ANTHROPIC_API_KEY`(Secret Manager, 동명 시크릿) 참조가 걸려 있고,
+> 플래그 없이 배포하면 전부 그대로 승계된다. 예전 문서의
+> `--set-secrets SECRET_KEY=secret-key:...` 4종 명령은 **존재하지 않는 시크릿**을
+> 참조해 리비전 생성이 통째로 실패하며(기본 컴퓨트 SA 권한 거부로 표시되지만
+> 실체는 시크릿 부재), 성공했다 해도 `CORS_ALLOWED_ORIGINS`를 날려버린다.
+> env를 바꿀 때는 `--update-env-vars KEY=value`(기존 값 보존·해당 키만 갱신)를 쓴다.
 
 - `--source .`는 `backend/Dockerfile`을 그대로 써서 Cloud Build가 이미지를
   빌드한다 (수정 완료 — `$PORT` 지원, 아래 "수정 사항" 참고).
