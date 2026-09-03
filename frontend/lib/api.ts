@@ -14,12 +14,17 @@ export class ApiError extends Error {
    * 일반 권한 없음(소유권 위반 등). detail 문자열 매칭은 i18n·문구 변경에 깨지므로
    * 호출부는 반드시 이 필드로 분기한다(백엔드 app/auth/deps.py:require_yonsei_verified). */
   authRequirement?: string;
+  /** 429의 X-Quota-Reason 응답 헤더 - "no-credit"이면 무료권·크레딧 소진이라
+   * 플랜 안내를 띄운다. authRequirement와 같은 이유로 detail 문자열이 아니라
+   * 이 필드로 분기한다(백엔드 constellation_intake 첫 /chat 게이트). */
+  quotaReason?: string;
 
-  constructor(status: number, detail: string, authRequirement?: string) {
+  constructor(status: number, detail: string, authRequirement?: string, quotaReason?: string) {
     super(detail);
     this.status = status;
     this.detail = detail;
     this.authRequirement = authRequirement;
+    this.quotaReason = quotaReason;
   }
 }
 
@@ -53,7 +58,12 @@ export async function request<T>(path: string, init?: RequestInit): Promise<T> {
     } catch {
       // JSON이 아닌 에러 응답은 기본 메시지 유지
     }
-    throw new ApiError(res.status, detail, res.headers.get("X-Auth-Requirement") ?? undefined);
+    throw new ApiError(
+      res.status,
+      detail,
+      res.headers.get("X-Auth-Requirement") ?? undefined,
+      res.headers.get("X-Quota-Reason") ?? undefined
+    );
   }
   if (res.status === 204) {
     return undefined as T;
