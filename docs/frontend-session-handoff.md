@@ -749,3 +749,24 @@ onStartNewConstellation), `page.tsx` 등이 미커밋 변경으로 존재.
 - 서브에이전트가 세션 한도(session limit)로 중간에 죽을 수 있음 — 부분 편집이 작업 트리에
   남으므로 재개 시 `git status`/`diff`로 실태 파악부터. 이번 세션에서 이 패턴으로 2개 죽고
   남은 절반을 메인 스레드가 인라인 마무리했음.
+
+---
+
+## 2026-09-04 — 요금제/한도 UX(라이브) + 2단계 가입 온보딩
+
+상세·근거는 메모리 [[project_signup_onboarding]] · [[project_pricing_llm_quota]] 와 커밋 메시지 참조.
+
+- **요금제·한도 UX 라이브 완료**(`ourlab-frontend-00026-rjz`): PlanComparisonModal·SideRail 진입점·
+  한도 배선(무료1→소진→요금제, 429 no-credit→플랜)·뒤로가기 안심 모달(`0d1bbd2`)·새 별자리
+  소모 확정. 무료는 **일회성 1개**(리셋 없음) — "오늘 N회" 카피 금지.
+- **2단계 가입 온보딩**(`db61e68`·`43a7f6a`·`af8a130`): `/signup`(계정)→`/onboarding`(학번10·학과·
+  복전?·학년int·관심사태그1~10·careerText?)→`/verify`. 폼 요소 `components/paper-form.tsx` 공용화.
+  `POST /api/profiles/onboarding`(camelCase, 백엔드 78). limbo 가드: 로그인 후
+  `GET /api/profiles/me/onboarding` false→`/onboarding`(login `resolveDestination`).
+- **동의 배치(확정)**: 온보딩=service(필수)·marketing(선택). **overseas(국외이전)는 온보딩서
+  빼고 인테이크 진입 시점으로**(2026-09-04 사용자 결정 B — 온보딩 데이터는 국내 Vertex만).
+  sensitive 별도동의 없음(careerText 중립톤 인라인 안내). careerText 안내는 겁주지 말 것.
+- **미완(내 소관 아닌 의존)**: ①인테이크 overseas 게이트 = 법적 본문(법무: Anthropic 실명·연락처·
+  보유기간, "무보관" 단정 금지) + 백엔드 동의기록 메커니즘 대기. ②가입/온보딩 **배포 보류** —
+  overseas 법적 본문 + 보안 재게이트 전까지(백엔드 78과 타이밍 합의). ③백엔드가 onboarding
+  계약에서 overseas 제거해야 스모크 422 안 남(요청 전달함).
