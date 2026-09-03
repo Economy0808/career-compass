@@ -33,7 +33,7 @@ from app.firestore.course_repo import upsert_courses
 from app.llm import get_llm_client
 from app.llm.mock_client import MockClaudeClient
 from app.main import app
-from app.services import bin_jobs
+from app.services import bin_jobs, bin_suggestion
 
 
 def _emulator_available() -> bool:
@@ -495,6 +495,69 @@ async def test_get_quota_shape_for_new_user(authed_as: Callable[[str], None]) ->
         resp = await client.get("/api/constellation-intake/quota")
         assert resp.status_code == 200
         assert resp.json() == {"freeCreditLeft": 1, "credits": 0, "hasOpenCycle": False}
+
+
+@pytest.mark.asyncio
+async def test_empty_bins_job_result_refunds_cycle(
+    authed_as: Callable[[str], None], monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """LLM/카탈로그가 빈 결과를 내는 것은 유저 잘못이 아니므로 사이클을 환불한다."""
+
+    async def _empty(*args: object, **kwargs: object) -> dict:
+        return {"bins": [], "drafts": []}
+
+    monkeypatch.setattr(bin_suggestion, "suggest_all_bins", _empty)
+
+    authed_as("user-a")
+    async with _client() as client:
+        await client.post(
+            "/api/constellation-intake/chat",
+            json={"goalRawText": _BUSINESS_GOAL, "messages": []},
+        )  # 무료 소진 + 사이클 오픈
+
+        resp = await client.post(
+            "/api/constellation-intake/bins", json={"goalText": _BUSINESS_GOAL}
+        )
+        job_id = resp.json()["jobId"]
+        data = await _poll_job(client, job_id)
+        assert data["status"] == "done"
+        assert data["result"]["bins"] == []
+
+        quota_resp = await client.get("/api/constellation-intake/quota")
+        quota = quota_resp.json()
+        assert quota["freeCreditLeft"] == 1  # 환불됨
+        assert quota["hasOpenCycle"] is False
+
+
+@pytest.mark.asyncio
+async def test_failed_bins_job_refunds_cycle(
+    authed_as: Callable[[str], None], monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """잡이 예외로 죽어도(bin_jobs가 status="error"로 기록) 사이클을 환불한다."""
+
+    async def _boom(*args: object, **kwargs: object) -> dict:
+        raise RuntimeError("LLM 다운 시뮬레이션")
+
+    monkeypatch.setattr(bin_suggestion, "suggest_all_bins", _boom)
+
+    authed_as("user-a")
+    async with _client() as client:
+        await client.post(
+            "/api/constellation-intake/chat",
+            json={"goalRawText": _BUSINESS_GOAL, "messages": []},
+        )
+
+        resp = await client.post(
+            "/api/constellation-intake/bins", json={"goalText": _BUSINESS_GOAL}
+        )
+        job_id = resp.json()["jobId"]
+        data = await _poll_job(client, job_id)
+        assert data["status"] == "error"
+
+        quota_resp = await client.get("/api/constellation-intake/quota")
+        quota = quota_resp.json()
+        assert quota["freeCreditLeft"] == 1
+        assert quota["hasOpenCycle"] is False
 
 
 @pytest.mark.asyncio

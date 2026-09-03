@@ -28,6 +28,7 @@ from httpx import ASGITransport, AsyncClient
 
 from app.auth.deps import get_current_user, get_current_user_optional
 from app.auth.firebase_auth import DecodedToken
+from app.firestore import quota_repo
 from app.firestore.client import get_firestore_client
 from app.main import app
 
@@ -1573,6 +1574,28 @@ async def test_publish_refreshes_profile_embedding(authed_as: Callable[[str], No
     embedding = list(doc["profile_embedding"])
     assert len(embedding) == 768
     assert all(isinstance(v, float) for v in embedding)
+
+
+@pytest.mark.asyncio
+async def test_publish_closes_open_quota_cycle(authed_as: Callable[[str], None]) -> None:
+    """발행(isPublished=True)이 진행 중인 별자리 "1사이클"을 환불 없이 닫는다."""
+    uid = "quota-publish-user"
+    authed_as(uid)
+    db = get_firestore_client()
+    quota_repo.consume_cycle(db, uid)  # 인테이크 대화 첫 엔터를 흉내낸다.
+
+    async with _client() as client:
+        cid = (
+            await client.post(
+                "/api/constellations", json={"title": "발행-쿼터", "goalRawText": "x"}
+            )
+        ).json()["id"]
+        resp = await client.patch(f"/api/constellations/{cid}/publish", json={"isPublished": True})
+        assert resp.status_code == 200
+
+    quota = quota_repo.get_quota(db, uid)
+    assert quota["hasOpenCycle"] is False
+    assert quota["freeCreditLeft"] == 0  # completed는 환불하지 않는다
 
 
 @pytest.mark.asyncio

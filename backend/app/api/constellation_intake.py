@@ -178,11 +178,21 @@ async def fill_bin(
 async def job_status(
     job_id: str,
     user: DecodedToken = Depends(require_yonsei_verified),
+    db: Client = Depends(get_firestore_client),
 ) -> JobStatusOut:
-    """보관함 제안 잡 상태 폴링. 작성자 본인만 조회 가능(타인 잡은 404로 위장)."""
+    """보관함 제안 잡 상태 폴링. 작성자 본인만 조회 가능(타인 잡은 404로 위장).
+
+    잡이 error로 끝났거나 done인데 bins가 비었으면(유저 잘못이 아니라 LLM/카탈로그
+    쪽 실패), 그 잡을 만든 /chat 대화의 사이클을 환불한다(outcome="refund"). uid는
+    bin_jobs.get_job이 이미 소유권을 검증했으므로 여기서 그대로 쓴다.
+    close_cycle은 열린 사이클이 없으면 no-op이라(quota_repo.py 참고), 폴링이 같은
+    done/error 상태를 여러 번 조회해도 중복 환불되지 않는다.
+    """
     job = bin_jobs.get_job(job_id, user.uid)
     if job is None:
         raise _JOB_NOT_FOUND
+    if job.status == "error" or (job.status == "done" and not (job.result or {}).get("bins")):
+        quota_repo.close_cycle(db, user.uid, outcome="refund")
     return JobStatusOut(status=job.status, result=job.result, detail=job.detail)
 
 

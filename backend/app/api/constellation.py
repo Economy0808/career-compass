@@ -15,6 +15,7 @@ HTTP 상태코드로 옮기는 얇은 어댑터 역할만 한다 - 소유권 로
 
 from __future__ import annotations
 
+import logging
 import uuid
 from collections.abc import Callable
 from datetime import UTC, datetime
@@ -26,7 +27,7 @@ from google.cloud.firestore import Client
 from app.auth.deps import get_current_user, get_current_user_optional, require_yonsei_verified
 from app.auth.firebase_auth import DecodedToken
 from app.domain.constellation import Constellation, Note, Position, compute_interest_tags
-from app.firestore import constellation_repo, note_repo, user_repo
+from app.firestore import constellation_repo, note_repo, quota_repo, user_repo
 from app.firestore.client import get_firestore_client
 from app.firestore.constellation_repo import (
     ConstellationNotFoundError,
@@ -62,6 +63,8 @@ from app.schemas.constellation import (
     note_to_out,
 )
 from app.services.profile_embedding import refresh_profile_embedding
+
+logger = logging.getLogger(__name__)
 
 router = APIRouter(prefix="/api/constellations", tags=["constellations"])
 
@@ -211,6 +214,11 @@ async def set_published(
     프로필 임베딩(users.profile_embedding)도 같은 참에 재계산한다
     (app/services/profile_embedding.py 참고) - 실패해도(임베딩 API 오류 등)
     이 핸들러의 응답에는 영향을 주지 않는다(자체적으로 예외를 삼킨다).
+
+    발행(is_published=True)으로 갈 때는 진행 중인 별자리 "1사이클"도 함께
+    닫는다(outcome="completed", 환불 없음) - 인테이크 대화를 거쳐 결국 발행까지
+    끝냈다는 뜻이므로 정상 소비다. refresh_profile_embedding과 같은 이유로
+    실패를 이 핸들러 응답과 격리한다(쿼터 정리 실패가 발행 자체를 막으면 안 됨).
     """
     updated = _translate_repo_errors(constellation_repo.set_published)(
         db,
@@ -224,6 +232,11 @@ async def set_published(
     published = constellation_repo.list_published_by_owner(db, user.uid)
     user_repo.set_interest_tags(db, user.uid, compute_interest_tags(published))
     await refresh_profile_embedding(db, user.uid, published=published)
+    if payload.is_published:
+        try:
+            quota_repo.close_cycle(db, user.uid, outcome="completed")
+        except Exception:
+            logger.warning("발행 후 사이클 종료 실패 uid=%s", user.uid, exc_info=True)
     return constellation_to_out(updated)
 
 
