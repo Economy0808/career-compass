@@ -36,6 +36,29 @@
 >   프롬프트에 "이미 물은 것 재질문 금지" + 상한 하향 검토 필요.
 > - 데모 계정 5개(demo-hyun/jiho/areum/taein/somin) 라이브 disable+클레임 회수됨. 체험은
 >   test-observer(인증)·demo-unverified(미인증)·/demo(비로그인) 3계층만.
+> - **cluster_courses 원가 절감 — 3세션(백/프론트/보안) 논의 확정, 구현 미착수(다음 세션)**:
+>   실측(count_tokens, 라이브 800후보): **description = 입력의 67%**(72,616/107,825 tok).
+>   초기 추정("트림 헤드룸 작음")이 실측으로 뒤집힘.
+>   **최종 2축, 개인정보·서비스핵심 얽힘 0**:
+>   ① **description 조건부 트림**(anthropic_client.py:799, catalog 조립부): 사이클 478→~360원
+>      (조건부, -24%) ~ ~250원(full, -47%). 1파일, 다운스트림·스키마 무변경. **PIPA 0**(공개
+>      과목데이터 삭제, goal_text 무접촉). `_needs_desc`(불투명명만 desc 유지) 기준은 **감이 아니라
+>      품질 A/B로 결정**(desc 빼서 나빠지는 과목 부류를 데이터로 뽑아 조건화). 전공세미나·특강·
+>      캡스톤·"OO의이해" 류가 후보.
+>   ② **cluster만 Haiku 강등**: 사이클 ~200원(목표선). **전용 노브 `llm_cluster_model` 필수**
+>      (현재 llm_extract_model을 chat·extract·select_departments가 공유 → 그냥 내리면 대화까지
+>      강등). 함정 유지: thinking off + max_tokens 20000(작은 max+thinking=JSON잘림, 3회 반복).
+>   출력 46원은 하드 플로어(입력 레버로 못 내림, Haiku만 절반).
+>   **임베딩 사전필터(⑤)는 후순위**: 트림+Haiku로 목표 달성이라 불필요. ⑤ 채택 시에만 미발행
+>      goal→Vertex PIPA(별도동의·처리방침) 부활. 트림과 substitute라 스택 안 함.
+>   **캐싱**: 지금 켜면 손해(쓰기 1.25×, 유저 9명 히트≈0). 규모 임계 도달 시 catalog만 캐시 블록
+>      (학과셋 키)·goal은 꼬리 user turn(cache_control 밖 — chat():363 선례). S난이도, 백로그.
+>   **가입 학과·복전 필수 수집**(사용자 지시): 프로필·그라운딩·검색용. **단 후보를 학과로 하드
+>      한정 금지** — select_relevant_departments(goal) 유지해 교차학문 살림(경영학생이 데이터
+>      사이언스 목표 시 컴공·통계 과목 필요). 학과는 후보에 **더하는 시드**(∪)지 가두는 필터 아님.
+>   **PIPA 백로그(감사 §5 라이브 항목)**: 인테이크 자유서술이 이미 Anthropic行(민감정보 우발
+>      가능·PIPA 23조 별도동의 미비). ⑤와 무관하게 처리 대상. 가입 자유서술 추가 시 별도 명시동의
+>      (단일 체크박스에 묶으면 무효). 학과 기본 비공개(firestore.rules, 스키마 확정 후 반영).
 
 > **23차 (8/31) — 배포했다. 로컬 프로토타입이 아니라 라이브 서비스가 됐다**:
 > - **라이브**: 프론트 `https://ourlab-frontend-902034641778.asia-northeast3.run.app`,
