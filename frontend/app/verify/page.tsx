@@ -1,21 +1,68 @@
 "use client";
 
+/*
+ * 이메일/학부생 인증 - login·signup과 같은 세계에 놓인 화면.
+ * 사용자 지시: 서비스 이용 전 부대 작업(로그인·회원가입·이메일 인증 등)은 모두
+ * 랜딩페이지와 같은 테마의 페이지에서 진행해야 한다 - 다크월드 앱 셸(SideRail
+ * 포함) 안이 아니라 login/page.tsx와 동일한 밝은 종이 오버레이여야 한다.
+ * 로직(폴링·재발송 쿨다운·라우팅 가드)은 손대지 않았다, 마크업/클래스만 바뀌었다.
+ */
+
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useEffect, useRef, useState } from "react";
 import { sendEmailVerification } from "firebase/auth";
-import { Button, Card } from "@/components/ui";
 import { cn } from "@/lib/cn";
 import { getFirebaseAuth } from "@/lib/firebase";
 import { useAuth } from "@/lib/auth-context";
 
+/** 오류 문구용 잉크 섞은 붉은색 - login/page.tsx와 같은 이유(밝은 종이 위에서
+ * spec-m 원색은 대비가 모자란다). 새 hex를 만들지 않고 팔레트 안에서 섞어 쓴다. */
+const PAPER_DANGER = "color-mix(in srgb, var(--spec-m) 55%, var(--paper-ink))";
+
+const BUTTON_PRIMARY =
+  "cta-ink inline-flex w-full items-center justify-center gap-2 rounded-md bg-paper-ink px-5 py-2.5 text-body-sm font-semibold text-paper transition-[filter,background-color] duration-150 disabled:pointer-events-none disabled:opacity-50";
+const BUTTON_SECONDARY =
+  "inline-flex w-full items-center justify-center gap-2 rounded-sm border border-paper-line bg-paper-soft px-3.5 py-1.5 text-caption font-semibold text-paper-ink transition-colors hover:bg-paper-line/50 disabled:pointer-events-none disabled:opacity-50";
 const LINK_PRIMARY =
-  "flex-1 rounded-md border border-transparent bg-spec-b p-3 text-center text-body-sm font-bold text-ink-900 no-underline transition-[filter] duration-150 hover:brightness-110";
+  "flex-1 rounded-md border border-transparent bg-paper-ink p-3 text-center text-body-sm font-bold text-paper no-underline";
 const LINK_SECONDARY =
-  "rounded-md border border-rule bg-spec-b/12 p-3 text-center text-body-sm font-semibold text-spec-b no-underline transition-colors hover:bg-spec-b/20";
+  "rounded-md border border-paper-line bg-paper-soft p-3 text-center text-body-sm font-semibold text-paper-ink no-underline transition-colors hover:bg-paper-line/50";
 
 const RESEND_COOLDOWN_SECONDS = 30;
 const POLL_INTERVAL_MS = 5000;
+
+/** 성도 인쇄물의 외곽 계선 + 오버레이 - login/page.tsx와 동일한 판형. 로딩
+ * 상태(이른 return)와 본문 상태 둘 다 이 틀 안에서 렌더된다. */
+function PaperFrame({ children }: { children: React.ReactNode }) {
+  return (
+    <div
+      className="paper-surface bg-paper-grid fixed inset-0 z-[60] overflow-y-auto overflow-x-hidden"
+      style={{ backgroundColor: "var(--paper)", color: "var(--paper-ink)" }}
+    >
+      <div
+        aria-hidden
+        className="pointer-events-none fixed inset-4 border md:inset-7"
+        style={{ borderColor: "var(--paper-line)" }}
+      />
+      <header className="absolute inset-x-4 top-4 z-10 flex items-center justify-between px-6 py-5 md:inset-x-7 md:top-7 md:px-9">
+        <Link
+          href="/"
+          className="font-serif text-title font-bold tracking-wide no-underline"
+          style={{ color: "var(--paper-ink)" }}
+        >
+          OurLab
+        </Link>
+        <Link href="/demo" className="text-body-sm" style={{ color: "var(--paper-lo)" }}>
+          둘러보기
+        </Link>
+      </header>
+      <div className="flex min-h-full items-center justify-center px-6 py-24">
+        <div className="w-full max-w-[420px] rounded-lg border border-paper-line bg-paper p-8">{children}</div>
+      </div>
+    </div>
+  );
+}
 
 export default function VerifyPage() {
   const router = useRouter();
@@ -59,9 +106,9 @@ export default function VerifyPage() {
 
   if (loading || !user) {
     return (
-      <div className="mx-auto w-full max-w-md py-16 text-center">
-        <p className="animate-pulse text-body-sm text-text-lo">확인 중…</p>
-      </div>
+      <PaperFrame>
+        <p className="animate-pulse text-center text-body-sm text-paper-lo">확인 중…</p>
+      </PaperFrame>
     );
   }
 
@@ -115,44 +162,49 @@ export default function VerifyPage() {
   const body = !user.emailVerified ? (
     <div className="text-center">
       <div className="text-5xl">📧</div>
-      <h2 className="mt-3 font-serif text-title font-bold text-text-hi">이메일 인증이 필요해요</h2>
-      <p className="mt-2 text-body-sm leading-relaxed text-text-lo">
-        <b className="text-text-hi">{user.email}</b>로 인증 메일을 보냈어요.
+      <h2 className="mt-3 font-serif text-title font-bold text-paper-ink">이메일 인증이 필요해요</h2>
+      <p className="mt-2 text-body-sm leading-relaxed text-paper-lo">
+        <b className="text-paper-ink">{user.email}</b>로 인증 메일을 보냈어요.
         <br />
         메일함의 링크를 눌러 인증을 완료해주세요.
       </p>
       <div className="mt-6 flex flex-col gap-2">
-        <Button type="button" variant="primary" size="md" fullWidth disabled={pending} onClick={checkVerified}>
+        <button type="button" disabled={pending} onClick={checkVerified} className={BUTTON_PRIMARY}>
           {pending ? "확인 중…" : "인증 완료했어요"}
-        </Button>
-        <Button
+        </button>
+        <button
           type="button"
-          variant="secondary"
-          size="sm"
-          fullWidth
           disabled={pending || resendCooldown > 0}
           onClick={resendEmail}
+          className={BUTTON_SECONDARY}
         >
           {resendCooldown > 0 ? `재발송 (${resendCooldown}초 후 가능)` : "인증 메일 다시 보내기"}
-        </Button>
+        </button>
       </div>
-      {notice && !error && <p className="mt-3 text-caption text-lit">{notice}</p>}
-      {error && <p className="mt-3 text-caption text-spec-m">{error}</p>}
+      {notice && !error && <p className="mt-3 text-caption text-paper-ink">{notice}</p>}
+      {error && (
+        <p className="mt-3 text-caption" style={{ color: PAPER_DANGER }}>
+          {error}
+        </p>
+      )}
     </div>
   ) : user.yonseiVerified ? (
     <div className="text-center">
       <div className="text-5xl">✨</div>
-      <h2 className="mt-3 font-serif text-title font-bold text-text-hi">
+      <h2 className="mt-3 font-serif text-title font-bold text-paper-ink">
         연세대 학부생 인증 완료!
       </h2>
-      <p className="mt-2 text-body-sm text-text-lo">
+      <p className="mt-2 text-body-sm text-paper-lo">
         학교 이메일로 인증됐어요. 이제 나만의 별자리를 만들 수 있어요.
       </p>
       <div className="mt-6 flex gap-2">
         <Link href="/constellation/new" className={LINK_PRIMARY}>
           별자리 생성하기
         </Link>
-        <Link href="/" className={cn(LINK_SECONDARY, "flex-1")}>
+        {/* 인증을 마친 사용자의 "둘러보기"는 랜딩이 아니라 메인 캔버스다
+            (사용자 지시 2026-09-03: "이메일인증하고 둘러보기 누르면 메인
+            캔버스로 이동해야지"). 비로그인 체험(/demo)과는 다른 동선. */}
+        <Link href="/constellation/new" className={cn(LINK_SECONDARY, "flex-1")}>
           둘러보기
         </Link>
       </div>
@@ -160,24 +212,29 @@ export default function VerifyPage() {
   ) : (
     <div className="text-center">
       <div className="text-5xl">🎓</div>
-      <h2 className="mt-3 font-serif text-title font-bold text-text-hi">연세대 학부생 인증</h2>
-      <p className="mt-2 text-body-sm leading-relaxed text-text-lo">
+      <h2 className="mt-3 font-serif text-title font-bold text-paper-ink">연세대 학부생 인증</h2>
+      <p className="mt-2 text-body-sm leading-relaxed text-paper-lo">
         학번@yonsei.ac.kr 메일로 가입하면 자동으로 인증돼요.
         <br />
         학생증 인증은 아직 준비 중이에요.
       </p>
-      <Button type="button" variant="secondary" size="md" fullWidth disabled className="mt-6">
+      <button
+        type="button"
+        disabled
+        className={cn(
+          "mt-6 inline-flex w-full items-center justify-center gap-2 rounded-md border border-paper-line bg-paper-soft px-5 py-2.5 text-body-sm font-semibold text-paper-ink",
+          "disabled:pointer-events-none disabled:opacity-50"
+        )}
+      >
         학생증 인증 (준비 중)
-      </Button>
-      <Link href="/" className={cn(LINK_SECONDARY, "mt-3 block w-full")}>
+      </button>
+      {/* 로그인+미인증도 캔버스 열람은 사양(3계층: 미인증=열람) - 랜딩으로
+          보내면 갈 곳이 없다. 위 인증 완료 상태와 같은 동선. */}
+      <Link href="/constellation/new" className={cn(LINK_SECONDARY, "mt-3 block w-full")}>
         둘러보기
       </Link>
     </div>
   );
 
-  return (
-    <div className="mx-auto flex min-h-[76dvh] w-full max-w-md flex-col justify-center">
-      <Card className="p-8">{body}</Card>
-    </div>
-  );
+  return <PaperFrame>{body}</PaperFrame>;
 }

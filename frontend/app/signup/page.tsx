@@ -1,9 +1,18 @@
 "use client";
 
+/*
+ * 회원가입 - 로그인(login/page.tsx)과 같은 세계에 놓인 화면.
+ *
+ * 사용자 지시: "로그인페이지에서 회원가입 누르면 이 테마로 이동되는데, 로그인,
+ * 회원가입, 이메일 인증 등등 서비스 이용 전 부대 작업은 모두 랜딩페이지와 같은
+ * 테마의 페이지에서 진행해야해." 즉 다크월드 앱 셸(SideRail 포함) 안이 아니라
+ * login/page.tsx와 동일한 밝은 종이 오버레이여야 한다 - 구조는 그쪽을 그대로 따른다.
+ * 로직(핸들러·검증·API 호출)은 손대지 않았다, 마크업/클래스만 바뀌었다.
+ */
+
 import Link from "next/link";
 import { useRouter } from "next/navigation";
 import { useState } from "react";
-import { Button, Card, Field } from "@/components/ui";
 import { cn } from "@/lib/cn";
 import { useAuth } from "@/lib/auth-context";
 
@@ -22,6 +31,32 @@ function toKoreanError(err: unknown): string {
     default:
       return "가입에 실패했어요. 다시 시도해주세요.";
   }
+}
+
+/** 오류 문구용 잉크 섞은 붉은색 - login/page.tsx와 같은 이유(밝은 종이 위에서
+ * spec-m 원색은 대비가 모자란다). 새 hex를 만들지 않고 팔레트 안에서 섞어 쓴다. */
+const PAPER_DANGER = "color-mix(in srgb, var(--spec-m) 55%, var(--paper-ink))";
+
+/** 종이 위 입력칸 - 다크월드용 Field 컴포넌트(19개 파일이 공유) 대신 이 세계의
+ * 재질로 그린다. focus-visible 아웃라인 레시피는 LaunchModal.tsx·design-handoff
+ * 가이드 §3의 정본 표기를 그대로 따른다. */
+function PaperField({
+  id,
+  label,
+  ...rest
+}: { id: string; label: string } & React.InputHTMLAttributes<HTMLInputElement>) {
+  return (
+    <div className="flex flex-col gap-1.5">
+      <label htmlFor={id} className="text-caption font-semibold text-paper-lo">
+        {label}
+      </label>
+      <input
+        id={id}
+        className="w-full rounded-md border border-paper-line bg-paper px-3.5 py-2.5 font-sans text-body text-paper-ink placeholder:text-paper-lo focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-1 focus-visible:outline-paper-ink"
+        {...rest}
+      />
+    </div>
+  );
 }
 
 export default function SignupPage() {
@@ -71,102 +106,135 @@ export default function SignupPage() {
   }
 
   return (
-    <div className="mx-auto flex min-h-[76dvh] w-full max-w-md flex-col justify-center">
-      <Card className="p-8">
-        <h1 className="font-serif text-display font-bold text-text-hi">새 계정 만들기</h1>
-        <p className="mb-6 mt-[7px] text-body-sm leading-relaxed text-text-lo">
-          연세대 학부생 전용 커뮤니티예요. 가입 후 이메일 인증과 학부생 인증을 거쳐요.
-        </p>
+    <div
+      className="paper-surface bg-paper-grid fixed inset-0 z-[60] overflow-y-auto overflow-x-hidden"
+      style={{ backgroundColor: "var(--paper)", color: "var(--paper-ink)" }}
+    >
+      {/* 성도 인쇄물의 외곽 계선 - 랜딩·로그인과 같은 판형 */}
+      <div
+        aria-hidden
+        className="pointer-events-none fixed inset-4 border md:inset-7"
+        style={{ borderColor: "var(--paper-line)" }}
+      />
 
-        <form onSubmit={submit} className="flex flex-col gap-3">
-          <Field
-            id="signup-email"
-            label="이메일"
-            type="email"
-            autoFocus
-            value={email}
-            onChange={(e) => setEmail(e.target.value)}
-            autoComplete="email"
-          />
-          {isYonseiEmail && (
-            <p className="text-caption text-lit">
-              ✨ 연세대 이메일이네요 — 이메일 인증만으로 학부생 인증까지 한 번에 끝나요.
-            </p>
-          )}
-          <Field
-            id="signup-password"
-            label="비밀번호 (8자 이상, 문자+숫자)"
-            type="password"
-            value={password}
-            onChange={(e) => setPassword(e.target.value)}
-            autoComplete="new-password"
-          />
-          <Field
-            id="signup-password-confirm"
-            label="비밀번호 확인"
-            type="password"
-            value={passwordConfirm}
-            onChange={(e) => setPasswordConfirm(e.target.value)}
-            autoComplete="new-password"
-          />
-          <Field
-            id="signup-display-name"
-            label="닉네임"
-            value={displayName}
-            onChange={(e) => setDisplayName(e.target.value)}
-            maxLength={30}
-          />
-          <div className="flex flex-wrap gap-1.5">
-            {EMOJI_CHOICES.map((c) => (
-              <button
-                key={c}
-                type="button"
-                onClick={() => setEmoji(c)}
-                aria-pressed={emoji === c}
-                className={cn(
-                  "flex h-9 w-9 items-center justify-center rounded-md border text-heading transition-colors",
-                  emoji === c
-                    ? "border-spec-b bg-spec-b/15 text-spec-b"
-                    : "border-rule bg-transparent hover:bg-spec-b/8"
-                )}
-              >
-                {c}
-              </button>
-            ))}
-          </div>
-          <label className="mt-1 flex cursor-pointer items-start gap-2 text-caption leading-relaxed text-text-lo">
-            <input
-              type="checkbox"
-              checked={consent}
-              onChange={(e) => setConsent(e.target.checked)}
-              className="mt-0.5 accent-spec-b"
+      <header className="absolute inset-x-4 top-4 z-10 flex items-center justify-between px-6 py-5 md:inset-x-7 md:top-7 md:px-9">
+        <Link
+          href="/"
+          className="font-serif text-title font-bold tracking-wide no-underline"
+          style={{ color: "var(--paper-ink)" }}
+        >
+          OurLab
+        </Link>
+        <Link href="/demo" className="text-body-sm" style={{ color: "var(--paper-lo)" }}>
+          둘러보기
+        </Link>
+      </header>
+
+      <div className="flex min-h-full items-center justify-center px-6 py-24">
+        <div className="w-full max-w-[420px] rounded-lg border border-paper-line bg-paper p-8">
+          <h1 className="font-serif text-display font-bold text-paper-ink">새 계정 만들기</h1>
+          <p className="mb-6 mt-[7px] text-body-sm leading-relaxed text-paper-lo">
+            연세대 학부생 전용 커뮤니티예요. 가입 후 이메일 인증과 학부생 인증을 거쳐요.
+          </p>
+
+          <form onSubmit={submit} className="flex flex-col gap-3">
+            <PaperField
+              id="signup-email"
+              label="이메일"
+              type="email"
+              autoFocus
+              value={email}
+              onChange={(e) => setEmail(e.target.value)}
+              autoComplete="email"
             />
-            <span>
-              이메일·닉네임·(선택 시) 학생증 이미지를 회원 확인 목적으로 수집·이용하는 데
-              동의합니다. 학생증 이미지는 심사 즉시 파기돼요.{" "}
-              <Link href="/privacy" className="font-semibold text-spec-b">
-                개인정보 처리방침
-              </Link>
-            </span>
-          </label>
-          {error && <p className="text-caption text-spec-m">{error}</p>}
-          <Button type="submit" variant="primary" size="md" fullWidth disabled={pending} className="mt-1">
-            {pending ? "심는 중…" : "가입하기"}
-          </Button>
-        </form>
+            {isYonseiEmail && (
+              <p className="text-caption text-paper-ink">
+                ✨ 연세대 이메일이네요 — 이메일 인증만으로 학부생 인증까지 한 번에 끝나요.
+              </p>
+            )}
+            <PaperField
+              id="signup-password"
+              label="비밀번호 (8자 이상, 문자+숫자)"
+              type="password"
+              value={password}
+              onChange={(e) => setPassword(e.target.value)}
+              autoComplete="new-password"
+            />
+            <PaperField
+              id="signup-password-confirm"
+              label="비밀번호 확인"
+              type="password"
+              value={passwordConfirm}
+              onChange={(e) => setPasswordConfirm(e.target.value)}
+              autoComplete="new-password"
+            />
+            <PaperField
+              id="signup-display-name"
+              label="닉네임"
+              value={displayName}
+              onChange={(e) => setDisplayName(e.target.value)}
+              maxLength={30}
+            />
+            <div className="flex flex-wrap gap-1.5">
+              {EMOJI_CHOICES.map((c) => (
+                <button
+                  key={c}
+                  type="button"
+                  onClick={() => setEmoji(c)}
+                  aria-pressed={emoji === c}
+                  className={cn(
+                    "flex h-9 w-9 items-center justify-center rounded-md border text-heading transition-colors",
+                    emoji === c
+                      ? "border-paper-ink bg-paper-soft text-paper-ink"
+                      : "border-paper-line bg-transparent text-paper-lo hover:bg-paper-soft"
+                  )}
+                >
+                  {c}
+                </button>
+              ))}
+            </div>
+            <label className="mt-1 flex cursor-pointer items-start gap-2 text-caption leading-relaxed text-paper-lo">
+              <input
+                type="checkbox"
+                checked={consent}
+                onChange={(e) => setConsent(e.target.checked)}
+                className="mt-0.5 accent-[var(--paper-ink)]"
+              />
+              <span>
+                이메일·닉네임·(선택 시) 학생증 이미지를 회원 확인 목적으로 수집·이용하는 데
+                동의합니다. 학생증 이미지는 심사 즉시 파기돼요.{" "}
+                <Link href="/privacy" className="font-semibold text-paper-ink">
+                  개인정보 처리방침
+                </Link>
+              </span>
+            </label>
+            {error && (
+              <p role="alert" className="text-caption" style={{ color: PAPER_DANGER }}>
+                {error}
+              </p>
+            )}
+            <button
+              type="submit"
+              disabled={pending}
+              className="cta-ink mt-1 flex w-full items-center justify-center gap-2 rounded-md bg-paper-ink px-5 py-2.5 text-body-sm font-semibold text-paper transition-[filter,background-color] duration-150 disabled:pointer-events-none disabled:opacity-50"
+            >
+              {pending ? "심는 중…" : "가입하기"}
+            </button>
+          </form>
 
-        <p className="mt-5 text-center text-body-sm text-text-lo">
-          이미 계정이 있나요?{" "}
-          <Link href="/login" className="font-semibold text-spec-b">
-            로그인
-          </Link>
-        </p>
-        <p className="mt-2 text-center text-body-sm text-text-lo">
-          <Link href="/demo" className="font-semibold text-spec-b">
-            로그인 없이 둘러보기
-          </Link>
-        </p>
-      </Card>
+          <p className="mt-5 text-center text-body-sm text-paper-lo">
+            이미 계정이 있나요?{" "}
+            <Link href="/login" className="font-semibold text-paper-ink">
+              로그인
+            </Link>
+          </p>
+          <p className="mt-2 text-center text-body-sm text-paper-lo">
+            <Link href="/demo" className="font-semibold text-paper-ink">
+              로그인 없이 둘러보기
+            </Link>
+          </p>
+        </div>
+      </div>
     </div>
   );
 }
