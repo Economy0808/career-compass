@@ -397,11 +397,13 @@ def test_compute_interest_tags_excludes_generic_manual_courses_bin_label() -> No
     assert compute_interest_tags(constellations) == ["목표 관련 군집"]
 
 
-def test_compute_interest_tags_generic_only_bin_contributes_nothing() -> None:
-    """고정 일반 bin 하나만 있는 별자리는(다른 bin·group 없음) '노드 라벨로 폴백'하지
-    않는다 - bin 존재 여부로 폴백을 판단하므로, 필터링 후 후보가 없어도 그 별자리는
-    태그에 아무것도 기여하지 않는다(노드 라벨을 대신 쓰지 않음). 이 동작은 명세의
-    문언 그대로("bin·group이 하나도 없으면 폴백")를 따른 설계 판단이다.
+def test_compute_interest_tags_generic_only_bin_falls_back_to_nodes() -> None:
+    """고정 일반 bin("내가 담은 수업") 하나만 있는 별자리는(다른 bin·group 없음)
+    노드 라벨로 폴백한다 - 폴백 판정이 "raw bin 존재"가 아니라 "필터 후 의미
+    라벨이 남는가"이기 때문이다. 프론트가 모든 별자리에 이 고정 빈을 자동
+    삽입하므로, 만약 raw 존재로 판단하면 노드 폴백이 절대 안 터지고 이런
+    별자리는 검색에서 사라진다(2026-09-03 실측 발견). 과목명 태그가 이상적이진
+    않지만 '태그 0개 = 검색에서 소멸'보다는 낫다는 판단이다.
     """
     constellations = [
         _make_constellation(
@@ -411,4 +413,4 @@ def test_compute_interest_tags_generic_only_bin_contributes_nothing() -> None:
             updated_at=datetime(2026, 1, 1),
         )
     ]
-    assert compute_interest_tags(constellations) == []
+    assert compute_interest_tags(constellations) == ["회계원리(1)"]

@@ -296,16 +296,26 @@ def _semantic_labels(constellation: Constellation) -> list[str]:
     """별자리 하나에서 태그 후보로 쓸 원천 라벨들을 우선순위대로 고른다.
 
     ①bin·group 라벨(LLM이 목표에 맞춰 짓거나 유저가 캔버스에서 붙인 의미
-    어휘) 우선 - 하나라도 있으면 그것만 쓴다. ②이 별자리에 bin·group이
-    하나도 없으면(구 별자리 등) 노드 라벨(과목명 등)로 폴백한다. 이 폴백은
-    별자리 단위 판단이다 - 어떤 별자리는 bin을, 다른 별자리는 node를 쓸 수
-    있다. 고정 일반 라벨(_GENERIC_BIN_LABELS) 제외와 빈 문자열 트림은
-    호출부(compute_interest_tags)에서 공통으로 처리한다.
+    어휘) 우선 - 트림·고정 일반 라벨(_GENERIC_BIN_LABELS) 제외 후 **쓸 수 있는
+    의미 라벨이 하나라도 남으면** 그것만 쓴다. ②남는 게 없으면(구 별자리이거나,
+    프론트가 모든 별자리에 자동 삽입하는 고정 빈 "내가 담은 수업" 하나뿐이라
+    제외 후 빈손인 경우) 노드 라벨(과목명 등)로 폴백한다.
+
+    폴백 판정을 "raw bin·group이 존재하는가"가 아니라 "필터 후 남는가"로 두는
+    이유: ensureManualCoursesBin이 목표와 무관하게 모든 별자리에 고정 빈을
+    넣으므로, 전자로 판정하면 노드 폴백이 사실상 절대 안 터지고 그런 별자리는
+    태그에 아무것도 기여하지 못해 검색에서 사라진다(2026-09-03 실측 발견).
+    이 폴백은 별자리 단위 판단이다 - 어떤 별자리는 bin을, 다른 별자리는 node를
+    쓸 수 있다. 빈 문자열/고정 라벨 최종 제외는 호출부에서 한 번 더 공통 처리한다.
     """
-    if constellation.bins or constellation.groups:
-        return [b.label for b in constellation.bins] + [
-            g.label for g in constellation.groups.values()
-        ]
+    semantic = [
+        label
+        for raw in [b.label for b in constellation.bins]
+        + [g.label for g in constellation.groups.values()]
+        if (label := raw.strip()) and label not in _GENERIC_BIN_LABELS
+    ]
+    if semantic:
+        return semantic
     return [node.label for node in constellation.nodes.values()]
 
 
