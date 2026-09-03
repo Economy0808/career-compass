@@ -184,6 +184,18 @@ async def list_explore_users(
     ]
 
 
+def _tag_matches_query(tag_lower: str, query_lower: str) -> bool:
+    """관심사 태그 하나와 검색어를 양방향 부분일치로 비교한다.
+
+    편도(검색어가 태그의 substring)만 보면 "빅데이터"로 검색했는데 태그가
+    "빅데이터분석"이어야만 걸리는 문제가 있었다 - 태그가 검색어의 substring인
+    경우(예: q="빅데이터분석실무", tag="빅데이터")도 매칭시켜야 실사용 검색어
+    길이 차이를 흡수한다. 롤백하면 이 함수 이전의 편도(query in tag) 규칙으로
+    돌아간다.
+    """
+    return query_lower in tag_lower or tag_lower in query_lower
+
+
 def _keyword_match_count(profile: dict[str, Any], query_lower: str) -> int:
     """검색어가 프로필의 몇 군데(표시 이름/소개/관심사 태그 각각)에 걸리는지 센다.
 
@@ -191,7 +203,7 @@ def _keyword_match_count(profile: dict[str, Any], query_lower: str) -> int:
     수를 잴 수 없으니, 대신 "이 검색어 자체와 얼마나 관련 있어 보이는가"로 대체한다.
     """
     tags = profile.get("interest_tags") or []
-    count = sum(1 for tag in tags if query_lower in tag.lower())
+    count = sum(1 for tag in tags if _tag_matches_query(tag.lower(), query_lower))
     if query_lower in (profile.get("display_name") or "").lower():
         count += 1
     if query_lower in (profile.get("bio") or "").lower():

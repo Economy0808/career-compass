@@ -322,6 +322,37 @@ async def test_search_keyword_matches_interest_tag(
 
 
 @pytest.mark.asyncio
+async def test_search_keyword_matches_interest_tag_bidirectionally(
+    authed_as: Callable[[str], None],
+) -> None:
+    """검색어가 태그보다 길어 태그를 감싸는 경우(태그가 검색어의 substring)도
+    매칭돼야 한다 - 편도(검색어가 태그의 substring)만 보면 q="빅데이터"인데
+    태그가 "빅데이터"보다 짧은 실사용 태그(예: "AI")와는 애초에 안 걸리므로,
+    반대로 태그가 짧고 검색어가 긴 경우로 검증한다: 태그="빅데이터", 검색어=
+    "빅데이터분석" - 태그가 검색어에 포함되므로 매칭돼야 한다.
+    """
+    _seed_user(
+        "tag-substring-of-query",
+        display_name="아무개",
+        interest_tags=["빅데이터"],
+        updated_at=datetime(2026, 1, 1, tzinfo=UTC),
+    )
+    _seed_user(
+        "tag-unrelated",
+        display_name="다른아무개",
+        interest_tags=["미술"],
+        updated_at=datetime(2026, 1, 1, tzinfo=UTC),
+    )
+    authed_as("keyword-viewer")
+    async with _client() as client:
+        resp = await client.get("/api/explore/search", params={"q": "빅데이터분석"})
+    assert resp.status_code == 200
+    uids = [item["uid"] for item in resp.json()]
+    assert "tag-substring-of-query" in uids
+    assert "tag-unrelated" not in uids
+
+
+@pytest.mark.asyncio
 async def test_search_sorts_by_viewer_interest_overlap_when_logged_in(
     authed_as: Callable[[str], None],
 ) -> None:
