@@ -51,6 +51,17 @@ class Settings(BaseSettings):
     # 주소로 제한된다 (제3자 수신은 도메인 검증 후에 열린다).
     email_from: str = "OurCompass <onboarding@resend.dev>"
     email_timeout_sec: float = 10.0
+    # 프로필 임베딩 벡터 검색 (Vertex AI gemini-embedding-001). 킬 스위치:
+    # EMBEDDING_ENABLED=false로 끄면 발행/프로필 수정 시 재임베딩도, 탐색 검색의
+    # 벡터 합집합도 모두 건너뛴다(부분일치 검색만 남음).
+    embedding_enabled: bool = True
+    embedding_model: str = "gemini-embedding-001"
+    embedding_location: str = "asia-northeast3"
+    embedding_dimensions: int = 768
+    embedding_timeout_sec: float = 10.0
+    # find_nearest의 distance_threshold(COSINE). 배포 후 실사용 검색어로 튜닝할
+    # 값 - 너무 낮으면 벡터 검색이 사실상 안 뜨고, 너무 높으면 무관한 유저가 낀다.
+    embedding_distance_threshold: float = 0.45
 
     @property
     def cookie_secure(self) -> bool:
@@ -75,6 +86,16 @@ class Settings(BaseSettings):
         key = self.resend_api_key.strip()
         looks_real = key.startswith("re_") and "..." not in key and len(key) >= 20
         return looks_real and self.app_env != "test"
+
+    @property
+    def use_real_embeddings(self) -> bool:
+        # use_real_llm/use_real_email과 같은 결의 판별이지만 키가 아니라 환경으로
+        # 가른다 - Vertex 인증은 API 키가 아니라 google.auth ADC(서비스 계정)라
+        # "그럴듯한 키 형태" 판별이 애초에 불가능하다. 개발/테스트에서는 킬
+        # 스위치(embedding_enabled)와 무관하게 항상 Fake를 쓴다 - 로컬에 GCP ADC가
+        # 없는 게 보통이라 이 판별이 없으면 개발 서버 기동이 DefaultCredentialsError로
+        # 죽는다(use_real_llm이 test 환경만 막는 것과 달리 development도 막는 이유).
+        return self.embedding_enabled and self.app_env not in ("development", "test")
 
 
 @lru_cache
