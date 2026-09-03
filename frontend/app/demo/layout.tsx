@@ -15,8 +15,9 @@
 
 import Link from "next/link";
 import { usePathname, useRouter } from "next/navigation";
-import type { ReactNode } from "react";
+import { useEffect, type ReactNode } from "react";
 import { Tabs } from "@/components/ui";
+import { useAuth } from "@/lib/auth-context";
 
 const DEMO_TABS = [
   { value: "constellation", label: "별자리 잇기" },
@@ -36,6 +37,21 @@ export default function DemoLayout({ children }: { children: ReactNode }) {
   const pathname = usePathname();
   const router = useRouter();
   const active = tabFromPathname(pathname);
+
+  // 둘러보기는 "정말 비로그인"이다(사용자 지시 2026-09-03: 둘러보기 클릭하면
+  // 비로그인 상태로 체험만 가능하고 네비 기능은 사용 불가). 브라우저에 잔존
+  // 로그인 세션이 있으면 여기서 끊는다 - 이 레이아웃이 /demo/* 전 경로의 단일
+  // 관문이라(랜딩·로그인·가입·인증 페이지의 둘러보기 링크 + 직접 URL 전부)
+  // 진입점별로 흩어 달 필요가 없다. 로그아웃되면 user가 null이 되어 effect는
+  // 자연히 no-op으로 수렴하고, 네비 가드는 비로그인 동작(로그인 유도)으로
+  // 돌아간다 - 데모 화면 자체는 auth를 안 읽으므로 체험은 끊기지 않는다.
+  const { user, loading, logout } = useAuth();
+  useEffect(() => {
+    if (loading || !user) return;
+    void logout().catch(() => {
+      // signOut 실패(오프라인 등)는 조용히 - 다음 렌더/재진입에서 재시도된다.
+    });
+  }, [loading, user, logout]);
 
   return (
     <div className="flex flex-col gap-4 pb-10">
