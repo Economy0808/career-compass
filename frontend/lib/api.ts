@@ -18,13 +18,24 @@ export class ApiError extends Error {
    * 플랜 안내를 띄운다. authRequirement와 같은 이유로 detail 문자열이 아니라
    * 이 필드로 분기한다(백엔드 constellation_intake 첫 /chat 게이트). */
   quotaReason?: string;
+  /** 403의 X-Consent-Required 응답 헤더 - "overseas"면 국외이전 미동의라 인테이크
+   * 진입 전 동의 모달을 띄운다. 서버가 미동의 데이터의 Anthropic 전송을 막는
+   * 게이트(백엔드 require_overseas_consent). 클라 우회·경합 시의 폴백 신호다. */
+  consentRequired?: string;
 
-  constructor(status: number, detail: string, authRequirement?: string, quotaReason?: string) {
+  constructor(
+    status: number,
+    detail: string,
+    authRequirement?: string,
+    quotaReason?: string,
+    consentRequired?: string
+  ) {
     super(detail);
     this.status = status;
     this.detail = detail;
     this.authRequirement = authRequirement;
     this.quotaReason = quotaReason;
+    this.consentRequired = consentRequired;
   }
 }
 
@@ -62,7 +73,8 @@ export async function request<T>(path: string, init?: RequestInit): Promise<T> {
       res.status,
       detail,
       res.headers.get("X-Auth-Requirement") ?? undefined,
-      res.headers.get("X-Quota-Reason") ?? undefined
+      res.headers.get("X-Quota-Reason") ?? undefined,
+      res.headers.get("X-Consent-Required") ?? undefined
     );
   }
   if (res.status === 204) {
@@ -174,6 +186,26 @@ export function postProfileOnboarding(
  * 존재 여부로 판정. */
 export function getOnboardingStatus(): Promise<{ onboardingComplete: boolean }> {
   return request("/api/profiles/me/onboarding");
+}
+
+// ---------- 국외이전 동의 (인테이크 AI 기능) ----------
+
+/** 국외이전 동의 문구 판본. 백엔드 CURRENT_OVERSEAS_CONSENT_VERSION과 반드시
+ * 일치시킨다 - 서버가 저장 판본과 이 값을 비교해 동의 유효성을 판정한다(판본이
+ * 다르면 POST가 422). 법적 본문(모달)을 고치면 백엔드 상수와 함께 이 값을 올린다.
+ * 그러면 구 판본 동의는 무효가 되어 유저가 재동의한다. */
+export const OVERSEAS_CONSENT_VERSION = "2026-09-04-v1";
+
+/** 현재 유저가 현행 판본으로 국외이전에 동의했는지 - 인테이크 진입 전 조회.
+ * consented=false면 동의 모달을 띄운다(백엔드 03-code-78). */
+export function getOverseasConsent(): Promise<{ consented: boolean; currentVersion: string }> {
+  return request("/api/consents/overseas");
+}
+
+/** 국외이전 동의 기록 - user_private에 uid+시각+판본 저장. 판본이 현행과 다르면
+ * 서버가 422(stale 동의 거부). */
+export function postOverseasConsent(version: string): Promise<void> {
+  return request("/api/consents/overseas", jsonInit("POST", { version }));
 }
 
 export function postSchoolEmailRequest(email: string): Promise<{ detail: string }> {

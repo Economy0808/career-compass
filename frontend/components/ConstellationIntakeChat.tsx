@@ -22,7 +22,12 @@ import {
   type KeyboardEvent as ReactKeyboardEvent,
 } from "react";
 import { cn } from "@/lib/cn";
-import { ApiError } from "@/lib/api";
+import {
+  ApiError,
+  getOverseasConsent,
+  postOverseasConsent,
+  OVERSEAS_CONSENT_VERSION,
+} from "@/lib/api";
 import { GeneratingGuide } from "@/components/GeneratingGuide";
 import {
   getBinJob,
@@ -197,6 +202,15 @@ export function ConstellationIntakeChat({
   // 시작할 때만 일어난다(page.tsx가 discardIntakeCycle 호출). 대화 시작 전이면
   // 걸린 게 없으니 이 모달 없이 바로 나간다.
   const [exitConfirm, setExitConfirm] = useState(false);
+  // 국외이전 동의 - 인테이크 대화는 goal_text를 Anthropic(미국)으로 보내므로,
+  // 진입 시 현행 판본 동의 여부를 조회해 미동의면 동의 모달을 띄운다(PIPA
+  // 제28조의8, 백엔드 03-code-78 게이트와 짝). null=조회 전(대화 잠금 유지),
+  // true=동의됨, false=미동의(모달). 서버가 미동의 데이터의 전송을 403으로도
+  // 막으니(require_overseas_consent) 이 프론트 게이트는 UX용이고 강제는 서버가 한다.
+  const [overseasConsented, setOverseasConsented] = useState<boolean | null>(null);
+  const [overseasChecked, setOverseasChecked] = useState(false);
+  const [overseasPending, setOverseasPending] = useState(false);
+  const [overseasError, setOverseasError] = useState<string | null>(null);
 
   useEffect(() => {
     let cancelled = false;
@@ -211,6 +225,38 @@ export function ConstellationIntakeChat({
       cancelled = true;
     };
   }, []);
+
+  useEffect(() => {
+    let cancelled = false;
+    getOverseasConsent()
+      .then((r) => {
+        if (!cancelled) setOverseasConsented(r.consented);
+      })
+      .catch(() => {
+        // 조회 실패 시엔 낙관하지 않는다 - 미동의로 간주해 모달을 띄운다(서버
+        // 게이트가 최종 방어라 데이터가 새지는 않지만, UX상 동의를 먼저 받는다).
+        if (!cancelled) setOverseasConsented(false);
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, []);
+
+  /** 동의 모달에서 "동의하고 계속" - 서버에 현행 판본으로 기록하고 대화를 연다.
+   * 판본 불일치(422) 등 실패 시 문구만 노출하고 재시도 가능하게 둔다. */
+  async function agreeOverseas() {
+    if (overseasPending) return;
+    setOverseasPending(true);
+    setOverseasError(null);
+    try {
+      await postOverseasConsent(OVERSEAS_CONSENT_VERSION);
+      setOverseasConsented(true);
+    } catch {
+      setOverseasError("동의 처리에 실패했어요. 잠시 후 다시 시도해 주세요.");
+    } finally {
+      setOverseasPending(false);
+    }
+  }
   // 지금 질문에 딸린 입력 보조 힌트/칩 - 서버 응답 밖(messages와 별개)이라 따로 든다.
   const [hint, setHint] = useState<string | null>(null);
   const [options, setOptions] = useState<string[]>([]);
@@ -390,9 +436,15 @@ export function ConstellationIntakeChat({
       setMessages(messages);
       if (isFirstTurn) setGoalText(null);
       setDraft(text);
-      // 무료·크레딧 소진(첫 chat 429 + X-Quota-Reason: no-credit) - 재시도가
-      // 아니라 요금제 안내가 맞다. "다시 보내기"는 숨기고 플랜 모달을 연다.
-      if (err instanceof ApiError && err.status === 429 && err.quotaReason === "no-credit") {
+      // 국외이전 미동의(403 + X-Consent-Required: overseas) - 서버 게이트가
+      // 미동의 데이터의 Anthropic 전송을 막은 것(클라 우회·경합·판본 bump).
+      // 재시도가 아니라 동의 모달이 맞다.
+      if (err instanceof ApiError && err.status === 403 && err.consentRequired === "overseas") {
+        setLastFailedText(null);
+        setOverseasConsented(false);
+      } else if (err instanceof ApiError && err.status === 429 && err.quotaReason === "no-credit") {
+        // 무료·크레딧 소진(첫 chat 429 + X-Quota-Reason: no-credit) - 재시도가
+        // 아니라 요금제 안내가 맞다. "다시 보내기"는 숨기고 플랜 모달을 연다.
         setLastFailedText(null);
         setPlanOpen(true);
       } else {
@@ -461,7 +513,10 @@ export function ConstellationIntakeChat({
     }
   }
 
-  const inputDisabled = pending || messages.length >= MAX_MESSAGES;
+  // 국외이전 동의 전에는 입력을 잠근다 - 미동의 상태로 goal_text가 Anthropic에
+  // 새지 않게(서버 403이 최종 방어지만 프론트에서도 막는다). null(조회 중)도 잠금.
+  const inputDisabled =
+    pending || messages.length >= MAX_MESSAGES || overseasConsented !== true;
 
   // 질문/답 쌍으로 재구성 - 마지막 턴에 아직 답이 없으면 그게 "지금" 질문,
   // 있으면(=답변 전송 후 서버 응답 대기 중) 지금 칸엔 타이핑 표시가 대신 뜬다.
@@ -569,6 +624,102 @@ export function ConstellationIntakeChat({
         freeCreditLeft={quota?.freeCreditLeft}
         credits={quota?.credits}
       />
+
+      {/* 국외이전 동의 모달 - 인테이크 대화는 진로 목표·대화를 Anthropic(미국)으로
+          보내므로, 현행 판본 미동의면 진입 시 이걸로 막는다(PIPA 제28조의8, 서버
+          게이트 require_overseas_consent와 짝). 표시 스펙(개인정보보호법 시행령
+          제17조): 법정 중요항목(이전받는 자·국가·목적·보유기간·거부권) 라벨은
+          text-hi+굵게로 다른 내용과 구분, 저대비로 흐리게 숨기지 않는다. 톤은
+          사실적시(대화체 배제). */}
+      {overseasConsented === false && (
+        <div
+          className="fixed inset-0 z-50 flex items-center justify-center overflow-y-auto bg-ink-900/75 p-4 backdrop-blur-sm"
+          role="dialog"
+          aria-modal="true"
+          aria-label="개인정보 국외이전 동의"
+        >
+          <div className="my-auto w-full max-w-md rounded-xl border border-rule bg-ink-800 p-5 shadow-lg">
+            <h2 className="font-serif text-title font-bold text-text-hi">
+              개인정보 국외이전 동의 <span className="text-spec-b">(AI 맞춤 기능)</span>
+            </h2>
+            <p className="mt-2 font-sans text-body-sm leading-relaxed text-text-lo">
+              AI 맞춤 로드맵 생성 시 입력 내용이 국외(미국)로 이전됨.
+            </p>
+
+            <dl className="mt-3 flex flex-col gap-1.5 rounded-md border border-rule bg-ink-900/50 p-3 font-sans text-caption leading-relaxed">
+              <div>
+                <dt className="font-semibold text-text-hi">이전받는 자</dt>
+                <dd className="text-text-lo">Anthropic PBC (미국) · privacy@anthropic.com</dd>
+                <dd className="text-text-lo">
+                  국내대리인: Anthropic Korea 유한회사 (서울 강남구 테헤란로 152, 41층 · 02-6252-2080 ·
+                  anthropicprivacy@bkl.co.kr)
+                </dd>
+              </div>
+              <div>
+                <dt className="font-semibold text-text-hi">이전 항목</dt>
+                <dd className="text-text-lo">이용자가 입력한 진로 목표 및 대화 내용</dd>
+              </div>
+              <div>
+                <dt className="font-semibold text-text-hi">이전 국가 · 시기 · 방법</dt>
+                <dd className="text-text-lo">미국 / AI 기능 이용 시 / 정보통신망(HTTPS) 전송</dd>
+              </div>
+              <div>
+                <dt className="font-semibold text-text-hi">이용 목적</dt>
+                <dd className="text-text-lo">AI 응답(맞춤 로드맵) 생성</dd>
+              </div>
+              <div>
+                <dt className="font-semibold text-text-hi">보유 · 이용 기간</dt>
+                <dd className="text-text-lo">
+                  입력·출력 접수·생성 후 30일 이내 삭제. 이용정책 위반 감지 등 예외 시 최대 2년. 상업
+                  API 데이터는 모델 학습에 미사용(기본).
+                </dd>
+              </div>
+              <div>
+                <dt className="font-semibold text-text-hi">거부 방법 · 효과</dt>
+                <dd className="text-text-lo">
+                  동의 거부 가능. 거부 시 AI 맞춤 로드맵 기능 이용 불가(그 외 서비스 이용 가능).
+                </dd>
+              </div>
+            </dl>
+
+            <label className="mt-3 flex cursor-pointer items-start gap-2 font-sans text-body-sm leading-relaxed text-text-hi">
+              <input
+                type="checkbox"
+                checked={overseasChecked}
+                onChange={(e) => setOverseasChecked(e.target.checked)}
+                className="mt-0.5 accent-[var(--spec-b)]"
+              />
+              <span>
+                <b>[필수]</b> 위 개인정보 국외이전에 동의합니다.
+              </span>
+            </label>
+
+            {overseasError && (
+              <p role="alert" className="mt-2 font-sans text-caption text-spec-m">
+                {overseasError}
+              </p>
+            )}
+
+            <div className="mt-4 flex items-center justify-between gap-2">
+              <button
+                type="button"
+                onClick={() => (onDismiss ? onDismiss() : window.history.back())}
+                className="rounded-md px-3 py-1.5 font-sans text-body-sm text-text-lo transition-colors hover:text-text-hi focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-1 focus-visible:outline-spec-b"
+              >
+                동의 안 함
+              </button>
+              <button
+                type="button"
+                disabled={!overseasChecked || overseasPending}
+                onClick={agreeOverseas}
+                className="cta-ink rounded-md bg-spec-b px-4 py-1.5 font-sans text-body-sm font-semibold text-ink-900 transition-[filter] hover:brightness-110 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-1 focus-visible:outline-spec-b disabled:pointer-events-none disabled:opacity-50"
+              >
+                {overseasPending ? "처리 중…" : "동의하고 계속"}
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* 이탈 안심 모달 - 대화를 시작한 뒤 나가려 할 때만 뜬다. "차감"이 아니라
           "저장·이어감"을 알린다: 뒤로가기는 사이클을 지우지 않는다(백엔드 확정).
