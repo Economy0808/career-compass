@@ -1,4 +1,41 @@
-# 백엔드 세션 핸드오프 (2026-08-27 작성, 2026-08-31 23차 갱신)
+# 백엔드 세션 핸드오프 (2026-08-27 작성, 2026-09-03 24차 갱신)
+
+> **24차 (9/3) — 탐색 의미 검색(벡터) 라이브 + 요금제 확정 + 한도백엔드 대기**:
+> - **라이브 리비전**: 백엔드 `ourlab-backend-00016-fbm`(EMBEDDING_ENABLED=true,
+>   EMBEDDING_DISTANCE_THRESHOLD=0.35), 프론트 `ourlab-frontend-00025-jf2`.
+> - **탐색 검색 3단계 전부 완료·배포·검증**:
+>   1·2단계(커밋 `25924bd`·`9b5a904`·`6b66e51`): 관심사 태그를 과목명→bin/group 의미
+>   라벨로 교체(생성 빈 "내가 담은 수업" 제외, 노드 폴백), 검색어 양방향 부분일치.
+>   3단계(커밋 `7767b56`~`4b8b654` 8개): Vertex AI `gemini-embedding-001`(768d,
+>   asia-northeast3) + Firestore `find_nearest`(COSINE). `app/embedding/`(base/fake/
+>   vertex/factory), `compute_profile_text`, `users.profile_embedding` 최상위 Vector,
+>   발행·bio수정 시 재임베딩(실패 격리), explore 검색에 벡터 합집합(uid 60/분 상한).
+>   **라이브 실측**: "빅데이터"·"데이터사이언티스트"·"인공지능"·"반도체공학"·"딥러닝"·"코딩"
+>   전부 유저 매칭됨(전엔 0건), 글자겹침 검색 회귀 없음. 남은 갭: "옷→패션"(거리0.368>0.35,
+>   임계값 튜닝 사안·사용자 결정 대기). 벡터로만 걸린 유저는 commonTags=[].
+> - **OPS 함정 기록**: ①`firebase deploy --only firestore:indexes`가 벡터 vectorConfig를
+>   스키마 거부(firebase-tools 15.28.1) → **gcloud firestore indexes composite create로
+>   생성**(users/profile_embedding, dimension 768 flat, READY 확인). firestore.indexes.json엔
+>   fieldOverrides로 있으나 firebase deploy는 못 씀. ②백필/Vertex는 project 해석이
+>   `_resolve_project_id()`(FIRESTORE_PROJECT_ID env)라 **백필 실행 시 FIRESTORE_PROJECT_ID=
+>   ourlab-0808 필수**(없으면 demo-ourlab로 403). 백필/프로브 스크립트: `scripts/
+>   backfill_profile_embeddings.py`·`probe_profile_search.py`(GCLOUD_ACCESS_TOKEN+--project).
+>   ③Vertex AI API 활성화함(aiplatform.googleapis.com), Cloud Run SA=editor라 권한 추가 불요.
+> - **요금제 확정**(메모리 project_pricing_llm_quota): 1사이클 실측원가 478원(94% cluster_courses).
+>   무료 2회/일(Spark) + Nova 4900/5·Supernova 14900/18·Quasar 19900/27(무기한). **캐싱
+>   478→175 추정은 철회**(122k 입력이 목표별 후보과목이라 캐싱 거의 무효 — 진짜 레버는
+>   cluster_courses 입력 축소).
+> - **한도 백엔드 = 미착수, 다음 작업**. 설계 확정: 차감시점=`POST /bins`(생성 확정, 대화
+>   무료), 잡실패/빈결과 환불, quota_repo(users 문서 cycle_day KST날짜키·cycle_used·
+>   cycle_credits, Firestore 트랜잭션 follow_repo 패턴), 초과 429+`X-Quota-Reason`, GET
+>   `/api/constellation-intake/quota` `{remainingFree,credits,freeLimit,resetsAt}`. 프론트
+>   (03-code-6f)가 플랜비교창+한도UI를 이 계약으로 제작 중. 사용자에게 "대화 진입 차감 vs
+>   생성 확정 차감" 결정 올리는 중(내 추천=생성 확정).
+> - **발견한 품질버그(미수정)**: 온보딩 대화가 같은 질문 반복(실측 Q3·Q5·Q6이 "파이썬으로
+>   반복문·함수 짤 수 있나"를 3번). `MAX_INTAKE_QUESTIONS=12` 상한, 종료는 모델 판정.
+>   프롬프트에 "이미 물은 것 재질문 금지" + 상한 하향 검토 필요.
+> - 데모 계정 5개(demo-hyun/jiho/areum/taein/somin) 라이브 disable+클레임 회수됨. 체험은
+>   test-observer(인증)·demo-unverified(미인증)·/demo(비로그인) 3계층만.
 
 > **23차 (8/31) — 배포했다. 로컬 프로토타입이 아니라 라이브 서비스가 됐다**:
 > - **라이브**: 프론트 `https://ourlab-frontend-902034641778.asia-northeast3.run.app`,
