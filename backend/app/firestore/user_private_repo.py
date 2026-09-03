@@ -43,7 +43,7 @@ def set_private_profile(
 ) -> dict[str, Any]:
     """온보딩에서 수집한 확장 프로필을 저장한다(merge).
 
-    consents는 {"service": bool, "overseas": bool, "marketing": bool} 형태를
+    consents는 {"service": bool, "marketing": bool} 형태를
     기대한다. 각 항목마다 `consent_{key}_at` 타임스탬프를 두되, app/firestore/
     user_repo.py의 consent_at "최초 1회만" 관례를 그대로 따른다 - 이미 동의
     시점이 기록돼 있으면 이후 호출(재온보딩·재제출)이 True를 다시 넘겨도 최초

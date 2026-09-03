@@ -54,7 +54,7 @@ def test_set_and_get_private_profile_round_trips() -> None:
         grade=1,
         double_major=None,
         career_text="아직 정하지 못했지만 데이터 쪽에 관심이 있습니다.",
-        consents={"service": True, "overseas": True, "marketing": False},
+        consents={"service": True, "marketing": False},
     )
 
     stored = user_private_repo.get_private_profile(db, uid)
@@ -81,12 +81,11 @@ def test_consent_timestamp_recorded_only_for_true_and_kept_first_only() -> None:
         grade=1,
         double_major=None,
         career_text=None,
-        consents={"service": True, "overseas": True, "marketing": False},
+        consents={"service": True, "marketing": False},
     )
     first = user_private_repo.get_private_profile(db, uid)
     assert first is not None
     assert first.get("consent_service_at") is not None
-    assert first.get("consent_overseas_at") is not None
     # marketing=False였으므로 타임스탬프 자체가 기록되지 않는다.
     assert "consent_marketing_at" not in first
 
@@ -100,7 +99,7 @@ def test_consent_timestamp_recorded_only_for_true_and_kept_first_only() -> None:
         grade=2,
         double_major=None,
         career_text=None,
-        consents={"service": True, "overseas": True, "marketing": True},
+        consents={"service": True, "marketing": True},
     )
     second = user_private_repo.get_private_profile(db, uid)
     assert second is not None
@@ -121,7 +120,7 @@ def test_career_text_stored_verbatim() -> None:
         grade=2,
         double_major="컴퓨터과학과",
         career_text=text,
-        consents={"service": True, "overseas": True, "marketing": False},
+        consents={"service": True, "marketing": False},
     )
     stored = user_private_repo.get_private_profile(db, uid)
     assert stored is not None
