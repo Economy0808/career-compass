@@ -134,5 +134,22 @@
 
 **감사 마감 (2026-09-02 19:45)**: 선택된 항목 중 백엔드·인프라 몫 전부 라이브 반영. 프론트 몫 E-1은 커밋·재게이트 완료(배포는 다음 프론트 차수), Next 15.5.16 업그레이드는 프론트 세션이 `docs/plan-next15-upgrade.md`대로 격리 worktree에서 진행 중이며 완료 시 그쪽 `/security-review` 결과를 이 표에 추가한다.
 
+### 부록: 가입 온보딩 확장 재게이트 (2026-09-04, 원가절감·개인화 논의 산물)
+
+원가절감 논의에서 파생된 가입 폼 확장(학번10·학과·복수전공·학년·관심사 태그·진로 자유서술)을 감사 세션이 배포 전 재게이트. 커밋 `93a86e5`(repos+rules) `d6c1ef8`(POST /api/profiles/onboarding) `bb593e1`(임베딩) `5e9c6ac`(상태).
+
+| 게이트 | 판정 | 근거(실검증) |
+|---|---|---|
+| 학번 원문 미저장 | **PASS** | `student_verification_repo._hash_student_id`(HMAC-SHA256), `store_student_id_hash`는 `student_id_hmac`만 set. 원문 저장 경로 없음 |
+| Firestore 규칙 | **PASS** | `user_private`(read:isOwner, write:false) / `student_verifications`(read:false, write:false — 소유자도 불가) / `users`(쓰기도 차단) |
+| 필드 3목적지 라우팅 | **PASS** | declared_tags→`users`, 학과·학년·복전·career_text·동의→`user_private`, 학번→해시. 공개 문서에 민감필드 부재 |
+| careerText Vertex 전용 | **PASS** | onboarding→user_private→compute_profile_text(절단)→Vertex embed. Anthropic 미전송(grep 0) |
+
+**배포 전 MUST-FIX(감사 세션 발견, 처리 완료)**: HMAC 페퍼가 `secret_key`인데 §4 인벤토리상 "change-me" 플레이스홀더였고 **라이브 백엔드에 Secret Manager `secret-key`가 미마운트**로 실제 페퍼가 약했다. 학번은 저엔트로피(구조화 10자리)라 DB 침해 시 전수대입 위험. → 백엔드가 `secret-key`에 강한 랜덤값(`token_urlsafe(48)`) provision + 배포 시 `SECRET_KEY=secret-key:latest` 마운트. **배포 조건: 이 마운트 포함 필수**(누락 시 "change-me"로 회귀). 1차 방어=`student_verifications` read:false(정상경로 해시 유출 0), 2차 방어=강한 페퍼(DB 침해 대비).
+
+**동의 구조**: overseas 동의는 온보딩에서 제거(사용자 결정 B) — 온보딩 데이터는 국내(Vertex)만이라 국외이전 선동의가 부적합. overseas는 인테이크 첫 chat(Anthropic 전송 직전)의 별도 게이트로 이전(법적 본문 대기). 온보딩 동의 = service(필수)·marketing(선택). sensitive 동의는 미생성(자유서술 최소화: 입력금지 안내 + 처리방침 미수집·삭제). 이 축소는 데이터 처리 무변경이라 4/4 게이트 무영향.
+
+**미결(선결·별건)**: overseas 국외이전 문구의 수신자 실명·연락처·보유기간(Anthropic PBC)은 법무·사실 채움 대기. Vertex 국외이전 판정 자체는 §5대로 법무 미결(단 careerText는 기존 프로필임베딩과 동일 경로라 신규 트리거 아님). 전용 `STUDENT_ID_PEPPER` 분리는 후속 권고.
+
 ### 남은 백로그 (감사 종료 후 별건)
 §5 목록 그대로 + 위 노트(SA 생성 단계 문서화). 다음 감사 때 `/security-audit`로 전체 재실행, 수정분은 내장 `/security-review`.
