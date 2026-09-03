@@ -190,9 +190,20 @@ async def test_list_users_sorts_by_intersection_size_when_logged_in(
 
 
 @pytest.mark.asyncio
-async def test_list_users_anonymous_sorts_by_updated_at_and_has_no_common_tags(
+async def test_list_users_anonymous_returns_401() -> None:
+    """2026-09-03 사용자 지시("비로그인은 /demo만"): 익명 열람은 401로 닫는다 -
+    비로그인 둘러보기가 URL 직접 입력으로 실프로필을 열람하던 구멍."""
+    async with _client() as client:
+        resp = await client.get("/api/explore/users")
+    assert resp.status_code == 401
+
+
+@pytest.mark.asyncio
+async def test_list_users_tagless_requester_sorts_by_updated_at(
     authed_as: Callable[[str], None],
 ) -> None:
+    """관심사 태그가 없는 로그인 요청자는 교집합이 항상 0이라 updated_at 내림차순
+    하나로 수렴하고, commonTags는 (키 부재가 아니라) 빈 배열이다."""
     _seed_user(
         "older",
         display_name="오래된",
@@ -205,12 +216,13 @@ async def test_list_users_anonymous_sorts_by_updated_at_and_has_no_common_tags(
         interest_tags=["철학"],
         updated_at=datetime(2026, 6, 1, tzinfo=UTC),
     )
+    authed_as("tagless-requester")
     async with _client() as client:
         resp = await client.get("/api/explore/users")
     body = resp.json()
     uids = [item["uid"] for item in body]
     assert uids.index("newer") < uids.index("older")
-    assert all("commonTags" not in item for item in body)
+    assert all(item["commonTags"] == [] for item in body)
 
 
 # ---------------------------------------------------------------------------
@@ -219,7 +231,7 @@ async def test_list_users_anonymous_sorts_by_updated_at_and_has_no_common_tags(
 
 
 @pytest.mark.asyncio
-async def test_search_prefix_match_anonymous_allowed() -> None:
+async def test_search_prefix_match(authed_as: Callable[[str], None]) -> None:
     _seed_user(
         "prefix-match",
         display_name="탐색테스트유저",
@@ -232,6 +244,7 @@ async def test_search_prefix_match_anonymous_allowed() -> None:
         interest_tags=["철학"],
         updated_at=datetime(2026, 1, 1, tzinfo=UTC),
     )
+    authed_as("prefix-viewer")
     async with _client() as client:
         resp = await client.get("/api/explore/search", params={"q": "탐색테스트"})
     assert resp.status_code == 200
@@ -241,21 +254,25 @@ async def test_search_prefix_match_anonymous_allowed() -> None:
 
 
 @pytest.mark.asyncio
-async def test_search_empty_q_returns_422() -> None:
+async def test_search_empty_q_returns_422(authed_as: Callable[[str], None]) -> None:
+    authed_as("q-validator")
     async with _client() as client:
         resp = await client.get("/api/explore/search", params={"q": ""})
     assert resp.status_code == 422
 
 
 @pytest.mark.asyncio
-async def test_search_missing_q_returns_422() -> None:
+async def test_search_missing_q_returns_422(authed_as: Callable[[str], None]) -> None:
+    authed_as("q-validator")
     async with _client() as client:
         resp = await client.get("/api/explore/search")
     assert resp.status_code == 422
 
 
 @pytest.mark.asyncio
-async def test_search_at_prefix_matches_nickname_substring() -> None:
+async def test_search_at_prefix_matches_nickname_substring(
+    authed_as: Callable[[str], None],
+) -> None:
     """`@`로 시작하면 뒤 문자열로 표시 이름 부분일치(중간 포함) 검색을 한다."""
     _seed_user(
         "nickname-match",
@@ -269,6 +286,7 @@ async def test_search_at_prefix_matches_nickname_substring() -> None:
         interest_tags=[],
         updated_at=datetime(2026, 1, 1, tzinfo=UTC),
     )
+    authed_as("nickname-viewer")
     async with _client() as client:
         resp = await client.get("/api/explore/search", params={"q": "@빛수집"})
     assert resp.status_code == 200
@@ -278,7 +296,9 @@ async def test_search_at_prefix_matches_nickname_substring() -> None:
 
 
 @pytest.mark.asyncio
-async def test_search_keyword_matches_interest_tag() -> None:
+async def test_search_keyword_matches_interest_tag(
+    authed_as: Callable[[str], None],
+) -> None:
     """일반 키워드 검색은 표시 이름/소개뿐 아니라 관심사 태그 부분일치도 걸린다."""
     _seed_user(
         "tag-match",
@@ -292,6 +312,7 @@ async def test_search_keyword_matches_interest_tag() -> None:
         interest_tags=["미술"],
         updated_at=datetime(2026, 1, 1, tzinfo=UTC),
     )
+    authed_as("keyword-viewer")
     async with _client() as client:
         resp = await client.get("/api/explore/search", params={"q": "백엔드"})
     assert resp.status_code == 200
@@ -440,20 +461,11 @@ async def test_search_shows_followed_user_with_is_following_true(
 
 
 @pytest.mark.asyncio
-async def test_search_anonymous_has_no_is_following_key() -> None:
-    """익명 요청이면 응답에 isFollowing 키 자체가 없어야 한다(response_model_exclude_none)."""
-    _seed_user(
-        "anon-search-target",
-        display_name="익명검색대상",
-        interest_tags=[],
-        updated_at=datetime(2026, 1, 1, tzinfo=UTC),
-    )
+async def test_search_anonymous_returns_401() -> None:
+    """/users와 동일: 2026-09-03부터 검색도 익명 열람을 401로 닫는다."""
     async with _client() as client:
-        resp = await client.get("/api/explore/search", params={"q": "익명검색대상"})
-    assert resp.status_code == 200
-    body = resp.json()
-    assert body
-    assert all("isFollowing" not in item for item in body)
+        resp = await client.get("/api/explore/search", params={"q": "아무거나"})
+    assert resp.status_code == 401
 
 
 # ---------------------------------------------------------------------------

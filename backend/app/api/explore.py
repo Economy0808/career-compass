@@ -22,7 +22,7 @@ from typing import Any
 from fastapi import APIRouter, Depends, Query
 from google.cloud.firestore import Client
 
-from app.auth.deps import get_current_user_optional
+from app.auth.deps import get_current_user
 from app.auth.firebase_auth import DecodedToken
 from app.firestore import follow_repo, user_repo
 from app.firestore.client import get_firestore_client
@@ -127,23 +127,24 @@ def _display_name_sort_key(profile: dict[str, Any]) -> str:
 
 @router.get("/users", response_model=list[ExploreUserOut], response_model_exclude_none=True)
 async def list_explore_users(
-    user: DecodedToken | None = Depends(get_current_user_optional),
+    # 2026-09-03 사용자 지시("비로그인은 /demo만"): 익명 열람을 닫는다 - 비로그인
+    # 둘러보기가 URL 직접 입력으로 실프로필을 열람할 수 있었다.
+    user: DecodedToken = Depends(get_current_user),
     db: Client = Depends(get_firestore_client),
 ) -> list[ExploreUserOut]:
     """비슷한 사람 추천을 최대 30명, 가능하면 항상 채워서 반환한다.
 
     1순위: 관심사(interest_tags)가 하나라도 있는 유저 중 요청자 본인과 이미
     팔로우 중인 유저를 제외한 나머지 - 요청자의 interest_tags와 교집합 크기가
-    큰 순, 동률(익명 포함)이면 최근 갱신순(updated_at 내림차순)이다(기존 동작
-    그대로).
+    큰 순, 동률이면 최근 갱신순(updated_at 내림차순)이다(기존 동작 그대로).
 
     2순위(폴백): 1순위만으로 상한(30명)을 못 채우면, 관심사 유무·겹침과
     무관하게 나머지 유저(1순위에 없고, 본인도 팔로우 중도 아닌)로 채운다 -
     실사용 계정이 적어 1순위 후보가 바닥나도(예: 3명뿐인 상태에서 하나를
     팔로우하면 1순위가 0명이 되는 상황) 추천 사이드바가 통째로 비지 않게 하기
     위함이다. 2순위 항목은 정의상 interest_tags가 비어 있거나 교집합이 없어
-    commonTags가 빈 배열([])이거나(로그인 시) 아예 키가 없다(익명 시) - 별도
-    필드를 추가하지 않고 기존 스키마 안에서 "추천 근거 없음"을 표현한다.
+    commonTags가 빈 배열([])이다 - 별도 필드를 추가하지 않고 기존 스키마 안에서
+    "추천 근거 없음"을 표현한다.
 
     두 순위 모두 요청자 본인/이미 팔로우 중인 유저는 제외한다. 정렬은
     1순위(교집합 큰 순) 뒤에 2순위(표시 이름 순)를 이어붙인 순서다.
@@ -206,16 +207,17 @@ def _matches_keyword(profile: dict[str, Any], query_lower: str) -> bool:
 @router.get("/search", response_model=list[ExploreUserOut], response_model_exclude_none=True)
 async def search_explore_users(
     q: str = Query(min_length=1, max_length=30),
-    user: DecodedToken | None = Depends(get_current_user_optional),
+    # list_explore_users와 동일: 2026-09-03부터 익명 열람 차단(로그인 필수).
+    user: DecodedToken = Depends(get_current_user),
     db: Client = Depends(get_firestore_client),
 ) -> list[ExploreUserOut]:
     """`@`로 시작하면 닉네임(표시 이름) 부분일치 검색, 아니면 표시 이름·소개·관심사
     태그 부분일치 키워드 검색이다(사용자 원문: "탐색창에서는 사용자가 키워드검색을
     하면 사용자의 인적사항과 유사하고, 유사한 관심사를 가진 타유저를 띄우고, @표시
     붙여서 아이디를 검색하면 비슷한 닉네임의 유저를 띄우기"). q는 1~30자(빈 값은
-    422), 익명 열람 허용(get_current_user_optional). 요청자 본인은 결과에서 제외한다.
+    422), 로그인 필수(2026-09-03부터 익명 열람 차단). 요청자 본인은 결과에서 제외한다.
 
-    정렬: 로그인 상태면 요청자의 interest_tags와 겹치는 수 내림차순, 익명이면
+    정렬: 요청자의 interest_tags와 겹치는 수 내림차순, 관심사 정보가 없으면
     검색어 자체와의 매칭 수(_keyword_match_count) 내림차순이다.
 
     Firestore는 부분일치 쿼리를 지원하지 않으므로 user_repo.list_all_users로 후보
