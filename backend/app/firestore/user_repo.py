@@ -39,9 +39,17 @@ from __future__ import annotations
 from datetime import UTC, datetime
 from typing import Any
 
-from google.cloud.firestore import Client
+from google.cloud.firestore import DELETE_FIELD, Client
+from google.cloud.firestore_v1.base_vector_query import DistanceMeasure
+from google.cloud.firestore_v1.vector import Vector
 
 _COLLECTION = "users"
+
+# 탐색 API(app/api/explore.py)가 후보 목록을 통째로 스캔할 때 실제로 읽는 필드만
+# 요청한다 - profile_embedding(768차 벡터)처럼 큰 필드를 매번 통째로 끌어오면
+# 스캔 규모가 커질수록 낭비가 커진다(get_profiles/get_user_profile처럼 단건
+# 조회는 이 프로젝션을 쓰지 않는다 - 그쪽은 프로필 전체가 필요하다).
+_LIST_PROJECTION = ["display_name", "avatar_emoji", "bio", "interest_tags", "updated_at"]
 
 
 def _doc_ref(db: Client, uid: str) -> Any:
@@ -182,7 +190,7 @@ def list_users_with_interest_tags(db: Client) -> list[tuple[str, dict[str, Any]]
     """
     return [
         (doc.id, data)
-        for doc in db.collection(_COLLECTION).stream()
+        for doc in db.collection(_COLLECTION).select(_LIST_PROJECTION).stream()
         if (data := doc.to_dict() or {}).get("interest_tags")
     ]
 
@@ -200,5 +208,46 @@ def list_all_users(db: Client, limit: int = 500) -> list[tuple[str, dict[str, An
     # 그 이상으로 유저가 늘면 Algolia/Typesense 같은 검색 인덱스를 도입할 것.
     """
     return [
-        (doc.id, doc.to_dict() or {}) for doc in db.collection(_COLLECTION).limit(limit).stream()
+        (doc.id, doc.to_dict() or {})
+        for doc in db.collection(_COLLECTION).select(_LIST_PROJECTION).limit(limit).stream()
     ]
+
+
+def set_profile_embedding(db: Client, uid: str, values: list[float] | None) -> None:
+    """유저의 프로필 임베딩 벡터(users.profile_embedding)를 갈아끼우거나 지운다.
+
+    다른 세터(set_interest_tags 등)와 달리 읽기 -> 병합 -> 쓰기를 거치지 않는다 -
+    merge=True인 set() 한 번으로 이 필드 하나만 건드리면 되고, 다른 필드를 함께
+    바꿀 이유가 없다(모듈 docstring의 "최초 1회만" 규칙과 무관한 필드). updated_at도
+    일부러 갱신하지 않는다 - 탐색 정렬(app/api/explore.py의 _sort_key)이
+    updated_at 내림차순을 쓰므로, 여기서 건드리면 임베딩 재계산 시점에 따라
+    정렬 순서가 흔들리는 부작용이 생긴다.
+
+    values가 None이면 필드를 삭제한다(compute_profile_text가 빈 문자열을
+    반환한 경우 - 임베딩할 내용이 없다는 뜻).
+    """
+    doc_ref = _doc_ref(db, uid)
+    field_value: Any = Vector(values) if values is not None else DELETE_FIELD
+    doc_ref.set({"profile_embedding": field_value}, merge=True)
+
+
+def find_nearest_users(
+    db: Client, query_vector: list[float], *, limit: int, distance_threshold: float
+) -> list[tuple[str, dict[str, Any]]]:
+    """질의 벡터와 코사인 거리가 가까운 유저를 가까운 순으로 최대 limit명 반환한다.
+
+    app/api/explore.py의 키워드 검색에 벡터 검색 결과를 합집합으로 얹는 용도
+    (S6) - "빅데이터"로 검색해도 부분일치로는 안 걸리는 "데이터사이언티스트"류
+    관심사 유저까지 찾아내는 게 목적이다. distance_threshold보다 먼 후보는
+    Firestore 쪽에서 걸러지므로, 여기서는 결과를 그대로 반환한다(정렬/합집합/
+    상한 처리는 호출부 책임 - user_repo의 다른 list_* 함수와 동일한 층 분리).
+    """
+    query = db.collection(_COLLECTION).find_nearest(
+        "profile_embedding",
+        Vector(query_vector),
+        limit=limit,
+        distance_measure=DistanceMeasure.COSINE,
+        distance_result_field="vector_distance",
+        distance_threshold=distance_threshold,
+    )
+    return [(doc.id, doc.to_dict() or {}) for doc in query.stream()]
