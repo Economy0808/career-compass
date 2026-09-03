@@ -53,7 +53,12 @@ function PaperFrame({ children }: { children: React.ReactNode }) {
         >
           OurLab
         </Link>
-        <Link href="/demo" className="text-body-sm" style={{ color: "var(--paper-lo)" }}>
+        {/* 이 헤더는 login/signup에서 그대로 가져왔지만 목적지만은 다르다:
+            /verify에 있는 사람은 **이미 로그인한 상태**라, 랜딩·login과 같은
+            /demo로 보내면 둘러보기 진입 시 강제 로그아웃(demo/layout.tsx)에
+            걸려 인증을 처음부터 다시 해야 한다. 아래 본문 버튼들과 같은
+            캔버스로 통일한다(사용자 지시: 인증하고 둘러보기=메인 캔버스). */}
+        <Link href="/constellation/new" className="text-body-sm" style={{ color: "var(--paper-lo)" }}>
           둘러보기
         </Link>
       </header>
