@@ -54,6 +54,7 @@ import {
   deleteGroup,
   deleteNode,
   deleteNote,
+  discardIntakeCycle,
   getBinJob,
   inferPrereqs,
   listConstellations,
@@ -1469,6 +1470,11 @@ export default function NewConstellationPage() {
     // 새로 시작하는 대화다 - 보관된 진행분을 지우고(이 경로는 챗의
     // onComplete/onDismiss를 거치지 않는다) 챗 자체도 새 인스턴스로 갈아끼운다.
     clearDraftChat();
+    // 진행 중이던 사이클(open_cycle)을 닫는다 = 소모 확정. "새 별자리"를
+    // 시작하는 순간이 곧 이전 무료권/크레딧이 실제로 소모되는 지점이다(사용자
+    // 확정: 뒤로가기는 이어감, 새로 시작해야 소모). open_cycle이 없으면 백엔드가
+    // 204로 무해하게 넘긴다 - 실패해도 다음 첫 chat이 어차피 판정하므로 조용히.
+    void discardIntakeCycle().catch(() => {});
     setIntakeSession((n) => n + 1);
     setIntakeOpen(true);
   }, [user, resetCanvasState]);
