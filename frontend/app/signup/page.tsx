@@ -1,13 +1,16 @@
 "use client";
 
 /*
- * 회원가입 - 로그인(login/page.tsx)과 같은 세계에 놓인 화면.
+ * 회원가입(1단계 - 계정) - 로그인(login/page.tsx)과 같은 세계에 놓인 화면.
  *
  * 사용자 지시: "로그인페이지에서 회원가입 누르면 이 테마로 이동되는데, 로그인,
  * 회원가입, 이메일 인증 등등 서비스 이용 전 부대 작업은 모두 랜딩페이지와 같은
  * 테마의 페이지에서 진행해야해." 즉 다크월드 앱 셸(SideRail 포함) 안이 아니라
  * login/page.tsx와 동일한 밝은 종이 오버레이여야 한다 - 구조는 그쪽을 그대로 따른다.
- * 로직(핸들러·검증·API 호출)은 손대지 않았다, 마크업/클래스만 바뀌었다.
+ *
+ * 2단계 구조(백엔드 계약 03-code-78): 여기서는 계정(이메일·비번·닉네임·이모지)과
+ * 계정 레벨 동의만 받는다. 학번·학과·관심사 등 프로필과 국외이전 동의는 가입 직후
+ * /onboarding에서 받는다(별도 라우트여야 온보딩 미완 유저를 되돌려 보낼 수 있다).
  */
 
 import Link from "next/link";
@@ -15,6 +18,7 @@ import { useRouter } from "next/navigation";
 import { useState } from "react";
 import { cn } from "@/lib/cn";
 import { useAuth } from "@/lib/auth-context";
+import { PaperField } from "@/components/paper-form";
 
 const EMOJI_CHOICES = ["🌱", "🧭", "🦉", "🐿️", "🌙", "🍀", "🦊", "📚"];
 
@@ -36,28 +40,6 @@ function toKoreanError(err: unknown): string {
 /** 오류 문구용 잉크 섞은 붉은색 - login/page.tsx와 같은 이유(밝은 종이 위에서
  * spec-m 원색은 대비가 모자란다). 새 hex를 만들지 않고 팔레트 안에서 섞어 쓴다. */
 const PAPER_DANGER = "color-mix(in srgb, var(--spec-m) 55%, var(--paper-ink))";
-
-/** 종이 위 입력칸 - 다크월드용 Field 컴포넌트(19개 파일이 공유) 대신 이 세계의
- * 재질로 그린다. focus-visible 아웃라인 레시피는 LaunchModal.tsx·design-handoff
- * 가이드 §3의 정본 표기를 그대로 따른다. */
-function PaperField({
-  id,
-  label,
-  ...rest
-}: { id: string; label: string } & React.InputHTMLAttributes<HTMLInputElement>) {
-  return (
-    <div className="flex flex-col gap-1.5">
-      <label htmlFor={id} className="text-caption font-semibold text-paper-lo">
-        {label}
-      </label>
-      <input
-        id={id}
-        className="w-full rounded-md border border-paper-line bg-paper px-3.5 py-2.5 font-sans text-body text-paper-ink placeholder:text-paper-lo focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-1 focus-visible:outline-paper-ink"
-        {...rest}
-      />
-    </div>
-  );
-}
 
 export default function SignupPage() {
   const router = useRouter();
@@ -97,8 +79,9 @@ export default function SignupPage() {
     setError(null);
     try {
       await signup(email.trim(), password, displayName.trim(), emoji, consent);
-      // 이메일 인증 메일을 보냈으니, 안내와 다음 단계는 /verify에서 처리한다.
-      router.push("/verify");
+      // 계정이 생겼으니 이어서 프로필(학번·학과·관심사·국외이전 동의)을 받는다.
+      // 이메일 인증 안내는 온보딩 다음 /verify에서 처리한다.
+      router.push("/onboarding");
     } catch (err) {
       setError(toKoreanError(err));
       setPending(false);
@@ -134,7 +117,7 @@ export default function SignupPage() {
         <div className="w-full max-w-[420px] rounded-lg border border-paper-line bg-paper p-8">
           <h1 className="font-serif text-display font-bold text-paper-ink">새 계정 만들기</h1>
           <p className="mb-6 mt-[7px] text-body-sm leading-relaxed text-paper-lo">
-            연세대 학부생 전용 커뮤니티예요. 가입 후 이메일 인증과 학부생 인증을 거쳐요.
+            연세대 학부생 전용 커뮤니티예요. 가입 후 프로필을 채우고 이메일·학부생 인증을 거쳐요.
           </p>
 
           <form onSubmit={submit} className="flex flex-col gap-3">
@@ -218,7 +201,7 @@ export default function SignupPage() {
               disabled={pending}
               className="cta-ink mt-1 flex w-full items-center justify-center gap-2 rounded-md bg-paper-ink px-5 py-2.5 text-body-sm font-semibold text-paper transition-[filter,background-color] duration-150 disabled:pointer-events-none disabled:opacity-50"
             >
-              {pending ? "심는 중…" : "가입하기"}
+              {pending ? "심는 중…" : "다음 — 프로필 채우기"}
             </button>
           </form>
 

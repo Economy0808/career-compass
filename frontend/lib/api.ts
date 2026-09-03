@@ -138,6 +138,35 @@ export function postAuthSync(input?: {
   return request("/api/auth/sync", jsonInit("POST", input ?? {}));
 }
 
+/** 가입 직후 온보딩 - 학번·학과·관심사·동의를 저장한다(백엔드 계약 03-code-78,
+ * 2026-09-03 확정). 프로필 저장은 auth/sync가 아니라 이 전용 엔드포인트로 간다
+ * (get_current_user 필수 - createUserWithEmailAndPassword 직후 토큰이 살아 있어
+ * 가입 흐름에서 바로 호출 가능).
+ *
+ * 동의는 service·overseas(둘 다 필수 true, false면 서버가 422)·marketing(선택).
+ * 민감정보 별도동의(sensitive)는 두지 않는다 - careerText에 인라인 경고로
+ * 최소화(개인정보보호법 16·23조, 보안 세션 70 결론). 학번 저장형태(해시 등)는
+ * 백엔드 내부 소관 - 프론트는 10자리 문자열로 보내면 된다. */
+export interface ProfileOnboardingInput {
+  studentId: string;
+  department: string;
+  doubleMajor?: string;
+  grade: number;
+  declaredTags: string[];
+  careerText?: string;
+  consents: {
+    service: boolean;
+    overseas: boolean;
+    marketing?: boolean;
+  };
+}
+
+export function postProfileOnboarding(
+  input: ProfileOnboardingInput
+): Promise<{ onboardingComplete: boolean }> {
+  return request("/api/profiles/onboarding", jsonInit("POST", input));
+}
+
 export function postSchoolEmailRequest(email: string): Promise<{ detail: string }> {
   return request("/api/auth/school-email/request", jsonInit("POST", { email }));
 }
