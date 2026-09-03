@@ -361,3 +361,84 @@ def compute_interest_tags(
         key=lambda label: (-frequency[label], -latest_updated_at[label].timestamp()),
     )
     return ranked[:limit]
+
+
+# 프로필 임베딩용 합성 텍스트 상한 (설계 확정값). 벡터 검색은 텍스트 앞부분이
+# 뒷부분보다 중요하다는 보장이 없지만, 합성 순서를 "관심사 -> 최근 별자리 순 ->
+# 소개"로 짜두면 앞을 자르지 않고 뒤를 자르는 쪽이 가장 최근/핵심 정보를
+# 보존한다 - 그래서 이 상수는 끝부분(꼬리) 절단에 쓴다(text[:LIMIT]).
+PROFILE_TEXT_MAX_CHARS = 2000
+# 별자리 하나의 목표 원문이 지나치게 길어 다른 별자리 몫을 다 밀어내지 않도록
+# 별자리당 상한을 따로 둔다.
+_PROFILE_TEXT_GOAL_MAX_CHARS = 500
+# 프로필 텍스트에는 최근 갱신된 별자리 몇 개만 반영한다 - 발행 별자리가 아주
+# 많은 유저라도 임베딩 입력이 무한정 커지지 않게 한다.
+_PROFILE_TEXT_MAX_CONSTELLATIONS = 5
+
+
+def _profile_support_labels(constellation: Constellation) -> list[str]:
+    """수업(course)이 아닌 준비 요소 라벨을 순서보존 중복제거로 모은다.
+
+    bin 아이템(캔버스에 아직 배치 안 한 후보)과 노드(이미 배치한 것) 양쪽을 다
+    본다 - 유저가 자격증/대외활동을 캔버스에 올렸는지 bin에 담아만 뒀는지는
+    "이 사람이 뭘 준비하는가"라는 검색 신호와 무관하다. type == course인
+    항목(수업)은 제외한다 - 과목명은 이미 _semantic_labels가 폴백으로 다루거나
+    애초에 검색 어휘로 부적합하다(모듈 상단 compute_interest_tags 참고).
+    """
+    labels: list[str] = []
+    seen: set[str] = set()
+    for bin_ in constellation.bins:
+        for item in bin_.items:
+            if item.type != NodeTypes.COURSE and item.label not in seen:
+                seen.add(item.label)
+                labels.append(item.label)
+    for node in constellation.nodes.values():
+        if node.type != NodeTypes.COURSE and node.label not in seen:
+            seen.add(node.label)
+            labels.append(node.label)
+    return labels
+
+
+def compute_profile_text(
+    constellations: list[Constellation], *, bio: str | None, interest_tags: list[str]
+) -> str:
+    """프로필 임베딩용 합성 텍스트를 만든다 (users.profile_embedding 입력).
+
+    호출부(app/services/profile_embedding.py)가 owner의 발행 별자리 전체 +
+    bio + interest_tags를 넘긴다 - 이 함수는 Firestore를 전혀 모르는 순수
+    함수다. "빅데이터"로 검색해도 "데이터사이언티스트"류 관심사 유저가 뜨게
+    하려는 목적이므로, 태그뿐 아니라 목표 원문/군집 라벨/준비 요소까지 폭넓게
+    담아 임베딩 모델이 의미적 근접성을 판단할 재료를 준다.
+
+    합성 순서(관심사 -> 별자리별 목표/군집/준비요소 -> 소개)는 그대로 절단
+    우선순위다 - 상한(PROFILE_TEXT_MAX_CHARS)을 넘으면 뒤(소개, 오래된 별자리)부터
+    잘려나간다. 빈 항목(태그 없음/목표 없음/군집 없음/준비요소 없음/소개 없음)은
+    아예 줄을 만들지 않는다. 별자리도 태그도 bio도 전혀 없으면 빈 문자열을
+    반환한다 - 호출부가 이를 "임베딩할 게 없다"는 신호로 보고 profile_embedding
+    필드를 삭제한다.
+    """
+    parts: list[str] = []
+    if interest_tags:
+        parts.append(f"관심사: {', '.join(interest_tags)}")
+
+    ranked = sorted(constellations, key=lambda c: c.updated_at, reverse=True)
+    for constellation in ranked[:_PROFILE_TEXT_MAX_CONSTELLATIONS]:
+        title = constellation.title.strip()
+        goal = constellation.goal_raw_text.strip()[:_PROFILE_TEXT_GOAL_MAX_CHARS]
+        if title or goal:
+            parts.append(f"목표: {title} - {goal}")
+
+        semantic = _semantic_labels(constellation)
+        if semantic:
+            parts.append(f"군집: {', '.join(semantic)}")
+
+        support = _profile_support_labels(constellation)
+        if support:
+            parts.append(f"준비 요소: {', '.join(support)}")
+
+    bio_text = (bio or "").strip()
+    if bio_text:
+        parts.append(f"소개: {bio_text}")
+
+    text = "\n".join(parts)
+    return text[:PROFILE_TEXT_MAX_CHARS]

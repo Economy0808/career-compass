@@ -4,7 +4,9 @@ import pytest
 from pydantic import ValidationError
 
 from app.domain.constellation import (
+    PROFILE_TEXT_MAX_CHARS,
     Bin,
+    BinItem,
     Constellation,
     Edge,
     Group,
@@ -15,6 +17,7 @@ from app.domain.constellation import (
     Position,
     compute_interest_tags,
     compute_node_counts,
+    compute_profile_text,
     compute_progress_pct,
     is_edge_lit,
     prune_orphan_edges,
@@ -414,3 +417,109 @@ def test_compute_interest_tags_generic_only_bin_falls_back_to_nodes() -> None:
         )
     ]
     assert compute_interest_tags(constellations) == ["회계원리(1)"]
+
+
+# --- compute_profile_text ---
+
+
+def _make_profile_constellation(
+    cid: str,
+    *,
+    title: str = "",
+    goal_raw_text: str = "",
+    updated_at: datetime,
+    bins: list[Bin] | None = None,
+    nodes: dict[str, Node] | None = None,
+) -> Constellation:
+    return Constellation(
+        id=cid,
+        owner_id="user-1",
+        title=title,
+        goal_raw_text=goal_raw_text,
+        nodes=nodes or {},
+        bins=bins or [],
+        groups={},
+        is_published=True,
+        created_at=updated_at,
+        updated_at=updated_at,
+    )
+
+
+def test_compute_profile_text_no_constellations_no_tags_no_bio_returns_empty() -> None:
+    assert compute_profile_text([], bio=None, interest_tags=[]) == ""
+
+
+def test_compute_profile_text_no_constellations_bio_only() -> None:
+    text = compute_profile_text([], bio="철학 전공 1학년", interest_tags=[])
+    assert text == "소개: 철학 전공 1학년"
+
+
+def test_compute_profile_text_orders_tags_before_constellations_before_bio() -> None:
+    constellations = [
+        _make_profile_constellation(
+            "c1", title="데이터 분석가", goal_raw_text="목표 원문", updated_at=datetime(2026, 1, 1)
+        )
+    ]
+    text = compute_profile_text(constellations, bio="자기소개", interest_tags=["빅데이터"])
+    lines = text.split("\n")
+    assert lines[0] == "관심사: 빅데이터"
+    assert lines[1] == "목표: 데이터 분석가 - 목표 원문"
+    assert lines[-1] == "소개: 자기소개"
+
+
+def test_compute_profile_text_truncates_tail_keeping_front() -> None:
+    """상한을 넘으면 뒤(여기서는 소개)가 잘리고, 앞(관심사)은 그대로 남는다."""
+    long_bio = "가" * 3000
+    text = compute_profile_text([], bio=long_bio, interest_tags=["철학"])
+    assert len(text) == PROFILE_TEXT_MAX_CHARS
+    assert text.startswith("관심사: 철학")
+
+
+def test_compute_profile_text_excludes_generic_bin_label() -> None:
+    constellations = [
+        _make_profile_constellation(
+            "c1",
+            title="목표",
+            bins=[
+                Bin(id="bin-generic", label="내가 담은 수업", origin="user"),
+                Bin(id="bin-x", label="데이터 분석", origin="llm"),
+            ],
+            updated_at=datetime(2026, 1, 1),
+        )
+    ]
+    text = compute_profile_text(constellations, bio=None, interest_tags=[])
+    assert "내가 담은 수업" not in text
+    assert "군집: 데이터 분석" in text
+
+
+def test_compute_profile_text_includes_non_course_support_labels() -> None:
+    """수업이 아닌 bin 아이템·노드 라벨만 준비 요소로 들어가고 course는 빠진다."""
+    bin_with_items = Bin(
+        id="bin-x",
+        label="자격증",
+        origin="llm",
+        items=[
+            BinItem(id="support:1", label="정보처리기사", type=NodeTypes.CERTIFICATION),
+            BinItem(id="course:PHI1001", label="철학개론", type=NodeTypes.COURSE),
+        ],
+    )
+    node = Node(
+        id="n1",
+        label="토익 900+",
+        type=NodeTypes.CERTIFICATION,
+        position=Position(x=0.0, y=0.0),
+        origin="user_added",
+        created_at=datetime(2026, 1, 1),
+    )
+    constellations = [
+        _make_profile_constellation(
+            "c1",
+            title="목표",
+            bins=[bin_with_items],
+            nodes={"n1": node},
+            updated_at=datetime(2026, 1, 1),
+        )
+    ]
+    text = compute_profile_text(constellations, bio=None, interest_tags=[])
+    assert "준비 요소: 정보처리기사, 토익 900+" in text
+    assert "철학개론" not in text
