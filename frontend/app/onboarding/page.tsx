@@ -113,9 +113,11 @@ export default function OnboardingPage() {
   const [grade, setGrade] = useState<number | "">("");
   const [declaredTags, setDeclaredTags] = useState<string[]>([]);
   const [careerText, setCareerText] = useState("");
-  // 동의 - service·overseas 필수, marketing 선택. 물리적 별도 체크박스.
+  // 동의 - service(필수)·marketing(선택). 국외이전(overseas)은 여기 없다:
+  // 온보딩 데이터는 국내(Vertex)에만 저장돼 국외로 가지 않으므로, 국외이전 동의는
+  // 실제 이전이 일어나는 인테이크 대화 진입 시점에서 따로 받는다(사용자 결정
+  // 2026-09-04).
   const [consentService, setConsentService] = useState(false);
-  const [consentOverseas, setConsentOverseas] = useState(false);
   const [consentMarketing, setConsentMarketing] = useState(false);
   const [pending, setPending] = useState(false);
   const [error, setError] = useState<string | null>(null);
@@ -138,7 +140,6 @@ export default function OnboardingPage() {
     if (careerText.trim().length > MAX_CAREER)
       return `자유서술은 ${MAX_CAREER}자 이내로 적어주세요.`;
     if (!consentService) return "개인정보 수집·이용(필수)에 동의해야 계속할 수 있어요.";
-    if (!consentOverseas) return "AI 기능을 위한 국외이전(필수)에 동의해야 계속할 수 있어요.";
     return null;
   }
 
@@ -165,7 +166,6 @@ export default function OnboardingPage() {
         careerText: trimmedCareer || undefined,
         consents: {
           service: consentService,
-          overseas: consentOverseas,
           marketing: consentMarketing,
         },
       });
@@ -293,8 +293,8 @@ export default function OnboardingPage() {
                 placeholder="어떤 진로를 그리고 있는지 자유롭게 적어주세요."
               />
               <p className="text-micro leading-relaxed text-paper-lo">
-                <b className="text-paper-ink">건강·종교·정치성향 등 민감정보는 입력하지 마세요.</b>{" "}
-                입력한 내용은 맞춤 추천에만 쓰여요.
+                민감한 정보(건강·종교·정치성향 등)는 적지 않으셔도 돼요. 진로·관심 관련
+                내용만 자유롭게 적어주세요 — 맞춤 추천에만 쓰여요.
               </p>
             </div>
 
@@ -333,23 +333,9 @@ export default function OnboardingPage() {
                 </details>
               </ConsentRow>
 
-              <ConsentRow
-                id="consent-overseas"
-                checked={consentOverseas}
-                onChange={setConsentOverseas}
-                label={
-                  <>
-                    <b className="text-paper-ink">[필수]</b> 개인정보 국외이전(AI 기능)에 동의합니다.
-                  </>
-                }
-              >
-                {/* ⚠️ 법적 본문 미확정 - 준비 중 플레이스홀더. 창업자 결정 + 법무 확정
-                    전에는 라이브 노출 금지(백엔드 78 협의). */}
-                <p className="text-micro leading-relaxed text-paper-lo">
-                  AI 맞춤 기능을 쓰려면 입력 내용이 국외 AI 처리자에게 이전돼요. 상세 고지는{" "}
-                  <b className="text-paper-ink">준비 중이에요.</b>
-                </p>
-              </ConsentRow>
+              {/* 국외이전(overseas) 동의는 여기 없다 - 온보딩 데이터는 국내에만
+                  저장되므로, 실제 이전이 일어나는 인테이크 대화 진입 시점에서
+                  따로 받는다(사용자 결정 2026-09-04). */}
 
               <ConsentRow
                 id="consent-marketing"

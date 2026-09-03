@@ -143,8 +143,11 @@ export function postAuthSync(input?: {
  * (get_current_user 필수 - createUserWithEmailAndPassword 직후 토큰이 살아 있어
  * 가입 흐름에서 바로 호출 가능).
  *
- * 동의는 service·overseas(둘 다 필수 true, false면 서버가 422)·marketing(선택).
- * 민감정보 별도동의(sensitive)는 두지 않는다 - careerText에 인라인 경고로
+ * 동의는 service(필수 true, false면 서버가 422)·marketing(선택). 국외이전
+ * (overseas) 동의는 여기 없다 - 온보딩 데이터(학번·학과·careerText)는 국내
+ * (Vertex 서울)에만 저장되고 Anthropic으로 가지 않으므로, 국외이전 동의는 실제
+ * 이전이 일어나는 인테이크 대화 진입 시점에서 따로 받는다(사용자 결정 2026-09-04).
+ * 민감정보 별도동의(sensitive)도 두지 않는다 - careerText에 인라인 경고로
  * 최소화(개인정보보호법 16·23조, 보안 세션 70 결론). 학번 저장형태(해시 등)는
  * 백엔드 내부 소관 - 프론트는 10자리 문자열로 보내면 된다. */
 export interface ProfileOnboardingInput {
@@ -156,7 +159,6 @@ export interface ProfileOnboardingInput {
   careerText?: string;
   consents: {
     service: boolean;
-    overseas: boolean;
     marketing?: boolean;
   };
 }
