@@ -26,12 +26,15 @@ import { ApiError } from "@/lib/api";
 import { GeneratingGuide } from "@/components/GeneratingGuide";
 import {
   getBinJob,
+  getIntakeQuota,
   intakeChat,
   startBinSuggestJob,
   type BinDto,
   type ChatMessageDto,
   type DraftDto,
+  type IntakeQuota,
 } from "@/lib/constellation-api";
+import { PlanComparisonModal } from "@/components/PlanComparisonModal";
 
 export interface ConstellationIntakeChatProps {
   /** 구간 생성 잡이 끝나면 호출된다 - 부모가 이 결과로 캔버스를 채운다.
@@ -183,6 +186,25 @@ export function ConstellationIntakeChat({
   // 그때 무료사용권 차감 경고창"). 첫 전송 직전에 이 텍스트를 보관해 확인 모달을
   // 띄우고, "계속"을 눌러야 실제로 보낸다(백엔드가 첫 /chat에서 1회 차감).
   const [chargeGateText, setChargeGateText] = useState<string | null>(null);
+  // 무료권/크레딧 잔량 - 마운트 시 1회 조회해 차감 경고 문구를 정확히 쓴다.
+  // 무료는 일회성 1개(리셋 없음)라 "오늘 N회"가 아니라 "무료 1회"다.
+  const [quota, setQuota] = useState<IntakeQuota | null>(null);
+  // 무료·크레딧 소진(429 no-credit) 시 요금제 안내.
+  const [planOpen, setPlanOpen] = useState(false);
+
+  useEffect(() => {
+    let cancelled = false;
+    getIntakeQuota()
+      .then((q) => {
+        if (!cancelled) setQuota(q);
+      })
+      .catch(() => {
+        // 조회 실패는 조용히 - 문구가 기본값("1개")으로 떨어질 뿐 기능은 유지.
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, []);
   // 지금 질문에 딸린 입력 보조 힌트/칩 - 서버 응답 밖(messages와 별개)이라 따로 든다.
   const [hint, setHint] = useState<string | null>(null);
   const [options, setOptions] = useState<string[]>([]);
@@ -362,8 +384,15 @@ export function ConstellationIntakeChat({
       setMessages(messages);
       if (isFirstTurn) setGoalText(null);
       setDraft(text);
-      setLastFailedText(text);
-      setChatError(detailOf(err, "메시지를 보내지 못했어요. 다시 시도해 주세요."));
+      // 무료·크레딧 소진(첫 chat 429 + X-Quota-Reason: no-credit) - 재시도가
+      // 아니라 요금제 안내가 맞다. "다시 보내기"는 숨기고 플랜 모달을 연다.
+      if (err instanceof ApiError && err.status === 429 && err.quotaReason === "no-credit") {
+        setLastFailedText(null);
+        setPlanOpen(true);
+      } else {
+        setLastFailedText(text);
+        setChatError(detailOf(err, "메시지를 보내지 못했어요. 다시 시도해 주세요."));
+      }
     }
   }
 
@@ -440,42 +469,89 @@ export function ConstellationIntakeChat({
           보내기 전에 고지한다(사용자 확정: "첫대화 엔터 누르면 그때 차감
           경고창"). 실제 차감은 백엔드가 첫 /chat에서 한다 - 여기서는 "계속"이
           그 첫 /chat을 발화시킬 뿐이다. */}
-      {chargeGateText !== null && (
-        <div
-          className="fixed inset-0 z-50 flex items-center justify-center bg-ink-900/70 p-4 backdrop-blur-sm"
-          role="dialog"
-          aria-modal="true"
-          aria-label="무료권 차감 확인"
-        >
-          <div className="w-full max-w-sm rounded-xl border border-rule bg-ink-800 p-5 shadow-lg">
-            <h2 className="font-serif text-title font-bold text-text-hi">별자리 하나를 시작할까요?</h2>
-            <p className="mt-2 font-sans text-body-sm leading-relaxed text-text-lo">
-              이 대화를 시작하면 별자리 <b className="text-text-hi">1개</b>가 쓰여요. 대화를 마치고
-              별자리를 완성하는 것까지 이 하나에 포함돼요.
-            </p>
-            <div className="mt-5 flex justify-end gap-2">
-              <button
-                type="button"
-                onClick={() => setChargeGateText(null)}
-                className="rounded-md px-3 py-1.5 font-sans text-body-sm text-text-lo transition-colors hover:text-text-hi focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-1 focus-visible:outline-spec-b"
-              >
-                취소
-              </button>
-              <button
-                type="button"
-                onClick={() => {
-                  const text = chargeGateText;
-                  setChargeGateText(null);
-                  void sendMessage(text, { confirmed: true });
-                }}
-                className="cta-ink rounded-md bg-spec-b px-4 py-1.5 font-sans text-body-sm font-semibold text-ink-900 transition-[filter] hover:brightness-110 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-1 focus-visible:outline-spec-b"
-              >
-                시작하기
-              </button>
+      {chargeGateText !== null &&
+        (() => {
+          // 잔량 3분기(백엔드 확정, 일회성 모델): 무료 1 → "무료권 1개",
+          // 무료 0·크레딧>0 → "크레딧 1개", 둘 다 0 → 차감 대신 요금제 안내.
+          // quota 미조회(null)면 낙관적으로 무료 1개로 본다(실 차감/429가 심판).
+          const freeLeft = quota?.freeCreditLeft ?? 1;
+          const creditsLeft = quota?.credits ?? 0;
+          const canSpend = freeLeft > 0 || creditsLeft > 0;
+          const spendWhat = freeLeft > 0 ? "무료권 1개" : "크레딧 1개";
+          return (
+            <div
+              className="fixed inset-0 z-50 flex items-center justify-center bg-ink-900/70 p-4 backdrop-blur-sm"
+              role="dialog"
+              aria-modal="true"
+              aria-label={canSpend ? "무료권 차감 확인" : "요금제 안내"}
+            >
+              <div className="w-full max-w-sm rounded-xl border border-rule bg-ink-800 p-5 shadow-lg">
+                {canSpend ? (
+                  <>
+                    <h2 className="font-serif text-title font-bold text-text-hi">별자리 하나를 시작할까요?</h2>
+                    <p className="mt-2 font-sans text-body-sm leading-relaxed text-text-lo">
+                      이 대화를 시작하면 <b className="text-text-hi">{spendWhat}</b>가 쓰여요. 대화를
+                      마치고 별자리를 완성하는 것까지 이 하나에 포함돼요.
+                    </p>
+                    <div className="mt-5 flex justify-end gap-2">
+                      <button
+                        type="button"
+                        onClick={() => setChargeGateText(null)}
+                        className="rounded-md px-3 py-1.5 font-sans text-body-sm text-text-lo transition-colors hover:text-text-hi focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-1 focus-visible:outline-spec-b"
+                      >
+                        취소
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => {
+                          const text = chargeGateText;
+                          setChargeGateText(null);
+                          void sendMessage(text, { confirmed: true });
+                        }}
+                        className="cta-ink rounded-md bg-spec-b px-4 py-1.5 font-sans text-body-sm font-semibold text-ink-900 transition-[filter] hover:brightness-110 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-1 focus-visible:outline-spec-b"
+                      >
+                        시작하기
+                      </button>
+                    </div>
+                  </>
+                ) : (
+                  <>
+                    <h2 className="font-serif text-title font-bold text-text-hi">무료권을 다 썼어요</h2>
+                    <p className="mt-2 font-sans text-body-sm leading-relaxed text-text-lo">
+                      요금제에서 횟수권을 사면 이어서 별자리를 만들 수 있어요.
+                    </p>
+                    <div className="mt-5 flex justify-end gap-2">
+                      <button
+                        type="button"
+                        onClick={() => setChargeGateText(null)}
+                        className="rounded-md px-3 py-1.5 font-sans text-body-sm text-text-lo transition-colors hover:text-text-hi focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-1 focus-visible:outline-spec-b"
+                      >
+                        취소
+                      </button>
+                      <button
+                        type="button"
+                        onClick={() => {
+                          setChargeGateText(null);
+                          setPlanOpen(true);
+                        }}
+                        className="cta-ink rounded-md bg-spec-b px-4 py-1.5 font-sans text-body-sm font-semibold text-ink-900 transition-[filter] hover:brightness-110 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-1 focus-visible:outline-spec-b"
+                      >
+                        요금제 보기
+                      </button>
+                    </div>
+                  </>
+                )}
+              </div>
             </div>
-          </div>
-        </div>
-      )}
+          );
+        })()}
+
+      <PlanComparisonModal
+        open={planOpen}
+        onClose={() => setPlanOpen(false)}
+        freeCreditLeft={quota?.freeCreditLeft}
+        credits={quota?.credits}
+      />
 
       {/* 우상단 "기존 별자리가 있어요" 배지 - 빠져나갈 곳(onDismiss)이 있을
           때만 뜬다. 대화는 그대로 진행 중일 수 있으므로 대화 UI 위(z-20)에
