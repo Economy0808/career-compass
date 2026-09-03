@@ -127,3 +127,11 @@ class JobStatusOut(_CamelModel):
     status: str  # pending | running | done | error
     result: dict[str, Any] | None = None
     detail: str | None = None
+
+
+class QuotaOut(_CamelModel):
+    """GET /quota 응답 - app.firestore.quota_repo.get_quota의 dict를 그대로 옮긴다."""
+
+    free_credit_left: int
+    credits: int
+    has_open_cycle: bool

@@ -27,6 +27,7 @@ from httpx import ASGITransport, AsyncClient
 from app.auth.deps import get_current_user, get_current_user_optional
 from app.auth.firebase_auth import DecodedToken
 from app.etl.yonsei_courses import MergedCourse
+from app.firestore import quota_repo
 from app.firestore.client import get_firestore_client
 from app.firestore.course_repo import upsert_courses
 from app.llm import get_llm_client
@@ -418,3 +419,98 @@ async def test_prereqs_with_single_item_returns_empty(authed_as: Callable[[str],
         )
         assert resp.status_code == 200
         assert resp.json()["edges"] == []
+
+
+# --- 쿼터 (별자리 "1사이클") ---
+
+
+@pytest.mark.asyncio
+async def test_first_chat_turn_consumes_free_credit(authed_as: Callable[[str], None]) -> None:
+    """assistant 턴이 없는 첫 요청(빈 messages)이 무료 1회를 소진하고 사이클을 연다."""
+    authed_as("user-a")
+    async with _client() as client:
+        resp = await client.post(
+            "/api/constellation-intake/chat",
+            json={"goalRawText": "데이터 분석가가 되고 싶어", "messages": []},
+        )
+        assert resp.status_code == 200
+
+        quota_resp = await client.get("/api/constellation-intake/quota")
+        assert quota_resp.status_code == 200
+        data = quota_resp.json()
+        assert data["freeCreditLeft"] == 0
+        assert data["hasOpenCycle"] is True
+
+
+@pytest.mark.asyncio
+async def test_first_chat_turn_without_quota_returns_429_with_header(
+    authed_as: Callable[[str], None],
+) -> None:
+    """무료/크레딧이 모두 소진된 유저가 새 대화를 시작하면 429 + X-Quota-Reason."""
+    authed_as("user-a")
+    db = get_firestore_client()
+    quota_repo.consume_cycle(db, "user-a")  # 무료 1회 소진
+    quota_repo.close_cycle(db, "user-a", outcome="completed")  # 복원 없이 닫기(발행 완료 흉내)
+
+    async with _client() as client:
+        resp = await client.post(
+            "/api/constellation-intake/chat",
+            json={"goalRawText": "다른 목표", "messages": []},
+        )
+        assert resp.status_code == 429
+        assert resp.headers["X-Quota-Reason"] == "no-credit"
+
+
+@pytest.mark.asyncio
+async def test_followup_chat_turn_in_same_conversation_does_not_charge_again(
+    authed_as: Callable[[str], None],
+) -> None:
+    """assistant 턴이 이미 있는 후속 요청은 이미 열린 사이클을 무차감으로 이어간다."""
+    authed_as("user-a")
+    goal = "데이터 분석가가 되고 싶어"
+    async with _client() as client:
+        first = await client.post(
+            "/api/constellation-intake/chat",
+            json={"goalRawText": goal, "messages": []},
+        )
+        messages = first.json()["messages"]
+        messages.append({"role": "user", "content": "네, 그래요"})
+
+        second = await client.post(
+            "/api/constellation-intake/chat",
+            json={"goalRawText": goal, "messages": messages},
+        )
+        assert second.status_code == 200
+
+        quota_resp = await client.get("/api/constellation-intake/quota")
+        data = quota_resp.json()
+        assert data["freeCreditLeft"] == 0  # 두 번째 턴으로 추가 차감되지 않았다
+        assert data["hasOpenCycle"] is True
+
+
+@pytest.mark.asyncio
+async def test_get_quota_shape_for_new_user(authed_as: Callable[[str], None]) -> None:
+    authed_as("user-a")
+    async with _client() as client:
+        resp = await client.get("/api/constellation-intake/quota")
+        assert resp.status_code == 200
+        assert resp.json() == {"freeCreditLeft": 1, "credits": 0, "hasOpenCycle": False}
+
+
+@pytest.mark.asyncio
+async def test_discard_cycle_closes_open_cycle_without_refund(
+    authed_as: Callable[[str], None],
+) -> None:
+    authed_as("user-a")
+    async with _client() as client:
+        await client.post(
+            "/api/constellation-intake/chat",
+            json={"goalRawText": "데이터 분석가가 되고 싶어", "messages": []},
+        )
+        discard_resp = await client.post("/api/constellation-intake/cycle/discard")
+        assert discard_resp.status_code == 204
+
+        quota_resp = await client.get("/api/constellation-intake/quota")
+        data = quota_resp.json()
+        assert data["hasOpenCycle"] is False
+        assert data["freeCreditLeft"] == 0  # discard(abandoned)는 환불하지 않는다

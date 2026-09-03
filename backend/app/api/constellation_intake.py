@@ -18,10 +18,12 @@ from __future__ import annotations
 from fastapi import APIRouter, Depends, HTTPException
 from google.cloud.firestore import Client
 
-from app.auth.deps import require_yonsei_verified
+from app.auth.deps import get_current_user, require_yonsei_verified
 from app.auth.firebase_auth import DecodedToken
 from app.core.rate_limit import rate_limit
+from app.firestore import quota_repo
 from app.firestore.client import get_firestore_client
+from app.firestore.quota_repo import QuotaExceeded
 from app.llm import get_llm_client
 from app.llm.base import ChatMessage, CourseOption, LLMClient
 from app.schemas.constellation_intake import (
@@ -35,12 +37,18 @@ from app.schemas.constellation_intake import (
     PrereqEdgeOut,
     PrereqsIn,
     PrereqsOut,
+    QuotaOut,
 )
 from app.services import bin_jobs, bin_suggestion
 
 router = APIRouter(prefix="/api/constellation-intake", tags=["constellation-intake"])
 
 _JOB_NOT_FOUND = HTTPException(status_code=404, detail="작업을 찾을 수 없어요.")
+_NO_CREDIT = HTTPException(
+    status_code=429,
+    detail="무료 사용권을 다 썼어요. 요금제에서 횟수권을 구매하면 이어서 만들 수 있어요.",
+    headers={"X-Quota-Reason": "no-credit"},
+)
 
 
 @router.post("/chat", response_model=IntakeChatOut)
@@ -48,6 +56,7 @@ async def chat(
     payload: IntakeChatIn,
     user: DecodedToken = Depends(require_yonsei_verified),
     llm: LLMClient = Depends(get_llm_client),
+    db: Client = Depends(get_firestore_client),
     _: None = Depends(rate_limit("intake-chat", limit=30)),
 ) -> IntakeChatOut:
     """Stateless 질답 진행. 프론트가 messages 전체 히스토리를 들고 재전송한다.
@@ -57,8 +66,20 @@ async def chat(
     CareerGoal 프로필에 대응하는 개념이 아직 없다(별자리 도메인은 Firestore 전용).
     messages 자체에 max_length=40 상한이 걸려 있어(스키마 참고), 무한 질문 루프가
     나더라도 요청 바디 크기가 무한정 커지지는 않는다.
+
+    **쿼터 차감(별자리 "1사이클")**: 요청 messages에 assistant 턴이 하나도 없으면
+    이 대화의 첫 엔터라는 뜻이므로 quota_repo.consume_cycle을 호출해 무료/유료
+    사이클을 차감한다. 이미 사이클이 열려 있으면 consume_cycle이 무차감으로
+    이어가는 멱등 함수라 매 턴 불러도 안전하지만, 불필요한 트랜잭션 왕복을 줄이려고
+    첫 턴에서만 부른다. 무료도 크레딧도 없으면 429 + X-Quota-Reason 헤더로 막는다 -
+    잡 실패/빈 결과·발행 시 사이클을 닫는 훅은 bins 잡 경로/publish 핸들러에 있다.
     """
-    del user  # 인증 여부와 무관하게 동작 - 이 엔드포인트는 유저별 상태를 갖지 않는다.
+    if not any(m.role == "assistant" for m in payload.messages):
+        try:
+            quota_repo.consume_cycle(db, user.uid)
+        except QuotaExceeded as e:
+            raise _NO_CREDIT from e
+
     llm_messages = [ChatMessage(role=m.role, content=m.content) for m in payload.messages]
     turn = await llm.chat(payload.goal_raw_text, llm_messages, known_profile=None)
 
@@ -163,3 +184,34 @@ async def job_status(
     if job is None:
         raise _JOB_NOT_FOUND
     return JobStatusOut(status=job.status, result=job.result, detail=job.detail)
+
+
+@router.get("/quota", response_model=QuotaOut)
+async def get_quota(
+    user: DecodedToken = Depends(get_current_user),
+    db: Client = Depends(get_firestore_client),
+) -> QuotaOut:
+    """현재 유저의 쿼터 상태(무료 잔여/크레딧/진행 중 사이클 여부)를 돌려준다.
+
+    이 라우터의 다른 엔드포인트와 달리 require_yonsei_verified가 아니라
+    get_current_user만 요구한다 - 쿼터 조회는 LLM 인테이크 대화 자체가 아니라
+    "요금제/사용권" 화면 어디서든 보여줄 수 있는 정보라, 연세대 인증 전 유저도
+    자기 쿼터(가입 시 지급된 무료 1회)를 볼 수 있어야 한다.
+    """
+    return QuotaOut(**quota_repo.get_quota(db, user.uid))
+
+
+@router.post("/cycle/discard", status_code=204)
+async def discard_cycle(
+    user: DecodedToken = Depends(require_yonsei_verified),
+    db: Client = Depends(get_firestore_client),
+) -> None:
+    """진행 중인 사이클을 환불 없이 닫는다 - 프론트의 "새 별자리 시작" 액션용.
+
+    닫아두지 않으면 quota_open_cycle이 남아 있어 다음 /chat 첫 엔터가
+    consume_cycle의 멱등 규칙(열린 사이클이 있으면 무차감으로 이어감)에 따라
+    그 사이클을 그대로 이어받는다 - 즉 새 별자리를 시작해도 차감되지 않는
+    버그가 된다. 그래서 프론트는 새 대화를 시작하기 전 반드시 이 엔드포인트를
+    먼저 불러야 한다.
+    """
+    quota_repo.close_cycle(db, user.uid, outcome="abandoned")
