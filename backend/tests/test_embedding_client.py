@@ -1,10 +1,15 @@
 """임베딩 클라이언트 팩토리 분기 + Fake/Vertex 어댑터 테스트."""
 
+import json
+
+import httpx
 import pytest
 
 from app.config import Settings
 from app.embedding import get_embedding_client
+from app.embedding.base import EmbeddingError
 from app.embedding.fake_client import DIMENSIONS, FakeEmbeddingClient
+from app.embedding.vertex_client import VertexEmbeddingClient
 
 
 def _settings(**over) -> Settings:
@@ -52,6 +57,13 @@ def test_factory_returns_fake_when_kill_switch_off(monkeypatch: pytest.MonkeyPat
     get_embedding_client.cache_clear()
 
 
+def test_factory_returns_vertex_in_production(monkeypatch: pytest.MonkeyPatch) -> None:
+    monkeypatch.setattr("app.embedding.get_settings", lambda: _settings(app_env="production"))
+    get_embedding_client.cache_clear()
+    assert isinstance(get_embedding_client(), VertexEmbeddingClient)
+    get_embedding_client.cache_clear()
+
+
 # --- Fake 클라이언트 ---------------------------------------------------------
 
 
@@ -88,3 +100,97 @@ async def test_fake_embed_different_text_gives_different_vector() -> None:
     a = await client.embed("빅데이터", kind="query")
     b = await client.embed("밴드동아리", kind="query")
     assert a != b
+
+
+# --- Vertex 클라이언트 -------------------------------------------------------
+
+
+def _vertex(handler, **over) -> VertexEmbeddingClient:
+    st = _settings(app_env="production", **over)
+    return VertexEmbeddingClient(
+        settings=st,
+        access_token="fake-token",
+        client=httpx.AsyncClient(transport=httpx.MockTransport(handler)),
+    )
+
+
+def _predict_response(values: list[float]) -> httpx.Response:
+    return httpx.Response(200, json={"predictions": [{"embeddings": {"values": values}}]})
+
+
+async def test_vertex_embed_posts_expected_url_headers_and_body() -> None:
+    from app.firestore.client import _resolve_project_id
+
+    project = _resolve_project_id()
+    seen: dict = {}
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        seen["url"] = str(request.url)
+        seen["auth"] = request.headers.get("authorization")
+        seen["project_header"] = request.headers.get("x-goog-user-project")
+        seen["json"] = json.loads(request.content)
+        return _predict_response([0.1] * DIMENSIONS)
+
+    await _vertex(handler).embed("빅데이터", kind="query")
+
+    assert seen["url"] == (
+        f"https://asia-northeast3-aiplatform.googleapis.com/v1/projects/{project}/"
+        "locations/asia-northeast3/publishers/google/models/gemini-embedding-001:predict"
+    )
+    assert seen["auth"] == "Bearer fake-token"
+    assert seen["project_header"] == project
+    assert seen["json"]["instances"] == [{"content": "빅데이터", "task_type": "RETRIEVAL_QUERY"}]
+    assert seen["json"]["parameters"] == {"outputDimensionality": DIMENSIONS, "autoTruncate": True}
+
+
+async def test_vertex_embed_uses_document_task_type() -> None:
+    seen: dict = {}
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        seen["json"] = json.loads(request.content)
+        return _predict_response([0.1] * DIMENSIONS)
+
+    await _vertex(handler).embed("데이터사이언티스트 목표", kind="document")
+    assert seen["json"]["instances"][0]["task_type"] == "RETRIEVAL_DOCUMENT"
+
+
+async def test_vertex_embed_parses_values() -> None:
+    values = [float(i) / DIMENSIONS for i in range(DIMENSIONS)]
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        return _predict_response(values)
+
+    result = await _vertex(handler).embed("텍스트", kind="query")
+    assert result == values
+
+
+async def test_vertex_embed_raises_on_dimension_mismatch() -> None:
+    def handler(request: httpx.Request) -> httpx.Response:
+        return _predict_response([0.1] * 10)  # 768이 아님
+
+    with pytest.raises(EmbeddingError):
+        await _vertex(handler).embed("텍스트", kind="query")
+
+
+async def test_vertex_embed_retries_once_then_raises_on_5xx() -> None:
+    calls = []
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        calls.append(1)
+        return httpx.Response(503, json={"error": "unavailable"})
+
+    with pytest.raises(EmbeddingError):
+        await _vertex(handler).embed("텍스트", kind="query")
+    assert len(calls) == 2
+
+
+async def test_vertex_embed_does_not_retry_on_4xx() -> None:
+    calls = []
+
+    def handler(request: httpx.Request) -> httpx.Response:
+        calls.append(1)
+        return httpx.Response(400, json={"error": "bad request"})
+
+    with pytest.raises(EmbeddingError):
+        await _vertex(handler).embed("텍스트", kind="query")
+    assert len(calls) == 1
