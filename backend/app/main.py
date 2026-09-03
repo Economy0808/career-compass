@@ -49,7 +49,10 @@ def create_app() -> FastAPI:
         # 이게 빠지면 프론트의 res.headers.get("X-Auth-Requirement")가 항상 null이 되어
         # 미인증(403+헤더)과 권한 없음(403)을 구분하지 못한다. curl/urllib에서는 헤더가
         # 그대로 보이므로 서버 측 스모크만으로는 잡히지 않는 종류의 버그다.
-        expose_headers=["X-Auth-Requirement"],
+        # X-Consent-Required도 같은 이유로 노출한다 - 국외이전 동의 게이트(기능
+        # 플래그, 아직 기본 꺼짐)가 켜지면 프론트가 403을 "동의 모달 유도"로
+        # 구분하려면 이 헤더를 읽을 수 있어야 한다(app/auth/consent_deps.py).
+        expose_headers=["X-Auth-Requirement", "X-Consent-Required"],
     )
 
     @app.middleware("http")

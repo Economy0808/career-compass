@@ -26,8 +26,10 @@ from httpx import ASGITransport, AsyncClient
 
 from app.auth.deps import get_current_user, get_current_user_optional
 from app.auth.firebase_auth import DecodedToken
+from app.config import get_settings
+from app.core import rate_limit
 from app.etl.yonsei_courses import MergedCourse
-from app.firestore import quota_repo
+from app.firestore import quota_repo, user_private_repo
 from app.firestore.client import get_firestore_client
 from app.firestore.course_repo import upsert_courses
 from app.llm import get_llm_client
@@ -189,6 +191,132 @@ async def test_chat_by_unverified_user_returns_403_with_auth_requirement_header(
         )
         assert resp.status_code == 403
         assert resp.headers["X-Auth-Requirement"] == "yonsei-verified"
+
+
+# --- 국외이전 동의 게이트 (overseas, 기능 플래그 overseas_gate_enabled) ---
+
+
+@pytest.mark.asyncio
+async def test_chat_with_gate_disabled_ignores_missing_consent(
+    authed_as: Callable[[str], None],
+) -> None:
+    """플래그 기본값(False)에서는 동의 기록이 없어도 기존 동작대로 통과한다 - 회귀 가드."""
+    authed_as("user-a")
+    async with _client() as client:
+        resp = await client.post(
+            "/api/constellation-intake/chat",
+            json={"goalRawText": "데이터 분석가가 되고 싶어", "messages": []},
+        )
+        assert resp.status_code == 200
+
+
+@pytest.mark.asyncio
+async def test_chat_with_gate_enabled_and_no_consent_returns_403(
+    authed_as: Callable[[str], None], monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """플래그를 켰을 때 동의 기록이 없는 유저는 403 + X-Consent-Required."""
+    monkeypatch.setattr(get_settings(), "overseas_gate_enabled", True)
+    authed_as("user-a")
+    async with _client() as client:
+        resp = await client.post(
+            "/api/constellation-intake/chat",
+            json={"goalRawText": "데이터 분석가가 되고 싶어", "messages": []},
+        )
+        assert resp.status_code == 403
+        assert resp.headers["X-Consent-Required"] == "overseas"
+
+
+@pytest.mark.asyncio
+async def test_chat_with_gate_enabled_and_stale_consent_version_returns_403(
+    authed_as: Callable[[str], None], monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """구 판본에 동의한 기록은 유효하지 않다 - 문구가 개정되면 재동의가 필요하다."""
+    monkeypatch.setattr(get_settings(), "overseas_gate_enabled", True)
+    authed_as("user-a")
+    db = get_firestore_client()
+    user_private_repo.set_overseas_consent(db, "user-a", "2026-01-01-v0")
+    async with _client() as client:
+        resp = await client.post(
+            "/api/constellation-intake/chat",
+            json={"goalRawText": "데이터 분석가가 되고 싶어", "messages": []},
+        )
+        assert resp.status_code == 403
+        assert resp.headers["X-Consent-Required"] == "overseas"
+
+
+@pytest.mark.asyncio
+async def test_chat_with_gate_enabled_and_recorded_consent_succeeds(
+    authed_as: Callable[[str], None], monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """저장된 동의 판본이 현재 판본과 같으면 정상 통과한다."""
+    monkeypatch.setattr(get_settings(), "overseas_gate_enabled", True)
+    authed_as("user-a")
+    db = get_firestore_client()
+    user_private_repo.set_overseas_consent(
+        db, "user-a", get_settings().current_overseas_consent_version
+    )
+    async with _client() as client:
+        resp = await client.post(
+            "/api/constellation-intake/chat",
+            json={"goalRawText": "데이터 분석가가 되고 싶어", "messages": []},
+        )
+        assert resp.status_code == 200
+
+
+@pytest.mark.asyncio
+async def test_chat_with_gate_enabled_and_no_consent_does_not_charge_quota_or_rate_limit(
+    authed_as: Callable[[str], None], monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """403으로 막힌 요청은 무료 크레딧도, 레이트리밋 슬롯도 소모하지 않는다.
+
+    FastAPI가 의존성을 파라미터 선언 순서대로 순차 실행하고(app/api/
+    constellation_intake.py의 chat()에서 _consent가 db/rate_limit보다 앞선
+    위치) HTTPException은 그 자리에서 즉시 전체 solve_dependencies 루프를
+    중단시키므로, consent 실패 시 quota 차감(엔드포인트 본문 코드)도 뒤이은
+    rate_limit 의존성도 아예 실행되지 않는다 - 이 하드 제약을 직접 검증한다.
+    """
+    monkeypatch.setattr(get_settings(), "overseas_gate_enabled", True)
+    authed_as("user-a")
+    async with _client() as client:
+        resp = await client.post(
+            "/api/constellation-intake/chat",
+            json={"goalRawText": "데이터 분석가가 되고 싶어", "messages": []},
+        )
+        assert resp.status_code == 403
+
+    db = get_firestore_client()
+    assert quota_repo.get_quota(db, "user-a")["freeCreditLeft"] == 1
+    consumed = sum(
+        len(bucket) for key, bucket in rate_limit._hits.items() if key.startswith("intake-chat:")
+    )
+    assert consumed == 0
+
+
+@pytest.mark.asyncio
+async def test_prereqs_bins_and_fill_bin_are_also_gated_when_enabled(
+    authed_as: Callable[[str], None], monkeypatch: pytest.MonkeyPatch
+) -> None:
+    """방어심층: Anthropic을 호출하는 나머지 세 라우트도 미동의면 403이다."""
+    monkeypatch.setattr(get_settings(), "overseas_gate_enabled", True)
+    authed_as("user-a")
+    async with _client() as client:
+        prereqs_resp = await client.post(
+            "/api/constellation-intake/prereqs",
+            json={"items": [{"code": "C100", "name": "기초", "level": 1, "kind": None}]},
+        )
+        assert prereqs_resp.status_code == 403
+        assert prereqs_resp.headers["X-Consent-Required"] == "overseas"
+
+        bins_resp = await client.post(
+            "/api/constellation-intake/bins", json={"goalText": _BUSINESS_GOAL}
+        )
+        assert bins_resp.status_code == 403
+
+        fill_resp = await client.post(
+            "/api/constellation-intake/bins/fill",
+            json={"goalText": _BUSINESS_GOAL, "binLabel": "네트워킹"},
+        )
+        assert fill_resp.status_code == 403
 
 
 # --- 질답 (/chat) ---

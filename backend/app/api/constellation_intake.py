@@ -11,6 +11,11 @@
 있어, roadmap.py의 /preview와 동일한 "접수 즉시 202 + job_id 폴링" 패턴을 그대로
 따른다(app/services/bin_jobs.py가 preview_jobs.py의 의도적 복제 - 모듈 docstring
 참고). 레이트리밋은 IP 기준이라 인증 여부와 무관하게 그대로 적용된다.
+
+Anthropic으로 실제 데이터가 나가는 네 라우트(/chat, /prereqs, /bins, /bins/fill)는
+require_overseas_consent(app/auth/consent_deps.py)도 함께 의존한다 - 개인정보
+국외이전 동의 게이트(기능 플래그 overseas_gate_enabled 뒤, 기본 꺼짐). /prereqs는
+유저 PII를 보내지 않지만 방어심층으로 동일하게 건다.
 """
 
 from __future__ import annotations
@@ -18,6 +23,7 @@ from __future__ import annotations
 from fastapi import APIRouter, Depends, HTTPException
 from google.cloud.firestore import Client
 
+from app.auth.consent_deps import require_overseas_consent
 from app.auth.deps import get_current_user, require_yonsei_verified
 from app.auth.firebase_auth import DecodedToken
 from app.core.rate_limit import rate_limit
@@ -55,11 +61,17 @@ _NO_CREDIT = HTTPException(
 async def chat(
     payload: IntakeChatIn,
     user: DecodedToken = Depends(require_yonsei_verified),
+    _consent: DecodedToken = Depends(require_overseas_consent),
     llm: LLMClient = Depends(get_llm_client),
     db: Client = Depends(get_firestore_client),
     _: None = Depends(rate_limit("intake-chat", limit=30)),
 ) -> IntakeChatOut:
     """Stateless 질답 진행. 프론트가 messages 전체 히스토리를 들고 재전송한다.
+
+    _consent(require_overseas_consent)는 quota 차감(아래 consume_cycle 호출)과
+    rate_limit 의존성보다 앞선 파라미터 위치에 있다 - FastAPI가 의존성을
+    선언 순서대로 순차 해석하므로, 국외이전 미동의 요청은 크레딧이나
+    레이트리밋 슬롯을 소모하기 전에 403으로 막힌다(플래그 켜졌을 때만).
 
     roadmap.py의 /chat과 계약이 동일하다(모델 응답을 messages에 append해 되돌려준다)
     - 다만 known_profile은 항상 None이다: 이 Firebase 경로에는 옛 Postgres
@@ -100,6 +112,7 @@ async def chat(
 async def infer_prereqs(
     payload: PrereqsIn,
     user: DecodedToken = Depends(require_yonsei_verified),
+    _consent: DecodedToken = Depends(require_overseas_consent),
     llm: LLMClient = Depends(get_llm_client),
     _: None = Depends(rate_limit("intake-prereqs", limit=30)),
 ) -> PrereqsOut:
@@ -136,6 +149,7 @@ async def infer_prereqs(
 async def suggest_bins(
     payload: BinSuggestIn,
     user: DecodedToken = Depends(require_yonsei_verified),
+    _consent: DecodedToken = Depends(require_overseas_consent),
     llm: LLMClient = Depends(get_llm_client),
     db: Client = Depends(get_firestore_client),
     _: None = Depends(rate_limit("intake-bins", limit=10)),
@@ -155,6 +169,7 @@ async def suggest_bins(
 async def fill_bin(
     payload: BinFillIn,
     user: DecodedToken = Depends(require_yonsei_verified),
+    _consent: DecodedToken = Depends(require_overseas_consent),
     llm: LLMClient = Depends(get_llm_client),
     db: Client = Depends(get_firestore_client),
     _: None = Depends(rate_limit("intake-bins", limit=10)),
