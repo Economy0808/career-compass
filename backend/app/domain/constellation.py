@@ -284,20 +284,49 @@ def prune_orphan_edges(nodes: dict[str, Node], edges: dict[str, Edge]) -> dict[s
 # 관심사 태그 상위 몇 개를 users.interest_tags에 비정규화할지 (탐색 API 브리핑 명시).
 INTEREST_TAG_LIMIT = 5
 
+# frontend가 모든 별자리의 첫 bin으로 항상 자동 삽입하는 목표 무관 고정 라벨
+# (frontend/app/constellation/new/page.tsx의 ensureManualCoursesBin, bin id
+# "bin-courses-manual"). 실측(에뮬레이터 발행 별자리 데이터, 2026-09-03): 목표와
+# 무관하게 검색으로 수업을 담는 빈 보관함일 뿐이라 "학생들이 검색창에 칠 어휘"가
+# 아니다 - 태그 후보에서 제외한다.
+_GENERIC_BIN_LABELS = frozenset({"내가 담은 수업"})
+
+
+def _semantic_labels(constellation: Constellation) -> list[str]:
+    """별자리 하나에서 태그 후보로 쓸 원천 라벨들을 우선순위대로 고른다.
+
+    ①bin·group 라벨(LLM이 목표에 맞춰 짓거나 유저가 캔버스에서 붙인 의미
+    어휘) 우선 - 하나라도 있으면 그것만 쓴다. ②이 별자리에 bin·group이
+    하나도 없으면(구 별자리 등) 노드 라벨(과목명 등)로 폴백한다. 이 폴백은
+    별자리 단위 판단이다 - 어떤 별자리는 bin을, 다른 별자리는 node를 쓸 수
+    있다. 고정 일반 라벨(_GENERIC_BIN_LABELS) 제외와 빈 문자열 트림은
+    호출부(compute_interest_tags)에서 공통으로 처리한다.
+    """
+    if constellation.bins or constellation.groups:
+        return [b.label for b in constellation.bins] + [
+            g.label for g in constellation.groups.values()
+        ]
+    return [node.label for node in constellation.nodes.values()]
+
 
 def compute_interest_tags(
     constellations: list[Constellation], *, limit: int = INTEREST_TAG_LIMIT
 ) -> list[str]:
-    """발행된 별자리 전체의 노드 라벨 빈도 상위 limit개를 관심사 태그로 계산한다.
+    """발행된 별자리 전체의 의미 어휘 빈도 상위 limit개를 관심사 태그로 계산한다.
 
     호출부(app/api/constellation.py의 publish 핸들러)가 발행 상태가 바뀔 때마다
     해당 owner의 list_published_by_owner 결과를 그대로 넘긴다 - 이 함수는
     Firestore를 전혀 모르는 순수 함수라 단위 테스트만으로 규칙을 검증할 수 있다.
 
+    라벨 출처: _semantic_labels 참고 (bin/group 우선, 별자리별 폴백으로 node).
+    구 규칙(노드 라벨 빈도)으로 롤백하면 태그가 다시 과목명 기반("회계원리(1)"
+    같은 학생이 검색창에 안 치는 어휘)으로 돌아간다.
+
     규칙 (단순하게 - 과설계 금지):
     - 라벨은 앞뒤 공백만 트림해 집계한다. code(학정번호 등)는 Node에서 이미
       별도 필드로 분리돼 있으므로 라벨 문자열에서 따로 벗겨낼 게 없다.
-    - 트림 후 빈 문자열인 라벨은 집계에서 제외한다.
+    - 트림 후 빈 문자열이거나 고정 일반 라벨(_GENERIC_BIN_LABELS)인 라벨은
+      집계에서 제외한다.
     - 동률(빈도 동일)은 그 라벨을 가진 별자리 중 가장 최근에 갱신된
       (updated_at 최댓값) 쪽을 우선한다 - "최근 관심사"를 더 대표한다고 보는
       단순 규칙.
@@ -306,9 +335,9 @@ def compute_interest_tags(
     frequency: dict[str, int] = {}
     latest_updated_at: dict[str, datetime] = {}
     for constellation in constellations:
-        for node in constellation.nodes.values():
-            label = node.label.strip()
-            if not label:
+        for raw_label in _semantic_labels(constellation):
+            label = raw_label.strip()
+            if not label or label in _GENERIC_BIN_LABELS:
                 continue
             frequency[label] = frequency.get(label, 0) + 1
             if (

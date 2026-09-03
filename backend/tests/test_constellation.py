@@ -4,8 +4,10 @@ import pytest
 from pydantic import ValidationError
 
 from app.domain.constellation import (
+    Bin,
     Constellation,
     Edge,
+    Group,
     Node,
     NodeTypes,
     Note,
@@ -37,7 +39,14 @@ def _make_edge(edge_id: str, source_id: str, target_id: str) -> Edge:
     return Edge(id=edge_id, source_node_id=source_id, target_node_id=target_id)
 
 
-def _make_constellation(cid: str, *, node_labels: list[str], updated_at: datetime) -> Constellation:
+def _make_constellation(
+    cid: str,
+    *,
+    node_labels: list[str],
+    updated_at: datetime,
+    bins: list[Bin] | None = None,
+    groups: dict[str, Group] | None = None,
+) -> Constellation:
     nodes = {
         f"{cid}-{i}": Node(
             id=f"{cid}-{i}",
@@ -55,10 +64,20 @@ def _make_constellation(cid: str, *, node_labels: list[str], updated_at: datetim
         title=cid,
         goal_raw_text="",
         nodes=nodes,
+        bins=bins or [],
+        groups=groups or {},
         is_published=True,
         created_at=updated_at,
         updated_at=updated_at,
     )
+
+
+def _make_bin(label: str, *, origin: str = "llm") -> Bin:
+    return Bin(id=f"bin-{label}", label=label, origin=origin)
+
+
+def _make_group(label: str) -> Group:
+    return Group(id=f"group-{label}", label=label, position=Position(x=0.0, y=0.0))
 
 
 # --- compute_progress_pct ---
@@ -309,3 +328,87 @@ def test_compute_interest_tags_tie_prefers_most_recently_updated() -> None:
     # 둘 다 빈도 1회로 동률 - 더 최근에 갱신된 별자리의 라벨이 앞에 온다.
     assert tags[0] == "최근태그"
     assert tags[1] == "오래된태그"
+
+
+def test_compute_interest_tags_prefers_bin_labels_over_node_labels() -> None:
+    """bin이 있으면 노드 라벨(과목명)이 아니라 bin 라벨(의미 어휘)을 쓴다."""
+    constellations = [
+        _make_constellation(
+            "c1",
+            node_labels=["회계원리(1)"],
+            bins=[_make_bin("데이터 분석 기초")],
+            updated_at=datetime(2026, 1, 1),
+        )
+    ]
+    assert compute_interest_tags(constellations) == ["데이터 분석 기초"]
+
+
+def test_compute_interest_tags_uses_group_labels_when_no_bins() -> None:
+    """bin은 없고 group만 있어도 group 라벨을 노드 라벨보다 우선한다."""
+    constellations = [
+        _make_constellation(
+            "c1",
+            node_labels=["회계원리(1)"],
+            groups={"g1": _make_group("목표 성단")},
+            updated_at=datetime(2026, 1, 1),
+        )
+    ]
+    assert compute_interest_tags(constellations) == ["목표 성단"]
+
+
+def test_compute_interest_tags_falls_back_to_node_labels_without_bin_or_group() -> None:
+    """이 별자리에 bin·group이 하나도 없으면 노드 라벨로 폴백한다(별자리 단위 판단)."""
+    constellations = [
+        _make_constellation("c1", node_labels=["철학개론"], updated_at=datetime(2026, 1, 1))
+    ]
+    assert compute_interest_tags(constellations) == ["철학개론"]
+
+
+def test_compute_interest_tags_fallback_is_per_constellation() -> None:
+    """별자리 A는 bin이 있어 bin 라벨을, bin이 없는 별자리 B는 노드 라벨을 쓴다."""
+    constellations = [
+        _make_constellation(
+            "a",
+            node_labels=["회계원리(1)"],
+            bins=[_make_bin("데이터 분석 기초")],
+            updated_at=datetime(2026, 1, 1),
+        ),
+        _make_constellation("b", node_labels=["철학개론"], updated_at=datetime(2026, 1, 2)),
+    ]
+    tags = compute_interest_tags(constellations)
+    assert "데이터 분석 기초" in tags
+    assert "철학개론" in tags
+    assert "회계원리(1)" not in tags
+
+
+def test_compute_interest_tags_excludes_generic_manual_courses_bin_label() -> None:
+    """frontend가 모든 별자리 맨 앞에 자동 삽입하는 고정 bin("내가 담은 수업",
+    frontend/app/constellation/new/page.tsx의 ensureManualCoursesBin)은 목표와
+    무관한 일반 라벨이므로 태그 후보에서 제외한다. 실제 bin은 그대로 남는다.
+    """
+    constellations = [
+        _make_constellation(
+            "c1",
+            node_labels=[],
+            bins=[_make_bin("내가 담은 수업", origin="user"), _make_bin("목표 관련 군집")],
+            updated_at=datetime(2026, 1, 1),
+        )
+    ]
+    assert compute_interest_tags(constellations) == ["목표 관련 군집"]
+
+
+def test_compute_interest_tags_generic_only_bin_contributes_nothing() -> None:
+    """고정 일반 bin 하나만 있는 별자리는(다른 bin·group 없음) '노드 라벨로 폴백'하지
+    않는다 - bin 존재 여부로 폴백을 판단하므로, 필터링 후 후보가 없어도 그 별자리는
+    태그에 아무것도 기여하지 않는다(노드 라벨을 대신 쓰지 않음). 이 동작은 명세의
+    문언 그대로("bin·group이 하나도 없으면 폴백")를 따른 설계 판단이다.
+    """
+    constellations = [
+        _make_constellation(
+            "a",
+            node_labels=["회계원리(1)"],
+            bins=[_make_bin("내가 담은 수업", origin="user")],
+            updated_at=datetime(2026, 1, 1),
+        )
+    ]
+    assert compute_interest_tags(constellations) == []
