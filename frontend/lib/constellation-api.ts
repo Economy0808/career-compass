@@ -429,6 +429,31 @@ export function startBinSuggestJob(goalText: string): Promise<JobStartResponse> 
   );
 }
 
+/** 무료권·크레딧 잔량 (2026-09-03 사용자 확정 모델, 로그인 필수).
+ * - freeCreditLeft: 가입 시 지급 1개의 잔량(0|1, 리셋 없음).
+ * - credits: 유료 팩으로 산 크레딧(무기한).
+ * - hasOpenCycle: 이미 차감돼 진행 중인 사이클이 있는지 - 뒤로가기 경고를
+ *   "이미 시작한 대화"에서만 띄우는 데 쓴다(백엔드 open_cycle). */
+export interface IntakeQuota {
+  freeCreditLeft: 0 | 1;
+  credits: number;
+  hasOpenCycle: boolean;
+}
+
+export function getIntakeQuota(): Promise<IntakeQuota> {
+  return request<IntakeQuota>("/api/constellation-intake/quota");
+}
+
+/** 진행 중이던 사이클을 닫는다(소모 확정) - "새 별자리 만들기"로 새 대화를
+ * 시작할 때 호출한다. 다음 첫 /chat이 새 사이클로 다시 차감된다. 뒤로가기
+ * 자체는 이걸 부르지 않는다(사이클을 남겨 이어서 완성 가능). */
+export function discardIntakeCycle(): Promise<void> {
+  return request<void>(
+    "/api/constellation-intake/cycle/discard",
+    jsonInit("POST", {})
+  );
+}
+
 export function startBinFillJob(goalText: string, binLabel: string): Promise<JobStartResponse> {
   return request<JobStartResponse>(
     "/api/constellation-intake/bins/fill",
