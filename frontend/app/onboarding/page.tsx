@@ -5,20 +5,21 @@
  *
  * 왜 별도 라우트인가: 계정만 생기고 온보딩을 마치지 않은 채 이탈한 유저를 다음
  * 로그인 때 여기로 되돌려 보내야 한다(limbo 방지, 백엔드 03-code-78 계약).
- * GET /api/profiles/me.onboardingComplete가 false면 로그인 후 여기로 라우팅한다
- * (그 필드가 붙는 대로 로그인 가드에 연결 - 지금은 가입 직후 진입만).
+ * 로그인 가드(app/login resolveDestination)가 GET /api/profiles/me/onboarding →
+ * {onboardingComplete} false면 여기로 라우팅한다.
  *
  * 테마: login/signup과 같은 밝은 종이 오버레이(사용자 지시 - 서비스 이용 전
  * 부대 작업은 랜딩과 같은 테마). 폼 요소는 components/paper-form 공용.
  *
  * 개인정보(PIPA) - 보안 세션 70 + 백엔드 78 협의:
- * - 동의는 service(필수)·overseas(필수)·marketing(선택) 3개. service·overseas는
- *   물리적으로 분리된 체크박스여야 유효(하나로 묶으면 무효).
+ * - 동의는 service(필수)·marketing(선택) 2개.
+ * - 국외이전(overseas) 동의는 여기 없다 - 온보딩 데이터(학번·학과·careerText)는
+ *   국내(Vertex 서울)에만 저장되고 Anthropic으로 가지 않으므로, 국외이전 동의는
+ *   실제 이전이 일어나는 인테이크 대화 진입 시점에서 따로 받는다(사용자 결정 B,
+ *   2026-09-04). 법적 본문(Anthropic 실명·연락처·보유기간)은 법무 확정 대기.
  * - 민감정보 별도동의(sensitive)는 두지 않는다 - 만드는 것 자체가 "민감정보 수집
- *   정상화"라, careerText에 인라인 경고로 최소화한다.
- * - ⚠️ overseas(국외이전) 법적 본문은 미확정(Anthropic 실명·연락처·보유기간은
- *   실제 약관/계약 확인 필요). UI 구조·필수 게이트는 완성하되 본문은 "준비 중"
- *   플레이스홀더 - 창업자(사용자) 결정 + 법무 확정 전 라이브 노출 금지.
+ *   정상화"라, careerText에 중립·긍정 안내로 최소화한다(예시 나열·경고 톤 금지 -
+ *   오히려 입력을 유도한다, 보안 세션 70 재게이트 기준).
  */
 
 import Link from "next/link";
