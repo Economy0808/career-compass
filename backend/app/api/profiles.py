@@ -30,6 +30,7 @@ from app.firestore import (
 from app.firestore.client import get_firestore_client
 from app.firestore.follow_repo import SelfFollowError
 from app.schemas.profiles import (
+    OnboardingStatusOut,
     ProfileOnboardingIn,
     ProfileOnboardingOut,
     ProfileOut,
@@ -154,6 +155,19 @@ async def onboard_profile(
     profile = user_repo.get_user_profile(db, user.uid) or {}
     out = _to_out(user.uid, profile, is_following=None)
     return ProfileOnboardingOut(**out.model_dump(), onboarding_complete=True)
+
+
+@router.get("/me/onboarding", response_model=OnboardingStatusOut)
+async def get_my_onboarding_status(
+    user: DecodedToken = Depends(get_current_user),
+    db: Client = Depends(get_firestore_client),
+) -> OnboardingStatusOut:
+    """본인 온보딩 완료 여부. user_private 문서 존재로 판정한다(온보딩이 그 문서를
+    쓰므로). 프론트가 로그인 직후 false면 /onboarding으로 라우팅해 limbo(계정만
+    있고 온보딩 미완) 유저를 되돌린다. 경로가 두 세그먼트라 GET /{uid}와 충돌 없음.
+    """
+    private = user_private_repo.get_private_profile(db, user.uid)
+    return OnboardingStatusOut(onboarding_complete=private is not None)
 
 
 @router.post("/{uid}/follow", response_model=ProfileOut, response_model_exclude_none=True)

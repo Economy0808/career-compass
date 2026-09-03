@@ -85,3 +85,13 @@ class ProfileOnboardingOut(ProfileOut):
     """온보딩 완료 응답 - 공개 프로필(ProfileOut)에 완료 플래그만 얹는다."""
 
     onboarding_complete: bool
+
+
+class OnboardingStatusOut(_CamelModel):
+    """본인 온보딩 완료 여부만 담는 경량 응답(GET /me/onboarding).
+
+    프론트가 로그인 직후 조회해 false면 /onboarding으로 라우팅한다(계정만 만들고
+    온보딩 미완인 limbo 유저 방지). user_private 문서 존재로 판정한다.
+    """
+
+    onboarding_complete: bool
