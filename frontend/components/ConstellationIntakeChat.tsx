@@ -179,6 +179,10 @@ export function ConstellationIntakeChat({
   const [pending, setPending] = useState(false);
   const [chatError, setChatError] = useState<string | null>(null);
   const [lastFailedText, setLastFailedText] = useState<string | null>(null);
+  // 첫 메시지 = 무료권 차감 시점(2026-09-03 사용자 확정: "첫대화 엔터 누르면
+  // 그때 무료사용권 차감 경고창"). 첫 전송 직전에 이 텍스트를 보관해 확인 모달을
+  // 띄우고, "계속"을 눌러야 실제로 보낸다(백엔드가 첫 /chat에서 1회 차감).
+  const [chargeGateText, setChargeGateText] = useState<string | null>(null);
   // 지금 질문에 딸린 입력 보조 힌트/칩 - 서버 응답 밖(messages와 별개)이라 따로 든다.
   const [hint, setHint] = useState<string | null>(null);
   const [options, setOptions] = useState<string[]>([]);
@@ -308,9 +312,17 @@ export function ConstellationIntakeChat({
     setDraft(old.content);
   }
 
-  async function sendMessage(rawText: string) {
+  async function sendMessage(rawText: string, opts: { confirmed?: boolean } = {}) {
     const text = rawText.trim();
     if (!text || pending || messages.length >= MAX_MESSAGES) return;
+
+    // 첫 메시지는 무료권 차감 시점이라 확인 모달을 먼저 거친다. "계속"을 누르면
+    // confirmed로 재호출돼 이 게이트를 통과한다. 취소하면 텍스트는 draft에
+    // 그대로 남아 다시 시도할 수 있다.
+    if (goalText === null && !opts.confirmed) {
+      setChargeGateText(text);
+      return;
+    }
 
     setChatError(null);
     setLastFailedText(null);
@@ -423,6 +435,47 @@ export function ConstellationIntakeChat({
     >
       <div className="bg-radec-grid pointer-events-none absolute inset-0" aria-hidden />
       <BackgroundStars />
+
+      {/* 첫 메시지 차감 확인 - 무료권/크레딧 1개가 이 대화에 쓰인다는 걸
+          보내기 전에 고지한다(사용자 확정: "첫대화 엔터 누르면 그때 차감
+          경고창"). 실제 차감은 백엔드가 첫 /chat에서 한다 - 여기서는 "계속"이
+          그 첫 /chat을 발화시킬 뿐이다. */}
+      {chargeGateText !== null && (
+        <div
+          className="fixed inset-0 z-50 flex items-center justify-center bg-ink-900/70 p-4 backdrop-blur-sm"
+          role="dialog"
+          aria-modal="true"
+          aria-label="무료권 차감 확인"
+        >
+          <div className="w-full max-w-sm rounded-xl border border-rule bg-ink-800 p-5 shadow-lg">
+            <h2 className="font-serif text-title font-bold text-text-hi">별자리 하나를 시작할까요?</h2>
+            <p className="mt-2 font-sans text-body-sm leading-relaxed text-text-lo">
+              이 대화를 시작하면 별자리 <b className="text-text-hi">1개</b>가 쓰여요. 대화를 마치고
+              별자리를 완성하는 것까지 이 하나에 포함돼요.
+            </p>
+            <div className="mt-5 flex justify-end gap-2">
+              <button
+                type="button"
+                onClick={() => setChargeGateText(null)}
+                className="rounded-md px-3 py-1.5 font-sans text-body-sm text-text-lo transition-colors hover:text-text-hi focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-1 focus-visible:outline-spec-b"
+              >
+                취소
+              </button>
+              <button
+                type="button"
+                onClick={() => {
+                  const text = chargeGateText;
+                  setChargeGateText(null);
+                  void sendMessage(text, { confirmed: true });
+                }}
+                className="cta-ink rounded-md bg-spec-b px-4 py-1.5 font-sans text-body-sm font-semibold text-ink-900 transition-[filter] hover:brightness-110 focus-visible:outline focus-visible:outline-2 focus-visible:outline-offset-1 focus-visible:outline-spec-b"
+              >
+                시작하기
+              </button>
+            </div>
+          </div>
+        </div>
+      )}
 
       {/* 우상단 "기존 별자리가 있어요" 배지 - 빠져나갈 곳(onDismiss)이 있을
           때만 뜬다. 대화는 그대로 진행 중일 수 있으므로 대화 UI 위(z-20)에
