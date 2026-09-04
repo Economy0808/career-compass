@@ -267,6 +267,42 @@ def _refused(message: Message) -> bool:
     return getattr(message, "stop_reason", None) == "refusal"
 
 
+# cluster_courses 카탈로그 조립의 조건부 desc 트림에 쓰는 불투명 이름 판정 토큰.
+# count_tokens 실측(2026-09-03): catalog 입력 토큰의 67%가 description(desc 제거 시
+# 107,825 -> 35,209 tok). 이름만 보고 내용을 짐작하기 어려운 과목(세미나·캡스톤 등)은
+# desc를 유지하고, 나머지는 통째로 생략해 입력을 줄인다. 이 목록은 A/B로 조정 가능 -
+# 트림이 과해 군집 품질이 떨어지면 여기 토큰을 늘리고, 반대로 더 줄이려면 빼라.
+_OPAQUE_NAME_TOKENS = (
+    "세미나",
+    "특강",
+    "캡스톤",
+    "연구",
+    "실습",
+    "프로젝트",
+    "인턴",
+    "현장",
+    "독립",
+    "지도",
+    "튜토리얼",
+    "특론",
+    "개별연구",
+    "논문",
+    "설계",
+)
+# 이보다 짧은 이름은 desc를 유지한다. 애초 기준으로 검토했던 "<5자"는 "경영통계"
+# (4자)처럼 흔하고 명확한 복합어까지 불투명 판정해버려 3자로 좁혔다 - 실제 판별력은
+# 위 토큰 목록이 담당하고, 길이 조건은 극단적으로 짧은 이름(2자 이하)만 보수적으로
+# 잡는 보조 신호다.
+_OPAQUE_NAME_MIN_LEN = 3
+
+
+def _needs_desc(name: str) -> bool:
+    """과목 이름만으로 내용을 짐작하기 어려우면 True(=desc를 카탈로그에 유지)."""
+    if len(name) < _OPAQUE_NAME_MIN_LEN:
+        return True
+    return any(token in name for token in _OPAQUE_NAME_TOKENS)
+
+
 def _web_search_domains(message: Message, limit: int = 12) -> list[str]:
     """web_search 결과 블록에서 출처 URL을 도메인별 대표 1개로 수집한다.
 
@@ -763,6 +799,9 @@ class AnthropicClaudeClient:
             " 연결되는 수업은 가능한 한 빠짐없이 담아라 — 관련 학과의 기초부터"
             " 심화까지 커리큘럼 전체 그림이 보이도록. 군집의 '개수'에는 상한이"
             " 없다. 확실히 무관한 것만 빼라.\n"
+            "- 일부 과목은 설명(description)이 생략돼 있다 — 이름 자체로 내용이"
+            " 분명한 과목이라 그런 것이니, 설명이 없다고 무시하거나 후순위로"
+            " 두지 마라. 이름만으로 판단하면 된다.\n"
             # 아래 군집당 상한은 2026-09-02 사용자 지적으로 추가: 공대 계열 목표에서
             # 수학·물리·화학 기초과목 수십 개가 한 군집에 몰려 캔버스 가시성이
             # 무너졌다("빠짐없이 담아라"만 있고 쪼개기 지시가 없던 탓). 버리는 게
@@ -794,11 +833,20 @@ class AnthropicClaudeClient:
             " 근거를 들어 설명하라. 참고 규정이 주어지면(전과 선이수 학점, 복수전공"
             " 정원 등) 그 내용을 근거로 활용하라. 못 채우겠으면 null로 둬라."
         )
-        catalog = "\n".join(
-            f"{c.code} | {c.name} | level={c.level} | years={c.years} | kind={c.kind}"
-            f" | {c.department or ''} | {(c.description or '')[:200]}"
-            for c in courses
-        )
+
+        def _catalog_line(c: CourseOption) -> str:
+            line = (
+                f"{c.code} | {c.name} | level={c.level} | years={c.years} | kind={c.kind}"
+                f" | {c.department or ''}"
+            )
+            # 조건부 desc 트림(원가 절감) - 이름만으로 불투명한 과목(_needs_desc)만
+            # desc를 남기고 나머지는 통째로 생략해 catalog 입력 토큰을 줄인다.
+            # 반환 파싱·by_code 환각 방어 등 나머지 로직은 그대로다.
+            if _needs_desc(c.name):
+                line += f" | {(c.description or '')[:200]}"
+            return line
+
+        catalog = "\n".join(_catalog_line(c) for c in courses)
         user = f"진로 목표: {goal_text}\n\n후보 수업 목록:\n{catalog}"
         system_blocks = _cached_system(system)
         if rules_context:
