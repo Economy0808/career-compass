@@ -94,6 +94,14 @@
 - 사용자 승인 트레이드오프(재확인만): 데모 계정 공유 비밀번호 문서 평문, `seed_demo_data.py:41` `demo1234`(격리 데모 DB).
 - 감사 커맨드 정정: `.claude/commands/security-audit.md` Area E의 "uses `dangerouslySetInnerHTML`"은 오류(리포 grep 0건). 다음 커밋에서 수정.
 
+
+**2026-09-04 추가 — 공격자 관점 3영역 패스(보안헤더·mass assignment·업로드), 사용자 결정: 전부 보류·백로그**
+- **② mass assignment — 검토 후 기각(finding 아님). 다음 감사에서 재조사하지 말 것.** 등록 라우터 전수(`main.py` include_router 14개) 요청 모델 전부 명시 필드·extra 미설정(=ignore), 핸들러 필드별 추출, 저장소 필드별 대입/도메인 model_dump, owner·author uid는 토큰에서만. 동의 서브모델은 service/marketing 한정(`schemas/profiles.py:64-65`), 국외이전은 `POST /api/consents/overseas`만 기록·판본 불일치 422(`api/consents.py:53`), 게이트는 `consent_overseas_version` 검사(`auth/consent_deps.py:43-44`). `contributors`는 닉네임 자유문자열. 이미지 항목은 `domain/post.py:30` `^data:image/(jpeg|png|webp);base64,` + 950k자, 프론트 싱크 `<img src>`뿐.
+- **H-1 (Low, 방어심층) — 라이브 프론트 보안 헤더 전무. 보류.** 라이브 HEAD 실측 CSP/XFO/HSTS/nosniff/Referrer-Policy/Permissions-Policy 0 + `x-powered-by: Next.js`. 인증이 Firebase Bearer 전용(쿠키 코드는 미등록 레거시만 import)이라 크로스사이트 iframe은 스토리지 파티셔닝으로 로그아웃 → 인증 액션 클릭재킹 불성립, 그래서 Low. 남는 실익: 비파티셔닝/기업 브라우저, 프레임 내 로그인 피싱, 스택 노출. 수정안 확정본: `next.config.mjs` `headers()`(frame-ancestors 'none'/XFO DENY/HSTS/nosniff/Referrer-Policy/Permissions-Policy)+`poweredByHeader:false` — 정확한 diff·검증 curl·롤백은 계획 파일 `scratchpad/plan-headers-upload.md`(세션 09399407) 및 브리프 아티팩트 `2cd6d94b`. **재개 조건**: 도메인 이전(OurLab) 프론트 배포에 편승하면 배포 비용 0. 노션 임베드(카드 아닌 화면째) 있으면 frame-ancestors에 노션 origin 추가.
+- **U-1 (Low, 잠복) — `storage.rules` 죽은 클라이언트 쓰기 경로. 보류.** `student_cards/{uid}/**` write 허용(owner, image/*, <10MB)인데 사용처 0(프론트 `firebase/storage` 없음, `postStudentCard` 호출자 0, 백엔드 `/api/auth/student-card`는 미등록 레거시). **운영 프로젝트 `ourlab-0808`에 Storage 버킷 자체가 없어 이 룰은 배포된 적 없음**(`deploy.md` §8도 storage 배포 금지). 수정안: `allow write: if false;` 1줄, 배포 없음. **재개 조건**: Storage를 켜기 전에 반드시 이 룰부터. (위 "B: storage.rules svg" 항목의 후속 판정.)
+- 기능 메모(비보안): 학생증 인증 플로우는 라이브 휴면 — tier-3(`yonsei_verified`)는 사전 인증 데모 계정으로만 도달. `frontend/app/privacy/page.tsx:27` "로그인 세션 최대 14일" 문구는 쿠키 세션 잔재(현재 Firebase) — 프론트 소유자 문구 수정(낮음).
+- 원자료: `scratchpad/findings/ATTACKER-3AREAS.md`(세션 09399407).
+
 ## 6. 수정 대기 목록 — 사용자 선택
 
 | # | 항목 | diff | 회귀 테스트 | 소유 |
