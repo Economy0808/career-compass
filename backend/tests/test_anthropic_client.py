@@ -12,6 +12,7 @@ from unittest.mock import AsyncMock
 
 import pytest
 
+from app.config import Settings
 from app.llm.anthropic_client import AnthropicClaudeClient, _needs_desc
 from app.llm.base import CourseOption
 
@@ -68,3 +69,33 @@ async def test_cluster_courses_trims_description_for_clear_names_only() -> None:
     catalog = stub.call_args.kwargs["messages"][0]["content"]
     assert "설명이 트림돼야 한다" not in catalog
     assert "설명이 유지돼야 한다" in catalog
+
+
+@pytest.mark.asyncio
+async def test_cluster_courses_defaults_to_sonnet() -> None:
+    """노브 기본값은 Sonnet 유지 - 배포해도 즉시 모델이 안 바뀌어야 한다."""
+    client, stub = _client_with_stub_create()
+
+    await client.cluster_courses("진로 목표", [_course("BIZ1001", "경영통계")])
+
+    assert stub.call_args.kwargs["model"] == "claude-sonnet-5"
+
+
+@pytest.mark.asyncio
+async def test_cluster_model_knob_is_isolated_from_extract_model(
+    monkeypatch: pytest.MonkeyPatch,
+) -> None:
+    """LLM_CLUSTER_MODEL을 내려도 cluster_courses만 강등되고, 다른 경량 호출
+    (select_relevant_departments 등, llm_extract_model 공유)은 그대로여야 한다 -
+    llm_extract_model을 직접 내리면 대화(chat)까지 같이 강등되는 문제의 해결책."""
+    overridden = Settings(llm_cluster_model="claude-haiku-4-5-20251001")
+    monkeypatch.setattr("app.llm.anthropic_client.get_settings", lambda: overridden)
+    client, stub = _client_with_stub_create()
+
+    await client.cluster_courses("진로 목표", [_course("BIZ1001", "경영통계")])
+    assert stub.call_args.kwargs["model"] == "claude-haiku-4-5-20251001"
+
+    stub.return_value = _fake_message({"departments": []})
+    await client.select_relevant_departments("진로 목표")
+    assert stub.call_args.kwargs["model"] == overridden.llm_extract_model
+    assert stub.call_args.kwargs["model"] != "claude-haiku-4-5-20251001"

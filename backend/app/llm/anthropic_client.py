@@ -5,6 +5,9 @@ LLM_EXTRACT_MODEL을 Haiku 4.5로 내려 가벼운 두 단계만 저렴하게 �
   - chat / extract_intent : llm_extract_model   (기본 Sonnet 5, Haiku로 다운시프트 가능)
   - synthesize_roadmap    : llm_synthesis_model (Sonnet 5, adaptive thinking + effort=high)
   - research_job          : llm_research_model  (Sonnet 5 + web_search, 월간 배치 전용)
+  - cluster_courses       : llm_cluster_model   (기본 Sonnet 5, cluster 전용 노브 - 다른
+                                                  경량 호출과 분리돼 있어 env로 Haiku만
+                                                  단독 A/B 가능)
 
 비용 절감: 반복되는 시스템 프롬프트는 prompt caching(cache_control)으로 캐시,
 출력은 structured outputs로 고정, max_tokens 상한. 요청 경로(chat/extract/synth)는
@@ -357,6 +360,7 @@ class AnthropicClaudeClient:
         self._synthesis_model = settings.llm_synthesis_model
         self._synthesis_web_search = settings.llm_synthesis_web_search
         self._research_model = settings.llm_research_model
+        self._cluster_model = settings.llm_cluster_model
 
     def _to_api_messages(self, messages: list[ChatMessage]) -> list[dict]:
         return [{"role": m.role, "content": m.content} for m in messages]
@@ -860,8 +864,10 @@ class AnthropicClaudeClient:
         # 후보가 많을 수 있는 판단이라 출력 예산을 넉넉히 잡는다(advice 필드가 늘어난 만큼
         # ~700~1200 토큰 여유를 더 둔다). thinking은 끈다 — 이 코드베이스에서 세 번
         # 반복된 함정(작은 max_tokens + thinking = JSON 잘림), 절대 건드리지 말 것.
+        # 모델은 cluster 전용 노브(llm_cluster_model) - 다른 경량 호출과 공유하는
+        # self._extract_model을 쓰지 않는다(그쪽을 내리면 대화까지 강등되므로).
         resp = await self._client.messages.create(
-            model=self._extract_model,
+            model=self._cluster_model,
             max_tokens=20000,
             thinking={"type": "disabled"},
             system=system_blocks,

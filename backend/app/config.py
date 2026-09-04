@@ -40,6 +40,13 @@ class Settings(BaseSettings):
     llm_extract_model: str = "claude-sonnet-5"
     llm_synthesis_model: str = "claude-sonnet-5"
     llm_research_model: str = "claude-sonnet-5"
+    # cluster_courses 전용 노브 - llm_extract_model과 분리한 이유는 그쪽을 내리면
+    # chat/extract_intent/select_relevant_departments까지 같이 강등되기 때문이다.
+    # 기본값은 Sonnet 유지(현행 동작 그대로, 배포해도 즉시 모델이 안 바뀐다).
+    # Haiku 시도 시 env로 LLM_CLUSTER_MODEL=claude-haiku-4-5-20251001 지정, 품질
+    # 저하 시 Sonnet 롤백 = env 플립 한 번. cluster_courses의 thinking off +
+    # max_tokens 20000 설정(JSON 잘림 함정 방지)은 모델과 무관하게 그대로 유지된다.
+    llm_cluster_model: str = "claude-sonnet-5"
     # Allow web search during synthesis (request path). Off by default for cost;
     # set LLM_SYNTHESIS_WEB_SEARCH=true in .env to experiment (e.g. with Opus).
     llm_synthesis_web_search: bool = False
