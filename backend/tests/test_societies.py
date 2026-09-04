@@ -260,3 +260,123 @@ async def test_list_returns_only_approved_and_hides_submitter_uid() -> None:
     for item in items:
         assert "submitterUid" not in item
         assert "submitter_uid" not in item
+
+
+# --- POST /api/societies/{department_id}/{society_id}/report : 인증 게이트 ---
+
+
+@pytest.mark.asyncio
+async def test_report_requires_auth() -> None:
+    async with _client() as client:
+        resp = await client.post("/api/societies/cse/some-id/report")
+    assert resp.status_code == 401
+
+
+@pytest.mark.asyncio
+async def test_report_requires_yonsei_verification() -> None:
+    token = DecodedToken(uid="unverified-user", yonsei_verified=False)
+    app.dependency_overrides[get_current_user] = lambda: token
+    app.dependency_overrides[get_current_user_optional] = lambda: token
+    async with _client() as client:
+        resp = await client.post("/api/societies/cse/some-id/report")
+    assert resp.status_code == 403
+    assert resp.headers["X-Auth-Requirement"] == "yonsei-verified"
+
+
+# --- POST /api/societies/{department_id}/{society_id}/report : 임시조치 효과 ---
+
+
+@pytest.mark.asyncio
+async def test_report_flips_approved_to_pending_and_drops_from_get(
+    authed_as: Callable[[str], None],
+) -> None:
+    _set_society_doc(
+        "cse",
+        "report-target-1",
+        {
+            "name": "신고당할 학회",
+            "kind": "학회",
+            "official_url": _VALID_URL,
+            "source_type": "crowdsource",
+            "submitter_uid": "original-submitter",
+            "moderation_status": "approved",
+        },
+    )
+    authed_as("reporter-a")
+    async with _client() as client:
+        report_resp = await client.post("/api/societies/cse/report-target-1/report")
+        assert report_resp.status_code == 200
+        assert report_resp.json() == {"status": "ok"}
+
+        list_resp = await client.get("/api/societies", params={"departmentId": "cse"})
+    names = [item["name"] for item in list_resp.json()]
+    assert "신고당할 학회" not in names
+
+    doc = (
+        get_firestore_client()
+        .collection("academic_societies")
+        .document("cse")
+        .collection("societies")
+        .document("report-target-1")
+        .get()
+        .to_dict()
+    )
+    assert doc["moderation_status"] == "pending"
+    assert doc["reported_by"] == "reporter-a"
+
+
+@pytest.mark.asyncio
+async def test_report_does_not_leak_reporter_identity(
+    authed_as: Callable[[str], None],
+) -> None:
+    _set_society_doc(
+        "cse",
+        "report-target-2",
+        {
+            "name": "신고당할 학회2",
+            "kind": "학회",
+            "official_url": _VALID_URL,
+            "source_type": "crowdsource",
+            "submitter_uid": "original-submitter",
+            "moderation_status": "approved",
+        },
+    )
+    authed_as("reporter-b")
+    async with _client() as client:
+        resp = await client.post("/api/societies/cse/report-target-2/report")
+    assert resp.status_code == 200
+    body = resp.json()
+    assert "reportedBy" not in body
+    assert "reporterUid" not in body
+    assert set(body.keys()) == {"status"}
+
+
+@pytest.mark.asyncio
+async def test_report_already_pending_is_noop_success(
+    authed_as: Callable[[str], None],
+) -> None:
+    _set_society_doc(
+        "cse",
+        "report-target-3",
+        {
+            "name": "이미 대기중",
+            "kind": "동아리",
+            "official_url": _VALID_URL,
+            "source_type": "crowdsource",
+            "submitter_uid": "original-submitter",
+            "moderation_status": "pending",
+        },
+    )
+    authed_as("reporter-c")
+    async with _client() as client:
+        resp = await client.post("/api/societies/cse/report-target-3/report")
+    assert resp.status_code == 200
+    assert resp.json() == {"status": "ok"}
+
+
+@pytest.mark.asyncio
+async def test_report_unknown_doc_returns_404(authed_as: Callable[[str], None]) -> None:
+    authed_as("reporter-d")
+    async with _client() as client:
+        resp = await client.post("/api/societies/cse/no-such-id/report")
+    assert resp.status_code == 404

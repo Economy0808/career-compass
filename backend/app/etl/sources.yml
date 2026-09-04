@@ -1,0 +1,35 @@
+# Data provenance registry for the ETL security gate (ASCII-only per project
+# CLAUDE.md Environment Conventions - Korean comments break the Windows
+# locale-based config parser).
+#
+# Each entry names one data source feeding the app. source_type drives a
+# future hard-gate in the ETL layer (e.g. reject a source at import time if
+# its kogl_type is still TODO or its source_type is not on an allow-list).
+# This file only registers provenance; it does not enforce anything yet.
+
+sources:
+  - id: academic_societies_crowdsource
+    source_type: crowdsource
+    description: >-
+      Student-submitted academic society / club listings, held as
+      moderation_status=pending until founder review (see
+      backend/app/api/societies.py, backend/scripts/moderate_societies.py).
+    endpoint: null
+    kogl_type: null
+
+  - id: data_go_kr_15003024_jongmok_list
+    source_type: government_open_data
+    dataset_id: "15003024"
+    description: >-
+      Q-Net national qualification jongmok (exam item) master list -
+      InquiryListNationalQualifcationSVC/getList (XML).
+    endpoint: http://openapi.q-net.or.kr/api/service/rest/InquiryListNationalQualifcationSVC/getList
+    kogl_type: TODO  # user to confirm KOGL open license type (1/2/3/4) before hard-gating
+
+  - id: data_go_kr_15074408_exam_schedule
+    source_type: government_open_data
+    dataset_id: "15074408"
+    description: >-
+      Q-Net national qualification exam schedule - qualExamSchd/getQualExamSchdList (JSON).
+    endpoint: https://apis.data.go.kr/B490007/qualExamSchd/getQualExamSchdList
+    kogl_type: TODO  # user to confirm KOGL open license type (1/2/3/4) before hard-gating

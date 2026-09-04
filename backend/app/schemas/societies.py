@@ -88,6 +88,13 @@ class SocietySubmitOut(_CamelModel):
     moderation_status: ModerationStatus
 
 
+class SocietyReportOut(_CamelModel):
+    """POST /api/societies/{department_id}/{society_id}/report 응답 - 최소 ack만.
+    신고자 신원/신고 사유 등은 절대 여기 담지 않는다."""
+
+    status: Literal["ok"] = "ok"
+
+
 class SocietyOut(_CamelModel):
     """GET /api/societies 응답 항목 - 승인된 제출만, submitter_uid는 절대 포함하지 않는다."""
 
