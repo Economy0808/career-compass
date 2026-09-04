@@ -161,3 +161,10 @@
 
 ### 남은 백로그 (감사 종료 후 별건)
 §5 목록 그대로 + 위 노트(SA 생성 단계 문서화). 다음 감사 때 `/security-audit`로 전체 재실행, 수정분은 내장 `/security-review`.
+
+### 부록: 지원요소 실DB grounding 재게이트 (2026-09-04~)
+합의 렌즈(수집 경계·공공누리 2·4 제외·LLM은 1유형만·학회 제보 연락처 미수집+패턴 거부·배지는 서버 DB값만 렌더)는 메모리 `project-data-grounding-security-lens` 및 백엔드 브리프 [보안] 항목 참조. 커밋 단위 재게이트:
+
+| 커밋 | 범위 | 결과 | 근거 |
+|---|---|---|---|
+| `c69b268` (프론트) | 학회/동아리 디렉터리 페이지·SideRail 진입점·api 바인딩 | **PASS** | `official_url`은 `safeLinkHref`(markdown.tsx:130) 통과 시에만 앵커(`noopener noreferrer`), 전 필드 React 텍스트 렌더, HTML/스토리지 싱크 0, 폼에 연락처 필드 없음(이름·공식 링크·모집 시기·분야·설명), 안내 문구 중립, `SocietyOut`에 제보자 식별자 없음, POST는 yonseiVerified 게이트(서버 최종). https-only·PII 패턴 거부는 백엔드 diff에서 확인 예정. |
