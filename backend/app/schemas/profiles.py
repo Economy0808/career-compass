@@ -92,10 +92,14 @@ class ProfileOnboardingOut(ProfileOut):
 
 
 class OnboardingStatusOut(_CamelModel):
-    """본인 온보딩 완료 여부만 담는 경량 응답(GET /me/onboarding).
+    """본인 온보딩 완료 여부 + 저장된 학과를 담는 경량 응답(GET /me/onboarding).
 
     프론트가 로그인 직후 조회해 false면 /onboarding으로 라우팅한다(계정만 만들고
     온보딩 미완인 limbo 유저 방지). user_private 문서 존재로 판정한다.
+
+    department는 프론트의 학과 선택 UI 사전 선택용(fast-follow) - 온보딩 미완이면
+    None이다. 신규 Firestore 조회 없이 기존 user_private 읽기 결과를 그대로 얹는다.
     """
 
     onboarding_complete: bool
+    department: str | None = None

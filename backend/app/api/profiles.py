@@ -162,7 +162,8 @@ async def get_my_onboarding_status(
     user: DecodedToken = Depends(get_current_user),
     db: Client = Depends(get_firestore_client),
 ) -> OnboardingStatusOut:
-    """본인 온보딩 완료 여부. user_private의 department 존재로 판정한다.
+    """본인 온보딩 완료 여부 + 저장된 department. user_private의 department 존재로
+    완료 여부를 판정한다.
 
     프론트가 로그인 직후 false면 /onboarding으로 라우팅해 limbo(계정만 있고
     온보딩 미완) 유저를 되돌린다. 경로가 두 세그먼트라 GET /{uid}와 충돌 없음.
@@ -171,9 +172,13 @@ async def get_my_onboarding_status(
     아니라 국외이전 동의(POST /api/consents/overseas)도 쓴다 - 온보딩 없이 동의만
     한 유저에게도 문서가 생기므로, 문서 존재로 보면 온보딩 완료로 오판한다.
     department는 온보딩 필수 입력이라 그 존재가 온보딩 완료의 정확한 신호다.
+
+    department를 응답에 얹는 이유: 프론트 학과 선택 UI 사전 선택(fast-follow) -
+    이미 읽은 user_private 결과를 재사용할 뿐 추가 Firestore 조회는 없다.
     """
     private = user_private_repo.get_private_profile(db, user.uid)
-    return OnboardingStatusOut(onboarding_complete=bool(private and private.get("department")))
+    department = private.get("department") if private else None
+    return OnboardingStatusOut(onboarding_complete=bool(department), department=department)
 
 
 @router.post("/{uid}/follow", response_model=ProfileOut, response_model_exclude_none=True)

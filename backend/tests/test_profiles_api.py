@@ -483,3 +483,38 @@ async def test_onboarding_feeds_declared_tags_and_career_text_into_embedding(
     assert captured  # 임베딩이 실제로 호출됐다
     assert "선언 관심사: 데이터사이언스" in captured[0]
     assert "진로 서술: 창업을 준비 중입니다." in captured[0]
+
+
+# --- GET /api/profiles/me/onboarding ---
+
+
+@pytest.mark.asyncio
+async def test_onboarding_status_returns_department_after_onboarding(
+    authed_as: Callable[[str], None],
+) -> None:
+    """department 사전 선택 fast-follow - 온보딩 완료 후 department가 응답에 실린다."""
+    authed_as("onboard-status-user-a")
+    async with _client() as client:
+        onboard_resp = await client.post(
+            "/api/profiles/onboarding", json=_onboarding_payload(department="컴퓨터과학과")
+        )
+        assert onboard_resp.status_code == 200
+
+        status_resp = await client.get("/api/profiles/me/onboarding")
+    assert status_resp.status_code == 200
+    body = status_resp.json()
+    assert body["onboardingComplete"] is True
+    assert body["department"] == "컴퓨터과학과"
+
+
+@pytest.mark.asyncio
+async def test_onboarding_status_department_is_none_before_onboarding(
+    authed_as: Callable[[str], None],
+) -> None:
+    authed_as("onboard-status-user-b")
+    async with _client() as client:
+        resp = await client.get("/api/profiles/me/onboarding")
+    assert resp.status_code == 200
+    body = resp.json()
+    assert body["onboardingComplete"] is False
+    assert body["department"] is None
