@@ -16,6 +16,9 @@ class Settings(BaseSettings):
     # data.go.kr API key comes from the environment (.env). The previous
     # hardcoded default was committed to git history - rotate the key.
     data_go_kr_api_key: str = ""
+    # Q-Net (national certification) open APIs registered separately from the
+    # NCS key above - kept distinct so either can be rotated independently.
+    data_go_kr_service_key: str = ""
     # Auth / session
     session_max_age_days: int = 14
     email_verification_ttl_minutes: int = 10

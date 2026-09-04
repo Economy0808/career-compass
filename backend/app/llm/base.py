@@ -165,6 +165,12 @@ class SupportElement:
     type: str  # NodeTypes 값 중 하나 (certification/organization/activity/networking)
     subtitle: str | None = None  # 짧은 부제 (팝오버 위에 표시)
     description: str | None = None  # 팝오버 안에 보이는 2~3줄 설명
+    # 방어용 필드 - 현재 LLM 구조화 출력 스키마는 url을 요구하지 않아 항상 None이다.
+    # 그래도 필드를 열어두는 이유: bin_suggestion의 자격증 그라운딩이 "LLM이 뭘
+    # 줬든 official_url/schedule은 DB 레코드로만 채운다"를 지켜야 하므로, 이
+    # 필드가 나중에 채워지더라도 절대 wire dict에 그대로 흘려보내면 안 된다는
+    # 불변조건을 코드/테스트로 못박아 둔다.
+    url: str | None = None
 
 
 @dataclass

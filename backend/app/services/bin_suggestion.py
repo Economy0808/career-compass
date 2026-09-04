@@ -73,6 +73,13 @@ SupportElement에는 code 같은 카탈로그 식별자가 없으므로(고정 �
 환각 방어 자체가 불가능 — base.py의 SupportElement 독스트링 참조) id는
 `support:{uuid4()}`로 발급한다. label은 그대로 사용한다(코드 접두사가 없으므로
 splitCourseCode는 그냥 전체를 rest로 돌려주고 code는 None이 된다 — 정상 동작).
+
+type이 certification인 항목만 예외로, LLM 프롬프트에 카탈로그를 주입하지 않는
+대신(RAG 아님) 생성된 라벨을 certifications 마스터와 사후 대조한다(post-filter
+그라운딩 — `_cert_badge_fields` 참고). 매칭되면 verified/official_url/schedule/
+cert_class를 서버 DB 값으로만 덧붙이고, 전문직 라이선스(변호사·공인회계사 등)는
+매칭 여부와 무관하게 cert_class="professional_license"를 강제하며 보관함 안에서
+대표(첫) 자리가 아니라 뒤로 재정렬된다(`_reorder_professional_licenses`).
 """
 
 from __future__ import annotations
@@ -83,8 +90,10 @@ from typing import Any
 
 from google.cloud.firestore import Client
 
+from app.firestore import certification_repo
 from app.llm.academic_rules import ACADEMIC_RULES_DIGEST
 from app.llm.base import DraftConstellation, LLMClient, SupportBin, SupportElement
+from app.services.cert_match import is_professional_license, normalize_cert_name
 from app.services.course_clustering import (
     ClusteredCourseView,
     CourseClusterView,
@@ -134,8 +143,43 @@ def _course_bin(cluster: CourseClusterView) -> dict[str, Any]:
     return bin_dict
 
 
-def _support_item(element: SupportElement) -> dict[str, Any]:
-    """SupportElement 한 건을 wire-ready BinItem dict로 변환한다."""
+def _cert_badge_fields(db: Client, label: str) -> dict[str, Any]:
+    """자격증 라벨을 certifications 마스터와 대조해 서버 신뢰 배지 필드를 만든다.
+
+    post-filter 검증이다(RAG 아님) - 카탈로그를 프롬프트에 넣지 않고, LLM이 이미
+    낸 라벨을 사후에 마스터와 대조만 한다. verified=False가 정상 경로다(마스터가
+    전체 국가자격을 커버하지 않으므로) - 재질의하지 않고 그대로 미검증 표시한다.
+
+    url/schedule/cert_class는 전부 이 DB 레코드 값만 쓴다 - LLM이 뭘 냈든(설령
+    SupportElement.url에 뭔가 들어있어도) 절대 참조하지 않는다. 프론트가 이
+    배지를 "공식 확인됨"으로 렌더링하므로 서버 권위가 깨지면 안 되는 보안 요구
+    사항이다.
+
+    # ponytail: 자격증 요소마다 단건 조회라 요청 하나에 N개면 Firestore 왕복
+    # N번. list_all()을 name_norm 인덱스로 TTL 캐시해 한 번에 끝내도록 올릴 것 -
+    # 요청당 자격증 요소가 수십 개로 늘어나 체감 지연이 생기면.
+    """
+    record = certification_repo.get_by_name_norm(db, normalize_cert_name(label))
+    fields: dict[str, Any] = {"verified": record is not None}
+    if record is not None:
+        for key in ("official_url", "schedule", "cert_class"):
+            # truthy 체크 - cert_class는 ETL에서 미분류 시 ""(빈 문자열)로 채워지므로
+            # None만 걸러서는 빈 값이 그대로 새어나간다(프로젝트 관례: 값 없으면 키 생략).
+            if record.get(key):
+                fields[key] = record[key]
+    if is_professional_license(label):
+        # 전문직 라이선스는 마스터 매칭 실패해도 무게감 태그는 강제한다.
+        fields["cert_class"] = "professional_license"
+    return fields
+
+
+def _support_item(element: SupportElement, db: Client) -> dict[str, Any]:
+    """SupportElement 한 건을 wire-ready BinItem dict로 변환한다.
+
+    type이 certification이면 _cert_badge_fields로 서버 그라운딩 배지를 덧붙인다
+    (element.url은 여기서도 절대 읽지 않는다 - base.py의 SupportElement.url
+    독스트링 참고).
+    """
     item: dict[str, Any] = {
         "id": f"support:{uuid.uuid4()}",
         "label": element.label,
@@ -145,16 +189,28 @@ def _support_item(element: SupportElement) -> dict[str, Any]:
         item["subtitle"] = element.subtitle
     if element.description is not None:
         item["description"] = element.description
+    if element.type == "certification":
+        item.update(_cert_badge_fields(db, element.label))
     return item
 
 
-def _support_bin(bin_view: SupportBin) -> dict[str, Any]:
+def _reorder_professional_licenses(items: list[dict[str, Any]]) -> list[dict[str, Any]]:
+    """전문직 라이선스 자격증이 보관함의 대표(첫) 추천이 되지 않도록 뒤로 미룬다.
+
+    병기는 허용, 단독/대표 추천만 금지 - 그래서 제거가 아니라 재정렬이다. sorted()는
+    안정 정렬이라 전문직/비전문직 각 그룹 내부의 상대 순서는 그대로 유지된다.
+    """
+    return sorted(items, key=lambda item: item.get("cert_class") == "professional_license")
+
+
+def _support_bin(bin_view: SupportBin, db: Client) -> dict[str, Any]:
     """SupportBin 한 건(=비교과 군집 하나)을 wire-ready Bin dict로 변환한다."""
+    items = [_support_item(e, db) for e in bin_view.elements]
     bin_dict: dict[str, Any] = {
         "id": str(uuid.uuid4()),
         "label": bin_view.name,
         "origin": "llm",
-        "items": [_support_item(e) for e in bin_view.elements],
+        "items": _reorder_professional_licenses(items),
     }
     if bin_view.advice is not None:
         bin_dict["advice"] = bin_view.advice
@@ -202,7 +258,7 @@ async def suggest_all_bins(db: Client, llm: LLMClient, goal_text: str) -> dict[s
     course_result, support_result = await asyncio.gather(course_task, support_task)
 
     bins: list[dict[str, Any]] = [_course_bin(cluster) for cluster in course_result.clusters]
-    bins.extend(_support_bin(bin_view) for bin_view in support_result.bins)
+    bins.extend(_support_bin(bin_view, db) for bin_view in support_result.bins)
 
     # 별자리 초안은 bins가 다 만들어진 뒤에만 의미가 있다(고를 항목 자체가 없으면
     # LLM을 부를 이유가 없다) - 그래서 위 gather와 묶지 않고 순차로 이어 붙인다.
@@ -237,21 +293,20 @@ async def fill_single_bin(
     보관함 하나에는 advice가 하나만 있어야 하므로) — bins가 비면 advice 키
     자체를 생략한다.
 
-    db는 현재 이 경로에서 쓰이지 않는다(수업이 아닌 비교과 제안만 하므로
-    Firestore 조회가 필요 없다) — 그래도 시그니처에 포함해 두는 건 앞으로
-    "이 보관함이 실은 수업 라벨이었다"처럼 카탈로그 조회가 필요해질 확장
-    여지를 열어두기 위함이다(호출부 시그니처를 다시 바꾸지 않아도 되게).
+    db는 자격증 그라운딩(post-filter 배지 매칭)에 쓰인다 - _support_item이
+    type == certification인 항목마다 certifications 마스터를 조회한다.
     """
-    del db  # 현재 미사용 — 위 독스트링 참고.
     scoped_goal = f"{goal_text} — '{bin_label}' 주제만"
     result = await llm.suggest_support_elements(scoped_goal, rules_context=ACADEMIC_RULES_DIGEST)
 
-    items = [_support_item(element) for bin_view in result.bins for element in bin_view.elements]
+    items = [
+        _support_item(element, db) for bin_view in result.bins for element in bin_view.elements
+    ]
     bin_dict: dict[str, Any] = {
         "id": str(uuid.uuid4()),
         "label": bin_label,
         "origin": "user",
-        "items": items,
+        "items": _reorder_professional_licenses(items),
     }
     if result.bins and result.bins[0].advice is not None:
         bin_dict["advice"] = result.bins[0].advice
