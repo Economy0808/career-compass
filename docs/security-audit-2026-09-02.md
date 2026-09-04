@@ -168,3 +168,7 @@
 | 커밋 | 범위 | 결과 | 근거 |
 |---|---|---|---|
 | `c69b268` (프론트) | 학회/동아리 디렉터리 페이지·SideRail 진입점·api 바인딩 | **PASS** | `official_url`은 `safeLinkHref`(markdown.tsx:130) 통과 시에만 앵커(`noopener noreferrer`), 전 필드 React 텍스트 렌더, HTML/스토리지 싱크 0, 폼에 연락처 필드 없음(이름·공식 링크·모집 시기·분야·설명), 안내 문구 중립, `SocietyOut`에 제보자 식별자 없음, POST는 yonseiVerified 게이트(서버 최종). https-only·PII 패턴 거부는 백엔드 diff에서 확인 예정. |
+| `b6fab97` (백엔드, Stage A) | 학회 제보 API·pii_guard·스키마·저장소 | **PASS** | `assert_no_pii`가 이름·설명·분야·모집시기 전부 스캔(전화/이메일 정규식+키워드-인접토큰 15자 창), URL은 https만·userinfo·IP 리터럴 거부·길이캡, POST `require_yonsei_verified`+rate_limit(10), GET `list_approved`만, 응답에 submitter_uid 없음. |
+| `55f6165` (백엔드, Stage B) | 신고 임시조치·모더레이션 CLI·`etl/sources.yml` | **PASS + MUST-FIX** | 신고=verified+rate_limit, pending 강제, 404, 응답 `{status:"ok"}`뿐; 모더레이션 CLI 전용(HTTP 없음). **MUST-FIX(라이브 ETL 첫 실행 전)**: `sources.yml`을 읽는 코드가 없어 합의한 공공누리 하드 게이트(정부 출처 kogl_type null/TODO/2/4 거부, 3은 원문표시만, crowdsource 면제) 미구현 + 15003024·15074408 `kogl_type: TODO`(사용자 실사 대기). 부수: 15003024 endpoint `http://`(정식 URL은 서버 조립이라 변조 범위 제한, https 대안 권장). |
+| `c8ad8c6` (백엔드) | 자격증 배지 서버권위 그라운딩 | **PASS** | `_cert_badge_fields`가 url/schedule/cert_class를 DB 레코드에서만 채움, LLM `element.url` 미참조, `SupportElement.url` 불변조건, 테스트 3종. |
+| `e268385` (백엔드) | 온보딩 상태에 department 반환 | **PASS** | 본인 `GET /me/onboarding`에만(자기 user_private 재사용), 공개 프로필 무관 → 목적 확장 없음. |
