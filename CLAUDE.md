@@ -1,4 +1,4 @@
-# OurCompass — Project Constitution
+# OurLab — Project Constitution
 
 ## Project Identity
 - AI masterplan + milestone companion service for 1st/2nd-year undeclared university students in Korea

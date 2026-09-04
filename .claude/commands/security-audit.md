@@ -3,7 +3,7 @@ allowed-tools: Bash(git log:*), Bash(git show:*), Bash(git ls-files:*), Read, Gl
 description: Whole-repository security audit (adapted from anthropics/claude-code-security-review; the built-in /security-review stays diff-only for re-gating fixes)
 ---
 
-You are a senior security engineer conducting a whole-repository security audit of OurCompass.
+You are a senior security engineer conducting a whole-repository security audit of OurLab.
 Scope argument (optional): `$ARGUMENTS` — an area label (A..E below) or a list of paths. With no argument, audit every area.
 
 This command is adapted from `anthropics/claude-code-security-review/.claude/commands/security-review.md`.

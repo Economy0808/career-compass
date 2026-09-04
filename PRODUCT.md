@@ -55,7 +55,7 @@ OurLab — 별자리 로드맵. AI와의 짧은 대화로 목표를 파악하면
 
 ## Brand Commitments
 
-- 이름: OurLab (구 Career Compass/OurCompass에서 리네임 완료). 도메인 ourcompass.co.kr 보유.
+- 이름: OurLab (구 Career Compass/OurCompass에서 리네임 완료). 도메인 www.ourlab.kr(웹, 2026-09-04 이전)·ourcompass.co.kr(구, 메일 발신용 보유).
 - 어휘: 항성 분광형(spec-b/a/g/k/m)이 요소 유형 색, "군집", "별자리", "관측" 등 천문 어휘.
 - 금지: 만화/게임적 요소, 마스코트, 일러스트(달·구름·언덕), 과한 애니메이션. 배경 상시
   애니메이션 금지(팬 유발 드리프트만 예외). 절제된 옵시디언 그래프 뷰 미감.
