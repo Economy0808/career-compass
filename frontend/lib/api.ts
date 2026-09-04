@@ -208,6 +208,49 @@ export function postOverseasConsent(version: string): Promise<void> {
   return request("/api/consents/overseas", jsonInit("POST", { version }));
 }
 
+// ---------- 학회/동아리 크라우드소싱 디렉터리 (지원요소 실DB grounding §1) ----------
+// 인테이크가 LLM으로 지어내던 학회 정보를, 연세 인증 유저가 직접 제보한 실데이터로
+// 대체한다(백엔드 03-code-78/a5 계약). 스크래핑 금지(Hard Rule) - 유저 동의 제보만.
+// 보안 경계(보안 세션): 담당자 연락처는 수집하지 않는다(폼에 필드 없음), official_url은
+// https만(서버가 http/mailto/IP/user:pass@ → 422), 목록 링크는 safeLinkHref로만 렌더.
+
+export type SocietyKind = "학회" | "동아리";
+
+/** 승인된 학회/동아리 - GET 응답(제보자 uid 미포함). */
+export interface SocietyOut {
+  id: string;
+  name: string;
+  kind: SocietyKind;
+  official_url: string;
+  recruit_season?: string;
+  field?: string;
+  description?: string;
+}
+
+/** 제보 입력 - 연락처란 없음(설계상 부재). */
+export interface SocietySubmitInput {
+  department_id: string;
+  name: string;
+  kind: SocietyKind;
+  official_url: string;
+  recruit_season?: string;
+  field?: string;
+  description?: string;
+}
+
+/** 학과별 승인된 학회/동아리 조회 - 인증 불필요, approved만 반환. */
+export function getSocieties(departmentId: string): Promise<SocietyOut[]> {
+  return request(`/api/societies?department_id=${encodeURIComponent(departmentId)}`);
+}
+
+/** 학회/동아리 제보 - 연세 인증 필수. 201 {id, moderation_status:"pending"}.
+ * 422 PII(연락처 감지)·422 URL(비https)·401·403·429는 ApiError로 온다. */
+export function submitSociety(
+  input: SocietySubmitInput
+): Promise<{ id: string; moderation_status: string }> {
+  return request("/api/societies", jsonInit("POST", input));
+}
+
 export function postSchoolEmailRequest(email: string): Promise<{ detail: string }> {
   return request("/api/auth/school-email/request", jsonInit("POST", { email }));
 }
