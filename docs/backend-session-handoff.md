@@ -1,5 +1,22 @@
-# 백엔드 세션 핸드오프 (2026-08-27 작성, 2026-09-03 24차 갱신)
+# 백엔드 세션 핸드오프 (2026-08-27 작성, 2026-09-04 25차 갱신)
 
+> **25차 (9/4) — cluster_courses 원가절감(트림) 라이브 + 모델 knob, Sonnet 유지**:
+> - **라이브 리비전**: 백엔드 `ourlab-backend-00023-9l5`(트림 반영, `/health`·`/docs` 200,
+>   env 전부 승계 — EMBEDDING/OVERSEAS_GATE/APP_ENV, `LLM_CLUSTER_MODEL` 미설정=Sonnet).
+> - **트림 배포**(커밋 `b5689e3` description 조건부 트림 + `177e95b` 전용 노브 `llm_cluster_model`
+>   기본 Sonnet). cluster 호출 원가 **383원대 → 47~72원(-80%)**, 품질 유지. 24차 계획 ①+② 중
+>   ①만 채택.
+> - **A/B 실측(프로덕션 경로 재현: select_relevant_departments→좁힌 후보→트림)**: 데이터사이언티스트
+>   (공대 250) Sonnet 72원/5군집 vs Haiku 38원/8군집(평평, 계층 `상위 — 하위` 소실). 심리상담사
+>   (심리학과 65) Sonnet 47원/8군집/39과목 vs Haiku 22원/8군집/29과목. **Sonnet 유지 결정** —
+>   Haiku가 절반 더 싸지만 계층 이름 일관성↓(프론트 형제 그룹핑 의존)·과목 포함 보수적. 사용자
+>   "성능 떨어지면 Sonnet" 조건에 해당. Haiku 전환 레버는 `LLM_CLUSTER_MODEL` env로 남김.
+> - **함정 교훈**: `_needs_desc` 트림이 "심리 계열 0군집"으로 깨진다던 초기 A/B는 **무효**였음 —
+>   단과대 통째 조회가 `limit`에 잘려 심리학과가 아예 없는 후보(문화인류·언론·정치외교)로 테스트한
+>   것. 실제 학과 후보로 다시 돌리니 트림 ON에서도 정상. **A/B는 반드시 실제 파이프라인 후보셋으로.**
+> - **배포 함정**: cwd가 `backend/` 아니면 `--source .`가 Dockerfile 없는 모노레포 루트를 번들→
+>   Buildpacks 폴백→엔트리포인트 실패. 첫 줄 `Building using Dockerfile` 확인. docs/deploy.md 반영.
+>
 > **24차 (9/3) — 탐색 의미 검색(벡터) 라이브 + 요금제 확정 + 한도백엔드 대기**:
 > - **라이브 리비전**: 백엔드 `ourlab-backend-00016-fbm`(EMBEDDING_ENABLED=true,
 >   EMBEDDING_DISTANCE_THRESHOLD=0.35), 프론트 `ourlab-frontend-00025-jf2`.

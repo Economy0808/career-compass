@@ -190,6 +190,13 @@ gcloud run deploy ourlab-backend \
   --allow-unauthenticated
 ```
 
+> **반드시 `backend/`에서 실행 (2026-09-04 실측).** Dockerfile은 `backend/Dockerfile`
+> 하나뿐이라, cwd가 부모(`03_Code`)면 `--source .`가 Dockerfile 없는 모노레포 루트를
+> 번들해 Cloud Build가 **Buildpacks로 폴백**하고 엔트리포인트를 못 찾아 빌드가 실패한다
+> (`for Python, provide a main.py or app.py file or set GOOGLE_ENTRYPOINT`). 빌드 첫 줄이
+> `Building using Dockerfile`이면 정상, `Building using Buildpacks`면 cwd가 틀렸다는 신호다.
+> 실패해도 라이브 리비전은 그대로 서빙되니 cwd만 고쳐 재배포하면 된다.
+
 > **환경변수/시크릿 플래그를 붙이지 말 것 (2026-09-03 실측).** 서비스에 이미
 > `APP_ENV`, `FIRESTORE_PROJECT_ID`, `CORS_ALLOWED_ORIGINS`, `KEY_ROTATED(_AT)`
 > 일반 env와 `ANTHROPIC_API_KEY`(Secret Manager, 동명 시크릿) 참조가 걸려 있고,
