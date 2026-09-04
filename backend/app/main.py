@@ -18,6 +18,7 @@ from app.api.health import router as health_router
 from app.api.notifications import router as notifications_router
 from app.api.posts import router as posts_router
 from app.api.profiles import router as profiles_router
+from app.api.societies import router as societies_router
 from app.api.stories import router as stories_router
 from app.config import get_settings
 
@@ -88,6 +89,7 @@ def create_app() -> FastAPI:
     app.include_router(community_router)
     app.include_router(community_notes_router)
     app.include_router(dm_router)
+    app.include_router(societies_router)
     return app
 
 
