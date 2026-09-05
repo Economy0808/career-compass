@@ -17,6 +17,7 @@ _FIXTURE_SOURCES = {
     "kogl_none": {"source_type": "government_open_data", "kogl_type": None},
     "kogl_missing": {"source_type": "government_open_data"},
     "kogl_todo": {"source_type": "government_open_data", "kogl_type": "TODO"},
+    "kogl_bool": {"source_type": "government_open_data", "kogl_type": True},
     "crowd": {"source_type": "crowdsource", "kogl_type": None},
 }
 
@@ -53,3 +54,14 @@ def test_real_sources_yaml_data_go_kr_entries_pass_display_gate() -> None:
     registry = load_sources()
     assert_source_allowed("data_go_kr_15003024_jongmok_list", for_llm=False, sources=registry)
     assert_source_allowed("data_go_kr_15074408_exam_schedule", for_llm=False, sources=registry)
+
+
+def test_bool_kogl_type_rejected() -> None:
+    """YAML 오타(`kogl_type: yes`/`true`)로 들어온 bool은 int 서브클래스라도 거부한다.
+
+    True가 1로 취급되면 표시·LLM 게이트가 모두 열리는 "우발적 허용"이 되므로 명시적으로 막는다.
+    """
+    with pytest.raises(SourceGateError):
+        assert_source_allowed("kogl_bool", for_llm=False, sources=_FIXTURE_SOURCES)
+    with pytest.raises(SourceGateError):
+        assert_source_allowed("kogl_bool", for_llm=True, sources=_FIXTURE_SOURCES)

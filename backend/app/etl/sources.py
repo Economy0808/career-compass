@@ -64,7 +64,7 @@ def assert_source_allowed(
         return
 
     kogl_type = entry.get("kogl_type")
-    if not isinstance(kogl_type, int):
+    if isinstance(kogl_type, bool) or not isinstance(kogl_type, int):
         raise SourceGateError(
             f"소스 {source_id!r}의 KOGL 유형이 미확인({kogl_type!r})입니다 - "
             "data.go.kr 데이터셋 페이지에서 공공누리 유형(1~4)을 확인해 "
