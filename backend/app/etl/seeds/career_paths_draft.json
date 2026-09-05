@@ -1,0 +1,2329 @@
+{
+  "generated_at": "2026-09-05T01:34:27.136423+00:00",
+  "pilot_fields": [
+    "경영",
+    "경제",
+    "통계",
+    "컴퓨터",
+    "공학"
+  ],
+  "departments": [
+    "10. 정보와기술",
+    "AI보건정보관리학과",
+    "IT융합공학",
+    "건설환경공학",
+    "건축공학(4년제)",
+    "경영학",
+    "경영학부 경영학전공",
+    "경제학",
+    "경제학전공",
+    "기계공학",
+    "데이터사이언스학부",
+    "도시공학",
+    "디스플레이융합공학",
+    "물리및공학물리학전공",
+    "바이오생활공학전공",
+    "산업공학",
+    "생명공학",
+    "시스템반도체공학",
+    "신소재공학",
+    "응용정보공학전공",
+    "응용통계학",
+    "의공학부",
+    "전기전자공학",
+    "화공생명공학",
+    "환경에너지공학부"
+  ],
+  "career_paths": [
+    {
+      "id": "path-01",
+      "name": "소프트웨어 개발자",
+      "description": "프로그래밍과 알고리즘적 사고를 바탕으로 다양한 소프트웨어 및 애플리케이션을 개발한다.",
+      "related_departments": [
+        "정보와기술"
+      ],
+      "job_fields": [
+        "정보기술",
+        "소프트웨어개발"
+      ],
+      "cert_hints": [
+        "정보처리기사"
+      ],
+      "source": "llm_inferred",
+      "reviewed": false
+    },
+    {
+      "id": "path-02",
+      "name": "데이터 분석가",
+      "description": "빅데이터와 통계적 기법을 활용해 자료를 분석하고 인사이트를 도출한다.",
+      "related_departments": [
+        "정보와기술",
+        "응용정보공학전공"
+      ],
+      "job_fields": [
+        "정보기술",
+        "데이터분석",
+        "IT"
+      ],
+      "cert_hints": [
+        "ADsP",
+        "SQLD",
+        "빅데이터분석기사"
+      ],
+      "source": "llm_inferred",
+      "reviewed": false
+    },
+    {
+      "id": "path-03",
+      "name": "IoT/임베디드 엔지니어",
+      "description": "IoT 및 피지컬 컴퓨팅 기술을 활용해 센서 기반 자동화 시스템을 설계·구현한다.",
+      "related_departments": [
+        "정보와기술"
+      ],
+      "job_fields": [
+        "정보기술",
+        "전자·임베디드"
+      ],
+      "cert_hints": [
+        "정보처리기사"
+      ],
+      "source": "llm_inferred",
+      "reviewed": false
+    },
+    {
+      "id": "path-04",
+      "name": "AI 응용 엔지니어",
+      "description": "인공지능 이론을 바탕으로 실제 산업 문제에 AI를 적용하는 역할을 수행한다.",
+      "related_departments": [
+        "정보와기술"
+      ],
+      "job_fields": [
+        "정보기술",
+        "인공지능"
+      ],
+      "cert_hints": [
+        "정보처리기사"
+      ],
+      "source": "llm_inferred",
+      "reviewed": false
+    },
+    {
+      "id": "path-05",
+      "name": "보건의료정보관리사",
+      "description": "의무기록 및 질병분류 체계를 관리하고 의료정보의 정확성과 보안을 책임진다.",
+      "related_departments": [
+        "AI보건정보관리학과"
+      ],
+      "job_fields": [
+        "보건의료",
+        "정보관리"
+      ],
+      "cert_hints": [
+        "보건의료정보관리사"
+      ],
+      "source": "llm_inferred",
+      "reviewed": false
+    },
+    {
+      "id": "path-06",
+      "name": "의무기록사",
+      "description": "환자의 의무기록을 작성·분석하고 질병 및 의료행위 분류 작업을 수행한다.",
+      "related_departments": [
+        "AI보건정보관리학과"
+      ],
+      "job_fields": [
+        "보건의료",
+        "의무기록"
+      ],
+      "cert_hints": [
+        "보건의료정보관리사"
+      ],
+      "source": "llm_inferred",
+      "reviewed": false
+    },
+    {
+      "id": "path-07",
+      "name": "보건의료 데이터 분석가",
+      "description": "보건의료 데이터와 통계 기법을 활용해 의료 데이터를 분석하고 인사이트를 제공한다.",
+      "related_departments": [
+        "AI보건정보관리학과"
+      ],
+      "job_fields": [
+        "보건의료",
+        "데이터분석"
+      ],
+      "cert_hints": [
+        "ADsP"
+      ],
+      "source": "llm_inferred",
+      "reviewed": false
+    },
+    {
+      "id": "path-08",
+      "name": "의료 AI/NLP 개발자",
+      "description": "자연어처리와 머신러닝·딥러닝 기술을 의료 텍스트 데이터에 적용해 임상 의사결정을 지원한다.",
+      "related_departments": [
+        "AI보건정보관리학과"
+      ],
+      "job_fields": [
+        "보건의료",
+        "인공지능"
+      ],
+      "cert_hints": [],
+      "source": "llm_inferred",
+      "reviewed": false
+    },
+    {
+      "id": "path-09",
+      "name": "건강보험심사평가 전문가",
+      "description": "건강보험 이론과 법규를 바탕으로 진료비 심사 및 청구 업무를 수행한다.",
+      "related_departments": [
+        "AI보건정보관리학과"
+      ],
+      "job_fields": [
+        "보건의료",
+        "건강보험"
+      ],
+      "cert_hints": [
+        "보건의료정보관리사"
+      ],
+      "source": "llm_inferred",
+      "reviewed": false
+    },
+    {
+      "id": "path-10",
+      "name": "보건행정가",
+      "description": "보건의료조직 및 행정 체계에 대한 이해를 바탕으로 병원 및 공공보건기관에서 행정업무를 담당한다.",
+      "related_departments": [
+        "AI보건정보관리학과"
+      ],
+      "job_fields": [
+        "보건의료",
+        "행정"
+      ],
+      "cert_hints": [
+        "보건교육사"
+      ],
+      "source": "llm_inferred",
+      "reviewed": false
+    },
+    {
+      "id": "path-11",
+      "name": "임베디드 시스템 엔지니어",
+      "description": "컴퓨터 시스템과 회로, 신호처리 지식을 바탕으로 임베디드 하드웨어 및 소프트웨어를 개발한다.",
+      "related_departments": [
+        "IT융합공학"
+      ],
+      "job_fields": [
+        "전자공학",
+        "정보기술"
+      ],
+      "cert_hints": [
+        "정보처리기사",
+        "전자기사"
+      ],
+      "source": "llm_inferred",
+      "reviewed": false
+    },
+    {
+      "id": "path-12",
+      "name": "AI/딥러닝 엔지니어",
+      "description": "딥러닝과 고급 알고리즘을 활용해 다양한 도메인의 지능형 시스템을 개발한다.",
+      "related_departments": [
+        "IT융합공학"
+      ],
+      "job_fields": [
+        "정보기술",
+        "인공지능"
+      ],
+      "cert_hints": [
+        "정보처리기사"
+      ],
+      "source": "llm_inferred",
+      "reviewed": false
+    },
+    {
+      "id": "path-13",
+      "name": "반도체 공정 엔지니어",
+      "description": "나노공정 및 소자 관련 지식을 바탕으로 반도체 제조 공정을 설계·운영한다.",
+      "related_departments": [
+        "IT융합공학"
+      ],
+      "job_fields": [
+        "전자공학",
+        "반도체"
+      ],
+      "cert_hints": [
+        "반도체설계기사"
+      ],
+      "source": "llm_inferred",
+      "reviewed": false
+    },
+    {
+      "id": "path-14",
+      "name": "메카트로닉스 엔지니어",
+      "description": "센서와 메카트로닉스 프로젝트 경험을 바탕으로 로봇 및 자동화 시스템을 설계한다.",
+      "related_departments": [
+        "IT융합공학"
+      ],
+      "job_fields": [
+        "기계공학",
+        "전자공학"
+      ],
+      "cert_hints": [
+        "메카트로닉스기사"
+      ],
+      "source": "llm_inferred",
+      "reviewed": false
+    },
+    {
+      "id": "path-15",
+      "name": "양자·에너지 융합 연구원",
+      "description": "양자컴퓨팅과 에너지융합 이론을 바탕으로 차세대 융합기술을 연구한다.",
+      "related_departments": [
+        "IT융합공학"
+      ],
+      "job_fields": [
+        "물리학",
+        "에너지공학"
+      ],
+      "cert_hints": [],
+      "source": "llm_inferred",
+      "reviewed": false
+    },
+    {
+      "id": "path-16",
+      "name": "구조 엔지니어",
+      "description": "구조해석, 강구조 및 콘크리트구조 설계 지식을 바탕으로 건축·토목 구조물을 설계한다.",
+      "related_departments": [
+        "건설환경공학"
+      ],
+      "job_fields": [
+        "건설",
+        "구조설계"
+      ],
+      "cert_hints": [
+        "건축구조기술사",
+        "토목구조기술사"
+      ],
+      "source": "llm_inferred",
+      "reviewed": false
+    },
+    {
+      "id": "path-17",
+      "name": "지반·기초 엔지니어",
+      "description": "토질역학과 기초공학 지식을 바탕으로 지반 안정성 평가 및 기초 설계를 수행한다.",
+      "related_departments": [
+        "건설환경공학"
+      ],
+      "job_fields": [
+        "건설",
+        "지반공학"
+      ],
+      "cert_hints": [
+        "토목기사",
+        "지반공학기술사"
+      ],
+      "source": "llm_inferred",
+      "reviewed": false
+    },
+    {
+      "id": "path-18",
+      "name": "수자원·환경공학 기술자",
+      "description": "수리학, 수문시스템공학, 환경공학 지식을 활용해 물관리 및 환경 인프라를 설계·관리한다.",
+      "related_departments": [
+        "건설환경공학"
+      ],
+      "job_fields": [
+        "건설",
+        "환경공학"
+      ],
+      "cert_hints": [
+        "수질환경기사",
+        "토목기사"
+      ],
+      "source": "llm_inferred",
+      "reviewed": false
+    },
+    {
+      "id": "path-19",
+      "name": "건설관리(CM) 전문가",
+      "description": "건설경제성분석과 건설관리 지식을 바탕으로 프로젝트의 공정, 비용, 품질을 관리한다.",
+      "related_departments": [
+        "건설환경공학"
+      ],
+      "job_fields": [
+        "건설",
+        "건설관리"
+      ],
+      "cert_hints": [
+        "건설안전기사",
+        "건축시공기술사"
+      ],
+      "source": "llm_inferred",
+      "reviewed": false
+    },
+    {
+      "id": "path-20",
+      "name": "측량 및 공간정보 기술자",
+      "description": "측량학과 지형공간정보학 지식을 활용해 지형 데이터를 수집·분석한다.",
+      "related_departments": [
+        "건설환경공학"
+      ],
+      "job_fields": [
+        "건설",
+        "공간정보"
+      ],
+      "cert_hints": [
+        "측량및지형공간정보기사"
+      ],
+      "source": "llm_inferred",
+      "reviewed": false
+    },
+    {
+      "id": "path-21",
+      "name": "스마트 건설/BIM 전문가",
+      "description": "건설BIM과 인공지능 융합 지식을 바탕으로 디지털 건설 기술을 적용한다.",
+      "related_departments": [
+        "건설환경공학"
+      ],
+      "job_fields": [
+        "건설",
+        "스마트건설"
+      ],
+      "cert_hints": [
+        "토목기사"
+      ],
+      "source": "llm_inferred",
+      "reviewed": false
+    },
+    {
+      "id": "path-22",
+      "name": "건축구조 엔지니어",
+      "description": "건축구조역학과 철근콘크리트·철골구조 설계 지식을 바탕으로 건축물의 구조를 설계한다.",
+      "related_departments": [
+        "건축공학(4년제)"
+      ],
+      "job_fields": [
+        "건설",
+        "구조설계"
+      ],
+      "cert_hints": [
+        "건축구조기술사",
+        "건축기사"
+      ],
+      "source": "llm_inferred",
+      "reviewed": false
+    },
+    {
+      "id": "path-23",
+      "name": "건축시공·공정 관리자",
+      "description": "건축시공과 건설공정관리 지식을 활용해 현장의 시공 및 공정을 관리한다.",
+      "related_departments": [
+        "건축공학(4년제)"
+      ],
+      "job_fields": [
+        "건설",
+        "시공관리"
+      ],
+      "cert_hints": [
+        "건축기사",
+        "건축시공기술사"
+      ],
+      "source": "llm_inferred",
+      "reviewed": false
+    },
+    {
+      "id": "path-24",
+      "name": "건축설비 엔지니어",
+      "description": "공기조화설비, 급배수위생설비 등 건축환경설비 지식을 바탕으로 건물의 기계·설비 시스템을 설계한다.",
+      "related_departments": [
+        "건축공학(4년제)"
+      ],
+      "job_fields": [
+        "건설",
+        "건축설비"
+      ],
+      "cert_hints": [
+        "건축설비기사"
+      ],
+      "source": "llm_inferred",
+      "reviewed": false
+    },
+    {
+      "id": "path-25",
+      "name": "건설사업관리자(CM/PM)",
+      "description": "건설계약, 건설사업관리, 견적관리 지식을 바탕으로 프로젝트 전반을 총괄 관리한다.",
+      "related_departments": [
+        "건축공학(4년제)"
+      ],
+      "job_fields": [
+        "건설",
+        "건설사업관리"
+      ],
+      "cert_hints": [
+        "건축기사",
+        "건설안전기사"
+      ],
+      "source": "llm_inferred",
+      "reviewed": false
+    },
+    {
+      "id": "path-26",
+      "name": "친환경 건축 컨설턴트",
+      "description": "건물성능평가와 생태건축 지식을 활용해 에너지 효율 및 친환경 건축을 컨설팅한다.",
+      "related_departments": [
+        "건축공학(4년제)"
+      ],
+      "job_fields": [
+        "건설",
+        "친환경건축"
+      ],
+      "cert_hints": [
+        "건축물에너지평가사"
+      ],
+      "source": "llm_inferred",
+      "reviewed": false
+    },
+    {
+      "id": "path-27",
+      "name": "부동산 개발 기획자",
+      "description": "부동산개발 과목을 바탕으로 건축 프로젝트의 기획 및 개발타당성을 분석한다.",
+      "related_departments": [
+        "건축공학(4년제)"
+      ],
+      "job_fields": [
+        "건설",
+        "부동산개발"
+      ],
+      "cert_hints": [
+        "공인중개사"
+      ],
+      "source": "llm_inferred",
+      "reviewed": false
+    },
+    {
+      "id": "path-28",
+      "name": "마케팅 기획/전략 전문가",
+      "description": "소비자행동, 브랜드, 디지털마케팅 지식을 바탕으로 기업의 마케팅 전략과 캠페인을 기획·실행한다.",
+      "related_departments": [
+        "경영학"
+      ],
+      "job_fields": [
+        "마케팅·광고",
+        "경영·사무"
+      ],
+      "cert_hints": [
+        "마케팅관리사",
+        "GAIQ(Google Ads)",
+        "SQL/데이터분석 관련 자격"
+      ],
+      "source": "llm_inferred",
+      "reviewed": false
+    },
+    {
+      "id": "path-29",
+      "name": "데이터/마케팅 애널리스트",
+      "description": "경영수학, 마케팅애널리틱스, 개인화추천시스템 등을 활용해 고객 데이터를 분석하고 의사결정을 지원한다.",
+      "related_departments": [
+        "경영학"
+      ],
+      "job_fields": [
+        "정보기술",
+        "마케팅·광고"
+      ],
+      "cert_hints": [
+        "ADsP",
+        "SQLD"
+      ],
+      "source": "llm_inferred",
+      "reviewed": false
+    },
+    {
+      "id": "path-30",
+      "name": "경영컨설턴트",
+      "description": "경영전략, 경영컨설팅, 기업분석 과목을 바탕으로 기업의 경영 문제를 진단하고 해결책을 제시한다.",
+      "related_departments": [
+        "경영학"
+      ],
+      "job_fields": [
+        "경영·사무",
+        "경영컨설팅"
+      ],
+      "cert_hints": [
+        "경영지도사"
+      ],
+      "source": "llm_inferred",
+      "reviewed": false
+    },
+    {
+      "id": "path-31",
+      "name": "재무/투자 분석가",
+      "description": "기업재무, 기업가치평가, 금융시장론 등을 통해 기업가치를 분석하고 투자 의사결정을 지원한다.",
+      "related_departments": [
+        "경영학"
+      ],
+      "job_fields": [
+        "금융·보험",
+        "재무·회계"
+      ],
+      "cert_hints": [
+        "CFA",
+        "투자자산운용사",
+        "재무위험관리사"
+      ],
+      "source": "llm_inferred",
+      "reviewed": false
+    },
+    {
+      "id": "path-32",
+      "name": "공급망/물류 관리자",
+      "description": "물류및공급체인관리, 공급사슬애널리틱스를 바탕으로 기업의 생산·유통 프로세스를 최적화한다.",
+      "related_departments": [
+        "경영학"
+      ],
+      "job_fields": [
+        "물류·유통",
+        "생산관리"
+      ],
+      "cert_hints": [
+        "물류관리사"
+      ],
+      "source": "llm_inferred",
+      "reviewed": false
+    },
+    {
+      "id": "path-33",
+      "name": "스타트업 창업가",
+      "description": "벤처창업론, 기업가정신 과목을 통해 신사업 아이디어를 사업화하고 초기 기업을 운영한다.",
+      "related_departments": [
+        "경영학",
+        "응용정보공학전공"
+      ],
+      "job_fields": [
+        "경영·사무",
+        "창업",
+        "IT서비스"
+      ],
+      "cert_hints": [],
+      "source": "llm_inferred",
+      "reviewed": false
+    },
+    {
+      "id": "path-34",
+      "name": "회계/세무 전문가",
+      "description": "고급회계, 관리회계, 세무회계 등을 바탕으로 기업의 재무제표 작성과 세무 신고 업무를 수행한다.",
+      "related_departments": [
+        "경영학부 경영학전공"
+      ],
+      "job_fields": [
+        "재무·회계",
+        "세무"
+      ],
+      "cert_hints": [
+        "공인회계사",
+        "세무사",
+        "전산회계",
+        "AICPA"
+      ],
+      "source": "llm_inferred",
+      "reviewed": false
+    },
+    {
+      "id": "path-35",
+      "name": "디지털마케팅/데이터분석가",
+      "description": "소셜미디어와빅데이터분석, 디지털마케팅, 고객데이터분석을 활용해 온라인 마케팅 성과를 분석하고 전략을 수립한다.",
+      "related_departments": [
+        "경영학부 경영학전공"
+      ],
+      "job_fields": [
+        "마케팅·광고",
+        "정보기술"
+      ],
+      "cert_hints": [
+        "ADsP",
+        "GAIQ"
+      ],
+      "source": "llm_inferred",
+      "reviewed": false
+    },
+    {
+      "id": "path-36",
+      "name": "경영정보시스템(ERP) 컨설턴트",
+      "description": "ERP시스템, 경영정보시스템, 비즈니스프로그래밍 지식으로 기업 정보시스템 구축과 운영을 지원한다.",
+      "related_departments": [
+        "경영학부 경영학전공"
+      ],
+      "job_fields": [
+        "정보기술",
+        "경영컨설팅"
+      ],
+      "cert_hints": [
+        "SAP ERP 관련 자격",
+        "정보처리기사"
+      ],
+      "source": "llm_inferred",
+      "reviewed": false
+    },
+    {
+      "id": "path-37",
+      "name": "금융/투자 전문가",
+      "description": "기업금융론, 국제재무, 선물과옵션 등을 통해 금융상품 분석과 투자 전략을 수립한다.",
+      "related_departments": [
+        "경영학부 경영학전공"
+      ],
+      "job_fields": [
+        "금융·보험"
+      ],
+      "cert_hints": [
+        "CFA",
+        "투자자산운용사"
+      ],
+      "source": "llm_inferred",
+      "reviewed": false
+    },
+    {
+      "id": "path-38",
+      "name": "ESG/지속가능경영 담당자",
+      "description": "ESG투자와지배구조리스크, 디지털혁신과SDGs전략 등을 바탕으로 기업의 지속가능경영 전략을 수립·평가한다.",
+      "related_departments": [
+        "경영학부 경영학전공"
+      ],
+      "job_fields": [
+        "경영·사무",
+        "지속가능경영"
+      ],
+      "cert_hints": [],
+      "source": "llm_inferred",
+      "reviewed": false
+    },
+    {
+      "id": "path-39",
+      "name": "무역/글로벌비즈니스 담당자",
+      "description": "무역실무, 국제경영론, 글로벌마케팅을 통해 해외시장 진출과 무역업무를 담당한다.",
+      "related_departments": [
+        "경영학부 경영학전공"
+      ],
+      "job_fields": [
+        "무역",
+        "국제경영"
+      ],
+      "cert_hints": [
+        "국제무역사",
+        "무역영어"
+      ],
+      "source": "llm_inferred",
+      "reviewed": false
+    },
+    {
+      "id": "path-40",
+      "name": "경제분석가/이코노미스트",
+      "description": "거시경제학, 계량경제학, 경기변동과경기예측을 바탕으로 경제 동향을 분석하고 전망 보고서를 작성한다.",
+      "related_departments": [
+        "경제학"
+      ],
+      "job_fields": [
+        "경제·금융",
+        "조사·연구"
+      ],
+      "cert_hints": [],
+      "source": "llm_inferred",
+      "reviewed": false
+    },
+    {
+      "id": "path-41",
+      "name": "금융/투자 애널리스트",
+      "description": "금융경제학, 금융공학의이해, 국제금융론을 통해 금융시장과 자산가격을 분석하고 투자전략을 수립한다.",
+      "related_departments": [
+        "경제학"
+      ],
+      "job_fields": [
+        "금융·보험"
+      ],
+      "cert_hints": [
+        "CFA",
+        "투자자산운용사",
+        "FRM"
+      ],
+      "source": "llm_inferred",
+      "reviewed": false
+    },
+    {
+      "id": "path-42",
+      "name": "데이터/계량분석가",
+      "description": "R프로그래밍과데이터분석, 계량경제학, 경제학코딩을 활용해 경제·금융 데이터를 통계적으로 분석한다.",
+      "related_departments": [
+        "경제학"
+      ],
+      "job_fields": [
+        "정보기술",
+        "데이터분석"
+      ],
+      "cert_hints": [
+        "ADsP",
+        "SQLD"
+      ],
+      "source": "llm_inferred",
+      "reviewed": false
+    },
+    {
+      "id": "path-43",
+      "name": "공공정책/공공기관 연구원",
+      "description": "경제정책, 경제발전론, 노동경제학 등을 바탕으로 정부 및 공공기관의 정책 수립을 지원한다.",
+      "related_departments": [
+        "경제학"
+      ],
+      "job_fields": [
+        "공공정책",
+        "조사·연구"
+      ],
+      "cert_hints": [],
+      "source": "llm_inferred",
+      "reviewed": false
+    },
+    {
+      "id": "path-44",
+      "name": "부동산/도시경제 전문가",
+      "description": "도시와부동산경제학이론, 부동산금융론 등을 통해 부동산 시장 분석과 투자 자문을 수행한다.",
+      "related_departments": [
+        "경제학"
+      ],
+      "job_fields": [
+        "부동산",
+        "금융·보험"
+      ],
+      "cert_hints": [
+        "공인중개사",
+        "감정평가사"
+      ],
+      "source": "llm_inferred",
+      "reviewed": false
+    },
+    {
+      "id": "path-45",
+      "name": "국제무역/통상 전문가",
+      "description": "국제무역론, 무역과국제계약을 바탕으로 국제통상 업무와 무역 실무를 담당한다.",
+      "related_departments": [
+        "경제학"
+      ],
+      "job_fields": [
+        "무역",
+        "국제통상"
+      ],
+      "cert_hints": [
+        "국제무역사"
+      ],
+      "source": "llm_inferred",
+      "reviewed": false
+    },
+    {
+      "id": "path-46",
+      "name": "경제조사/이코노미스트",
+      "description": "거시경제학, 계량경제학, 한국경제론을 바탕으로 경제 지표를 분석하고 산업 및 경제 전망을 제시한다.",
+      "related_departments": [
+        "경제학전공"
+      ],
+      "job_fields": [
+        "경제·금융",
+        "조사·연구"
+      ],
+      "cert_hints": [],
+      "source": "llm_inferred",
+      "reviewed": false
+    },
+    {
+      "id": "path-47",
+      "name": "금융권 애널리스트",
+      "description": "금융경제실습, 금융공학의이해, 재무경제학을 통해 금융상품과 시장을 분석하고 투자자문을 수행한다.",
+      "related_departments": [
+        "경제학전공"
+      ],
+      "job_fields": [
+        "금융·보험"
+      ],
+      "cert_hints": [
+        "투자자산운용사",
+        "CFA"
+      ],
+      "source": "llm_inferred",
+      "reviewed": false
+    },
+    {
+      "id": "path-48",
+      "name": "공공기관/조세정책 전문가",
+      "description": "공공경제학, 조세정책, 공기업경제학을 바탕으로 재정 및 조세 정책을 연구·설계한다.",
+      "related_departments": [
+        "경제학전공"
+      ],
+      "job_fields": [
+        "공공정책",
+        "재정"
+      ],
+      "cert_hints": [
+        "세무사"
+      ],
+      "source": "llm_inferred",
+      "reviewed": false
+    },
+    {
+      "id": "path-49",
+      "name": "산업조사 연구원",
+      "description": "산업조직론, 해외산업조사연구, 기술혁신과경제를 통해 산업 구조와 경쟁 환경을 분석한다.",
+      "related_departments": [
+        "경제학전공"
+      ],
+      "job_fields": [
+        "조사·연구",
+        "산업분석"
+      ],
+      "cert_hints": [],
+      "source": "llm_inferred",
+      "reviewed": false
+    },
+    {
+      "id": "path-50",
+      "name": "국제금융 전문가",
+      "description": "국제금융론, 아시아금융론, 국제경제학을 바탕으로 해외 금융시장과 환율, 국제자본이동을 분석한다.",
+      "related_departments": [
+        "경제학전공"
+      ],
+      "job_fields": [
+        "금융·보험",
+        "국제경제"
+      ],
+      "cert_hints": [
+        "FRM"
+      ],
+      "source": "llm_inferred",
+      "reviewed": false
+    },
+    {
+      "id": "path-51",
+      "name": "기계설계 엔지니어",
+      "description": "기계요소설계, 컴퓨터응용기계설계, 창의제품설계를 바탕으로 기계 부품 및 시스템을 설계한다.",
+      "related_departments": [
+        "기계공학"
+      ],
+      "job_fields": [
+        "기계·설비",
+        "제조"
+      ],
+      "cert_hints": [
+        "일반기계기사",
+        "기계설계산업기사"
+      ],
+      "source": "llm_inferred",
+      "reviewed": false
+    },
+    {
+      "id": "path-52",
+      "name": "자동차/메카트로닉스 엔지니어",
+      "description": "메카트로닉스, 기계시스템제어, 동역학 지식으로 자동차 및 자동화 시스템을 개발한다.",
+      "related_departments": [
+        "기계공학"
+      ],
+      "job_fields": [
+        "자동차",
+        "메카트로닉스"
+      ],
+      "cert_hints": [
+        "메카트로닉스기사",
+        "일반기계기사"
+      ],
+      "source": "llm_inferred",
+      "reviewed": false
+    },
+    {
+      "id": "path-53",
+      "name": "열유체/에너지 엔지니어",
+      "description": "열역학, 유체역학, 열전달, 에너지동력공학을 바탕으로 에너지 변환 및 열유체 시스템을 설계·해석한다.",
+      "related_departments": [
+        "기계공학"
+      ],
+      "job_fields": [
+        "에너지",
+        "기계·설비"
+      ],
+      "cert_hints": [
+        "일반기계기사",
+        "에너지관리기사"
+      ],
+      "source": "llm_inferred",
+      "reviewed": false
+    },
+    {
+      "id": "path-54",
+      "name": "생산/제조공정 엔지니어",
+      "description": "생산공학, 정형생산시스템을 통해 제조 공정 설계와 생산성 향상을 담당한다.",
+      "related_departments": [
+        "기계공학"
+      ],
+      "job_fields": [
+        "생산관리",
+        "제조"
+      ],
+      "cert_hints": [
+        "생산자동화산업기사"
+      ],
+      "source": "llm_inferred",
+      "reviewed": false
+    },
+    {
+      "id": "path-55",
+      "name": "바이오/의료기기 엔지니어",
+      "description": "바이오의료기계, 생체역학 과목을 바탕으로 의료기기 및 헬스케어 기술을 개발한다.",
+      "related_departments": [
+        "기계공학"
+      ],
+      "job_fields": [
+        "의료기기",
+        "바이오공학"
+      ],
+      "cert_hints": [],
+      "source": "llm_inferred",
+      "reviewed": false
+    },
+    {
+      "id": "path-56",
+      "name": "구조/해석 엔지니어(CAE)",
+      "description": "고체역학, 응용고체역학, 컴퓨터해석기반설계를 통해 구조물의 강도 및 안전성을 해석·검증한다.",
+      "related_departments": [
+        "기계공학"
+      ],
+      "job_fields": [
+        "구조해석",
+        "제조"
+      ],
+      "cert_hints": [
+        "일반기계기사"
+      ],
+      "source": "llm_inferred",
+      "reviewed": false
+    },
+    {
+      "id": "path-57",
+      "name": "데이터 사이언티스트",
+      "description": "통계 이론과 머신러닝 기법을 활용해 대규모 데이터에서 인사이트를 도출하고 예측 모델을 구축한다.",
+      "related_departments": [
+        "데이터사이언스학부",
+        "산업공학",
+        "응용통계학"
+      ],
+      "job_fields": [
+        "정보기술",
+        "데이터분석"
+      ],
+      "cert_hints": [
+        "ADsP",
+        "SQLD",
+        "빅데이터분석기사"
+      ],
+      "source": "llm_inferred",
+      "reviewed": false
+    },
+    {
+      "id": "path-58",
+      "name": "통계 분석가/컨설턴트",
+      "description": "다변량통계, 회귀분석, 표본조사 등을 활용해 기업 및 기관의 의사결정을 지원하는 통계 컨설팅을 수행한다.",
+      "related_departments": [
+        "데이터사이언스학부"
+      ],
+      "job_fields": [
+        "통계",
+        "경영컨설팅"
+      ],
+      "cert_hints": [
+        "사회조사분석사",
+        "통계분석전문가(ADP)"
+      ],
+      "source": "llm_inferred",
+      "reviewed": false
+    },
+    {
+      "id": "path-59",
+      "name": "머신러닝/AI 엔지니어",
+      "description": "딥러닝과 인공지능 알고리즘을 설계·구현하여 실제 서비스에 적용 가능한 AI 시스템을 개발한다.",
+      "related_departments": [
+        "데이터사이언스학부"
+      ],
+      "job_fields": [
+        "정보기술",
+        "인공지능"
+      ],
+      "cert_hints": [
+        "빅데이터분석기사"
+      ],
+      "source": "llm_inferred",
+      "reviewed": false
+    },
+    {
+      "id": "path-60",
+      "name": "헬스케어 데이터 분석가",
+      "description": "의학통계 및 생존분석 기법을 바탕으로 임상 데이터와 헬스케어 빅데이터를 분석한다.",
+      "related_departments": [
+        "데이터사이언스학부"
+      ],
+      "job_fields": [
+        "보건의료",
+        "데이터분석"
+      ],
+      "cert_hints": [
+        "의료정보관리사"
+      ],
+      "source": "llm_inferred",
+      "reviewed": false
+    },
+    {
+      "id": "path-61",
+      "name": "보험계리사",
+      "description": "보험통계학과 확률과정론을 기반으로 보험상품의 리스크를 계량화하고 요율을 산정한다.",
+      "related_departments": [
+        "데이터사이언스학부",
+        "응용통계학"
+      ],
+      "job_fields": [
+        "금융·보험",
+        "통계",
+        "보험계리"
+      ],
+      "cert_hints": [
+        "보험계리사",
+        "보험계리사(계리사)"
+      ],
+      "source": "llm_inferred",
+      "reviewed": false
+    },
+    {
+      "id": "path-62",
+      "name": "품질관리 엔지니어",
+      "description": "실험계획법과 품질관리 기법을 활용해 제조 공정의 품질을 분석하고 개선한다.",
+      "related_departments": [
+        "데이터사이언스학부"
+      ],
+      "job_fields": [
+        "제조",
+        "품질관리"
+      ],
+      "cert_hints": [
+        "품질경영기사"
+      ],
+      "source": "llm_inferred",
+      "reviewed": false
+    },
+    {
+      "id": "path-63",
+      "name": "도시계획가",
+      "description": "국토 및 지역계획, 도시계획법 등을 바탕으로 도시의 토지이용과 공간구조를 계획한다.",
+      "related_departments": [
+        "도시공학"
+      ],
+      "job_fields": [
+        "도시·건축",
+        "공공행정"
+      ],
+      "cert_hints": [
+        "도시계획기사",
+        "도시계획기술사"
+      ],
+      "source": "llm_inferred",
+      "reviewed": false
+    },
+    {
+      "id": "path-64",
+      "name": "교통계획 전문가",
+      "description": "교통공학과 모빌리티 데이터마이닝을 활용해 도시 교통체계와 대중교통 시스템을 설계한다.",
+      "related_departments": [
+        "도시공학"
+      ],
+      "job_fields": [
+        "교통",
+        "도시계획"
+      ],
+      "cert_hints": [
+        "교통기사",
+        "교통안전관리자"
+      ],
+      "source": "llm_inferred",
+      "reviewed": false
+    },
+    {
+      "id": "path-65",
+      "name": "스마트시티 데이터 분석가",
+      "description": "GIS와 도시 빅데이터를 활용해 스마트시티 정책 수립 및 공간정보 분석 업무를 수행한다.",
+      "related_departments": [
+        "도시공학"
+      ],
+      "job_fields": [
+        "정보기술",
+        "도시계획"
+      ],
+      "cert_hints": [
+        "GIS기사"
+      ],
+      "source": "llm_inferred",
+      "reviewed": false
+    },
+    {
+      "id": "path-66",
+      "name": "부동산개발 전문가",
+      "description": "부동산개발분석과 도시개발금융 지식을 바탕으로 개발사업의 타당성을 평가하고 기획한다.",
+      "related_departments": [
+        "도시공학"
+      ],
+      "job_fields": [
+        "부동산",
+        "금융·보험"
+      ],
+      "cert_hints": [
+        "감정평가사",
+        "공인중개사"
+      ],
+      "source": "llm_inferred",
+      "reviewed": false
+    },
+    {
+      "id": "path-67",
+      "name": "도시설계가",
+      "description": "공공공간 및 주거단지 계획·설계 과목을 바탕으로 도시 공간의 물리적 환경을 디자인한다.",
+      "related_departments": [
+        "도시공학"
+      ],
+      "job_fields": [
+        "도시·건축",
+        "설계"
+      ],
+      "cert_hints": [
+        "건축사"
+      ],
+      "source": "llm_inferred",
+      "reviewed": false
+    },
+    {
+      "id": "path-68",
+      "name": "환경·방재 정책 전문가",
+      "description": "도시환경평가와 안전방재계획을 기반으로 지속가능한 도시환경 정책을 수립한다.",
+      "related_departments": [
+        "도시공학"
+      ],
+      "job_fields": [
+        "환경",
+        "공공정책"
+      ],
+      "cert_hints": [
+        "환경영향평가사"
+      ],
+      "source": "llm_inferred",
+      "reviewed": false
+    },
+    {
+      "id": "path-69",
+      "name": "디스플레이 공정 엔지니어",
+      "description": "백플레인 공정 및 소자 지식을 바탕으로 디스플레이 패널 제조 공정을 개발하고 최적화한다.",
+      "related_departments": [
+        "디스플레이융합공학"
+      ],
+      "job_fields": [
+        "반도체·디스플레이",
+        "제조"
+      ],
+      "cert_hints": [
+        "반도체설계기사"
+      ],
+      "source": "llm_inferred",
+      "reviewed": false
+    },
+    {
+      "id": "path-70",
+      "name": "반도체 소자 연구원",
+      "description": "광반도체공학과 물리전자 이론을 기반으로 차세대 반도체 및 광소자를 연구개발한다.",
+      "related_departments": [
+        "디스플레이융합공학"
+      ],
+      "job_fields": [
+        "반도체",
+        "연구개발"
+      ],
+      "cert_hints": [],
+      "source": "llm_inferred",
+      "reviewed": false
+    },
+    {
+      "id": "path-71",
+      "name": "디스플레이 회로설계 엔지니어",
+      "description": "디스플레이회로설계와 아날로그·디지털 회로 지식을 활용해 디스플레이 구동회로를 설계한다.",
+      "related_departments": [
+        "디스플레이융합공학"
+      ],
+      "job_fields": [
+        "전자공학",
+        "반도체·디스플레이"
+      ],
+      "cert_hints": [
+        "전자기사",
+        "전자회로설계산업기사"
+      ],
+      "source": "llm_inferred",
+      "reviewed": false
+    },
+    {
+      "id": "path-72",
+      "name": "디스플레이 소재·색채 연구원",
+      "description": "디스플레이 재료물리와 색채공학 지식을 바탕으로 디스플레이용 신소재를 개발한다.",
+      "related_departments": [
+        "디스플레이융합공학"
+      ],
+      "job_fields": [
+        "신소재",
+        "연구개발"
+      ],
+      "cert_hints": [],
+      "source": "llm_inferred",
+      "reviewed": false
+    },
+    {
+      "id": "path-73",
+      "name": "반도체·소자 연구원",
+      "description": "고체물리학과 반도체공학을 바탕으로 반도체 소자의 물리적 원리를 연구하고 신소자를 개발한다.",
+      "related_departments": [
+        "물리및공학물리학전공"
+      ],
+      "job_fields": [
+        "반도체",
+        "연구개발"
+      ],
+      "cert_hints": [],
+      "source": "llm_inferred",
+      "reviewed": false
+    },
+    {
+      "id": "path-74",
+      "name": "광학 엔지니어",
+      "description": "광학 및 응용광학 지식을 활용해 광학계 설계, 레이저 및 광센서 관련 기술을 개발한다.",
+      "related_departments": [
+        "물리및공학물리학전공"
+      ],
+      "job_fields": [
+        "광학",
+        "제조"
+      ],
+      "cert_hints": [],
+      "source": "llm_inferred",
+      "reviewed": false
+    },
+    {
+      "id": "path-75",
+      "name": "전산물리 시뮬레이션 연구원",
+      "description": "전산물리학과 수리물리학을 활용해 물리 현상을 컴퓨터로 모델링하고 시뮬레이션한다.",
+      "related_departments": [
+        "물리및공학물리학전공"
+      ],
+      "job_fields": [
+        "연구개발",
+        "정보기술"
+      ],
+      "cert_hints": [],
+      "source": "llm_inferred",
+      "reviewed": false
+    },
+    {
+      "id": "path-76",
+      "name": "물리 교사/교육자",
+      "description": "일반물리학과 현대물리학의 폭넓은 이해를 바탕으로 중등 및 대학 물리 교육을 담당한다.",
+      "related_departments": [
+        "물리및공학물리학전공"
+      ],
+      "job_fields": [
+        "교육"
+      ],
+      "cert_hints": [
+        "중등학교2급정교사(물리)"
+      ],
+      "source": "llm_inferred",
+      "reviewed": false
+    },
+    {
+      "id": "path-77",
+      "name": "신소재 연구원",
+      "description": "물리신소재 캡스톤디자인 및 재료물리학 지식을 활용해 첨단 소재를 연구개발한다.",
+      "related_departments": [
+        "물리및공학물리학전공"
+      ],
+      "job_fields": [
+        "신소재",
+        "연구개발"
+      ],
+      "cert_hints": [],
+      "source": "llm_inferred",
+      "reviewed": false
+    },
+    {
+      "id": "path-78",
+      "name": "기능성 식품 연구원",
+      "description": "기능성식품학과 식품화학 지식을 바탕으로 건강기능식품 및 신소재 식품을 연구개발한다.",
+      "related_departments": [
+        "바이오생활공학전공"
+      ],
+      "job_fields": [
+        "식품",
+        "연구개발"
+      ],
+      "cert_hints": [
+        "식품기사",
+        "영양사"
+      ],
+      "source": "llm_inferred",
+      "reviewed": false
+    },
+    {
+      "id": "path-79",
+      "name": "화장품 연구개발자",
+      "description": "화장품제형공학과 바이오화장품학을 활용해 화장품 제형 설계 및 신제품 개발 업무를 수행한다.",
+      "related_departments": [
+        "바이오생활공학전공"
+      ],
+      "job_fields": [
+        "화장품",
+        "연구개발"
+      ],
+      "cert_hints": [
+        "화장품제조관리사"
+      ],
+      "source": "llm_inferred",
+      "reviewed": false
+    },
+    {
+      "id": "path-80",
+      "name": "바이오헬스케어 산업 기획자",
+      "description": "바이오헬스케어 기술과 산업 동향을 이해하고 헬스케어 제품·서비스 기획 및 마케팅을 담당한다.",
+      "related_departments": [
+        "바이오생활공학전공"
+      ],
+      "job_fields": [
+        "바이오헬스",
+        "기획"
+      ],
+      "cert_hints": [],
+      "source": "llm_inferred",
+      "reviewed": false
+    },
+    {
+      "id": "path-81",
+      "name": "발효·미생물 공정 연구원",
+      "description": "핵심미생물학과 첨단발효공학을 바탕으로 발효 기반 제품의 공정 개발 및 품질관리를 수행한다.",
+      "related_departments": [
+        "바이오생활공학전공"
+      ],
+      "job_fields": [
+        "바이오",
+        "제조"
+      ],
+      "cert_hints": [
+        "미생물기사"
+      ],
+      "source": "llm_inferred",
+      "reviewed": false
+    },
+    {
+      "id": "path-82",
+      "name": "바이오 안전성·독성 평가 전문가",
+      "description": "바이오안전 및 독성학 지식을 활용해 바이오·화장품·식품 소재의 안전성을 평가한다.",
+      "related_departments": [
+        "바이오생활공학전공"
+      ],
+      "job_fields": [
+        "바이오",
+        "품질관리"
+      ],
+      "cert_hints": [
+        "위생사"
+      ],
+      "source": "llm_inferred",
+      "reviewed": false
+    },
+    {
+      "id": "path-83",
+      "name": "생명정보분석가",
+      "description": "바이오생활 생명정보처리 및 통계학을 활용해 생물학적 데이터를 분석하고 해석한다.",
+      "related_departments": [
+        "바이오생활공학전공"
+      ],
+      "job_fields": [
+        "바이오",
+        "데이터분석"
+      ],
+      "cert_hints": [
+        "생물정보분석사"
+      ],
+      "source": "llm_inferred",
+      "reviewed": false
+    },
+    {
+      "id": "path-84",
+      "name": "생산·품질관리 엔지니어",
+      "description": "제조 현장의 생산계획, 품질공학, 신뢰성공학 지식을 바탕으로 공정 효율과 품질을 관리하는 직무이다.",
+      "related_departments": [
+        "산업공학"
+      ],
+      "job_fields": [
+        "생산관리",
+        "품질경영"
+      ],
+      "cert_hints": [
+        "품질경영기사",
+        "산업안전기사",
+        "6시그마"
+      ],
+      "source": "llm_inferred",
+      "reviewed": false
+    },
+    {
+      "id": "path-85",
+      "name": "경영과학·최적화 컨설턴트",
+      "description": "OR확률모델, 최적화이론, 시뮬레이션 등을 활용해 기업의 의사결정과 자원배분 문제를 해결한다.",
+      "related_departments": [
+        "산업공학"
+      ],
+      "job_fields": [
+        "경영컨설팅",
+        "산업공학"
+      ],
+      "cert_hints": [
+        "경영지도사"
+      ],
+      "source": "llm_inferred",
+      "reviewed": false
+    },
+    {
+      "id": "path-86",
+      "name": "공급망관리(SCM) 전문가",
+      "description": "공급망경영, 생산시스템분석을 기반으로 물류와 조달, 유통 프로세스를 최적화한다.",
+      "related_departments": [
+        "산업공학"
+      ],
+      "job_fields": [
+        "물류",
+        "공급망관리"
+      ],
+      "cert_hints": [
+        "물류관리사"
+      ],
+      "source": "llm_inferred",
+      "reviewed": false
+    },
+    {
+      "id": "path-87",
+      "name": "금융공학·퀀트 애널리스트",
+      "description": "금융공학, 투자공학 과목을 통해 파생상품 설계와 리스크 분석 등 정량적 금융 업무를 수행한다.",
+      "related_departments": [
+        "산업공학"
+      ],
+      "job_fields": [
+        "금융·보험",
+        "퀀트분석"
+      ],
+      "cert_hints": [
+        "투자자산운용사",
+        "CFA"
+      ],
+      "source": "llm_inferred",
+      "reviewed": false
+    },
+    {
+      "id": "path-88",
+      "name": "IT서비스 기획자",
+      "description": "ICT경영, 하이테크제품마케팅 등을 바탕으로 신기술 기반 서비스와 제품 기획을 담당한다.",
+      "related_departments": [
+        "산업공학",
+        "응용정보공학전공"
+      ],
+      "job_fields": [
+        "IT기획",
+        "마케팅",
+        "서비스기획"
+      ],
+      "cert_hints": [],
+      "source": "llm_inferred",
+      "reviewed": false
+    },
+    {
+      "id": "path-89",
+      "name": "바이오의약품 연구원",
+      "description": "분자생명공학, 바이오의약품공정, 단백질설계공학 지식으로 신약 및 바이오의약품 개발에 참여한다.",
+      "related_departments": [
+        "생명공학"
+      ],
+      "job_fields": [
+        "생명과학",
+        "제약·바이오"
+      ],
+      "cert_hints": [
+        "생물공학기사"
+      ],
+      "source": "llm_inferred",
+      "reviewed": false
+    },
+    {
+      "id": "path-90",
+      "name": "식품·건강기능식품 연구개발자",
+      "description": "건강기능식품학, 식품생화학, 식품공정공학을 바탕으로 기능성 식품 및 식품소재를 개발한다.",
+      "related_departments": [
+        "생명공학"
+      ],
+      "job_fields": [
+        "식품산업",
+        "연구개발"
+      ],
+      "cert_hints": [
+        "식품기사",
+        "영양사"
+      ],
+      "source": "llm_inferred",
+      "reviewed": false
+    },
+    {
+      "id": "path-91",
+      "name": "생명정보(바이오인포매틱스) 분석가",
+      "description": "생명정보학, 기능유전체학, 생명공학정보처리를 활용해 유전체·오믹스 데이터를 분석한다.",
+      "related_departments": [
+        "생명공학"
+      ],
+      "job_fields": [
+        "생명과학",
+        "데이터분석"
+      ],
+      "cert_hints": [
+        "생물정보분석사"
+      ],
+      "source": "llm_inferred",
+      "reviewed": false
+    },
+    {
+      "id": "path-92",
+      "name": "진단·검사 전문 연구원",
+      "description": "진단생명공학, 면역학, 바이러스와숙주 과목을 바탕으로 진단키트 및 임상검사 관련 연구를 수행한다.",
+      "related_departments": [
+        "생명공학"
+      ],
+      "job_fields": [
+        "의료·바이오",
+        "연구개발"
+      ],
+      "cert_hints": [
+        "임상병리사"
+      ],
+      "source": "llm_inferred",
+      "reviewed": false
+    },
+    {
+      "id": "path-93",
+      "name": "생명공학 특허·기술사업화 전문가",
+      "description": "생명공학발명과특허, 논문작성법 등을 바탕으로 바이오 기술의 특허 출원과 사업화를 지원한다.",
+      "related_departments": [
+        "생명공학"
+      ],
+      "job_fields": [
+        "지식재산",
+        "기술사업화"
+      ],
+      "cert_hints": [
+        "변리사"
+      ],
+      "source": "llm_inferred",
+      "reviewed": false
+    },
+    {
+      "id": "path-94",
+      "name": "세포·조직공학 연구원",
+      "description": "세포생명공학, 재생바이오공학, 세포조직공학개론을 바탕으로 재생의학 및 조직공학 분야 연구를 수행한다.",
+      "related_departments": [
+        "생명공학"
+      ],
+      "job_fields": [
+        "생명과학",
+        "의료공학"
+      ],
+      "cert_hints": [],
+      "source": "llm_inferred",
+      "reviewed": false
+    },
+    {
+      "id": "path-95",
+      "name": "반도체 소자·공정 엔지니어",
+      "description": "반도체공정론, 반도체소자물리, 소자제작실험을 바탕으로 웨이퍼 공정 및 소자 개발 업무를 수행한다.",
+      "related_departments": [
+        "시스템반도체공학"
+      ],
+      "job_fields": [
+        "반도체",
+        "공정엔지니어링"
+      ],
+      "cert_hints": [
+        "반도체설계기사"
+      ],
+      "source": "llm_inferred",
+      "reviewed": false
+    },
+    {
+      "id": "path-96",
+      "name": "디지털/아날로그 IC 설계자",
+      "description": "디지털집적회로설계, 아날로그집적회로설계, MPU설계 과목을 바탕으로 칩 설계 업무를 수행한다.",
+      "related_departments": [
+        "시스템반도체공학"
+      ],
+      "job_fields": [
+        "반도체",
+        "회로설계"
+      ],
+      "cert_hints": [],
+      "source": "llm_inferred",
+      "reviewed": false
+    },
+    {
+      "id": "path-97",
+      "name": "컴퓨터구조·시스템 아키텍트",
+      "description": "컴퓨터구조론, 시스템아키텍처특론, 운영체제 지식으로 프로세서 및 시스템 구조를 설계한다.",
+      "related_departments": [
+        "시스템반도체공학"
+      ],
+      "job_fields": [
+        "반도체",
+        "컴퓨터시스템"
+      ],
+      "cert_hints": [
+        "정보처리기사"
+      ],
+      "source": "llm_inferred",
+      "reviewed": false
+    },
+    {
+      "id": "path-98",
+      "name": "임베디드 시스템 소프트웨어 엔지니어",
+      "description": "시스템프로그래밍, 시스템반도체소프트웨어설계 과목으로 하드웨어 제어용 저수준 소프트웨어를 개발한다.",
+      "related_departments": [
+        "시스템반도체공학"
+      ],
+      "job_fields": [
+        "임베디드SW",
+        "반도체"
+      ],
+      "cert_hints": [
+        "정보처리기사"
+      ],
+      "source": "llm_inferred",
+      "reviewed": false
+    },
+    {
+      "id": "path-99",
+      "name": "신호처리 엔지니어",
+      "description": "디지털신호처리, 신호와시스템, 확률및랜덤변수를 기반으로 통신·영상 신호처리 시스템을 개발한다.",
+      "related_departments": [
+        "시스템반도체공학"
+      ],
+      "job_fields": [
+        "전자공학",
+        "신호처리"
+      ],
+      "cert_hints": [],
+      "source": "llm_inferred",
+      "reviewed": false
+    },
+    {
+      "id": "path-100",
+      "name": "반도체·디스플레이 소재 연구원",
+      "description": "반도체공정, 나노소자, 광전자재료및소자 과목을 바탕으로 반도체·디스플레이용 신소재를 연구개발한다.",
+      "related_departments": [
+        "신소재공학"
+      ],
+      "job_fields": [
+        "반도체",
+        "소재개발"
+      ],
+      "cert_hints": [
+        "금속재료기사",
+        "세라믹기사"
+      ],
+      "source": "llm_inferred",
+      "reviewed": false
+    },
+    {
+      "id": "path-101",
+      "name": "이차전지·에너지소재 연구원",
+      "description": "에너지저장재료, 연료전지공학, 에너지하베스팅시스템을 바탕으로 배터리 및 에너지 소재를 개발한다.",
+      "related_departments": [
+        "신소재공학"
+      ],
+      "job_fields": [
+        "에너지",
+        "소재개발"
+      ],
+      "cert_hints": [],
+      "source": "llm_inferred",
+      "reviewed": false
+    },
+    {
+      "id": "path-102",
+      "name": "금속·세라믹 소재 엔지니어",
+      "description": "철강재료, 세라믹물성론, 소결공학, 재료가공공정 지식으로 금속 및 세라믹 소재 제조공정을 담당한다.",
+      "related_departments": [
+        "신소재공학"
+      ],
+      "job_fields": [
+        "금속재료",
+        "제조공정"
+      ],
+      "cert_hints": [
+        "금속재료기사",
+        "세라믹기사"
+      ],
+      "source": "llm_inferred",
+      "reviewed": false
+    },
+    {
+      "id": "path-103",
+      "name": "바이오·의료소재 연구원",
+      "description": "바이오재료, 의료소재및소자, 생체모방공학을 바탕으로 의료용 신소재와 임플란트 소재를 개발한다.",
+      "related_departments": [
+        "신소재공학"
+      ],
+      "job_fields": [
+        "바이오소재",
+        "의료공학"
+      ],
+      "cert_hints": [],
+      "source": "llm_inferred",
+      "reviewed": false
+    },
+    {
+      "id": "path-104",
+      "name": "전산재료 시뮬레이션 연구원",
+      "description": "전산재료학, 상평형및전이론, 재료열역학을 활용해 신소재의 물성을 계산·예측하는 연구를 수행한다.",
+      "related_departments": [
+        "신소재공학"
+      ],
+      "job_fields": [
+        "소재개발",
+        "연구개발"
+      ],
+      "cert_hints": [],
+      "source": "llm_inferred",
+      "reviewed": false
+    },
+    {
+      "id": "path-105",
+      "name": "품질·소재분석 엔지니어",
+      "description": "X선회절분석론, 결정학, 재료공학기초실험을 바탕으로 소재의 구조 분석과 품질검증 업무를 수행한다.",
+      "related_departments": [
+        "신소재공학"
+      ],
+      "job_fields": [
+        "품질관리",
+        "소재분석"
+      ],
+      "cert_hints": [
+        "금속재료기사"
+      ],
+      "source": "llm_inferred",
+      "reviewed": false
+    },
+    {
+      "id": "path-106",
+      "name": "웹·모바일 애플리케이션 개발자",
+      "description": "웹프로그래밍, 응용모바일프로그래밍, 객체지향정보프로그래밍을 바탕으로 웹/앱 서비스를 개발한다.",
+      "related_departments": [
+        "응용정보공학전공"
+      ],
+      "job_fields": [
+        "소프트웨어개발",
+        "IT"
+      ],
+      "cert_hints": [
+        "정보처리기사"
+      ],
+      "source": "llm_inferred",
+      "reviewed": false
+    },
+    {
+      "id": "path-107",
+      "name": "정보보안 담당자",
+      "description": "정보기술과보안 과목을 바탕으로 시스템 및 네트워크 보안 관리 업무를 수행한다.",
+      "related_departments": [
+        "응용정보공학전공"
+      ],
+      "job_fields": [
+        "정보보안",
+        "IT"
+      ],
+      "cert_hints": [
+        "정보보안기사"
+      ],
+      "source": "llm_inferred",
+      "reviewed": false
+    },
+    {
+      "id": "path-108",
+      "name": "게임 기획·개발자",
+      "description": "게임설계와구현 과목을 바탕으로 게임 콘텐츠 설계 및 프로그래밍 업무를 수행한다.",
+      "related_departments": [
+        "응용정보공학전공"
+      ],
+      "job_fields": [
+        "게임개발",
+        "소프트웨어개발"
+      ],
+      "cert_hints": [],
+      "source": "llm_inferred",
+      "reviewed": false
+    },
+    {
+      "id": "path-109",
+      "name": "금융 리스크 분석가",
+      "description": "금융통계학, 보험통계, 금융리스크관리 과목을 바탕으로 금융기관의 리스크를 측정하고 관리하는 업무를 수행한다.",
+      "related_departments": [
+        "응용통계학"
+      ],
+      "job_fields": [
+        "금융·보험",
+        "위험관리"
+      ],
+      "cert_hints": [
+        "FRM",
+        "CFA",
+        "재무위험관리사"
+      ],
+      "source": "llm_inferred",
+      "reviewed": false
+    },
+    {
+      "id": "path-110",
+      "name": "머신러닝 엔지니어",
+      "description": "통계적머신러닝, 강화학습, 생성모델 등 최신 알고리즘을 실무 시스템에 구현하는 엔지니어로 활동한다.",
+      "related_departments": [
+        "응용통계학"
+      ],
+      "job_fields": [
+        "정보기술",
+        "인공지능"
+      ],
+      "cert_hints": [],
+      "source": "llm_inferred",
+      "reviewed": false
+    },
+    {
+      "id": "path-111",
+      "name": "통계연구원/데이터 컨설턴트",
+      "description": "이론통계학, 다변량통계분석, 실험계획법 등을 바탕으로 각종 산업 데이터 분석 및 통계 컨설팅을 수행한다.",
+      "related_departments": [
+        "응용통계학"
+      ],
+      "job_fields": [
+        "데이터분석",
+        "연구개발"
+      ],
+      "cert_hints": [
+        "사회조사분석사"
+      ],
+      "source": "llm_inferred",
+      "reviewed": false
+    },
+    {
+      "id": "path-112",
+      "name": "의료기기 개발 엔지니어",
+      "description": "의용계측, 의료영상신호처리, 초음파의료기기 등을 바탕으로 진단·치료용 의료기기를 설계하고 개발한다.",
+      "related_departments": [
+        "의공학부"
+      ],
+      "job_fields": [
+        "의료기기",
+        "전자공학"
+      ],
+      "cert_hints": [
+        "의공기사",
+        "의료전자기사"
+      ],
+      "source": "llm_inferred",
+      "reviewed": false
+    },
+    {
+      "id": "path-113",
+      "name": "의료영상 분석 전문가",
+      "description": "의료영상학, 의공데이터분석, 의공학을위한기계학습 과목을 통해 의료영상 데이터 분석 및 AI 진단 보조 솔루션을 개발한다.",
+      "related_departments": [
+        "의공학부"
+      ],
+      "job_fields": [
+        "의료기기",
+        "인공지능"
+      ],
+      "cert_hints": [],
+      "source": "llm_inferred",
+      "reviewed": false
+    },
+    {
+      "id": "path-114",
+      "name": "재활·바이오메카닉스 연구원",
+      "description": "동작분석, 생체역학, 재활공학을 바탕으로 재활보조기기 및 인체 동작 분석 시스템을 연구한다.",
+      "related_departments": [
+        "의공학부"
+      ],
+      "job_fields": [
+        "의료기기",
+        "재활공학"
+      ],
+      "cert_hints": [],
+      "source": "llm_inferred",
+      "reviewed": false
+    },
+    {
+      "id": "path-115",
+      "name": "의료기기 인허가/규제 전문가",
+      "description": "의료기기설계및규제 과목을 기반으로 의료기기의 인허가, 품질관리, 규제 대응 업무를 담당한다.",
+      "related_departments": [
+        "의공학부"
+      ],
+      "job_fields": [
+        "의료기기",
+        "품질관리"
+      ],
+      "cert_hints": [
+        "의료기기RA전문가"
+      ],
+      "source": "llm_inferred",
+      "reviewed": false
+    },
+    {
+      "id": "path-116",
+      "name": "생체재료 및 조직공학 연구원",
+      "description": "생체재료, 조직공학, 세포역학 등을 바탕으로 인공장기·임플란트용 신소재를 연구개발한다.",
+      "related_departments": [
+        "의공학부"
+      ],
+      "job_fields": [
+        "연구개발",
+        "바이오소재"
+      ],
+      "cert_hints": [],
+      "source": "llm_inferred",
+      "reviewed": false
+    },
+    {
+      "id": "path-117",
+      "name": "의공학 연구원(대학원 진학)",
+      "description": "뇌신경공학, 바이오멤스응용 등 심화 과목을 바탕으로 대학원 진학 후 첨단 의공학 분야 연구자로 진출한다.",
+      "related_departments": [
+        "의공학부"
+      ],
+      "job_fields": [
+        "연구개발",
+        "의공학"
+      ],
+      "cert_hints": [],
+      "source": "llm_inferred",
+      "reviewed": false
+    },
+    {
+      "id": "path-118",
+      "name": "반도체 소자/공정 엔지니어",
+      "description": "반도체물성, 반도체종합설계, 시스템반도체설계 과목을 바탕으로 반도체 소자 설계 및 공정 개발 업무를 수행한다.",
+      "related_departments": [
+        "전기전자공학"
+      ],
+      "job_fields": [
+        "반도체",
+        "전자공학"
+      ],
+      "cert_hints": [
+        "전자기사",
+        "반도체설계기사"
+      ],
+      "source": "llm_inferred",
+      "reviewed": false
+    },
+    {
+      "id": "path-119",
+      "name": "통신시스템 엔지니어",
+      "description": "통신이론, 무선통신시스템, 통신네트워크 과목을 통해 유무선 통신 시스템을 설계하고 운용한다.",
+      "related_departments": [
+        "전기전자공학"
+      ],
+      "job_fields": [
+        "정보통신",
+        "전자공학"
+      ],
+      "cert_hints": [
+        "정보통신기사"
+      ],
+      "source": "llm_inferred",
+      "reviewed": false
+    },
+    {
+      "id": "path-120",
+      "name": "제어시스템 엔지니어",
+      "description": "제어공학, 디지털제어공학, 지능제어를 바탕으로 산업용 자동화 및 로봇 제어 시스템을 개발한다.",
+      "related_departments": [
+        "전기전자공학"
+      ],
+      "job_fields": [
+        "자동화",
+        "전자공학"
+      ],
+      "cert_hints": [
+        "전기기사",
+        "제어계측기사"
+      ],
+      "source": "llm_inferred",
+      "reviewed": false
+    },
+    {
+      "id": "path-121",
+      "name": "임베디드/펌웨어 개발자",
+      "description": "마이크로프로세서, 임베디드시스템실험, 디지털전자회로 과목을 바탕으로 임베디드 소프트웨어와 하드웨어를 개발한다.",
+      "related_departments": [
+        "전기전자공학"
+      ],
+      "job_fields": [
+        "정보기술",
+        "전자공학"
+      ],
+      "cert_hints": [],
+      "source": "llm_inferred",
+      "reviewed": false
+    },
+    {
+      "id": "path-122",
+      "name": "AI/머신러닝 엔지니어",
+      "description": "머신러닝, 딥러닝실험, 영상처리및응용 과목을 통해 컴퓨터비전 및 인공지능 알고리즘을 개발한다.",
+      "related_departments": [
+        "전기전자공학"
+      ],
+      "job_fields": [
+        "정보기술",
+        "인공지능"
+      ],
+      "cert_hints": [],
+      "source": "llm_inferred",
+      "reviewed": false
+    },
+    {
+      "id": "path-123",
+      "name": "전력계통 엔지니어",
+      "description": "전력공학및전력전자실험, 전력계통운영과제어를 바탕으로 발전, 송배전 등 전력 시스템을 설계·운영한다.",
+      "related_departments": [
+        "전기전자공학"
+      ],
+      "job_fields": [
+        "전력에너지",
+        "전기공학"
+      ],
+      "cert_hints": [
+        "전기기사",
+        "전기산업기사"
+      ],
+      "source": "llm_inferred",
+      "reviewed": false
+    },
+    {
+      "id": "path-124",
+      "name": "화학공정 엔지니어",
+      "description": "화공열역학, 반응공학, 분리정제공정 등을 바탕으로 화학 및 석유화학 공정을 설계·운영한다.",
+      "related_departments": [
+        "화공생명공학"
+      ],
+      "job_fields": [
+        "화학공정",
+        "제조"
+      ],
+      "cert_hints": [
+        "화공기사",
+        "화공기술사"
+      ],
+      "source": "llm_inferred",
+      "reviewed": false
+    },
+    {
+      "id": "path-125",
+      "name": "고분자/신소재 연구원",
+      "description": "고분자공학, 고분자화학, 무기재료공학을 바탕으로 신소재 및 첨단 재료를 연구개발한다.",
+      "related_departments": [
+        "화공생명공학"
+      ],
+      "job_fields": [
+        "소재공학",
+        "연구개발"
+      ],
+      "cert_hints": [
+        "고분자산업기사"
+      ],
+      "source": "llm_inferred",
+      "reviewed": false
+    },
+    {
+      "id": "path-126",
+      "name": "반도체 소재/공정 엔지니어",
+      "description": "반도체공정개론, 전기화학공학 과목을 통해 반도체 제조공정에 필요한 소재 및 공정 기술을 개발한다.",
+      "related_departments": [
+        "화공생명공학"
+      ],
+      "job_fields": [
+        "반도체",
+        "화학공정"
+      ],
+      "cert_hints": [],
+      "source": "llm_inferred",
+      "reviewed": false
+    },
+    {
+      "id": "path-127",
+      "name": "바이오/제약 공정 연구원",
+      "description": "생물화학공학, 분자및세포생물학, 생화학입문을 바탕으로 바이오의약품 및 발효공정을 연구·개발한다.",
+      "related_departments": [
+        "화공생명공학"
+      ],
+      "job_fields": [
+        "바이오제약",
+        "연구개발"
+      ],
+      "cert_hints": [
+        "생물공학기사"
+      ],
+      "source": "llm_inferred",
+      "reviewed": false
+    },
+    {
+      "id": "path-128",
+      "name": "에너지·환경공학 엔지니어",
+      "description": "에너지공학, 온실가스저감연구, 환경공학을 통해 신재생에너지 및 온실가스 저감 기술을 개발한다.",
+      "related_departments": [
+        "화공생명공학"
+      ],
+      "job_fields": [
+        "에너지",
+        "환경공학"
+      ],
+      "cert_hints": [
+        "대기환경기사"
+      ],
+      "source": "llm_inferred",
+      "reviewed": false
+    },
+    {
+      "id": "path-129",
+      "name": "화장품/뷰티소재 연구원",
+      "description": "코스메틱개론 과목을 바탕으로 화장품 및 뷰티 관련 소재를 연구개발한다.",
+      "related_departments": [
+        "화공생명공학"
+      ],
+      "job_fields": [
+        "화장품산업",
+        "연구개발"
+      ],
+      "cert_hints": [
+        "화장품제조관리사"
+      ],
+      "source": "llm_inferred",
+      "reviewed": false
+    },
+    {
+      "id": "path-130",
+      "name": "대기환경 엔지니어",
+      "description": "대기오염학, 대기오염방지공학, 대기질모델링을 바탕으로 대기오염물질 저감 및 관리 기술을 설계·운영한다.",
+      "related_departments": [
+        "환경에너지공학부"
+      ],
+      "job_fields": [
+        "환경공학",
+        "대기환경"
+      ],
+      "cert_hints": [
+        "대기환경기사"
+      ],
+      "source": "llm_inferred",
+      "reviewed": false
+    },
+    {
+      "id": "path-131",
+      "name": "수질/상하수도 엔지니어",
+      "description": "수질오염학, 상수도공학, 하폐수처리공학을 통해 상하수도 및 폐수처리 시설을 설계·운영한다.",
+      "related_departments": [
+        "환경에너지공학부"
+      ],
+      "job_fields": [
+        "환경공학",
+        "수자원"
+      ],
+      "cert_hints": [
+        "수질환경기사",
+        "상하수도기술사"
+      ],
+      "source": "llm_inferred",
+      "reviewed": false
+    },
+    {
+      "id": "path-132",
+      "name": "폐기물·자원순환 엔지니어",
+      "description": "폐기물학, 폐자원에너지공학을 바탕으로 폐기물 처리 및 자원순환 에너지화 기술을 개발한다.",
+      "related_departments": [
+        "환경에너지공학부"
+      ],
+      "job_fields": [
+        "환경공학",
+        "자원순환"
+      ],
+      "cert_hints": [
+        "폐기물처리기사"
+      ],
+      "source": "llm_inferred",
+      "reviewed": false
+    },
+    {
+      "id": "path-133",
+      "name": "신재생에너지 엔지니어",
+      "description": "신에너지공학, 바이오에너지공학, 에너지소재공학을 통해 태양광, 바이오에너지 등 신재생에너지 시스템을 연구개발한다.",
+      "related_departments": [
+        "환경에너지공학부"
+      ],
+      "job_fields": [
+        "에너지",
+        "환경공학"
+      ],
+      "cert_hints": [
+        "신재생에너지발전설비기사"
+      ],
+      "source": "llm_inferred",
+      "reviewed": false
+    },
+    {
+      "id": "path-134",
+      "name": "환경영향평가/컨설턴트",
+      "description": "환경영향평가, 환경계획, 환경자료분석개론을 바탕으로 개발사업의 환경영향을 평가하고 정책을 제안한다.",
+      "related_departments": [
+        "환경에너지공학부"
+      ],
+      "job_fields": [
+        "환경정책",
+        "컨설팅"
+      ],
+      "cert_hints": [
+        "환경영향평가사"
+      ],
+      "source": "llm_inferred",
+      "reviewed": false
+    },
+    {
+      "id": "path-135",
+      "name": "토양·지하수 환경 전문가",
+      "description": "토양오염학 과목을 바탕으로 오염된 토양 및 지하수의 정화, 관리 업무를 수행한다.",
+      "related_departments": [
+        "환경에너지공학부"
+      ],
+      "job_fields": [
+        "환경공학",
+        "토양환경"
+      ],
+      "cert_hints": [
+        "토양환경기사"
+      ],
+      "source": "llm_inferred",
+      "reviewed": false
+    }
+  ]
+}

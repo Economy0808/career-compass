@@ -1,0 +1,1987 @@
+{
+  "generated_at": "2026-09-05T01:50:05.932668+00:00",
+  "source_draft_generated_at": "2026-09-05T01:34:27.136423+00:00",
+  "pilot_fields": [
+    "경영",
+    "경제",
+    "통계",
+    "컴퓨터",
+    "공학"
+  ],
+  "departments": [
+    "10. 정보와기술",
+    "AI보건정보관리학과",
+    "IT융합공학",
+    "건설환경공학",
+    "건축공학(4년제)",
+    "경영학",
+    "경영학부 경영학전공",
+    "경제학",
+    "경제학전공",
+    "기계공학",
+    "데이터사이언스학부",
+    "도시공학",
+    "디스플레이융합공학",
+    "물리및공학물리학전공",
+    "바이오생활공학전공",
+    "산업공학",
+    "생명공학",
+    "시스템반도체공학",
+    "신소재공학",
+    "응용정보공학전공",
+    "응용통계학",
+    "의공학부",
+    "전기전자공학",
+    "화공생명공학",
+    "환경에너지공학부"
+  ],
+  "career_paths": [
+    {
+      "id": "cp-01",
+      "name": "소프트웨어 개발자",
+      "description": "웹, 모바일, 게임 등 다양한 소프트웨어를 설계하고 개발하는 전문가이다.",
+      "primary_field": "컴퓨터·SW",
+      "related_departments": [
+        "정보와기술",
+        "응용정보공학전공"
+      ],
+      "job_fields": [
+        "정보기술",
+        "소프트웨어개발",
+        "IT",
+        "게임개발"
+      ],
+      "cert_hints": [
+        "정보처리기사"
+      ],
+      "variants": [
+        "소프트웨어 개발자",
+        "웹·모바일 애플리케이션 개발자",
+        "게임 기획·개발자"
+      ],
+      "auto_appended": false,
+      "source": "llm_consolidated",
+      "reviewed": false
+    },
+    {
+      "id": "cp-02",
+      "name": "데이터 사이언티스트/분석가",
+      "description": "데이터를 수집·분석하여 비즈니스 인사이트를 도출하는 전문가이다.",
+      "primary_field": "통계·데이터",
+      "related_departments": [
+        "정보와기술",
+        "응용정보공학전공",
+        "경영학",
+        "경제학",
+        "경영학부 경영학전공",
+        "데이터사이언스학부",
+        "산업공학",
+        "응용통계학",
+        "도시공학"
+      ],
+      "job_fields": [
+        "정보기술",
+        "데이터분석",
+        "IT",
+        "마케팅·광고",
+        "통계",
+        "경영컨설팅",
+        "도시계획",
+        "연구개발"
+      ],
+      "cert_hints": [
+        "ADsP",
+        "SQLD",
+        "빅데이터분석기사",
+        "GAIQ",
+        "사회조사분석사",
+        "통계분석전문가(ADP)",
+        "GIS기사"
+      ],
+      "variants": [
+        "데이터 분석가",
+        "데이터/마케팅 애널리스트",
+        "데이터/계량분석가",
+        "디지털마케팅/데이터분석가",
+        "데이터 사이언티스트",
+        "통계 분석가/컨설턴트",
+        "스마트시티 데이터 분석가",
+        "통계연구원/데이터 컨설턴트"
+      ],
+      "auto_appended": false,
+      "source": "llm_consolidated",
+      "reviewed": false
+    },
+    {
+      "id": "cp-03",
+      "name": "임베디드/IoT 엔지니어",
+      "description": "IoT 기기 및 임베디드 시스템의 하드웨어·소프트웨어를 설계 개발하는 엔지니어이다.",
+      "primary_field": "공학",
+      "related_departments": [
+        "정보와기술",
+        "IT융합공학",
+        "전기전자공학",
+        "시스템반도체공학"
+      ],
+      "job_fields": [
+        "정보기술",
+        "전자·임베디드",
+        "전자공학",
+        "임베디드SW",
+        "반도체"
+      ],
+      "cert_hints": [
+        "정보처리기사",
+        "전자기사"
+      ],
+      "variants": [
+        "IoT/임베디드 엔지니어",
+        "임베디드 시스템 엔지니어",
+        "임베디드/펌웨어 개발자",
+        "임베디드 시스템 소프트웨어 엔지니어"
+      ],
+      "auto_appended": false,
+      "source": "llm_consolidated",
+      "reviewed": false
+    },
+    {
+      "id": "cp-04",
+      "name": "AI/머신러닝 엔지니어",
+      "description": "인공지능 및 머신러닝 모델을 연구하고 실제 서비스에 적용하는 엔지니어이다.",
+      "primary_field": "컴퓨터·SW",
+      "related_departments": [
+        "정보와기술",
+        "IT융합공학",
+        "데이터사이언스학부",
+        "응용통계학",
+        "AI보건정보관리학과",
+        "전기전자공학"
+      ],
+      "job_fields": [
+        "정보기술",
+        "인공지능",
+        "보건의료"
+      ],
+      "cert_hints": [
+        "정보처리기사",
+        "빅데이터분석기사"
+      ],
+      "variants": [
+        "AI 응용 엔지니어",
+        "AI/딥러닝 엔지니어",
+        "머신러닝/AI 엔지니어",
+        "머신러닝 엔지니어",
+        "의료 AI/NLP 개발자",
+        "AI/머신러닝 엔지니어"
+      ],
+      "auto_appended": false,
+      "source": "llm_consolidated",
+      "reviewed": false
+    },
+    {
+      "id": "cp-05",
+      "name": "보건의료정보관리사",
+      "description": "의료기관의 진료기록 및 보건의료정보를 표준화하고 관리하는 전문가이다.",
+      "primary_field": "보건·바이오",
+      "related_departments": [
+        "AI보건정보관리학과"
+      ],
+      "job_fields": [
+        "보건의료",
+        "정보관리",
+        "의무기록"
+      ],
+      "cert_hints": [
+        "보건의료정보관리사"
+      ],
+      "variants": [
+        "보건의료정보관리사",
+        "의무기록사"
+      ],
+      "auto_appended": false,
+      "source": "llm_consolidated",
+      "reviewed": false
+    },
+    {
+      "id": "cp-06",
+      "name": "헬스케어 데이터 분석가",
+      "description": "의료 및 건강 관련 데이터를 분석하여 의사결정을 지원하는 전문가이다.",
+      "primary_field": "보건·바이오",
+      "related_departments": [
+        "AI보건정보관리학과",
+        "데이터사이언스학부"
+      ],
+      "job_fields": [
+        "보건의료",
+        "데이터분석"
+      ],
+      "cert_hints": [
+        "ADsP",
+        "의료정보관리사"
+      ],
+      "variants": [
+        "보건의료 데이터 분석가",
+        "헬스케어 데이터 분석가"
+      ],
+      "auto_appended": false,
+      "source": "llm_consolidated",
+      "reviewed": false
+    },
+    {
+      "id": "cp-07",
+      "name": "건강보험심사평가 전문가",
+      "description": "의료기관의 진료비 청구 및 건강보험 심사를 담당하는 전문가이다.",
+      "primary_field": "보건·바이오",
+      "related_departments": [
+        "AI보건정보관리학과"
+      ],
+      "job_fields": [
+        "보건의료",
+        "건강보험"
+      ],
+      "cert_hints": [
+        "보건의료정보관리사"
+      ],
+      "variants": [
+        "건강보험심사평가 전문가"
+      ],
+      "auto_appended": false,
+      "source": "llm_consolidated",
+      "reviewed": false
+    },
+    {
+      "id": "cp-08",
+      "name": "보건행정가",
+      "description": "보건의료기관 및 공공기관에서 보건정책과 행정업무를 수행하는 전문가이다.",
+      "primary_field": "보건·바이오",
+      "related_departments": [
+        "AI보건정보관리학과"
+      ],
+      "job_fields": [
+        "보건의료",
+        "행정"
+      ],
+      "cert_hints": [
+        "보건교육사"
+      ],
+      "variants": [
+        "보건행정가"
+      ],
+      "auto_appended": false,
+      "source": "llm_consolidated",
+      "reviewed": false
+    },
+    {
+      "id": "cp-09",
+      "name": "반도체 공정/소자 엔지니어",
+      "description": "반도체 제조 공정 및 소자를 설계하고 개선하는 엔지니어이다.",
+      "primary_field": "공학",
+      "related_departments": [
+        "IT융합공학",
+        "물리및공학물리학전공",
+        "시스템반도체공학",
+        "전기전자공학",
+        "화공생명공학",
+        "디스플레이융합공학"
+      ],
+      "job_fields": [
+        "전자공학",
+        "반도체",
+        "연구개발",
+        "공정엔지니어링",
+        "화학공정",
+        "반도체·디스플레이",
+        "제조"
+      ],
+      "cert_hints": [
+        "반도체설계기사",
+        "전자기사"
+      ],
+      "variants": [
+        "반도체 공정 엔지니어",
+        "반도체·소자 연구원",
+        "반도체 소자·공정 엔지니어",
+        "반도체 소자/공정 엔지니어",
+        "반도체 소재/공정 엔지니어",
+        "디스플레이 공정 엔지니어",
+        "반도체 소자 연구원"
+      ],
+      "auto_appended": false,
+      "source": "llm_consolidated",
+      "reviewed": false
+    },
+    {
+      "id": "cp-10",
+      "name": "메카트로닉스/자동차 엔지니어",
+      "description": "기계와 전자 기술을 융합하여 자동화 기계 및 자동차 시스템을 설계하는 엔지니어이다.",
+      "primary_field": "공학",
+      "related_departments": [
+        "IT융합공학",
+        "기계공학"
+      ],
+      "job_fields": [
+        "기계공학",
+        "전자공학",
+        "자동차",
+        "메카트로닉스"
+      ],
+      "cert_hints": [
+        "메카트로닉스기사",
+        "일반기계기사"
+      ],
+      "variants": [
+        "메카트로닉스 엔지니어",
+        "자동차/메카트로닉스 엔지니어"
+      ],
+      "auto_appended": false,
+      "source": "llm_consolidated",
+      "reviewed": false
+    },
+    {
+      "id": "cp-11",
+      "name": "양자·에너지 융합 연구원",
+      "description": "양자기술 및 신에너지 분야를 융합 연구하는 연구원이다.",
+      "primary_field": "공학",
+      "related_departments": [
+        "IT융합공학"
+      ],
+      "job_fields": [
+        "물리학",
+        "에너지공학"
+      ],
+      "cert_hints": [],
+      "variants": [
+        "양자·에너지 융합 연구원"
+      ],
+      "auto_appended": false,
+      "source": "llm_consolidated",
+      "reviewed": false
+    },
+    {
+      "id": "cp-12",
+      "name": "구조 엔지니어",
+      "description": "건축물 및 토목구조물의 구조를 설계하고 안전성을 검토하는 엔지니어이다.",
+      "primary_field": "공학",
+      "related_departments": [
+        "건설환경공학",
+        "건축공학(4년제)"
+      ],
+      "job_fields": [
+        "건설",
+        "구조설계"
+      ],
+      "cert_hints": [
+        "건축구조기술사",
+        "토목구조기술사",
+        "건축기사"
+      ],
+      "variants": [
+        "구조 엔지니어",
+        "건축구조 엔지니어"
+      ],
+      "auto_appended": false,
+      "source": "llm_consolidated",
+      "reviewed": false
+    },
+    {
+      "id": "cp-13",
+      "name": "지반·기초 엔지니어",
+      "description": "지반 조사 및 기초 구조물을 설계하는 토목 엔지니어이다.",
+      "primary_field": "공학",
+      "related_departments": [
+        "건설환경공학"
+      ],
+      "job_fields": [
+        "건설",
+        "지반공학"
+      ],
+      "cert_hints": [
+        "토목기사",
+        "지반공학기술사"
+      ],
+      "variants": [
+        "지반·기초 엔지니어"
+      ],
+      "auto_appended": false,
+      "source": "llm_consolidated",
+      "reviewed": false
+    },
+    {
+      "id": "cp-14",
+      "name": "수자원·환경공학 기술자",
+      "description": "수자원 관리 및 환경공학 관련 설계와 시공을 담당하는 기술자이다.",
+      "primary_field": "공학",
+      "related_departments": [
+        "건설환경공학"
+      ],
+      "job_fields": [
+        "건설",
+        "환경공학"
+      ],
+      "cert_hints": [
+        "수질환경기사",
+        "토목기사"
+      ],
+      "variants": [
+        "수자원·환경공학 기술자"
+      ],
+      "auto_appended": false,
+      "source": "llm_consolidated",
+      "reviewed": false
+    },
+    {
+      "id": "cp-15",
+      "name": "건설관리(CM/PM) 전문가",
+      "description": "건설 프로젝트의 공정, 품질, 비용을 총괄 관리하는 전문가이다.",
+      "primary_field": "공학",
+      "related_departments": [
+        "건설환경공학",
+        "건축공학(4년제)"
+      ],
+      "job_fields": [
+        "건설",
+        "건설관리",
+        "건설사업관리"
+      ],
+      "cert_hints": [
+        "건설안전기사",
+        "건축시공기술사",
+        "건축기사"
+      ],
+      "variants": [
+        "건설관리(CM) 전문가",
+        "건설사업관리자(CM/PM)"
+      ],
+      "auto_appended": false,
+      "source": "llm_consolidated",
+      "reviewed": false
+    },
+    {
+      "id": "cp-16",
+      "name": "측량 및 공간정보 기술자",
+      "description": "측량 및 공간정보 데이터를 구축하고 활용하는 기술자이다.",
+      "primary_field": "공학",
+      "related_departments": [
+        "건설환경공학"
+      ],
+      "job_fields": [
+        "건설",
+        "공간정보"
+      ],
+      "cert_hints": [
+        "측량및지형공간정보기사"
+      ],
+      "variants": [
+        "측량 및 공간정보 기술자"
+      ],
+      "auto_appended": false,
+      "source": "llm_consolidated",
+      "reviewed": false
+    },
+    {
+      "id": "cp-17",
+      "name": "스마트 건설/BIM 전문가",
+      "description": "BIM 및 디지털 기술을 활용해 건설 프로젝트를 설계·관리하는 전문가이다.",
+      "primary_field": "공학",
+      "related_departments": [
+        "건설환경공학"
+      ],
+      "job_fields": [
+        "건설",
+        "스마트건설"
+      ],
+      "cert_hints": [
+        "토목기사"
+      ],
+      "variants": [
+        "스마트 건설/BIM 전문가"
+      ],
+      "auto_appended": false,
+      "source": "llm_consolidated",
+      "reviewed": false
+    },
+    {
+      "id": "cp-18",
+      "name": "건축시공·공정 관리자",
+      "description": "건축 현장의 시공 및 공정을 관리하는 전문가이다.",
+      "primary_field": "공학",
+      "related_departments": [
+        "건축공학(4년제)"
+      ],
+      "job_fields": [
+        "건설",
+        "시공관리"
+      ],
+      "cert_hints": [
+        "건축기사",
+        "건축시공기술사"
+      ],
+      "variants": [
+        "건축시공·공정 관리자"
+      ],
+      "auto_appended": false,
+      "source": "llm_consolidated",
+      "reviewed": false
+    },
+    {
+      "id": "cp-19",
+      "name": "건축설비 엔지니어",
+      "description": "건축물의 기계·전기 설비를 설계하고 관리하는 엔지니어이다.",
+      "primary_field": "공학",
+      "related_departments": [
+        "건축공학(4년제)"
+      ],
+      "job_fields": [
+        "건설",
+        "건축설비"
+      ],
+      "cert_hints": [
+        "건축설비기사"
+      ],
+      "variants": [
+        "건축설비 엔지니어"
+      ],
+      "auto_appended": false,
+      "source": "llm_consolidated",
+      "reviewed": false
+    },
+    {
+      "id": "cp-20",
+      "name": "친환경 건축 컨설턴트",
+      "description": "에너지 효율 및 친환경 건축 설계를 자문하는 컨설턴트이다.",
+      "primary_field": "공학",
+      "related_departments": [
+        "건축공학(4년제)"
+      ],
+      "job_fields": [
+        "건설",
+        "친환경건축"
+      ],
+      "cert_hints": [
+        "건축물에너지평가사"
+      ],
+      "variants": [
+        "친환경 건축 컨설턴트"
+      ],
+      "auto_appended": false,
+      "source": "llm_consolidated",
+      "reviewed": false
+    },
+    {
+      "id": "cp-21",
+      "name": "부동산 개발 기획자",
+      "description": "부동산 개발 프로젝트의 기획 및 사업성 분석을 수행하는 전문가이다.",
+      "primary_field": "경영",
+      "related_departments": [
+        "건축공학(4년제)",
+        "도시공학",
+        "경제학"
+      ],
+      "job_fields": [
+        "건설",
+        "부동산개발",
+        "부동산",
+        "금융·보험"
+      ],
+      "cert_hints": [
+        "공인중개사",
+        "감정평가사"
+      ],
+      "variants": [
+        "부동산 개발 기획자",
+        "부동산개발 전문가",
+        "부동산/도시경제 전문가"
+      ],
+      "auto_appended": false,
+      "source": "llm_consolidated",
+      "reviewed": false
+    },
+    {
+      "id": "cp-22",
+      "name": "마케팅 기획/전략 전문가",
+      "description": "제품 및 브랜드의 마케팅 전략을 기획하고 실행하는 전문가이다.",
+      "primary_field": "경영",
+      "related_departments": [
+        "경영학"
+      ],
+      "job_fields": [
+        "마케팅·광고",
+        "경영·사무"
+      ],
+      "cert_hints": [
+        "마케팅관리사",
+        "GAIQ(Google Ads)",
+        "SQL/데이터분석 관련 자격"
+      ],
+      "variants": [
+        "마케팅 기획/전략 전문가"
+      ],
+      "auto_appended": false,
+      "source": "llm_consolidated",
+      "reviewed": false
+    },
+    {
+      "id": "cp-23",
+      "name": "경영컨설턴트",
+      "description": "기업의 경영 전략 및 문제 해결을 자문하는 컨설턴트이다.",
+      "primary_field": "경영",
+      "related_departments": [
+        "경영학",
+        "산업공학"
+      ],
+      "job_fields": [
+        "경영·사무",
+        "경영컨설팅",
+        "산업공학"
+      ],
+      "cert_hints": [
+        "경영지도사"
+      ],
+      "variants": [
+        "경영컨설턴트",
+        "경영과학·최적화 컨설턴트"
+      ],
+      "auto_appended": false,
+      "source": "llm_consolidated",
+      "reviewed": false
+    },
+    {
+      "id": "cp-24",
+      "name": "금융/투자 분석가",
+      "description": "금융시장 및 투자 대상을 분석하여 투자 전략을 수립하는 전문가이다.",
+      "primary_field": "경제",
+      "related_departments": [
+        "경영학",
+        "경영학부 경영학전공",
+        "경제학",
+        "경제학전공",
+        "산업공학"
+      ],
+      "job_fields": [
+        "금융·보험",
+        "재무·회계",
+        "경제·금융",
+        "조사·연구",
+        "국제경제",
+        "퀀트분석"
+      ],
+      "cert_hints": [
+        "CFA",
+        "투자자산운용사",
+        "재무위험관리사",
+        "FRM"
+      ],
+      "variants": [
+        "재무/투자 분석가",
+        "금융/투자 전문가",
+        "경제분석가/이코노미스트",
+        "금융/투자 애널리스트",
+        "경제조사/이코노미스트",
+        "금융권 애널리스트",
+        "국제금융 전문가",
+        "금융공학·퀀트 애널리스트"
+      ],
+      "auto_appended": false,
+      "source": "llm_consolidated",
+      "reviewed": false
+    },
+    {
+      "id": "cp-25",
+      "name": "공급망/물류 관리자",
+      "description": "제품의 조달, 생산, 유통 등 공급망 전반을 관리하는 전문가이다.",
+      "primary_field": "경영",
+      "related_departments": [
+        "경영학",
+        "산업공학"
+      ],
+      "job_fields": [
+        "물류·유통",
+        "생산관리",
+        "물류",
+        "공급망관리"
+      ],
+      "cert_hints": [
+        "물류관리사"
+      ],
+      "variants": [
+        "공급망/물류 관리자",
+        "공급망관리(SCM) 전문가"
+      ],
+      "auto_appended": false,
+      "source": "llm_consolidated",
+      "reviewed": false
+    },
+    {
+      "id": "cp-26",
+      "name": "스타트업 창업가",
+      "description": "새로운 사업 아이템으로 창업을 실행하고 회사를 운영하는 사업가이다.",
+      "primary_field": "경영",
+      "related_departments": [
+        "경영학",
+        "응용정보공학전공"
+      ],
+      "job_fields": [
+        "경영·사무",
+        "창업",
+        "IT서비스"
+      ],
+      "cert_hints": [],
+      "variants": [
+        "스타트업 창업가"
+      ],
+      "auto_appended": false,
+      "source": "llm_consolidated",
+      "reviewed": false
+    },
+    {
+      "id": "cp-27",
+      "name": "회계/세무 전문가",
+      "description": "기업 및 개인의 회계처리와 세무업무를 전문적으로 수행하는 전문직이다.",
+      "primary_field": "경영",
+      "related_departments": [
+        "경영학부 경영학전공"
+      ],
+      "job_fields": [
+        "재무·회계",
+        "세무"
+      ],
+      "cert_hints": [
+        "공인회계사",
+        "세무사",
+        "전산회계",
+        "AICPA"
+      ],
+      "variants": [
+        "회계/세무 전문가"
+      ],
+      "auto_appended": false,
+      "source": "llm_consolidated",
+      "reviewed": false
+    },
+    {
+      "id": "cp-28",
+      "name": "경영정보시스템(ERP) 컨설턴트",
+      "description": "기업의 ERP 등 경영정보시스템 도입과 운영을 자문하는 컨설턴트이다.",
+      "primary_field": "경영",
+      "related_departments": [
+        "경영학부 경영학전공"
+      ],
+      "job_fields": [
+        "정보기술",
+        "경영컨설팅"
+      ],
+      "cert_hints": [
+        "SAP ERP 관련 자격",
+        "정보처리기사"
+      ],
+      "variants": [
+        "경영정보시스템(ERP) 컨설턴트"
+      ],
+      "auto_appended": false,
+      "source": "llm_consolidated",
+      "reviewed": false
+    },
+    {
+      "id": "cp-29",
+      "name": "ESG/지속가능경영 담당자",
+      "description": "기업의 환경·사회·지배구조 경영 전략을 수립하고 실행하는 담당자이다.",
+      "primary_field": "경영",
+      "related_departments": [
+        "경영학부 경영학전공"
+      ],
+      "job_fields": [
+        "경영·사무",
+        "지속가능경영"
+      ],
+      "cert_hints": [],
+      "variants": [
+        "ESG/지속가능경영 담당자"
+      ],
+      "auto_appended": false,
+      "source": "llm_consolidated",
+      "reviewed": false
+    },
+    {
+      "id": "cp-30",
+      "name": "무역/국제통상 전문가",
+      "description": "기업의 수출입 업무 및 국제 무역 거래를 담당하는 전문가이다.",
+      "primary_field": "경영",
+      "related_departments": [
+        "경영학부 경영학전공",
+        "경제학"
+      ],
+      "job_fields": [
+        "무역",
+        "국제경영",
+        "국제통상"
+      ],
+      "cert_hints": [
+        "국제무역사",
+        "무역영어"
+      ],
+      "variants": [
+        "무역/글로벌비즈니스 담당자",
+        "국제무역/통상 전문가"
+      ],
+      "auto_appended": false,
+      "source": "llm_consolidated",
+      "reviewed": false
+    },
+    {
+      "id": "cp-31",
+      "name": "공공정책/공공기관 연구원",
+      "description": "공공정책 수립을 위한 조사와 연구를 수행하는 연구원이다.",
+      "primary_field": "경제",
+      "related_departments": [
+        "경제학",
+        "경제학전공"
+      ],
+      "job_fields": [
+        "공공정책",
+        "조사·연구",
+        "재정",
+        "산업분석"
+      ],
+      "cert_hints": [
+        "세무사"
+      ],
+      "variants": [
+        "공공정책/공공기관 연구원",
+        "공공기관/조세정책 전문가",
+        "산업조사 연구원"
+      ],
+      "auto_appended": false,
+      "source": "llm_consolidated",
+      "reviewed": false
+    },
+    {
+      "id": "cp-32",
+      "name": "기계설계 엔지니어",
+      "description": "기계 부품 및 시스템을 설계하는 엔지니어이다.",
+      "primary_field": "공학",
+      "related_departments": [
+        "기계공학"
+      ],
+      "job_fields": [
+        "기계·설비",
+        "제조"
+      ],
+      "cert_hints": [
+        "일반기계기사",
+        "기계설계산업기사"
+      ],
+      "variants": [
+        "기계설계 엔지니어"
+      ],
+      "auto_appended": false,
+      "source": "llm_consolidated",
+      "reviewed": false
+    },
+    {
+      "id": "cp-33",
+      "name": "열유체/에너지 엔지니어",
+      "description": "열유체 시스템 및 에너지 설비를 설계·분석하는 엔지니어이다.",
+      "primary_field": "공학",
+      "related_departments": [
+        "기계공학"
+      ],
+      "job_fields": [
+        "에너지",
+        "기계·설비"
+      ],
+      "cert_hints": [
+        "일반기계기사",
+        "에너지관리기사"
+      ],
+      "variants": [
+        "열유체/에너지 엔지니어"
+      ],
+      "auto_appended": false,
+      "source": "llm_consolidated",
+      "reviewed": false
+    },
+    {
+      "id": "cp-34",
+      "name": "생산/제조공정 엔지니어",
+      "description": "제조 공정을 설계하고 생산성을 개선하는 엔지니어이다.",
+      "primary_field": "공학",
+      "related_departments": [
+        "기계공학",
+        "산업공학",
+        "데이터사이언스학부"
+      ],
+      "job_fields": [
+        "생산관리",
+        "제조",
+        "품질경영",
+        "품질관리"
+      ],
+      "cert_hints": [
+        "생산자동화산업기사",
+        "품질경영기사",
+        "산업안전기사",
+        "6시그마"
+      ],
+      "variants": [
+        "생산/제조공정 엔지니어",
+        "생산·품질관리 엔지니어",
+        "품질관리 엔지니어"
+      ],
+      "auto_appended": false,
+      "source": "llm_consolidated",
+      "reviewed": false
+    },
+    {
+      "id": "cp-35",
+      "name": "바이오/의료기기 엔지니어",
+      "description": "의료기기 및 바이오 관련 기계장치를 설계 개발하는 엔지니어이다.",
+      "primary_field": "보건·바이오",
+      "related_departments": [
+        "기계공학"
+      ],
+      "job_fields": [
+        "의료기기",
+        "바이오공학"
+      ],
+      "cert_hints": [],
+      "variants": [
+        "바이오/의료기기 엔지니어"
+      ],
+      "auto_appended": false,
+      "source": "llm_consolidated",
+      "reviewed": false
+    },
+    {
+      "id": "cp-36",
+      "name": "구조/해석 엔지니어(CAE)",
+      "description": "컴퓨터 시뮬레이션을 이용해 구조 해석을 수행하는 엔지니어이다.",
+      "primary_field": "공학",
+      "related_departments": [
+        "기계공학"
+      ],
+      "job_fields": [
+        "구조해석",
+        "제조"
+      ],
+      "cert_hints": [
+        "일반기계기사"
+      ],
+      "variants": [
+        "구조/해석 엔지니어(CAE)"
+      ],
+      "auto_appended": false,
+      "source": "llm_consolidated",
+      "reviewed": false
+    },
+    {
+      "id": "cp-37",
+      "name": "보험계리사",
+      "description": "보험 상품의 리스크와 보험료를 통계적으로 산출하는 전문직이다.",
+      "primary_field": "통계·데이터",
+      "related_departments": [
+        "데이터사이언스학부",
+        "응용통계학"
+      ],
+      "job_fields": [
+        "금융·보험",
+        "통계",
+        "보험계리"
+      ],
+      "cert_hints": [
+        "보험계리사",
+        "보험계리사(계리사)"
+      ],
+      "variants": [
+        "보험계리사"
+      ],
+      "auto_appended": false,
+      "source": "llm_consolidated",
+      "reviewed": false
+    },
+    {
+      "id": "cp-38",
+      "name": "금융 리스크 분석가",
+      "description": "금융기관의 각종 리스크를 측정하고 관리하는 전문가이다.",
+      "primary_field": "경제",
+      "related_departments": [
+        "응용통계학"
+      ],
+      "job_fields": [
+        "금융·보험",
+        "위험관리"
+      ],
+      "cert_hints": [
+        "FRM",
+        "CFA",
+        "재무위험관리사"
+      ],
+      "variants": [
+        "금융 리스크 분석가"
+      ],
+      "auto_appended": false,
+      "source": "llm_consolidated",
+      "reviewed": false
+    },
+    {
+      "id": "cp-39",
+      "name": "도시계획가",
+      "description": "도시의 토지이용 및 개발계획을 수립하는 전문가이다.",
+      "primary_field": "공학",
+      "related_departments": [
+        "도시공학"
+      ],
+      "job_fields": [
+        "도시·건축",
+        "공공행정"
+      ],
+      "cert_hints": [
+        "도시계획기사",
+        "도시계획기술사"
+      ],
+      "variants": [
+        "도시계획가"
+      ],
+      "auto_appended": false,
+      "source": "llm_consolidated",
+      "reviewed": false
+    },
+    {
+      "id": "cp-40",
+      "name": "교통계획 전문가",
+      "description": "교통체계 및 교통정책을 계획하고 분석하는 전문가이다.",
+      "primary_field": "공학",
+      "related_departments": [
+        "도시공학"
+      ],
+      "job_fields": [
+        "교통",
+        "도시계획"
+      ],
+      "cert_hints": [
+        "교통기사",
+        "교통안전관리자"
+      ],
+      "variants": [
+        "교통계획 전문가"
+      ],
+      "auto_appended": false,
+      "source": "llm_consolidated",
+      "reviewed": false
+    },
+    {
+      "id": "cp-41",
+      "name": "도시설계가",
+      "description": "도시 공간과 시설을 설계하는 전문가이다.",
+      "primary_field": "공학",
+      "related_departments": [
+        "도시공학"
+      ],
+      "job_fields": [
+        "도시·건축",
+        "설계"
+      ],
+      "cert_hints": [
+        "건축사"
+      ],
+      "variants": [
+        "도시설계가"
+      ],
+      "auto_appended": false,
+      "source": "llm_consolidated",
+      "reviewed": false
+    },
+    {
+      "id": "cp-42",
+      "name": "환경·방재 정책 전문가",
+      "description": "환경 및 재난 방지를 위한 정책을 수립하는 전문가이다.",
+      "primary_field": "공학",
+      "related_departments": [
+        "도시공학"
+      ],
+      "job_fields": [
+        "환경",
+        "공공정책"
+      ],
+      "cert_hints": [
+        "환경영향평가사"
+      ],
+      "variants": [
+        "환경·방재 정책 전문가"
+      ],
+      "auto_appended": false,
+      "source": "llm_consolidated",
+      "reviewed": false
+    },
+    {
+      "id": "cp-43",
+      "name": "디스플레이 회로설계 엔지니어",
+      "description": "디스플레이 구동을 위한 전자회로를 설계하는 엔지니어이다.",
+      "primary_field": "공학",
+      "related_departments": [
+        "디스플레이융합공학"
+      ],
+      "job_fields": [
+        "전자공학",
+        "반도체·디스플레이"
+      ],
+      "cert_hints": [
+        "전자기사",
+        "전자회로설계산업기사"
+      ],
+      "variants": [
+        "디스플레이 회로설계 엔지니어"
+      ],
+      "auto_appended": false,
+      "source": "llm_consolidated",
+      "reviewed": false
+    },
+    {
+      "id": "cp-44",
+      "name": "소재 연구원",
+      "description": "신소재, 디스플레이, 반도체 등 다양한 소재를 연구개발하는 연구원이다.",
+      "primary_field": "공학",
+      "related_departments": [
+        "디스플레이융합공학",
+        "물리및공학물리학전공",
+        "신소재공학",
+        "화공생명공학"
+      ],
+      "job_fields": [
+        "신소재",
+        "연구개발",
+        "반도체",
+        "소재개발",
+        "금속재료",
+        "제조공정",
+        "품질관리",
+        "소재분석",
+        "소재공학"
+      ],
+      "cert_hints": [
+        "금속재료기사",
+        "세라믹기사",
+        "고분자산업기사"
+      ],
+      "variants": [
+        "디스플레이 소재·색채 연구원",
+        "신소재 연구원",
+        "반도체·디스플레이 소재 연구원",
+        "금속·세라믹 소재 엔지니어",
+        "전산재료 시뮬레이션 연구원",
+        "품질·소재분석 엔지니어",
+        "고분자/신소재 연구원"
+      ],
+      "auto_appended": false,
+      "source": "llm_consolidated",
+      "reviewed": false
+    },
+    {
+      "id": "cp-45",
+      "name": "광학 엔지니어",
+      "description": "광학 소자 및 시스템을 설계하고 개발하는 엔지니어이다.",
+      "primary_field": "공학",
+      "related_departments": [
+        "물리및공학물리학전공"
+      ],
+      "job_fields": [
+        "광학",
+        "제조"
+      ],
+      "cert_hints": [],
+      "variants": [
+        "광학 엔지니어"
+      ],
+      "auto_appended": false,
+      "source": "llm_consolidated",
+      "reviewed": false
+    },
+    {
+      "id": "cp-46",
+      "name": "전산 시뮬레이션 연구원",
+      "description": "물리 현상을 컴퓨터로 모델링하고 시뮬레이션하는 연구원이다.",
+      "primary_field": "공학",
+      "related_departments": [
+        "물리및공학물리학전공"
+      ],
+      "job_fields": [
+        "연구개발",
+        "정보기술"
+      ],
+      "cert_hints": [],
+      "variants": [
+        "전산물리 시뮬레이션 연구원"
+      ],
+      "auto_appended": false,
+      "source": "llm_consolidated",
+      "reviewed": false
+    },
+    {
+      "id": "cp-47",
+      "name": "물리 교사/교육자",
+      "description": "중등학교 등에서 물리학을 가르치는 교육자이다.",
+      "primary_field": "기타",
+      "related_departments": [
+        "물리및공학물리학전공"
+      ],
+      "job_fields": [
+        "교육"
+      ],
+      "cert_hints": [
+        "중등학교2급정교사(물리)"
+      ],
+      "variants": [
+        "물리 교사/교육자"
+      ],
+      "auto_appended": false,
+      "source": "llm_consolidated",
+      "reviewed": false
+    },
+    {
+      "id": "cp-48",
+      "name": "식품 연구개발자",
+      "description": "기능성 식품 및 건강기능식품을 연구개발하는 전문가이다.",
+      "primary_field": "보건·바이오",
+      "related_departments": [
+        "바이오생활공학전공",
+        "생명공학"
+      ],
+      "job_fields": [
+        "식품",
+        "연구개발",
+        "식품산업"
+      ],
+      "cert_hints": [
+        "식품기사",
+        "영양사"
+      ],
+      "variants": [
+        "기능성 식품 연구원",
+        "식품·건강기능식품 연구개발자"
+      ],
+      "auto_appended": false,
+      "source": "llm_consolidated",
+      "reviewed": false
+    },
+    {
+      "id": "cp-49",
+      "name": "화장품 연구개발자",
+      "description": "화장품 및 뷰티 소재를 연구개발하는 전문가이다.",
+      "primary_field": "보건·바이오",
+      "related_departments": [
+        "바이오생활공학전공",
+        "화공생명공학"
+      ],
+      "job_fields": [
+        "화장품",
+        "연구개발",
+        "화장품산업"
+      ],
+      "cert_hints": [
+        "화장품제조관리사"
+      ],
+      "variants": [
+        "화장품 연구개발자",
+        "화장품/뷰티소재 연구원"
+      ],
+      "auto_appended": false,
+      "source": "llm_consolidated",
+      "reviewed": false
+    },
+    {
+      "id": "cp-50",
+      "name": "바이오헬스케어 산업 기획자",
+      "description": "바이오헬스 산업의 사업 기획 및 전략을 수립하는 전문가이다.",
+      "primary_field": "보건·바이오",
+      "related_departments": [
+        "바이오생활공학전공"
+      ],
+      "job_fields": [
+        "바이오헬스",
+        "기획"
+      ],
+      "cert_hints": [],
+      "variants": [
+        "바이오헬스케어 산업 기획자"
+      ],
+      "auto_appended": false,
+      "source": "llm_consolidated",
+      "reviewed": false
+    },
+    {
+      "id": "cp-51",
+      "name": "발효·미생물 공정 연구원",
+      "description": "발효 및 미생물을 이용한 생산 공정을 연구하는 연구원이다.",
+      "primary_field": "보건·바이오",
+      "related_departments": [
+        "바이오생활공학전공"
+      ],
+      "job_fields": [
+        "바이오",
+        "제조"
+      ],
+      "cert_hints": [
+        "미생물기사"
+      ],
+      "variants": [
+        "발효·미생물 공정 연구원"
+      ],
+      "auto_appended": false,
+      "source": "llm_consolidated",
+      "reviewed": false
+    },
+    {
+      "id": "cp-52",
+      "name": "바이오 안전성·독성 평가 전문가",
+      "description": "바이오 제품의 안전성과 독성을 평가하는 전문가이다.",
+      "primary_field": "보건·바이오",
+      "related_departments": [
+        "바이오생활공학전공"
+      ],
+      "job_fields": [
+        "바이오",
+        "품질관리"
+      ],
+      "cert_hints": [
+        "위생사"
+      ],
+      "variants": [
+        "바이오 안전성·독성 평가 전문가"
+      ],
+      "auto_appended": false,
+      "source": "llm_consolidated",
+      "reviewed": false
+    },
+    {
+      "id": "cp-53",
+      "name": "생명정보분석가",
+      "description": "유전체 등 생명과학 데이터를 컴퓨터로 분석하는 전문가이다.",
+      "primary_field": "보건·바이오",
+      "related_departments": [
+        "바이오생활공학전공",
+        "생명공학"
+      ],
+      "job_fields": [
+        "바이오",
+        "데이터분석",
+        "생명과학"
+      ],
+      "cert_hints": [
+        "생물정보분석사"
+      ],
+      "variants": [
+        "생명정보분석가",
+        "생명정보(바이오인포매틱스) 분석가"
+      ],
+      "auto_appended": false,
+      "source": "llm_consolidated",
+      "reviewed": false
+    },
+    {
+      "id": "cp-54",
+      "name": "IT서비스 기획자",
+      "description": "IT 서비스 및 제품의 기획과 운영을 담당하는 전문가이다.",
+      "primary_field": "컴퓨터·SW",
+      "related_departments": [
+        "산업공학",
+        "응용정보공학전공"
+      ],
+      "job_fields": [
+        "IT기획",
+        "마케팅",
+        "서비스기획"
+      ],
+      "cert_hints": [],
+      "variants": [
+        "IT서비스 기획자"
+      ],
+      "auto_appended": false,
+      "source": "llm_consolidated",
+      "reviewed": false
+    },
+    {
+      "id": "cp-55",
+      "name": "바이오의약품 연구원",
+      "description": "바이오의약품의 연구개발을 수행하는 연구원이다.",
+      "primary_field": "보건·바이오",
+      "related_departments": [
+        "생명공학",
+        "화공생명공학"
+      ],
+      "job_fields": [
+        "생명과학",
+        "제약·바이오",
+        "바이오제약",
+        "연구개발"
+      ],
+      "cert_hints": [
+        "생물공학기사"
+      ],
+      "variants": [
+        "바이오의약품 연구원",
+        "바이오/제약 공정 연구원"
+      ],
+      "auto_appended": false,
+      "source": "llm_consolidated",
+      "reviewed": false
+    },
+    {
+      "id": "cp-56",
+      "name": "진단·검사 전문 연구원",
+      "description": "질병 진단 및 임상검사와 관련된 연구를 수행하는 연구원이다.",
+      "primary_field": "보건·바이오",
+      "related_departments": [
+        "생명공학"
+      ],
+      "job_fields": [
+        "의료·바이오",
+        "연구개발"
+      ],
+      "cert_hints": [
+        "임상병리사"
+      ],
+      "variants": [
+        "진단·검사 전문 연구원"
+      ],
+      "auto_appended": false,
+      "source": "llm_consolidated",
+      "reviewed": false
+    },
+    {
+      "id": "cp-57",
+      "name": "생명공학 특허·기술사업화 전문가",
+      "description": "생명공학 기술의 특허 출원 및 사업화를 지원하는 전문가이다.",
+      "primary_field": "보건·바이오",
+      "related_departments": [
+        "생명공학"
+      ],
+      "job_fields": [
+        "지식재산",
+        "기술사업화"
+      ],
+      "cert_hints": [
+        "변리사"
+      ],
+      "variants": [
+        "생명공학 특허·기술사업화 전문가"
+      ],
+      "auto_appended": false,
+      "source": "llm_consolidated",
+      "reviewed": false
+    },
+    {
+      "id": "cp-58",
+      "name": "세포·조직공학 연구원",
+      "description": "세포 및 조직공학 기반 치료법을 연구하는 연구원이다.",
+      "primary_field": "보건·바이오",
+      "related_departments": [
+        "생명공학"
+      ],
+      "job_fields": [
+        "생명과학",
+        "의료공학"
+      ],
+      "cert_hints": [],
+      "variants": [
+        "세포·조직공학 연구원"
+      ],
+      "auto_appended": false,
+      "source": "llm_consolidated",
+      "reviewed": false
+    },
+    {
+      "id": "cp-59",
+      "name": "디지털/아날로그 IC 설계자",
+      "description": "반도체 집적회로의 디지털 및 아날로그 회로를 설계하는 엔지니어이다.",
+      "primary_field": "공학",
+      "related_departments": [
+        "시스템반도체공학"
+      ],
+      "job_fields": [
+        "반도체",
+        "회로설계"
+      ],
+      "cert_hints": [],
+      "variants": [
+        "디지털/아날로그 IC 설계자"
+      ],
+      "auto_appended": false,
+      "source": "llm_consolidated",
+      "reviewed": false
+    },
+    {
+      "id": "cp-60",
+      "name": "컴퓨터구조·시스템 아키텍트",
+      "description": "컴퓨터 하드웨어 시스템 구조를 설계하는 엔지니어이다.",
+      "primary_field": "컴퓨터·SW",
+      "related_departments": [
+        "시스템반도체공학"
+      ],
+      "job_fields": [
+        "반도체",
+        "컴퓨터시스템"
+      ],
+      "cert_hints": [
+        "정보처리기사"
+      ],
+      "variants": [
+        "컴퓨터구조·시스템 아키텍트"
+      ],
+      "auto_appended": false,
+      "source": "llm_consolidated",
+      "reviewed": false
+    },
+    {
+      "id": "cp-61",
+      "name": "신호처리 엔지니어",
+      "description": "통신 및 전자 시스템의 신호처리 알고리즘을 개발하는 엔지니어이다.",
+      "primary_field": "공학",
+      "related_departments": [
+        "시스템반도체공학"
+      ],
+      "job_fields": [
+        "전자공학",
+        "신호처리"
+      ],
+      "cert_hints": [],
+      "variants": [
+        "신호처리 엔지니어"
+      ],
+      "auto_appended": false,
+      "source": "llm_consolidated",
+      "reviewed": false
+    },
+    {
+      "id": "cp-62",
+      "name": "이차전지·에너지소재 연구원",
+      "description": "이차전지 등 에너지 저장 관련 소재를 연구하는 연구원이다.",
+      "primary_field": "공학",
+      "related_departments": [
+        "신소재공학"
+      ],
+      "job_fields": [
+        "에너지",
+        "소재개발"
+      ],
+      "cert_hints": [],
+      "variants": [
+        "이차전지·에너지소재 연구원"
+      ],
+      "auto_appended": false,
+      "source": "llm_consolidated",
+      "reviewed": false
+    },
+    {
+      "id": "cp-63",
+      "name": "바이오·의료소재 연구원",
+      "description": "의료용 바이오소재를 연구개발하는 연구원이다.",
+      "primary_field": "보건·바이오",
+      "related_departments": [
+        "신소재공학"
+      ],
+      "job_fields": [
+        "바이오소재",
+        "의료공학"
+      ],
+      "cert_hints": [],
+      "variants": [
+        "바이오·의료소재 연구원"
+      ],
+      "auto_appended": false,
+      "source": "llm_consolidated",
+      "reviewed": false
+    },
+    {
+      "id": "cp-64",
+      "name": "정보보안 담당자",
+      "description": "기업 및 기관의 정보시스템 보안을 관리하는 전문가이다.",
+      "primary_field": "컴퓨터·SW",
+      "related_departments": [
+        "응용정보공학전공"
+      ],
+      "job_fields": [
+        "정보보안",
+        "IT"
+      ],
+      "cert_hints": [
+        "정보보안기사"
+      ],
+      "variants": [
+        "정보보안 담당자"
+      ],
+      "auto_appended": false,
+      "source": "llm_consolidated",
+      "reviewed": false
+    },
+    {
+      "id": "cp-65",
+      "name": "의료기기 개발 엔지니어",
+      "description": "의료기기의 설계 및 개발을 수행하는 엔지니어이다.",
+      "primary_field": "보건·바이오",
+      "related_departments": [
+        "의공학부"
+      ],
+      "job_fields": [
+        "의료기기",
+        "전자공학"
+      ],
+      "cert_hints": [
+        "의공기사",
+        "의료전자기사"
+      ],
+      "variants": [
+        "의료기기 개발 엔지니어"
+      ],
+      "auto_appended": false,
+      "source": "llm_consolidated",
+      "reviewed": false
+    },
+    {
+      "id": "cp-66",
+      "name": "의료영상 분석 전문가",
+      "description": "의료영상 데이터를 분석하고 AI 기반 진단 기술을 개발하는 전문가이다.",
+      "primary_field": "보건·바이오",
+      "related_departments": [
+        "의공학부"
+      ],
+      "job_fields": [
+        "의료기기",
+        "인공지능"
+      ],
+      "cert_hints": [],
+      "variants": [
+        "의료영상 분석 전문가"
+      ],
+      "auto_appended": false,
+      "source": "llm_consolidated",
+      "reviewed": false
+    },
+    {
+      "id": "cp-67",
+      "name": "재활·바이오메카닉스 연구원",
+      "description": "재활공학 및 인체역학을 연구하는 연구원이다.",
+      "primary_field": "보건·바이오",
+      "related_departments": [
+        "의공학부"
+      ],
+      "job_fields": [
+        "의료기기",
+        "재활공학"
+      ],
+      "cert_hints": [],
+      "variants": [
+        "재활·바이오메카닉스 연구원"
+      ],
+      "auto_appended": false,
+      "source": "llm_consolidated",
+      "reviewed": false
+    },
+    {
+      "id": "cp-68",
+      "name": "의료기기 인허가/규제 전문가",
+      "description": "의료기기의 인허가 및 규제 대응 업무를 담당하는 전문가이다.",
+      "primary_field": "보건·바이오",
+      "related_departments": [
+        "의공학부"
+      ],
+      "job_fields": [
+        "의료기기",
+        "품질관리"
+      ],
+      "cert_hints": [
+        "의료기기RA전문가"
+      ],
+      "variants": [
+        "의료기기 인허가/규제 전문가"
+      ],
+      "auto_appended": false,
+      "source": "llm_consolidated",
+      "reviewed": false
+    },
+    {
+      "id": "cp-69",
+      "name": "생체재료 및 조직공학 연구원",
+      "description": "생체재료 및 조직공학 관련 연구를 수행하는 연구원이다.",
+      "primary_field": "보건·바이오",
+      "related_departments": [
+        "의공학부"
+      ],
+      "job_fields": [
+        "연구개발",
+        "바이오소재"
+      ],
+      "cert_hints": [],
+      "variants": [
+        "생체재료 및 조직공학 연구원"
+      ],
+      "auto_appended": false,
+      "source": "llm_consolidated",
+      "reviewed": false
+    },
+    {
+      "id": "cp-70",
+      "name": "의공학 연구원",
+      "description": "대학원 진학 등을 통해 의공학 분야 심화 연구를 수행하는 연구원이다.",
+      "primary_field": "보건·바이오",
+      "related_departments": [
+        "의공학부"
+      ],
+      "job_fields": [
+        "연구개발",
+        "의공학"
+      ],
+      "cert_hints": [],
+      "variants": [
+        "의공학 연구원(대학원 진학)"
+      ],
+      "auto_appended": false,
+      "source": "llm_consolidated",
+      "reviewed": false
+    },
+    {
+      "id": "cp-71",
+      "name": "통신시스템 엔지니어",
+      "description": "통신망 및 통신 시스템을 설계하고 운영하는 엔지니어이다.",
+      "primary_field": "공학",
+      "related_departments": [
+        "전기전자공학"
+      ],
+      "job_fields": [
+        "정보통신",
+        "전자공학"
+      ],
+      "cert_hints": [
+        "정보통신기사"
+      ],
+      "variants": [
+        "통신시스템 엔지니어"
+      ],
+      "auto_appended": false,
+      "source": "llm_consolidated",
+      "reviewed": false
+    },
+    {
+      "id": "cp-72",
+      "name": "제어시스템 엔지니어",
+      "description": "자동화 설비 및 제어 시스템을 설계하는 엔지니어이다.",
+      "primary_field": "공학",
+      "related_departments": [
+        "전기전자공학"
+      ],
+      "job_fields": [
+        "자동화",
+        "전자공학"
+      ],
+      "cert_hints": [
+        "전기기사",
+        "제어계측기사"
+      ],
+      "variants": [
+        "제어시스템 엔지니어"
+      ],
+      "auto_appended": false,
+      "source": "llm_consolidated",
+      "reviewed": false
+    },
+    {
+      "id": "cp-73",
+      "name": "전력계통 엔지니어",
+      "description": "전력 생산 및 송배전 계통을 설계·운영하는 엔지니어이다.",
+      "primary_field": "공학",
+      "related_departments": [
+        "전기전자공학"
+      ],
+      "job_fields": [
+        "전력에너지",
+        "전기공학"
+      ],
+      "cert_hints": [
+        "전기기사",
+        "전기산업기사"
+      ],
+      "variants": [
+        "전력계통 엔지니어"
+      ],
+      "auto_appended": false,
+      "source": "llm_consolidated",
+      "reviewed": false
+    },
+    {
+      "id": "cp-74",
+      "name": "화학공정 엔지니어",
+      "description": "화학제품 생산 공정을 설계하고 운영하는 엔지니어이다.",
+      "primary_field": "공학",
+      "related_departments": [
+        "화공생명공학"
+      ],
+      "job_fields": [
+        "화학공정",
+        "제조"
+      ],
+      "cert_hints": [
+        "화공기사",
+        "화공기술사"
+      ],
+      "variants": [
+        "화학공정 엔지니어"
+      ],
+      "auto_appended": false,
+      "source": "llm_consolidated",
+      "reviewed": false
+    },
+    {
+      "id": "cp-75",
+      "name": "에너지·환경공학 엔지니어",
+      "description": "에너지 및 환경 관련 공정을 설계하고 관리하는 엔지니어이다.",
+      "primary_field": "공학",
+      "related_departments": [
+        "화공생명공학"
+      ],
+      "job_fields": [
+        "에너지",
+        "환경공학"
+      ],
+      "cert_hints": [
+        "대기환경기사"
+      ],
+      "variants": [
+        "에너지·환경공학 엔지니어"
+      ],
+      "auto_appended": false,
+      "source": "llm_consolidated",
+      "reviewed": false
+    },
+    {
+      "id": "cp-76",
+      "name": "대기환경 엔지니어",
+      "description": "대기오염 물질을 측정하고 저감 대책을 수립하는 엔지니어이다.",
+      "primary_field": "공학",
+      "related_departments": [
+        "환경에너지공학부"
+      ],
+      "job_fields": [
+        "환경공학",
+        "대기환경"
+      ],
+      "cert_hints": [
+        "대기환경기사"
+      ],
+      "variants": [
+        "대기환경 엔지니어"
+      ],
+      "auto_appended": false,
+      "source": "llm_consolidated",
+      "reviewed": false
+    },
+    {
+      "id": "cp-77",
+      "name": "수질/상하수도 엔지니어",
+      "description": "상하수도 시설 및 수질 관리를 담당하는 엔지니어이다.",
+      "primary_field": "공학",
+      "related_departments": [
+        "환경에너지공학부"
+      ],
+      "job_fields": [
+        "환경공학",
+        "수자원"
+      ],
+      "cert_hints": [
+        "수질환경기사",
+        "상하수도기술사"
+      ],
+      "variants": [
+        "수질/상하수도 엔지니어"
+      ],
+      "auto_appended": false,
+      "source": "llm_consolidated",
+      "reviewed": false
+    },
+    {
+      "id": "cp-78",
+      "name": "폐기물·자원순환 엔지니어",
+      "description": "폐기물 처리 및 자원순환 시스템을 설계하는 엔지니어이다.",
+      "primary_field": "공학",
+      "related_departments": [
+        "환경에너지공학부"
+      ],
+      "job_fields": [
+        "환경공학",
+        "자원순환"
+      ],
+      "cert_hints": [
+        "폐기물처리기사"
+      ],
+      "variants": [
+        "폐기물·자원순환 엔지니어"
+      ],
+      "auto_appended": false,
+      "source": "llm_consolidated",
+      "reviewed": false
+    },
+    {
+      "id": "cp-79",
+      "name": "신재생에너지 엔지니어",
+      "description": "태양광, 풍력 등 신재생에너지 설비를 설계하고 운영하는 엔지니어이다.",
+      "primary_field": "공학",
+      "related_departments": [
+        "환경에너지공학부"
+      ],
+      "job_fields": [
+        "에너지",
+        "환경공학"
+      ],
+      "cert_hints": [
+        "신재생에너지발전설비기사"
+      ],
+      "variants": [
+        "신재생에너지 엔지니어"
+      ],
+      "auto_appended": false,
+      "source": "llm_consolidated",
+      "reviewed": false
+    },
+    {
+      "id": "cp-80",
+      "name": "환경영향평가/컨설턴트",
+      "description": "개발사업의 환경영향을 평가하고 자문하는 전문가이다.",
+      "primary_field": "공학",
+      "related_departments": [
+        "환경에너지공학부"
+      ],
+      "job_fields": [
+        "환경정책",
+        "컨설팅"
+      ],
+      "cert_hints": [
+        "환경영향평가사"
+      ],
+      "variants": [
+        "환경영향평가/컨설턴트"
+      ],
+      "auto_appended": false,
+      "source": "llm_consolidated",
+      "reviewed": false
+    },
+    {
+      "id": "cp-81",
+      "name": "토양·지하수 환경 전문가",
+      "description": "토양 및 지하수 오염을 조사하고 정화하는 전문가이다.",
+      "primary_field": "공학",
+      "related_departments": [
+        "환경에너지공학부"
+      ],
+      "job_fields": [
+        "환경공학",
+        "토양환경"
+      ],
+      "cert_hints": [
+        "토양환경기사"
+      ],
+      "variants": [
+        "토양·지하수 환경 전문가"
+      ],
+      "auto_appended": false,
+      "source": "llm_consolidated",
+      "reviewed": false
+    }
+  ]
+}
