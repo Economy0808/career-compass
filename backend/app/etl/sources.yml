@@ -23,8 +23,9 @@ sources:
     description: >-
       Q-Net national qualification jongmok (exam item) master list -
       InquiryListNationalQualifcationSVC/getList (XML).
+    # data.go.kr offers no https endpoint for this dataset; http:// is correct as-is.
     endpoint: http://openapi.q-net.or.kr/api/service/rest/InquiryListNationalQualifcationSVC/getList
-    kogl_type: TODO  # user to confirm KOGL open license type (1/2/3/4) before hard-gating
+    kogl_type: 1  # KOGL type 1 (no usage restriction), verified on data.go.kr dataset page 2026-09-04
 
   - id: data_go_kr_15074408_exam_schedule
     source_type: government_open_data
@@ -32,4 +33,4 @@ sources:
     description: >-
       Q-Net national qualification exam schedule - qualExamSchd/getQualExamSchdList (JSON).
     endpoint: https://apis.data.go.kr/B490007/qualExamSchd/getQualExamSchdList
-    kogl_type: TODO  # user to confirm KOGL open license type (1/2/3/4) before hard-gating
+    kogl_type: 1  # KOGL type 1 (no usage restriction), verified on data.go.kr dataset page 2026-09-04

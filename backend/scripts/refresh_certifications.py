@@ -28,6 +28,7 @@ from app.etl.certifications import (  # noqa: E402
     fetch_jongmok_list_xml,
     parse_jongmok_list_xml,
 )
+from app.etl.sources import SourceGateError, assert_source_allowed  # noqa: E402
 from app.firestore.certification_repo import upsert_certifications  # noqa: E402
 from app.firestore.client import get_firestore_client  # noqa: E402
 
@@ -40,6 +41,16 @@ def main() -> None:
     if not settings.data_go_kr_service_key:
         print("에러: DATA_GO_KR_SERVICE_KEY가 설정되지 않았습니다.")
         raise SystemExit(1)
+
+    # 네트워크 호출 전에 출처 레지스트리 게이트를 통과해야 한다(보안 하드
+    # 게이트) - sources.yml의 kogl_type이 미확인/2/4유형이면 여기서 즉시
+    # 실패하고, Q-Net API 요청은 한 건도 나가지 않는다.
+    try:
+        assert_source_allowed("data_go_kr_15003024_jongmok_list", for_llm=False)
+        assert_source_allowed("data_go_kr_15074408_exam_schedule", for_llm=False)
+    except SourceGateError as exc:
+        print(f"에러: 소스 게이트 실패 - {exc}")
+        raise SystemExit(1) from exc
 
     this_year = str(datetime.now().year)
     next_year = str(datetime.now().year + 1)

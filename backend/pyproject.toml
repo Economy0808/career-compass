@@ -25,6 +25,9 @@ dependencies = [
     "anthropic>=0.116,<1",
     "firebase-admin>=7.5",
     "pdfplumber>=0.11",
+    # already present transitively (uvicorn[standard]); declared directly
+    # now that app/etl/sources.py imports it for the KOGL source gate.
+    "pyyaml>=6.0",
 ]
 
 [project.optional-dependencies]
