@@ -27,6 +27,8 @@
 >   에뮬레이터 실검증·배포 → **6** v2(목표→진로→검증 추천 RAG-lite, 학회 데이터 축적 후 인테이크 연결). 크리티컬 패스 0→4→5.
 >   데이터모델: certifications `issuer_scope`(domestic_national|domestic_private|international) + `cert_class`(+private_career,
 >   language), 민간·국외 id=슬러그; `career_paths{name, description, related_departments[], job_fields[], cert_ids[] 대표→보조}`.
+> - **Phase 1 완료(9/5, 보안 PASS `54f04cd`·`56109f0`)**: 파일럿 25학과 → 초안 135 → 통합 81(핵심 경영·경제·통계·컴퓨터 19 + 공학·바이오 62). `app/etl/seeds/career_paths_{draft,consolidated}.json`(`reviewed:false`). 실행은 `firebase emulators:exec --only firestore --import=data/emulator-backup`(읽기 전용, 프로덕션·ADC 무접촉, export 미사용). 주의: 이 Bash 도구는 명령 텍스트의 `\`를 `\`로 접으므로 파일에 백슬래시 리터럴을 쓸 땐 chr(92)로 조립. 히어독 ~175행 상한.
+> - **Phase 3 로더 보안 조건(a5 사전 확정, 반드시 반영)**: 시드 `reviewed: true` 아니면 적재 거부(fail fast) / 진로 레코드에 URL·일정 필드가 생기면 c8ad8c6 서버권위 규칙(DB값만 렌더) 적용. 사용자 검수 대기 항목: 핵심 19개 승인(cp-24 금융/투자 분석가를 증권·운용 / 퀀트·리스크(cp-38 흡수) / 이코노미스트 셋으로 분할 제안), 62개 2차분 보류, Phase 2 착수.
 > - **대기/게이트**: 신규 `DATA_GO_KR_SERVICE_KEY`는 사용자 발급 완료(.env, 구 키 무효화 묶음) / **population·Firestore 쓰기
 >   세션 내 금지**(7000건 삭제 사고 규약, 에뮬레이터 종료 전 export) / 프론트 §2는 자기 사용자 승인 대기 / 학회·cert Firestore
 >   테스트는 에뮬레이터 세션에서만(auto-skip).
