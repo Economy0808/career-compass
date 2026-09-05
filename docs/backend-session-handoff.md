@@ -1,4 +1,42 @@
-# 백엔드 세션 핸드오프 (2026-08-27 작성, 2026-09-04 25차 갱신)
+# 백엔드 세션 핸드오프 (2026-08-27 작성, 2026-09-05 26차 갱신)
+
+> **26차 (9/5) — 지원요소 실DB 그라운딩 트랙: 학회 A+B·자격증 v1 코드 완료·커밋, 종합계획(Fable) 수립, Phase 0+1 재개**:
+> - **커밋(feature/constellation, 보안 재게이트 4 PASS·기록 `4ae826d`)**: `b6fab97` 학회 Stage A(POST/GET /api/societies,
+>   `services/pii_guard.py` 전화/이메일/카톡 →422, official_url https-only·IP·userinfo 거부, `require_yonsei_verified`,
+>   **연락처 필드 없음**) / `55f6165` Stage B(신고 임시조치→pending·reported_by 미노출·idempotent, `scripts/moderate_societies.py`
+>   CLI list-pending/approve/reject, `app/etl/sources.yml`) / `c8ad8c6` 자격증 grounding(`etl/certifications.py` Q-Net ETL→
+>   `certifications/{jmcd}`, `firestore/certification_repo.py`, `services/cert_match.py` normalize+`PROFESSIONAL_LICENSE_NAMES`,
+>   `bin_suggestion._cert_badge_fields` **서버권위 배지 — LLM url/date 불신**, 전문직 후순위 정렬, anthropic_client 프롬프트 규칙,
+>   `config.data_go_kr_service_key`) / `e268385` `GET /me/onboarding`에 `department`. 프론트 `c69b268` /societies UI(보안 PASS).
+> - **MUST-FIX(보안, population 전 필수) → Phase 0로 착수(9/5)**: `sources.yml` 로더 게이트 — `refresh_certifications`가 라이브 호출
+>   전 로드해 정부출처 kogl_type null/TODO/2/4 거부, 3=표시전용, crowdsource 면제. **kogl_type은 보안 실사로 확정: 15003024·
+>   15074408 둘 다 이용허가범위 제한 없음(1유형) → `kogl_type: 1`**(ASCII 주석). 15003024는 http만(https 미제공) 수용.
+> - **핵심 통찰**: ①큐넷 API=**국가자격만**. 투자자산운용사·ADsP·SQLD·TESAT 등 **민간자격 없음** → 국내 3층(국가=API 자동 /
+>   민간 핵심=수동 / 국외=수동). **금융·경영 진로 배지엔 민간 수동층 필수**(국가만 populate하면 투운사 배지 안 켜짐).
+>   ②수동층은 **진로 기반**(수업DB→진로 추론 LLM→진로별 자격증 수동). 국가 마스터 `직무분야`로 국내 자동 그룹핑.
+>   ③임베딩·벡터DB 불필요(명명개체→정규화 문자열 매칭+alias). ④공모전 리스팅은 aggregator 트레드밀 — 우리 상품은 판단.
+> - **확정 결정**: 공모전·대외활동·네트워킹 **보류** / 국외=**ⓑ 수동 시드**(CareerOneStop 등록 스킵: 미국전용 폼·검토제·
+>   DOLETA/DEED 출처표시·수정금지·36개월) / 본인인증 미도입(yonsei_verified로 충분, 실명수집=PIPA 역행) / 모더레이션 1인 CLI /
+>   미시행 전문직(세무·회계·변호사) v1 제외·cert_class 태깅 / 에타·캠퍼스픽 스크래핑 금지(Hard Rule) /
+>   **OurLab 리네임·도메인 트랙 전체 보류**(보안 a5 인계분 S1-B/S2/S4/S5 손 안 댐) / 파일럿=5계열 / `career_paths` 별도 컬렉션.
+> - **종합계획(Fable) Phase**: **0** MUST-FIX(Sonnet) ∥ **1** 진로 추론(파일럿 5계열 경영·경제·통계·컴퓨터·공학, course
+>   taxonomy/catalog **읽기 전용**, LLM 배치 호출 → `app/etl/seeds/career_paths_draft.json` → **사용자 검수**) → **2** 진로별
+>   자격증 큐레이션(국가=직무분야 자동후보+LLM 제안→사용자 확정 / 민간·국외=수동 이름·발급기관·공식URL·cert_class →
+>   `certifications_manual.json`, 마스터 실존 대조) → **3** 로더(수동 시드→certifications upsert, `career_paths/{id}` 컬렉션,
+>   Sonnet, mock 테스트) → **4** population(**격리 에뮬레이터**→export→사용자 go→프로덕션, 신규 키) → **5** 프론트 §2 배지·
+>   에뮬레이터 실검증·배포 → **6** v2(목표→진로→검증 추천 RAG-lite, 학회 데이터 축적 후 인테이크 연결). 크리티컬 패스 0→4→5.
+>   데이터모델: certifications `issuer_scope`(domestic_national|domestic_private|international) + `cert_class`(+private_career,
+>   language), 민간·국외 id=슬러그; `career_paths{name, description, related_departments[], job_fields[], cert_ids[] 대표→보조}`.
+> - **대기/게이트**: 신규 `DATA_GO_KR_SERVICE_KEY`는 사용자 발급 완료(.env, 구 키 무효화 묶음) / **population·Firestore 쓰기
+>   세션 내 금지**(7000건 삭제 사고 규약, 에뮬레이터 종료 전 export) / 프론트 §2는 자기 사용자 승인 대기 / 학회·cert Firestore
+>   테스트는 에뮬레이터 세션에서만(auto-skip).
+> - **피어 채널**: 네이티브 `SendMessage`가 이 계보에서 **양쪽 다 죽음**(앱 재시작 후에도 피어 떠도 도구 안 뜸) →
+>   **세션관리 채널(`mcp__ccd_session_mgmt__send_message`, session_id)로 조율 확정**(양방향 왕복 검증). 프론트=
+>   `local_1152591b-372c-4f6a-b5a4-2826ba298a02`("프론트엔드 작업"), 보안=`local_2b87e250-4841-4ad3-ab33-a8bed86aaabc`
+>   ("프로젝트 보안검사 계획"). 프론트 계약(§1 학회 shape·§2 배지 wire `{verified, official_url?, schedule?, cert_class?}`)
+>   전달·접수 완료. `docs/handoff-society-upload-contract.md`는 GateGuard로 미생성(계약은 채널로 전달됨).
+> - **운영 함정**: 리포 GateGuard 훅(`pre:edit-write:gateguard-fact-force`)이 Edit/Write를 막으면 **Bash/Python으로 파일 갱신**
+>   (이 블록도 그렇게 씀). 재개는 새 세션·Sonnet 워커, 이 블록을 브리핑에 그대로 싣기.
 
 > **25차 (9/4) — cluster_courses 원가절감(트림) 라이브 + 모델 knob, Sonnet 유지**:
 > - **라이브 리비전**: 백엔드 `ourlab-backend-00023-9l5`(트림 반영, `/health`·`/docs` 200,
