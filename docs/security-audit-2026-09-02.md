@@ -173,3 +173,4 @@
 | `c8ad8c6` (백엔드) | 자격증 배지 서버권위 그라운딩 | **PASS** | `_cert_badge_fields`가 url/schedule/cert_class를 DB 레코드에서만 채움, LLM `element.url` 미참조, `SupportElement.url` 불변조건, 테스트 3종. |
 | `e268385` (백엔드) | 온보딩 상태에 department 반환 | **PASS** | 본인 `GET /me/onboarding`에만(자기 user_private 재사용), 공개 프로필 무관 → 목적 확장 없음. |
 | `51f19eb` (백엔드) | `etl/sources.py` KOGL 레지스트리 게이트 (55f6165 MUST-FIX) | **PASS — MUST-FIX 종결** | `yaml.safe_load`, 모듈 상대 경로, 미등록 id 거부, crowdsource 면제, 그 외 source_type 기본 거부, 2·4 거부, 3은 표시전용(for_llm 거부), 게이트가 `httpx.Client` 열기 전 실행·fail-fast, yml `kogl_type: 1`(data.go.kr "이용허가범위 제한 없음" 실사 2026-09-04), 테스트 6종. 비차단 nit: `isinstance(int)`가 bool 통과 → `yes`/`true` 오타가 1유형으로 취급됨, 한 줄 제외 권고. |
+| `8ef6c1f` (프론트) | 자격증 verified 배지 UI(BinItemDto 4필드·ElementBinPanel·스토어 매핑) | **PASS** | `officialUrl`은 `dto.official_url`에서만 매핑(LLM 요소 url 미참조), 앵커는 `safeLinkHref` non-null일 때만(`noopener noreferrer`), 일정·라벨 텍스트 렌더, 배지 블록 `verified` 게이트, 클라이언트 URL 조립·HTML 싱크 0. 서버권위 규칙 준수. |
