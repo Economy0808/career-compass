@@ -191,6 +191,15 @@ export interface BinItemDto {
   /** 과목의 소속 학과(4792fe4). 학과별 bin을 하나로 병합해도 아이템이 자기 학과를
    * 들고 다니므로, 저장 후 재로드해도 배지가 유지된다. 구 문서에는 키가 없다. */
   department?: string;
+  /** type === "certification"일 때만 의미 있음(grounding §2) - 자격증 DB에
+   * 실존이 확인됐는지. 자격증 DB가 아직 시딩 전이라 지금은 항상 false지만,
+   * 데이터가 들어오면 자동으로 배지가 켜지도록 미리 배선해 둔다. */
+  verified?: boolean;
+  /** verified일 때만 서버가 채워주는 실제 DB 값 - safeLinkHref를 통해서만 렌더링한다. */
+  official_url?: string;
+  /** 시험 일정 - 원서접수/필기/실기/합격발표 등 키→값. */
+  schedule?: Record<string, string> | null;
+  cert_class?: "national_technical" | "national_professional" | "professional_license";
 }
 
 export interface BinDto {

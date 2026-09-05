@@ -17,6 +17,7 @@ import type { CanvasPosition } from "@/components/ConstellationCanvas";
 import { InfoIcon, SeedIcon } from "@/components/ui/icons";
 import { CourseSearchPanel } from "@/components/CourseSearchPanel";
 import type { CourseDto } from "@/lib/courses-api";
+import { safeLinkHref } from "@/lib/markdown";
 
 export interface BinItem {
   id: string;
@@ -31,6 +32,13 @@ export interface BinItem {
    * 옮겨 칩에 표기한다) - 서버에 저장되지 않는 화면 전용 필드라 새로고침하면
    * 사라진다(page.tsx normalizeIncomingBins 참고, 알려진 한계). */
   groupLabel?: string;
+  /** 자격증 실존 배지(grounding §2) - type === "certification"일 때만 의미
+   * 있음. 자격증 DB 시딩 전이라 지금은 항상 false/undefined - 사전 작업. */
+  verified?: boolean;
+  /** verified일 때만 있는 서버 DB 값 - safeLinkHref를 거쳐서만 렌더링한다. */
+  officialUrl?: string;
+  schedule?: Record<string, string> | null;
+  certClass?: "national_technical" | "national_professional" | "professional_license";
 }
 
 export interface Bin {
@@ -207,7 +215,7 @@ function ItemChip({
   }
 
   const { code, rest } = splitCourseCode(item.label);
-  return (
+  const chip = (
     <div
       role="button"
       tabIndex={0}
@@ -238,6 +246,19 @@ function ItemChip({
       {item.groupLabel && (
         <span className="shrink-0 rounded-none bg-paper px-1 text-micro text-paper-lo">{item.groupLabel}</span>
       )}
+      {/* 자격증 실존 배지(grounding §2) - 서버 DB 검증 결과. 시딩 전이라 지금은
+          거의 항상 안 보이지만, 데이터가 들어오면 자동으로 켜지는 사전 작업. */}
+      {item.verified && (
+        <span
+          aria-hidden
+          className="shrink-0 rounded-none border border-lit bg-lit/20 px-1 text-micro font-semibold text-paper-ink"
+        >
+          실존·공식일정
+        </span>
+      )}
+      {item.certClass === "professional_license" && (
+        <span className="shrink-0 rounded-none bg-paper px-1 text-micro text-paper-lo">평생직업형</span>
+      )}
       {placed && (
         <>
           <span aria-hidden className="text-lit group-hover:hidden">
@@ -247,6 +268,39 @@ function ItemChip({
             회수
           </span>
         </>
+      )}
+    </div>
+  );
+
+  if (!item.verified) return chip;
+
+  // 실존 확인된 자격증만 - 공식 링크(safeLinkHref 통과분만)와 일정을 칩 아래
+  // 한 줄로 덧붙인다. 칩 자체(드래그·클릭 동작)는 그대로 두고 아래에 읽기
+  // 전용 상세만 추가하는 것이 드래그 페이로드나 grid 레이아웃을 건드리지
+  // 않는 가장 작은 변경이다.
+  const href = item.officialUrl ? safeLinkHref(item.officialUrl) : null;
+  const scheduleEntries = item.schedule ? Object.entries(item.schedule) : [];
+  return (
+    <div className="flex flex-col items-start gap-1">
+      {chip}
+      {(href || scheduleEntries.length > 0) && (
+        <div className="flex flex-wrap items-baseline gap-x-2 gap-y-0.5 pl-2 text-micro text-paper-lo">
+          {href && (
+            <a
+              href={href}
+              target="_blank"
+              rel="noopener noreferrer"
+              className="font-semibold text-paper-ink underline underline-offset-2 hover:text-lit"
+            >
+              공식 안내
+            </a>
+          )}
+          {scheduleEntries.map(([k, v]) => (
+            <span key={k}>
+              {k} {v}
+            </span>
+          ))}
+        </div>
       )}
     </div>
   );

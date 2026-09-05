@@ -249,6 +249,13 @@ function mapBinItemDtoToBinItem(dto: BinItemDto): BinItem {
     // 오늘 이전에 저장된 구 문서엔 키가 없어 undefined가 되고, 그때는 배지가 빈다
     // (성운이 이미 학과 단위로 나뉘어 있어 맥락은 성운 이름이 준다).
     groupLabel: dto.department,
+    // 자격증 실존 배지(grounding §2) - 서버가 매 응답마다 실DB로 재검증해 주는
+    // 값이라 그대로 옮기기만 한다(department와 달리 저장 시 되돌려 보내지
+    // 않는다 - mapBinToBinDto 참고, 서버가 항상 다시 채운다).
+    verified: dto.verified,
+    officialUrl: dto.official_url,
+    schedule: dto.schedule,
+    certClass: dto.cert_class,
   };
 }
 
