@@ -1,5 +1,7 @@
 # 백엔드 세션 핸드오프 (2026-08-27 작성, 2026-09-05 26차 갱신)
 
+> **27차 (9/7) - 자격증 Phase 2 완료(검증 코어 28개 확정·커밋)**: 방법론 전환 - API 통짜적재 폐기, **진로 기반 수동 큐레이션 + 유저 검색/추가(2단 신뢰: 큐레이션=검증배지 / 유저추가=미검증 검토후게시)**. 취업 유용성은 **WebSearch 시장신호 + 실채용공고**로 판정(LLM 추측 아님). Monid 미사용(무료 WebSearch로 충분), Chrome MCP는 cert-light 확인용. `certifications_curated.json`(reviewed=true, 28개: 필수8/우대16/유용4, 국가10/민간9/국외9) + career_cert_map + cert-light 7개. 금융은 3트랙 분리(증권운용=투운사·금투분석사·펀드권유 / 리스크퀀트=FRM·CFA / 이코노미스트=자격증0). aggregator(링커리어) 미수집. **다음=Phase 3**: 로더(reviewed=true만 적재, 격리 에뮬레이터→사용자 승인→프로덕션, Q-Net API로 국가자격 URL·일정 보강) + 검색 엔드포인트 + 유저 추가(제출·검토, 학회 패턴 재사용). 커밋: cert 후보 3 + merged + curated.
+>
 > **26차 (9/5) — 지원요소 실DB 그라운딩 트랙: 학회 A+B·자격증 v1 코드 완료·커밋, 종합계획(Fable) 수립, Phase 0+1 재개**:
 > - **커밋(feature/constellation, 보안 재게이트 4 PASS·기록 `4ae826d`)**: `b6fab97` 학회 Stage A(POST/GET /api/societies,
 >   `services/pii_guard.py` 전화/이메일/카톡 →422, official_url https-only·IP·userinfo 거부, `require_yonsei_verified`,
