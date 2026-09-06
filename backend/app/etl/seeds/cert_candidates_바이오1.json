@@ -1,0 +1,195 @@
+{
+  "field": "보건바이오-생명제약식품",
+  "generated_at": "2026-09-07T00:00:00+09:00",
+  "paths": [
+    {
+      "path_id": "cp-48",
+      "path_name": "식품 연구개발자",
+      "certs": [
+        {
+          "name": "식품기사",
+          "issuer": "한국산업인력공단(Q-Net)",
+          "scope": "domestic_national",
+          "cert_class": "career_credential",
+          "tier": "우대",
+          "why": "식품 제조·가공업체 및 식품연구소 채용 시 국가기술자격법상 우대사항으로 명시되는 경우가 많아 식품 R&D 직무의 기본 자격으로 통용된다.",
+          "official_url": "http://www.q-net.or.kr/crf005.do?id=crf00503&jmCd=1530&gSite=Q",
+          "evidence_note": "동서대·서울대 등 식품영양학과 자격증 안내 페이지 및 Q-Net에서 확인. 필기과목: 식품위생학, 식품화학, 식품가공학, 식품미생물학, 생화학 및 발효학."
+        },
+        {
+          "name": "영양사",
+          "issuer": "한국보건의료인국가시험원(면허)",
+          "scope": "domestic_national",
+          "cert_class": "career_credential",
+          "tier": "유용",
+          "why": "건강기능식품 기업에서 영양성분 분석·신제품 기획 업무에 가점 요소로 활용되나, R&D 직무 자체의 필수 자격은 아니다.",
+          "official_url": "https://www.kuksiwon.or.kr/subcnt/c_2020/1/view.do?seq=7&itm_seq=07",
+          "evidence_note": "동서대 식품영양학과 자격증 안내 페이지에서 \"식품기업·연구소에서 영양성분 분석, 제품개발 업무 수행 가능\" 명시."
+        }
+      ]
+    },
+    {
+      "path_id": "cp-49",
+      "path_name": "화장품 연구개발자",
+      "certs": [
+        {
+          "name": "맞춤형화장품조제관리사",
+          "issuer": "식품의약품안전처(시행: 대한상공회의소 자격평가사업단)",
+          "scope": "domestic_national",
+          "cert_class": "career_credential",
+          "tier": "유용",
+          "why": "화장품 연구직 채용의 필수조건은 아니지만, 화장품법·성분 규제에 대한 이해를 공인하는 국내 유일의 화장품 분야 국가자격으로 이력서상 우대 요소가 된다.",
+          "official_url": "https://license.korcham.net/co/examguide.do?mm=34&cd=0202",
+          "evidence_note": "cert_hint의 '화장품제조관리사'는 정식 명칭이 아니며, 정식 명칭은 맞춤형화장품조제관리사(2020년 도입, 2024년 시행기관이 한국생산성본부에서 대한상공회의소로 변경)."
+        },
+        {
+          "name": "바이오화학제품제조기사(구 생물공학기사)",
+          "issuer": "한국산업인력공단(Q-Net)",
+          "scope": "domestic_national",
+          "cert_class": "career_credential",
+          "tier": "유용",
+          "why": "화장품 원료·성분 개발에서 생물공정·발효 지식을 증명하는 국가기술자격으로, 화학/생명공학 전공자에게 참고 자격이 된다.",
+          "official_url": "https://www.q-net.or.kr/crf005.do?id=crf00503&jmCd=1800",
+          "evidence_note": "namu.wiki 및 대구대 생명공학과 자격증 안내에서 2020년 생물공학기사→바이오화학제품제조기사 명칭변경 확인."
+        }
+      ]
+    },
+    {
+      "path_id": "cp-50",
+      "path_name": "바이오헬스케어 산업 기획자",
+      "certs": []
+    },
+    {
+      "path_id": "cp-51",
+      "path_name": "발효·미생물 공정 연구원",
+      "certs": [
+        {
+          "name": "바이오화학제품제조기사(구 생물공학기사)",
+          "issuer": "한국산업인력공단(Q-Net)",
+          "scope": "domestic_national",
+          "cert_class": "career_credential",
+          "tier": "우대",
+          "why": "균주 관리·배지 조제·배양·정제 등 발효·미생물 생산공정 전문인력을 위한 국가기술자격으로, 관련 기업 채용 우대사항에 명시된다.",
+          "official_url": "https://www.q-net.or.kr/crf005.do?id=crf00503&jmCd=1800",
+          "evidence_note": "cert_hint의 '미생물기사'는 Q-Net 국가기술자격 목록에서 별도 종목으로 확인되지 않음. 발효·미생물 공정을 다루는 실제 국가자격은 바이오화학제품제조기사(구 생물공학기사, 1998년 신설·2020년 명칭변경)임."
+        }
+      ]
+    },
+    {
+      "path_id": "cp-52",
+      "path_name": "바이오 안전성·독성 평가 전문가",
+      "certs": [
+        {
+          "name": "위생사",
+          "issuer": "한국보건의료인국가시험원(면허)",
+          "scope": "domestic_national",
+          "cert_class": "career_credential",
+          "tier": "유용",
+          "why": "식품·화장품 위생관리 업무를 다루는 국가면허로 안전성 평가 인접 직무의 이해를 뒷받침하나, 독성평가 자체를 다루는 전문자격은 아니다.",
+          "official_url": "https://www.kuksiwon.or.kr/subcnt/c_2021/1/view.do?seq=7&itm_seq=21",
+          "evidence_note": "위생사 업무범위는 공중위생영업소·식품위생관리·폐기물처리 등 공중보건 중심으로, 독성학·안전성평가 실험업무와는 결이 다름(대학 학과 자격안내 페이지 확인)."
+        },
+        {
+          "name": "독성전문가(인증)",
+          "issuer": "한국독성학회",
+          "scope": "domestic_private",
+          "cert_class": "career_credential",
+          "tier": "유용",
+          "why": "국내 독성평가 분야 최상위 전문성 인증이지만, 응시자격이 관련분야 박사 또는 석사+경력5년/학사+경력8년이라 학부 졸업 시점에는 취득이 불가능해 장기 커리어 목표로만 참고할 수 있다.",
+          "official_url": "https://www.ksot.or.kr/04_education/education03.htm",
+          "evidence_note": "한국독성학회 공식 안내에서 응시자격(박사/석사+5년/학사+8년)과 \"자격취득으로 인한 법적 권한은 없음\" 명시 확인."
+        }
+      ]
+    },
+    {
+      "path_id": "cp-53",
+      "path_name": "생명정보분석가",
+      "certs": []
+    },
+    {
+      "path_id": "cp-55",
+      "path_name": "바이오의약품 연구원",
+      "certs": [
+        {
+          "name": "바이오화학제품제조기사(구 생물공학기사)",
+          "issuer": "한국산업인력공단(Q-Net)",
+          "scope": "domestic_national",
+          "cert_class": "career_credential",
+          "tier": "우대",
+          "why": "바이오의약품 생산공정(배양·정제 등)을 다루는 국가기술자격으로 제약·바이오 기업 채용 우대사항에 자주 명시된다.",
+          "official_url": "https://www.q-net.or.kr/crf005.do?id=crf00503&jmCd=1800",
+          "evidence_note": "cert_hint 원문 '생물공학기사'는 2020년 바이오화학제품제조기사로 명칭 변경(Q-Net, 다수 대학 학과 페이지 확인). GMP는 한국제약바이오협회 등의 교육과정(비자격증)으로, QC/QA 취업 준비 커뮤니티 글에서 자격증이 아닌 실무 교육으로 별도 언급됨."
+        }
+      ]
+    },
+    {
+      "path_id": "cp-56",
+      "path_name": "진단·검사 전문 연구원",
+      "certs": [
+        {
+          "name": "임상병리사",
+          "issuer": "한국보건의료인국가시험원(면허)",
+          "scope": "domestic_national",
+          "cert_class": "career_credential",
+          "tier": "우대",
+          "why": "진단검사의학·체외진단 관련 연구직 채용공고에서 실제로 자격 소지자 또는 관련 학위 소지자를 요구하는 사례가 확인되는 국가면허다.",
+          "official_url": "https://www.kuksiwon.or.kr/subcnt/c_2012/1/view.do?seq=7&itm_seq=08",
+          "evidence_note": "아주대의료원 의학연구협력센터 계약직 연구원 채용공고에서 \"석사 이상(BT분야 우대) 또는 임상병리사 자격 소지자\" 요건 확인. 다만 임상병리학과 개설 대학이 50개 이상으로 배출인원 대비 취업처가 적어 경쟁이 치열함."
+        }
+      ]
+    },
+    {
+      "path_id": "cp-57",
+      "path_name": "생명공학 특허·기술사업화 전문가",
+      "certs": [
+        {
+          "name": "변리사",
+          "issuer": "특허청(시행: 한국산업인력공단 Q-Net)",
+          "scope": "domestic_national",
+          "cert_class": "professional_license",
+          "tier": "필수",
+          "why": "생명공학 기술의 특허출원 대리·기술사업화 자문 업무를 '변리사'로서 직접 수행하려면 지식재산권 전문 대리인 자격인 변리사 자격이 법적으로 요구된다.",
+          "official_url": "http://www.q-net.or.kr/crf005.do?id=crf00505&jmCd=9737",
+          "evidence_note": "특허청 지식재산제도 페이지(변리사시험 운영·관리)와 Q-Net 변리사 홈페이지에서 시험제도 확인(1차 객관식, 2차 논술, 특허청 주관·한국산업인력공단 시행위탁). 단, 특허법인 내 기술 검토역(연구원 출신)은 변리사 자격 없이도 근무 가능하며, '변리사'로 개업·활동하려면 자격이 필수."
+        }
+      ]
+    },
+    {
+      "path_id": "cp-58",
+      "path_name": "세포·조직공학 연구원",
+      "certs": []
+    },
+    {
+      "path_id": "cp-63",
+      "path_name": "바이오·의료소재 연구원",
+      "certs": []
+    }
+  ],
+  "thin_paths": [
+    {
+      "path_id": "cp-50",
+      "path_name": "바이오헬스케어 산업 기획자",
+      "reason": "보건복지부·한국보건산업진흥원(KHIDI)의 '바이오헬스 기업 인재수요 가이드북'에서도 직무별 요구 역량·기술을 안내하지만, 기획 직무 특성상 국가/민간 자격증보다 산업 이해도와 MBA 등 경영 관련 학위가 중요하며 특정 자격증이 시장에서 대표적으로 요구된다는 근거를 찾지 못함."
+    },
+    {
+      "path_id": "cp-52",
+      "path_name": "바이오 안전성·독성 평가 전문가",
+      "reason": "학부 졸업 시점에 실질적으로 취득 가능한 전문자격이 거의 없음. 위생사는 업무 성격이 다르고, 한국독성학회 독성전문가 인증은 석·박사 학위와 실무경력을 요구해 대학원 이후에나 접근 가능한 커리어 목표에 해당."
+    },
+    {
+      "path_id": "cp-53",
+      "path_name": "생명정보분석가",
+      "reason": "cert_hint의 '생물정보분석사'는 국가/민간 자격 목록에서 실재를 확인할 수 없었음. 채용공고 대다수가 생명과학·통계·컴퓨터공학 석박사 학위와 Python/R 등 프로그래밍 능력, 논문 실적을 요구하는 대학원 중심 직무로, 자격증이 채용을 좌우하지 않음."
+    },
+    {
+      "path_id": "cp-58",
+      "path_name": "세포·조직공학 연구원",
+      "reason": "경희대·가톨릭대 등 관련 연구실 모집공고에서 박사학위, 동물실험·중개연구 경험, 논문·특허 실적을 요구하는 대학원 이후 연구직으로 확인되며, 대표되는 국가/민간 자격증을 찾지 못함."
+    },
+    {
+      "path_id": "cp-63",
+      "path_name": "바이오·의료소재 연구원",
+      "reason": "금속재료기사·세라믹기사 등 신소재 분야 일반 국가자격은 존재하나(한국재료연구원 바이오·헬스재료연구본부 등에서 관련 연구 수행), '의료·바이오소재'에 특화된 자격증은 확인되지 않았고 채용은 대학원 학위와 재료분석 연구경험 중심으로 이뤄짐."
+    }
+  ]
+}

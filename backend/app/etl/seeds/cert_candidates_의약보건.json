@@ -1,0 +1,326 @@
+{
+  "field": "의약·보건(미추론)",
+  "generated_at": "2026-09-07T00:00:00+09:00",
+  "paths": [
+    {
+      "path_id": "med-01",
+      "path_name": "간호사",
+      "department": "간호학과",
+      "certs": [
+        {
+          "name": "간호사 면허",
+          "issuer": "보건복지부장관(시행: 한국보건의료인국가시험원)",
+          "scope": "domestic_national",
+          "cert_class": "professional_license",
+          "tier": "필수",
+          "why": "간호법상 간호사 국가면허 없이는 병원 등 의료기관에서 간호 업무를 수행할 수 없어 취업의 절대적 전제조건이다.",
+          "official_url": "https://www.kuksiwon.or.kr",
+          "evidence_note": "WebSearch: 국시원 공식 사이트 및 나무위키에서 간호사 국가시험이 간호법 제8조에 근거해 국시원 시행·보건복지부 면허 발급으로 확인."
+        },
+        {
+          "name": "보건교육사",
+          "issuer": "보건복지부(시행: 한국건강증진개발원)",
+          "scope": "domestic_national",
+          "cert_class": "career_credential",
+          "tier": "우대",
+          "why": "보건소·산업체 보건관리 등 임상 외 진로로 확장할 때 보건교육 기획 역량을 증명해 채용 시 가점 요소가 된다.",
+          "official_url": "",
+          "evidence_note": "WebSearch: 연세대 보건행정학부 자격증 안내 페이지에서 보건교육사가 국가자격임을 확인. 시행기관 상세는 재확인 필요."
+        }
+      ]
+    },
+    {
+      "path_id": "med-02",
+      "path_name": "물리치료사",
+      "department": "물리치료학과",
+      "certs": [
+        {
+          "name": "물리치료사 면허",
+          "issuer": "보건복지부장관(시행: 한국보건의료인국가시험원)",
+          "scope": "domestic_national",
+          "cert_class": "professional_license",
+          "tier": "필수",
+          "why": "의료기사 등에 관한 법률상 물리치료사 국가면허가 있어야 병원·재활센터에서 물리치료 업무를 할 수 있다.",
+          "official_url": "https://www.kuksiwon.or.kr",
+          "evidence_note": "WebSearch: 국시원 시험정보 페이지에서 물리치료사가 의료기사법상 국가면허 직종으로 확인."
+        }
+      ]
+    },
+    {
+      "path_id": "med-03",
+      "path_name": "방사선사",
+      "department": "방사선학과",
+      "certs": [
+        {
+          "name": "방사선사 면허",
+          "issuer": "보건복지부장관(시행: 한국보건의료인국가시험원)",
+          "scope": "domestic_national",
+          "cert_class": "professional_license",
+          "tier": "필수",
+          "why": "의료기사 등에 관한 법률상 방사선사 국가면허 없이는 X-ray·CT·MRI 등 영상의학 장비를 다루는 업무를 할 수 없다.",
+          "official_url": "https://www.kuksiwon.or.kr",
+          "evidence_note": "WebSearch: 국시원 시험정보 페이지에서 방사선사가 의료기사법상 국가면허 직종으로 확인."
+        }
+      ]
+    },
+    {
+      "path_id": "med-04",
+      "path_name": "임상병리사",
+      "department": "임상병리학과",
+      "certs": [
+        {
+          "name": "임상병리사 면허",
+          "issuer": "보건복지부장관(시행: 한국보건의료인국가시험원)",
+          "scope": "domestic_national",
+          "cert_class": "professional_license",
+          "tier": "필수",
+          "why": "의료기사 등에 관한 법률상 임상병리사 국가면허가 있어야 병원 진단검사의학과·임상검사실에서 검사 업무를 할 수 있다.",
+          "official_url": "https://www.kuksiwon.or.kr",
+          "evidence_note": "WebSearch: 국시원 시험정보 페이지에서 임상병리사가 의료기사법상 국가면허 직종으로 확인."
+        }
+      ]
+    },
+    {
+      "path_id": "med-05",
+      "path_name": "작업치료사",
+      "department": "작업치료학과",
+      "certs": [
+        {
+          "name": "작업치료사 면허",
+          "issuer": "보건복지부장관(시행: 한국보건의료인국가시험원)",
+          "scope": "domestic_national",
+          "cert_class": "professional_license",
+          "tier": "필수",
+          "why": "의료기사 등에 관한 법률상 작업치료사 국가면허가 있어야 재활병원·요양기관에서 작업치료 업무를 할 수 있다.",
+          "official_url": "https://www.kuksiwon.or.kr",
+          "evidence_note": "WebSearch: 국시원 시험정보 페이지에서 작업치료사가 의료기사법상 국가면허 직종으로 확인."
+        }
+      ]
+    },
+    {
+      "path_id": "med-06",
+      "path_name": "치과위생사",
+      "department": "치위생학과",
+      "certs": [
+        {
+          "name": "치과위생사 면허",
+          "issuer": "보건복지부장관(시행: 한국보건의료인국가시험원)",
+          "scope": "domestic_national",
+          "cert_class": "professional_license",
+          "tier": "필수",
+          "why": "의료기사 등에 관한 법률상 치과위생사 국가면허가 있어야 치과의원·병원에서 예방치과 처치 및 진료보조 업무를 할 수 있다.",
+          "official_url": "https://www.kuksiwon.or.kr",
+          "evidence_note": "WebSearch: 국시원 시험정보 페이지에서 치과위생사가 의료기사법상 국가면허 직종으로 확인."
+        }
+      ]
+    },
+    {
+      "path_id": "med-07",
+      "path_name": "의사",
+      "department": "의예과·의학과",
+      "certs": [
+        {
+          "name": "의사 면허",
+          "issuer": "보건복지부장관(시행: 한국보건의료인국가시험원)",
+          "scope": "domestic_national",
+          "cert_class": "professional_license",
+          "tier": "필수",
+          "why": "의료법상 의사 국가시험에 합격해 면허를 받아야만 진료 행위와 병원 취업(인턴·전공의 포함)이 가능하다.",
+          "official_url": "https://www.kuksiwon.or.kr",
+          "evidence_note": "WebSearch: 국시원이 의사·치과의사·한의사 등 25개 보건의료인 직종 국가시험을 관리함을 국시원 공식 소개에서 확인."
+        }
+      ]
+    },
+    {
+      "path_id": "med-08",
+      "path_name": "치과의사",
+      "department": "치의예과·치의학과",
+      "certs": [
+        {
+          "name": "치과의사 면허",
+          "issuer": "보건복지부장관(시행: 한국보건의료인국가시험원)",
+          "scope": "domestic_national",
+          "cert_class": "professional_license",
+          "tier": "필수",
+          "why": "의료법상 치과의사 국가시험에 합격해 면허를 받아야만 치과 진료 행위와 치과병·의원 개원·취업이 가능하다.",
+          "official_url": "https://www.kuksiwon.or.kr",
+          "evidence_note": "WebSearch: 국시원이 치과의사 국가시험을 관리함을 국시원 공식 소개에서 확인."
+        }
+      ]
+    },
+    {
+      "path_id": "med-09",
+      "path_name": "영양사",
+      "department": "식품영양학",
+      "certs": [
+        {
+          "name": "영양사 면허",
+          "issuer": "보건복지부장관(시행: 한국보건의료인국가시험원)",
+          "scope": "domestic_national",
+          "cert_class": "professional_license",
+          "tier": "필수",
+          "why": "국민영양관리법상 영양사 국가면허가 있어야 병원·학교·기업 급식소의 영양사로 배치될 수 있다.",
+          "official_url": "https://www.kuksiwon.or.kr",
+          "evidence_note": "WebSearch: 국시원·대한영양사협회 페이지에서 영양사 국가시험이 국시원 시행, 보건복지부장관 면허임을 확인."
+        },
+        {
+          "name": "식품기사",
+          "issuer": "한국산업인력공단(Q-Net)",
+          "scope": "domestic_national",
+          "cert_class": "career_credential",
+          "tier": "우대",
+          "why": "식품 제조·가공업체나 식품연구소로 진로를 넓힐 때 국가기술자격으로서 채용 우대사항에 자주 명시된다.",
+          "official_url": "https://www.q-net.or.kr",
+          "evidence_note": "기존 시드파일(cert_candidates_바이오1.json)의 식품기사 항목과 동일 근거를 재사용."
+        }
+      ]
+    },
+    {
+      "path_id": "med-10",
+      "path_name": "위생사(식품·환경위생 관리)",
+      "department": "식품영양학",
+      "certs": [
+        {
+          "name": "위생사 면허",
+          "issuer": "보건복지부장관(시행: 한국보건의료인국가시험원)",
+          "scope": "domestic_national",
+          "cert_class": "professional_license",
+          "tier": "필수",
+          "why": "공중위생관리법상 집단급식소·식품접객업소 등 일부 사업장은 위생사 면허 소지자 배치가 의무화되어 있어 해당 직무의 채용 전제조건이다.",
+          "official_url": "https://www.kuksiwon.or.kr",
+          "evidence_note": "WebSearch: 국시원·건국대 식품영양학과 자격증 안내에서 위생사 국가시험이 국시원 시행, 보건복지부장관 면허임을 확인."
+        }
+      ]
+    },
+    {
+      "path_id": "med-11",
+      "path_name": "보건의료정보관리사(의무기록관리)",
+      "department": "보건행정학부",
+      "certs": [
+        {
+          "name": "보건의료정보관리사 면허",
+          "issuer": "보건복지부장관(시행: 한국보건의료인국가시험원)",
+          "scope": "domestic_national",
+          "cert_class": "professional_license",
+          "tier": "필수",
+          "why": "의료기사 등에 관한 법률상 국가면허 직종으로, 병원 의무기록실·보험심사 부서에서 의무기록 관리 업무를 하려면 필수로 요구된다.",
+          "official_url": "https://www.kuksiwon.or.kr",
+          "evidence_note": "WebSearch: 연세대 보건행정학부 자격증 안내 및 나무위키에서 보건의료행정 학과인증 대학 졸업 후 국시원 시험 합격, 보건복지부장관 면허 발급으로 확인."
+        }
+      ]
+    },
+    {
+      "path_id": "med-12",
+      "path_name": "병원행정·보건직 공무원",
+      "department": "보건행정학부",
+      "certs": [
+        {
+          "name": "보건교육사",
+          "issuer": "보건복지부(시행: 한국건강증진개발원)",
+          "scope": "domestic_national",
+          "cert_class": "career_credential",
+          "tier": "우대",
+          "why": "보건소·지자체 보건직 채용에서 보건교육 기획·평가 역량을 공인하는 국가자격으로 가점 요소가 된다.",
+          "official_url": "",
+          "evidence_note": "WebSearch: 연세대 보건행정학부 자격증 안내 페이지에서 보건교육사가 국가자격임을 확인."
+        },
+        {
+          "name": "병원행정사",
+          "issuer": "민간 협회(단체별 상이, 예: 한국병원행정관리자협회)",
+          "scope": "domestic_private",
+          "cert_class": "career_credential",
+          "tier": "우대",
+          "why": "건강보험·의료급여 수가 청구 및 진료비 명세서 작성 실무 역량을 증명하는 민간자격으로, 병원 원무·보험심사 직무 채용 시 가점 요소로 쓰인다.",
+          "official_url": "",
+          "evidence_note": "WebSearch: 병원행정사가 건강보험·산재·의료급여 수가 적용 및 청구명세서 작성 검정 자격으로 설명되나, 발급기관이 협회별로 상이해 official_url 미기재."
+        }
+      ]
+    },
+    {
+      "path_id": "med-13",
+      "path_name": "헬스케어 데이터분석·디지털헬스 기획",
+      "department": "디지털헬스케어학부",
+      "certs": [
+        {
+          "name": "ADsP(데이터분석 준전문가)",
+          "issuer": "한국데이터산업진흥원",
+          "scope": "domestic_national",
+          "cert_class": "career_credential",
+          "tier": "우대",
+          "why": "응시자격 제한 없이 필기만으로 취득 가능해 헬스케어 데이터 직무 입문자가 데이터 이해도를 증명하는 용도로 가장 널리 쓰인다.",
+          "official_url": "https://www.dataq.or.kr",
+          "evidence_note": "WebSearch: dataq.or.kr(한국데이터산업진흥원)이 ADsP·ADP·SQLD 등 데이터자격검정 공식 시행기관으로 확인."
+        },
+        {
+          "name": "정보처리기사",
+          "issuer": "한국산업인력공단(Q-Net)",
+          "scope": "domestic_national",
+          "cert_class": "career_credential",
+          "tier": "우대",
+          "why": "디지털헬스 서비스 기획·개발 직무에서 IT 기초 소양을 증명하는 대표적 국가기술자격으로 채용 우대사항에 자주 포함된다.",
+          "official_url": "https://www.q-net.or.kr",
+          "evidence_note": "WebSearch: 다수 학과 자격증 안내 페이지에서 정보처리기사가 Q-Net 시행 국가기술자격으로 공통 확인."
+        },
+        {
+          "name": "보건의료정보관리사 면허",
+          "issuer": "보건복지부장관(시행: 한국보건의료인국가시험원)",
+          "scope": "domestic_national",
+          "cert_class": "professional_license",
+          "tier": "유용",
+          "why": "의료데이터의 구조와 법적 문서 체계를 이해하는 데 도움이 되나, 보건의료정보 관련 학과 졸업이 응시요건이라 디지털헬스케어 전공자 전원이 취득 가능한 것은 아니다.",
+          "official_url": "https://www.kuksiwon.or.kr",
+          "evidence_note": "WebSearch: 연세대 AI보건정보관리학과 자격증 안내에서 보건의료정보관리사가 디지털헬스 관련 학과에서 언급됨을 확인."
+        }
+      ]
+    },
+    {
+      "path_id": "med-14",
+      "path_name": "의료IT·헬스케어SW 개발",
+      "department": "보건의료SW",
+      "certs": [
+        {
+          "name": "정보처리기사",
+          "issuer": "한국산업인력공단(Q-Net)",
+          "scope": "domestic_national",
+          "cert_class": "career_credential",
+          "tier": "우대",
+          "why": "의료정보시스템·헬스케어SW 개발 직무에서 소프트웨어 개발 기초 역량을 증명하는 대표적 국가기술자격이다.",
+          "official_url": "https://www.q-net.or.kr",
+          "evidence_note": "med-13과 동일 근거(Q-Net 국가기술자격) 재사용."
+        },
+        {
+          "name": "ADsP(데이터분석 준전문가)",
+          "issuer": "한국데이터산업진흥원",
+          "scope": "domestic_national",
+          "cert_class": "career_credential",
+          "tier": "유용",
+          "why": "의료 데이터를 다루는 SW 직무에서 데이터 이해도를 보여주는 보조 자격으로 활용될 수 있다.",
+          "official_url": "https://www.dataq.or.kr",
+          "evidence_note": "med-13과 동일 근거(dataq.or.kr) 재사용."
+        }
+      ]
+    }
+  ],
+  "thin_paths": [
+    {
+      "path_id": "med-02",
+      "path_name": "물리치료사",
+      "reason": "국가면허 1건 외에 시장에서 통용되는 확인된 2차 자격이 없어 국가면허만 등재함."
+    },
+    {
+      "path_id": "med-04",
+      "path_name": "임상병리사",
+      "reason": "국가면허 1건 외에 시장에서 통용되는 확인된 2차 자격이 없어 국가면허만 등재함."
+    },
+    {
+      "path_id": "med-05",
+      "path_name": "작업치료사",
+      "reason": "국가면허 1건 외에 시장에서 통용되는 확인된 2차 자격이 없어 국가면허만 등재함."
+    },
+    {
+      "path_id": "med-06",
+      "path_name": "치과위생사",
+      "reason": "국가면허 1건 외에 시장에서 통용되는 확인된 2차 자격이 없어 국가면허만 등재함."
+    }
+  ]
+}

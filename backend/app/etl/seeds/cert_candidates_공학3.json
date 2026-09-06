@@ -1,0 +1,385 @@
+{
+  "field": "공학-건설건축도시",
+  "generated_at": "2026-09-07T00:00:00+00:00",
+  "paths": [
+    {
+      "path_id": "cp-12",
+      "path_name": "구조 엔지니어",
+      "certs": [
+        {
+          "name": "건축기사",
+          "issuer": "한국산업인력공단(Q-Net)",
+          "scope": "domestic_national",
+          "cert_class": "career_credential",
+          "tier": "필수",
+          "why": "시공사·건설사 채용에서 사실상 필수 자격증으로 통하며 삼성물산·현대건설 등 대기업과 LH·SH 등 공공기관에서도 우대한다.",
+          "official_url": "http://www.q-net.or.kr/crf005.do?id=crf00503&jmCd=1630",
+          "evidence_note": "나무위키 건축기사 문서 및 건축학과 취업진로 안내(kscms.ks.ac.kr)에서 시공사 취업 시 필수 자격증으로 확인됨."
+        },
+        {
+          "name": "건축구조기술사",
+          "issuer": "한국산업인력공단(Q-Net)",
+          "scope": "domestic_national",
+          "cert_class": "professional_license",
+          "tier": "우대",
+          "why": "구조설계 최상위 전문자격으로 기사 취득 후 4년 이상 실무경력이 있어야 응시 가능해 신입보다는 경력직 우대 요소다.",
+          "official_url": "https://www.q-net.or.kr/crf005.do?id=crf00503&jmCd=0490",
+          "evidence_note": "hershedin.com 정리자료 및 (사)대한기술사회(pesk.or.kr)에서 응시자격·전문성 확인."
+        },
+        {
+          "name": "토목구조기술사",
+          "issuer": "한국산업인력공단(Q-Net)",
+          "scope": "domestic_national",
+          "cert_class": "professional_license",
+          "tier": "우대",
+          "why": "건설업계 최고 자격증 중 하나로 구조해석부터 시공·감리까지 전 과정에 관여하는 토목분야 최상위 전문자격이다.",
+          "official_url": "https://www.q-net.or.kr",
+          "evidence_note": "odinurse.com 정리자료에서 시험과목·업계 위상 확인, Q-Net 세부 jmCd는 재확인 필요."
+        }
+      ]
+    },
+    {
+      "path_id": "cp-13",
+      "path_name": "지반·기초 엔지니어",
+      "certs": [
+        {
+          "name": "토목기사",
+          "issuer": "한국산업인력공단(Q-Net)",
+          "scope": "domestic_national",
+          "cert_class": "career_credential",
+          "tier": "필수",
+          "why": "지반·토목 엔지니어 채용의 기본 국가기술자격으로 공공기관·건설사 공채에서 폭넓게 요구된다.",
+          "official_url": "https://www.q-net.or.kr",
+          "evidence_note": "나무위키 토목기사 문서, 조선대 토목공학과 자격증 안내(civil.chosun.ac.kr)에서 확인."
+        },
+        {
+          "name": "토질및기초기술사",
+          "issuer": "한국산업인력공단(Q-Net)",
+          "scope": "domestic_national",
+          "cert_class": "professional_license",
+          "tier": "우대",
+          "why": "지반조사·기초설계·지하안전영향평가 등 실무를 총괄하는 전문기술사로, 건설 인력 채용공고에서 상주/비상주 필수인력으로 명시 요구되는 경우가 많다.",
+          "official_url": "http://www.kric.go.kr/jsp/board/portal/sub04/lic/certifiDetail.jsp?board_seq=49",
+          "evidence_note": "철도산업정보센터(kric.go.kr) 및 더팀스·코시티 등 채용공고에서 확인. cert_hints의 '지반공학기술사'는 정식 명칭이 아니며 Q-Net 정식 명칭은 '토질및기초기술사'(별도로 '지질및지반기술사'도 존재하므로 명칭 혼동 주의)."
+        }
+      ]
+    },
+    {
+      "path_id": "cp-14",
+      "path_name": "수자원·환경공학 기술자",
+      "certs": [
+        {
+          "name": "토목기사",
+          "issuer": "한국산업인력공단(Q-Net)",
+          "scope": "domestic_national",
+          "cert_class": "career_credential",
+          "tier": "필수",
+          "why": "수자원·환경 관련 건설 직무의 기본 자격으로 토목기사가 폭넓게 요구된다.",
+          "official_url": "https://www.q-net.or.kr",
+          "evidence_note": "나무위키 토목기사 문서에서 토목분야 기사 등급 기본 자격으로 확인."
+        },
+        {
+          "name": "수질환경기사",
+          "issuer": "한국산업인력공단(Q-Net)",
+          "scope": "domestic_national",
+          "cert_class": "career_credential",
+          "tier": "필수",
+          "why": "한국수자원공사 환경직 채용에서 수질환경기사는 거의 필수로 통하며 환경 공공기관·컨설팅사에서 가장 인정받는 자격이다.",
+          "official_url": "https://namu.wiki/w/%EC%88%98%EC%A7%88%ED%99%98%EA%B2%BD%EA%B8%B0%EC%82%AC",
+          "evidence_note": "hershedin.com·지우멘토 정리자료에서 K-water 환경직 필수성 확인."
+        },
+        {
+          "name": "수자원개발기술사",
+          "issuer": "한국산업인력공단(Q-Net)",
+          "scope": "domestic_national",
+          "cert_class": "professional_license",
+          "tier": "우대",
+          "why": "토목 기술사 중 수자원 분야를 전담하는 최상위 전문자격으로 대형 수자원 개발·설계 프로젝트에서 우대된다.",
+          "official_url": "https://www.q-net.or.kr",
+          "evidence_note": "조선대 토목공학과 자격증 목록에서 토목 기술사 종목으로 확인. K-water 공채 공고에서 구체적 우대 문구는 직접 확인되지 않아 간접 근거임."
+        }
+      ]
+    },
+    {
+      "path_id": "cp-15",
+      "path_name": "건설관리(CM/PM) 전문가",
+      "certs": [
+        {
+          "name": "건축기사",
+          "issuer": "한국산업인력공단(Q-Net)",
+          "scope": "domestic_national",
+          "cert_class": "career_credential",
+          "tier": "필수",
+          "why": "건설관리 직무도 시공 전반에 대한 이해가 필요해 건축기사가 기본 자격으로 요구된다.",
+          "official_url": "http://www.q-net.or.kr/crf005.do?id=crf00503&jmCd=1630",
+          "evidence_note": "cp-12과 동일 근거."
+        },
+        {
+          "name": "건설안전기사",
+          "issuer": "한국산업인력공단(Q-Net)",
+          "scope": "domestic_national",
+          "cert_class": "career_credential",
+          "tier": "필수",
+          "why": "산업안전보건법상 건설현장 안전관리자 채용 의무규정이 있어 건설안전기사는 현장 안전관리 직무에서 법정 필수급 자격이다.",
+          "official_url": "https://www.q-net.or.kr/crf005.do?id=crf00503&jmCd=1440",
+          "evidence_note": "두호멘토(doohomento.com)·Q-Net 자료에서 법적 채용의무 규정 확인."
+        },
+        {
+          "name": "건축시공기술사",
+          "issuer": "한국산업인력공단(Q-Net)",
+          "scope": "domestic_national",
+          "cert_class": "professional_license",
+          "tier": "우대",
+          "why": "부실공사·재해 예방을 위해 제정된 최상위 시공 전문자격으로 감리전문회사·대형 건설사의 CM/PM 직무에서 우대된다.",
+          "official_url": "https://namu.wiki/w/%EA%B1%B4%EC%B6%95%EC%8B%9C%EA%B3%B5%EA%B8%B0%EC%88%A0%EC%82%AC",
+          "evidence_note": "hershedin.com 정리자료 및 한국건축시공기술사협회 강연자료(kic.or.kr)에서 확인."
+        },
+        {
+          "name": "건설사업관리사",
+          "issuer": "한국CM협회",
+          "scope": "domestic_private",
+          "cert_class": "career_credential",
+          "tier": "우대",
+          "why": "건설사업관리(CM) 전담 자격으로 공항·철도·발전소 등 대규모 복합공사의 사업관리 직무 지원 시 우대 요소가 된다.",
+          "official_url": "https://cmkorea.org",
+          "evidence_note": "한국CM협회(cmkorea.org) 자격검정 안내에서 확인. 국가기술자격이 아닌 협회 발급 민간자격이라 scope를 domestic_private로 분류함."
+        }
+      ]
+    },
+    {
+      "path_id": "cp-16",
+      "path_name": "측량 및 공간정보 기술자",
+      "certs": [
+        {
+          "name": "측량및지형공간정보기사",
+          "issuer": "한국산업인력공단(Q-Net)",
+          "scope": "domestic_national",
+          "cert_class": "career_credential",
+          "tier": "필수",
+          "why": "측량업 등록 기술인력, 감리원 자격, 건설업 등록 기술인력 요건 등 법정 자격으로 활용되어 공간정보 직무의 기본 필수 자격이다.",
+          "official_url": "https://www.q-net.or.kr",
+          "evidence_note": "hershedin.com 정리자료 및 실제 채용공고(자동차운전면허+측량및지형공간정보기사 명시, work24.go.kr)에서 확인."
+        },
+        {
+          "name": "측량및지형공간정보기술사",
+          "issuer": "한국산업인력공단(Q-Net)",
+          "scope": "domestic_national",
+          "cert_class": "professional_license",
+          "tier": "우대",
+          "why": "측량 분야 최상위 전문기술사로 고급 인력 채용공고에서 '측량 및 지형공간정보 고급 이상'을 우대조건으로 명시하는 경우가 있다.",
+          "official_url": "https://www.q-net.or.kr",
+          "evidence_note": "giscorea.com 경력인정 안내 및 work24 채용공고에서 우대조건 확인. 자격증 소지가 필수요건은 아니라는 점도 함께 확인됨."
+        }
+      ]
+    },
+    {
+      "path_id": "cp-17",
+      "path_name": "스마트 건설/BIM 전문가",
+      "certs": [
+        {
+          "name": "토목기사",
+          "issuer": "한국산업인력공단(Q-Net)",
+          "scope": "domestic_national",
+          "cert_class": "career_credential",
+          "tier": "필수",
+          "why": "스마트건설·BIM 직무도 토목 기본 자격을 요구하는 경우가 많아 토목기사가 기본 자격으로 통용된다.",
+          "official_url": "https://www.q-net.or.kr",
+          "evidence_note": "국가건설기술교육원(kicte.or.kr) 스마트건설 인력양성과정 대상이 토목 기술인력임을 확인."
+        },
+        {
+          "name": "BIM전문가(1급/2급)",
+          "issuer": "한국BIM평가원",
+          "scope": "domestic_private",
+          "cert_class": "career_credential",
+          "tier": "우대",
+          "why": "한국BIM평가원이 발급하는 등록민간자격으로, BIM 도입이 늘어난 건설사·설계사무소에서 실무역량 증명 및 프로젝트관리 직무 우대요소로 활용된다.",
+          "official_url": "https://www.bimkorea.or.kr",
+          "evidence_note": "한국BIM평가원 공식 자격 페이지(등록민간자격 제2022-005510호·제2023-000709호)에서 확인. 법정 필수자격은 아니며 시장 우대신호로만 확인됨."
+        }
+      ]
+    },
+    {
+      "path_id": "cp-18",
+      "path_name": "건축시공·공정 관리자",
+      "certs": [
+        {
+          "name": "건축기사",
+          "issuer": "한국산업인력공단(Q-Net)",
+          "scope": "domestic_national",
+          "cert_class": "career_credential",
+          "tier": "필수",
+          "why": "시공사 취업 시 필수 자격증으로 통하며 현장 공정관리 업무에 직접 활용된다.",
+          "official_url": "http://www.q-net.or.kr/crf005.do?id=crf00503&jmCd=1630",
+          "evidence_note": "cp-12/cp-15와 동일 근거."
+        },
+        {
+          "name": "건축시공기술사",
+          "issuer": "한국산업인력공단(Q-Net)",
+          "scope": "domestic_national",
+          "cert_class": "professional_license",
+          "tier": "우대",
+          "why": "시공 전 과정의 품질관리를 총괄하는 최상위 전문자격으로 감리전문회사·대형 건설사에서 우대된다.",
+          "official_url": "https://namu.wiki/w/%EA%B1%B4%EC%B6%95%EC%8B%9C%EA%B3%B5%EA%B8%B0%EC%88%A0%EC%82%AC",
+          "evidence_note": "한국건축시공기술사협회 자료, hershedin.com 정리에서 확인."
+        },
+        {
+          "name": "건설안전기사",
+          "issuer": "한국산업인력공단(Q-Net)",
+          "scope": "domestic_national",
+          "cert_class": "career_credential",
+          "tier": "우대",
+          "why": "현장 안전관리 업무를 병행하는 경우가 많아 시공·공정관리자 채용에서도 건설안전기사 소지자가 우대된다.",
+          "official_url": "https://www.q-net.or.kr/crf005.do?id=crf00503&jmCd=1440",
+          "evidence_note": "나무위키 건축기사 문서에서 '건축시공기술사 및 안전기사 자격 보유자 우대' 언급 확인."
+        }
+      ]
+    },
+    {
+      "path_id": "cp-19",
+      "path_name": "건축설비 엔지니어",
+      "certs": [
+        {
+          "name": "건축설비기사",
+          "issuer": "한국산업인력공단(Q-Net)",
+          "scope": "domestic_national",
+          "cert_class": "career_credential",
+          "tier": "필수",
+          "why": "건축물의 냉난방·공조·급배수 설비 설계·시공 실무의 기본 국가기술자격으로 종합건설회사 설비 설계·현장 관리직 채용에서 자격증 소지자만 채용하거나 가산점을 부여하는 경우가 많다.",
+          "official_url": "http://www.q-net.or.kr/crf005.do?id=crf00503&jmCd=1632",
+          "evidence_note": "나무위키·gisanara.com 정리자료에서 채용 가산점·필수요건 확인."
+        },
+        {
+          "name": "건축기계설비기술사",
+          "issuer": "한국산업인력공단(Q-Net)",
+          "scope": "domestic_national",
+          "cert_class": "professional_license",
+          "tier": "우대",
+          "why": "건축설비기사의 상위 전문자격으로 설비설계업 등록·창업 요건이자 취득 후 급여 상승폭이 큰 경력 발전 자격이다.",
+          "official_url": "https://www.q-net.or.kr",
+          "evidence_note": "odinurse.com·govad.co.kr 정리자료에서 등록요건·연봉 정보 확인."
+        },
+        {
+          "name": "건축전기설비기술사",
+          "issuer": "한국산업인력공단(Q-Net)",
+          "scope": "domestic_national",
+          "cert_class": "professional_license",
+          "tier": "우대",
+          "why": "전기설계업 등록을 위해 기술사 자격 보유자가 대표 또는 상시 근무자로 필요해 사업체 등록 요건을 충족시키는 자산으로 평가된다.",
+          "official_url": "https://www.q-net.or.kr",
+          "evidence_note": "moa-ba.com 시험정보 정리자료에서 전기설계업 등록요건 근거 확인."
+        }
+      ]
+    },
+    {
+      "path_id": "cp-20",
+      "path_name": "친환경 건축 컨설턴트",
+      "certs": [
+        {
+          "name": "건축기사",
+          "issuer": "한국산업인력공단(Q-Net)",
+          "scope": "domestic_national",
+          "cert_class": "career_credential",
+          "tier": "필수",
+          "why": "건축물에너지평가사 응시자격(관련 기사 취득 후 실무경력 2년 이상)의 전제 자격이자 친환경건축 컨설팅의 기본 소양 자격이다.",
+          "official_url": "http://www.q-net.or.kr/crf005.do?id=crf00503&jmCd=1630",
+          "evidence_note": "한국에너지공단 건축물에너지평가사 자격시험 시행공고에서 응시자격(기사+경력) 확인."
+        },
+        {
+          "name": "건축물에너지평가사",
+          "issuer": "한국에너지공단",
+          "scope": "domestic_national",
+          "cert_class": "professional_license",
+          "tier": "우대",
+          "why": "건축물 에너지효율등급 인증·평가 업무를 수행하는 국가전문자격으로, 관련법 시행에 따라 공공기관 채용에서는 요구되지만 민간채용 공고는 드물어 우대 성격이 강하다.",
+          "official_url": "https://min24.energy.or.kr/nbea/",
+          "evidence_note": "govad.co.kr 및 한국에너지공단 공식페이지에서 '민간채용 거의 없음, 공공기관 중심 채용' 확인."
+        }
+      ]
+    },
+    {
+      "path_id": "cp-39",
+      "path_name": "도시계획가",
+      "certs": [
+        {
+          "name": "도시계획기사",
+          "issuer": "한국산업인력공단(Q-Net), 국토교통부",
+          "scope": "domestic_national",
+          "cert_class": "career_credential",
+          "tier": "필수",
+          "why": "국토교통부 주관 국가기술자격으로 공공기관·민간 도시계획 컨설팅사에서 취업을 위해 필수적으로 취득하는 자격으로 소개된다.",
+          "official_url": "https://www.q-net.or.kr",
+          "evidence_note": "나무위키·hershedin.com 정리자료에서 '취업을 위해 필수적으로 취득' 문구 확인."
+        },
+        {
+          "name": "도시계획기술사",
+          "issuer": "한국산업인력공단(Q-Net)",
+          "scope": "domestic_national",
+          "cert_class": "professional_license",
+          "tier": "우대",
+          "why": "도시계획기사 취득 후 4년 이상 실무경력이 있어야 응시 가능한 최상위 전문자격으로 국토연구원·대형 엔지니어링사 등에서 우대된다.",
+          "official_url": "https://www.q-net.or.kr/crf005.do?id=crf00503&jmCd=0650",
+          "evidence_note": "Q-Net 종목별 상세정보 페이지에서 확인."
+        }
+      ]
+    },
+    {
+      "path_id": "cp-40",
+      "path_name": "교통계획 전문가",
+      "certs": [
+        {
+          "name": "교통기사",
+          "issuer": "한국산업인력공단(Q-Net)",
+          "scope": "domestic_national",
+          "cert_class": "career_credential",
+          "tier": "필수",
+          "why": "교통계획·교통공학·교통시설 등을 다루는 교통분야 전문기술인력 양성을 위해 도입된 기본 국가기술자격이다.",
+          "official_url": "https://www.q-net.or.kr",
+          "evidence_note": "철도산업정보센터(kric.go.kr) 자격증정보에서 시험과목·도입 취지 확인."
+        },
+        {
+          "name": "교통안전관리자(도로)",
+          "issuer": "TS한국교통안전공단",
+          "scope": "domestic_national",
+          "cert_class": "career_credential",
+          "tier": "우대",
+          "why": "코레일 등 철도·운수 공기업 채용 시 가산점이 부여되는 법정 자격으로 교통안전 업무 전담 인력에게 우대 요소가 된다.",
+          "official_url": "https://lic.kotsa.or.kr",
+          "evidence_note": "TS한국교통안전공단 국가자격시험 페이지 및 나무위키 교통안전관리자 문서에서 공기업 가산점 확인."
+        }
+      ]
+    },
+    {
+      "path_id": "cp-41",
+      "path_name": "도시설계가",
+      "certs": [
+        {
+          "name": "도시계획기사",
+          "issuer": "한국산업인력공단(Q-Net), 국토교통부",
+          "scope": "domestic_national",
+          "cert_class": "career_credential",
+          "tier": "우대",
+          "why": "도시설계 전문가에게 건축사 자격은 필수가 아니며, 대신 도시계획기사 등 도시공학 관련 기술자격증이 더 실질적으로 활용된다.",
+          "official_url": "https://www.q-net.or.kr",
+          "evidence_note": "job.asamaru.net·kscms.ks.ac.kr 자료에서 '건축사는 필수 아님, 도시계획기사가 더 유용함'을 확인. cert_hints의 '건축사'는 시장 신호상 근거가 약해 채택하지 않음(건축사는 건물 설계 자격으로 도시설계 직무와 직접 연결되는 시장 신호를 찾지 못함)."
+        }
+      ]
+    },
+    {
+      "path_id": "cp-42",
+      "path_name": "환경·방재 정책 전문가",
+      "certs": [
+        {
+          "name": "환경영향평가사",
+          "issuer": "한국환경산업기술원(KEITI)",
+          "scope": "domestic_national",
+          "cert_class": "professional_license",
+          "tier": "필수",
+          "why": "제1종 환경영향평가업체는 환경영향평가사 고용이 법적으로 의무화되어 있어 관련 채용공고에서 자격사항으로 명시적으로 요구된다.",
+          "official_url": "https://www.keiti.re.kr",
+          "evidence_note": "한국환경산업기술원(KEITI), 환경영향평가 경력관리시스템(eia-career.or.kr) 및 (사)한국환경영향평가사회 구인게시판의 실제 채용공고에서 고용의무·자격요구 확인."
+        }
+      ]
+    }
+  ],
+  "thin_paths": []
+}

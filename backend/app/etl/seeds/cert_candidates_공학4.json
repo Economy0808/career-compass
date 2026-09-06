@@ -1,0 +1,238 @@
+{
+  "field": "공학-화공환경",
+  "generated_at": "2026-09-07T00:00:00+00:00",
+  "paths": [
+    {
+      "path_id": "cp-09",
+      "path_name": "반도체 공정/소자 엔지니어",
+      "certs": [
+        {
+          "name": "전자기사",
+          "issuer": "한국산업인력공단(Q-Net)",
+          "scope": "domestic_national",
+          "cert_class": "career_credential",
+          "tier": "우대",
+          "why": "설계 트랙에서 옛 반도체설계기사가 폐지(2022)되며 그 대체 성격의 자격으로 채용 우대에 활용된다.",
+          "official_url": "https://www.q-net.or.kr/crf005.do?id=crf00503",
+          "evidence_note": "머니투데이(2019) 및 후속 보도: 반도체설계기사는 2022년 국가기술자격법 개정으로 폐지, 큐넷 기준 현재 신규 취득 불가. 업계 커뮤니티(윈스펙 등)는 설계 직무의 실질 대체 자격을 전자기사로 언급."
+        },
+        {
+          "name": "화공기사",
+          "issuer": "한국산업인력공단(Q-Net)",
+          "scope": "domestic_national",
+          "cert_class": "career_credential",
+          "tier": "우대",
+          "why": "세정·에칭 등 화학 공정 비중이 큰 반도체 공정 파트에서 화공/화학분석 계열 자격을 우대한다.",
+          "official_url": "https://www.q-net.or.kr/crf005.do?id=crf00503",
+          "evidence_note": "잡포트 등 반도체 자격증 정리 글: 공정기술 엔지니어 채용에서 화공 관련 자격증(화공기사, 가스기사 등) 우대 명시."
+        }
+      ]
+    },
+    {
+      "path_id": "cp-74",
+      "path_name": "화학공정 엔지니어",
+      "certs": [
+        {
+          "name": "화공기사",
+          "issuer": "한국산업인력공단(Q-Net)",
+          "scope": "domestic_national",
+          "cert_class": "career_credential",
+          "tier": "필수",
+          "why": "석유화학 계열 기업 대다수가 지원 자격으로 위험물·가스·화공 자격증 중 최소 1개 소지를 요구한다.",
+          "official_url": "https://www.q-net.or.kr/crf005.do?id=crf00503",
+          "evidence_note": "채용 정보 검색: 석유화학 분야 기업들의 필수 지원 조건은 위험물/가스/화공 분야 자격증 중 1개 이상 보유. 나무위키(화공기사)는 화공 계통 내부 채용에서는 큰 가산 효과가 줄었다고도 언급해 완전한 필수는 아니고 '자격군 중 1개 필수'로 해석함."
+        },
+        {
+          "name": "위험물산업기사",
+          "issuer": "한국산업인력공단(Q-Net)",
+          "scope": "domestic_national",
+          "cert_class": "career_credential",
+          "tier": "필수",
+          "why": "위험물 저장·취급 시설의 안전관리자 지정 등 법정 의무와 연결되어 화학공장 채용에서 화공기사의 대체 요건으로 흔히 인정된다.",
+          "official_url": "https://www.q-net.or.kr/crf005.do?id=crf00503",
+          "evidence_note": "나무위키(위험물산업기사): 석유화학 기업 채용 시 위험물/가스/화공 자격증 중 1개 이상 필수 조건으로 반복 언급, 화공기사·소방설비기사 취득자가 겸유하는 경우가 많다고 서술."
+        },
+        {
+          "name": "화공기술사",
+          "issuer": "한국산업인력공단(Q-Net)",
+          "scope": "domestic_national",
+          "cert_class": "professional_license",
+          "tier": "우대",
+          "why": "관리자·연구원급 채용공고에서 화공기술사를 우대 자격으로 명시하는 경우가 있다.",
+          "official_url": "https://namu.wiki/w/%ED%99%94%EA%B3%B5%EA%B8%B0%EC%88%A0%EC%82%AC",
+          "evidence_note": "나무위키(화공기술사): 화학/전자 관련 기업의 관리자·연구원 채용에서 우대 자격으로 명시된 공고 다수 확인. 신입보다는 경력자 대상 우대 성격이 강함."
+        }
+      ]
+    },
+    {
+      "path_id": "cp-75",
+      "path_name": "에너지·환경공학 엔지니어",
+      "certs": [
+        {
+          "name": "대기환경기사",
+          "issuer": "한국산업인력공단(Q-Net)",
+          "scope": "domestic_national",
+          "cert_class": "career_credential",
+          "tier": "필수",
+          "why": "환경 관련 업무 경력자 채용에서 대기환경산업기사 이상을 필수 요건으로 요구하는 공고가 확인된다.",
+          "official_url": "https://q-net.or.kr/crf005.do?id=crf00503&jmCd=1661",
+          "evidence_note": "웹검색 종합: 대기환경 분야 환경관련 업무 3년 이상 경력자 채용 시 대기환경산업기사 이상 필수. 통합환경관리자 직무는 대기환경기사와 수질환경기사 동시 보유를 필수 조건으로 요구하는 사례도 확인."
+        },
+        {
+          "name": "수질환경기사",
+          "issuer": "한국산업인력공단(Q-Net)",
+          "scope": "domestic_national",
+          "cert_class": "career_credential",
+          "tier": "우대",
+          "why": "통합환경관리 체계에서는 대기와 수질 자격을 동시에 요구/우대하는 경향이 있다.",
+          "official_url": "https://namu.wiki/w/%EC%88%98%EC%A7%88%ED%99%98%EA%B2%BD%EA%B8%B0%EC%82%AC",
+          "evidence_note": "웹검색: 통합환경관리자 직무 공고에서 대기환경기사·수질환경기사 동시 보유를 필수/우대로 명시한 사례 확인."
+        }
+      ]
+    },
+    {
+      "path_id": "cp-76",
+      "path_name": "대기환경 엔지니어",
+      "certs": [
+        {
+          "name": "대기환경기사",
+          "issuer": "한국산업인력공단(Q-Net)",
+          "scope": "domestic_national",
+          "cert_class": "career_credential",
+          "tier": "필수",
+          "why": "대기오염 측정·저감 대책 업무를 다루는 채용에서 대기환경산업기사 이상을 필수로 요구하는 경우가 확인된다.",
+          "official_url": "https://q-net.or.kr/crf005.do?id=crf00503&jmCd=1661",
+          "evidence_note": "웹검색: 대기환경 분야 경력자(3년 이상) 채용 시 대기환경산업기사 이상 필수. 공무원 기술직 채용시험(환경직렬 대기 직류)에서도 가산점 부여."
+        },
+        {
+          "name": "수질환경기사",
+          "issuer": "한국산업인력공단(Q-Net)",
+          "scope": "domestic_national",
+          "cert_class": "career_credential",
+          "tier": "우대",
+          "why": "통합환경관리자 직무에서는 대기환경기사와 수질환경기사를 함께 요구하는 경우가 있어 겸유가 우대된다.",
+          "official_url": "https://namu.wiki/w/%EC%88%98%EC%A7%88%ED%99%98%EA%B2%BD%EA%B8%B0%EC%82%AC",
+          "evidence_note": "웹검색: 통합환경관리자 직무 공고에서 대기·수질 두 자격 동시 보유 요구 사례 확인."
+        }
+      ]
+    },
+    {
+      "path_id": "cp-77",
+      "path_name": "수질/상하수도 엔지니어",
+      "certs": [
+        {
+          "name": "수질환경기사",
+          "issuer": "한국산업인력공단(Q-Net)",
+          "scope": "domestic_national",
+          "cert_class": "career_credential",
+          "tier": "필수",
+          "why": "상하수·폐수처리 관련 채용공고에서 수질환경기사(또는 대기·폐기물환경기사 중 1개)를 필수 조건으로 명시한 사례가 확인된다.",
+          "official_url": "https://namu.wiki/w/%EC%88%98%EC%A7%88%ED%99%98%EA%B2%BD%EA%B8%B0%EC%82%AC",
+          "evidence_note": "웹검색: 채용공고 발췌 '필수 조건으로는 수질환경기사 또는 대기환경기사 또는 폐기물환경기사 자격증 중 1개 자격증 소지자'. 한국수자원공사 등 공공기관도 진출 분야로 언급."
+        },
+        {
+          "name": "상하수도기술사",
+          "issuer": "한국산업인력공단(Q-Net)",
+          "scope": "domestic_national",
+          "cert_class": "professional_license",
+          "tier": "우대",
+          "why": "상하수도 설계·시방서 작성 경력을 요구하는 채용에서 기술사급 자격을 우대한다.",
+          "official_url": "",
+          "evidence_note": "웹검색: 채용공고 예시 '수질관리기술사, 수질환경기사 소지자, 상하수도 관련 시방서 및 공법제안서 설계 작업경력자 우대'. 공식 큐넷 상세페이지 URL은 이번 검색에서 확보하지 못해 official_url 비움."
+        }
+      ]
+    },
+    {
+      "path_id": "cp-78",
+      "path_name": "폐기물·자원순환 엔지니어",
+      "certs": [
+        {
+          "name": "폐기물처리기사",
+          "issuer": "한국산업인력공단(Q-Net)",
+          "scope": "domestic_national",
+          "cert_class": "career_credential",
+          "tier": "필수",
+          "why": "지정폐기물 처리업체는 법령상 폐기물처리기사 1명 이상을 기술인력으로 의무 배치해야 한다.",
+          "official_url": "http://www.q-net.or.kr/crf005.do?id=crf00503&jmCd=1950",
+          "evidence_note": "폐기물관리법 시행규칙 제28조(관련 기술인력 기준): 지정폐기물 처리업체는 폐기물처리기사 1명 이상 의무 배치, 일반폐기물 수집·운반업은 산업기사 이상. 법정 필수 요건이므로 시장 우대를 넘어 필수로 판정."
+        }
+      ]
+    },
+    {
+      "path_id": "cp-79",
+      "path_name": "신재생에너지 엔지니어",
+      "certs": [
+        {
+          "name": "신재생에너지발전설비기사(태양광)",
+          "issuer": "한국산업인력공단(Q-Net)",
+          "scope": "domestic_national",
+          "cert_class": "career_credential",
+          "tier": "우대",
+          "why": "태양광·풍력 등 발전설비 시공·운영·유지보수 업체 채용 및 에너지 관련 기술직 공무원 채용에서 우대된다.",
+          "official_url": "http://www.q-net.or.kr/crf005.do?id=crf00503&jmCd=1114",
+          "evidence_note": "웹검색: 태양광 발전소 설계·시공·유지보수 업체, 신재생에너지 시스템 구축 기업, 공공기관 에너지관리 부서 채용에서 우대. 기술직 공무원 채용 가산점도 확인."
+        }
+      ]
+    },
+    {
+      "path_id": "cp-80",
+      "path_name": "환경영향평가/컨설턴트",
+      "certs": [
+        {
+          "name": "환경영향평가사",
+          "issuer": "환경부",
+          "scope": "domestic_national",
+          "cert_class": "professional_license",
+          "tier": "필수",
+          "why": "환경영향평가등 대행업을 하려는 자는 환경영향평가사 등 기술인력을 등록해야 하는 법정 요건이 있다.",
+          "official_url": "https://www.eia-career.or.kr/user/guidccontents/evlConttsRegistStdr2.do",
+          "evidence_note": "환경영향평가법 시행령 별표5(등급별 환경영향평가업의 기술인력 및 시설장비 기준): 환경영향평가업 등록을 위해 환경영향평가사 등 기술인력 확보가 법정 필수. 법제처 유권해석도 세부 요건 확인."
+        },
+        {
+          "name": "대기환경기사",
+          "issuer": "한국산업인력공단(Q-Net)",
+          "scope": "domestic_national",
+          "cert_class": "career_credential",
+          "tier": "유용",
+          "why": "평가서 작성 실무자 다수가 이미 수질·대기 기사를 보유하고 있어, 신입은 오히려 다른 분야(소음진동·토양 등) 자격으로 차별화하는 전략이 언급된다.",
+          "official_url": "https://q-net.or.kr/crf005.do?id=crf00503&jmCd=1661",
+          "evidence_note": "웹검색(환경영향평가 관련 콘텐츠): '대부분의 사수가 수질이나 대기 기사를 이미 등록한 상태이므로 신입은 폐기물·소음진동·토양·자연생태복원 기사 중 하나가 전략적 우대'라는 서술 확인. 출처가 개인 블로그성 콘텐츠라 evidence_note에 한정적 신뢰도로 표시."
+        }
+      ],
+      "note": "환경영향평가사는 응시자격(관련분야 학위+경력)이 있어 졸업 직후 바로 취득은 어렵고, 진입 초기에는 대기/수질 등 기사급 자격으로 경력을 쌓아 응시자격을 채우는 경로가 현실적이다."
+    },
+    {
+      "path_id": "cp-81",
+      "path_name": "토양·지하수 환경 전문가",
+      "certs": [
+        {
+          "name": "토양환경기사",
+          "issuer": "한국산업인력공단(Q-Net)",
+          "scope": "domestic_national",
+          "cert_class": "career_credential",
+          "tier": "필수",
+          "why": "토양환경보전법에 따른 토양관련전문기관 지정 및 토양정화업 등록의 기술인력 자격으로 법적으로 요구된다.",
+          "official_url": "https://namu.wiki/w/%ED%86%A0%EC%96%91%ED%99%98%EA%B2%BD%EA%B8%B0%EC%82%AC",
+          "evidence_note": "웹검색: 토양환경보전법에 의한 토양관련전문기관·토양정화업 등록 기술인력 자격, 지하수법에 의한 지하수정화업 등록 기술인력 자격으로도 인정된다는 서술 확인(법정 근거)."
+        },
+        {
+          "name": "수질환경기사",
+          "issuer": "한국산업인력공단(Q-Net)",
+          "scope": "domestic_national",
+          "cert_class": "career_credential",
+          "tier": "우대",
+          "why": "토양·지하수 오염은 수질과 연계되는 경우가 많아 관련 채용공고에서 수질환경기사를 함께 우대한다.",
+          "official_url": "https://namu.wiki/w/%EC%88%98%EC%A7%88%ED%99%98%EA%B2%BD%EA%B8%B0%EC%82%AC",
+          "evidence_note": "웹검색: 채용공고 우대사항 예시로 '토양환경기사, 수질환경기사, 토양환경산업기사' 병기 확인."
+        }
+      ]
+    }
+  ],
+  "thin_paths": [
+    {
+      "path_id": "cp-44",
+      "path_name": "소재 연구원",
+      "reason": "화공생명공학이 related_departments에 포함되어 대상에 넣었으나, R&D 연구직 특성상 시장 신호가 자격증보다 학위(석·박사)에 강하게 쏠려 있음이 검색으로 확인됨. 원본 cert_hints(금속재료기사, 세라믹기사, 고분자산업기사)는 채용공고에서 명시적 우대 근거를 찾지 못했고, 오히려 '석사 이상, 박사후연구원 경력'이 핵심 요건으로 반복 확인됨. 신뢰할 수 있는 자격증-우대 매칭이 없어 certs를 채우지 않고 thin_paths로 분류."
+    }
+  ]
+}

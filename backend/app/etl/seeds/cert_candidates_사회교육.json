@@ -1,0 +1,345 @@
+{
+  "field": "사회·교육(미추론)",
+  "generated_at": "2026-09-07T00:00:00+00:00",
+  "paths": [
+    {
+      "path_id": "soc-01",
+      "path_name": "사회복지사",
+      "department": "사회복지학",
+      "certs": [
+        {
+          "name": "사회복지사 2급",
+          "issuer": "보건복지부/한국사회복지사협회",
+          "scope": "domestic_national",
+          "cert_class": "professional_license",
+          "tier": "필수",
+          "why": "사회복지시설·기관 채용에서 가장 기본적으로 요구되는 자격으로, 전공 필수 17과목과 현장실습 160시간만 채우면 시험 없이 취득된다.",
+          "official_url": "https://www.welfare.net",
+          "evidence_note": "한국사회복지사협회 자격관리센터 및 다수 대학 학과 안내가 2급 취득요건(17과목+현장실습 160시간, 시험 없음)을 일관되게 명시"
+        },
+        {
+          "name": "사회복지사 1급",
+          "issuer": "보건복지부/한국산업인력공단",
+          "scope": "domestic_national",
+          "cert_class": "professional_license",
+          "tier": "우대",
+          "why": "공공기관·대형 복지법인 채용과 승진에서 우대되는 국가시험 합격 자격이다.",
+          "official_url": "https://www.q-net.or.kr",
+          "evidence_note": "Q-Net 국가시험 공고 및 협회 안내가 2급 취득 후 국가시험(200문항, 과락제) 합격 요건을 명시"
+        }
+      ]
+    },
+    {
+      "path_id": "soc-02",
+      "path_name": "임상심리·상담 전문가",
+      "department": "심리학",
+      "certs": [
+        {
+          "name": "정신건강임상심리사",
+          "issuer": "보건복지부",
+          "scope": "domestic_national",
+          "cert_class": "professional_license",
+          "tier": "우대",
+          "why": "정신건강복지센터·병원 정신건강의학과 등 임상 현장 채용에서 요구되는 국가전문자격이다.",
+          "official_url": "https://www.mohw.go.kr",
+          "evidence_note": "한국심리학회 자격증 안내 페이지가 보건복지부 국가전문자격으로 분류, 대학 학과 안내도 동일하게 확인"
+        },
+        {
+          "name": "임상심리사 2급",
+          "issuer": "한국산업인력공단",
+          "scope": "domestic_national",
+          "cert_class": "professional_license",
+          "tier": "우대",
+          "why": "실습·실무경력 요건이 있는 국가기술자격으로 병원·상담기관 채용에서 신뢰도가 높다.",
+          "official_url": "https://www.q-net.or.kr",
+          "evidence_note": "Q-Net 및 나무위키가 실습 1년 이상 또는 실무경력 2년 이상 응시요건을 명시"
+        },
+        {
+          "name": "상담심리사(한국상담심리학회)",
+          "issuer": "한국상담심리학회",
+          "scope": "domestic_private",
+          "cert_class": "career_credential",
+          "tier": "우대",
+          "why": "국내 심리상담 자격 중 공신력이 가장 높은 민간자격으로, 상담기관 채용 시 사실상 표준으로 통용된다.",
+          "official_url": "https://krcpa.or.kr",
+          "evidence_note": "검색 결과가 '국내 어떤 상담기관에서든 취업 시 우대'된다고 명시"
+        },
+        {
+          "name": "청소년상담사",
+          "issuer": "여성가족부/한국청소년상담복지개발원",
+          "scope": "domestic_national",
+          "cert_class": "professional_license",
+          "tier": "우대",
+          "why": "청소년상담복지센터·청소년수련관 등 공공 청소년기관 채용에서 요구되는 국가전문자격이다.",
+          "official_url": "https://www.youthcounselor.or.kr",
+          "evidence_note": "검색 결과가 여성가족부 발급 국가자격이며 청소년상담원·지원센터 취업 경로임을 명시"
+        }
+      ]
+    },
+    {
+      "path_id": "soc-03",
+      "path_name": "사회조사/리서치 전문가",
+      "department": "사회학",
+      "certs": [
+        {
+          "name": "사회조사분석사 2급",
+          "issuer": "한국산업인력공단",
+          "scope": "domestic_national",
+          "cert_class": "professional_license",
+          "tier": "우대",
+          "why": "리서치회사·통계청·공공기관 조사부서 채용에 활용되고 통계직 공무원시험 가산점(9급 5%·7급 3%)으로도 이어진다.",
+          "official_url": "https://www.q-net.or.kr",
+          "evidence_note": "Q-Net 상세정보 및 검색결과가 통계직 가산점 수치를 구체적으로 명시, 사회학 전공필수 과목(조사방법·통계)과 직결됨을 학과 안내가 설명"
+        },
+        {
+          "name": "사회조사분석사 1급",
+          "issuer": "한국산업인력공단",
+          "scope": "domestic_national",
+          "cert_class": "professional_license",
+          "tier": "유용",
+          "why": "2급보다 상위 자격으로 연구기관·대형 리서치사에서 추가 우대되나 취득 난이도가 높다.",
+          "official_url": "https://www.q-net.or.kr",
+          "evidence_note": "Q-Net 국가자격 종목별 상세정보 페이지에서 1급 별도 등급 확인"
+        }
+      ]
+    },
+    {
+      "path_id": "soc-04",
+      "path_name": "사서",
+      "department": "문헌정보학",
+      "certs": [
+        {
+          "name": "정사서 2급",
+          "issuer": "문화체육관광부/한국도서관협회",
+          "scope": "domestic_national",
+          "cert_class": "professional_license",
+          "tier": "필수",
+          "why": "공공·대학도서관 사서직 채용의 기본 법정 요건이며, 문헌정보학과 졸업 시 별도 시험 없이 발급된다.",
+          "official_url": "https://www.kla.kr",
+          "evidence_note": "검색 결과가 4년제 문헌정보학과 졸업 시 한국도서관협회에서 시험 없이 정사서2급이 발급됨을 명시"
+        },
+        {
+          "name": "정사서 1급",
+          "issuer": "문화체육관광부/한국도서관협회",
+          "scope": "domestic_national",
+          "cert_class": "professional_license",
+          "tier": "유용",
+          "why": "2급 취득 후 경력과 석사 이상 학위 요건을 채워야 승급하는 상위 자격으로 관리자급 이직에 도움이 된다.",
+          "official_url": "https://www.kla.kr",
+          "evidence_note": "검색 결과가 정사서2급 취득 후 경력·석사학위 요건 충족 시 1급 승급됨을 명시"
+        }
+      ]
+    },
+    {
+      "path_id": "soc-05",
+      "path_name": "보육교사/아동복지 실무자",
+      "department": "아동·가족학",
+      "certs": [
+        {
+          "name": "보육교사 2급",
+          "issuer": "보건복지부/한국보육진흥원",
+          "scope": "domestic_national",
+          "cert_class": "professional_license",
+          "tier": "필수",
+          "why": "영유아보육법상 어린이집 보육교사 취업의 법정 필수 자격이며, 관련 교과목 51학점 이수로 아동학과에서 취득 가능하다.",
+          "official_url": "https://chrd.childcare.go.kr",
+          "evidence_note": "영유아보육법 제21조 및 한국보육진흥원 공식 안내가 보건복지부 국가자격임을 명시"
+        },
+        {
+          "name": "사회복지사 2급",
+          "issuer": "보건복지부/한국사회복지사협회",
+          "scope": "domestic_national",
+          "cert_class": "professional_license",
+          "tier": "우대",
+          "why": "아동복지시설·지역아동센터 등 아동복지 실무 채용에서 보육교사 자격과 함께 병행 요구되는 경우가 많다.",
+          "official_url": "https://www.welfare.net",
+          "evidence_note": "아동학과 교과과정이 사회복지 관련 과목을 포함하는 경우가 많아 병행 취득 사례가 학과 안내에서 확인됨"
+        }
+      ]
+    },
+    {
+      "path_id": "soc-06",
+      "path_name": "평생교육 프로그램 기획자",
+      "department": "교육학부",
+      "certs": [
+        {
+          "name": "평생교육사 2급",
+          "issuer": "교육부/국가평생교육진흥원",
+          "scope": "domestic_national",
+          "cert_class": "professional_license",
+          "tier": "우대",
+          "why": "평생학습관·지자체 평생교육 담당 채용의 기본 자격 요건이다.",
+          "official_url": "https://lledu.nile.or.kr",
+          "evidence_note": "국가평생교육진흥원 자격관리 페이지가 필수 4과목 포함 30학점/10과목 이수 요건을 명시"
+        }
+      ]
+    },
+    {
+      "path_id": "soc-07",
+      "path_name": "중등학교 교사(교직이수)",
+      "department": "교육학부",
+      "certs": [
+        {
+          "name": "중등학교 2급 정교사 자격증(교직이수)",
+          "issuer": "교육부",
+          "scope": "domestic_national",
+          "cert_class": "professional_license",
+          "tier": "필수",
+          "why": "중등교사 임용시험 응시의 전제조건이 되는 법정 교원자격으로, 교육학부에서 교직과정 이수 시 취득 가능하다.",
+          "official_url": "https://www.moe.go.kr",
+          "evidence_note": "행정학과 등 타 학과 안내에서도 교직이수를 통한 중등2급 정교사 취득 경로가 공통적으로 확인됨"
+        },
+        {
+          "name": "한국사능력검정시험 (3급 이상)",
+          "issuer": "국사편찬위원회",
+          "scope": "domestic_national",
+          "cert_class": "career_credential",
+          "tier": "필수",
+          "why": "중등교사 임용시험 응시에 3급 이상 인증서가 필수 제출서류로 요구된다.",
+          "official_url": "https://www.historyexam.go.kr",
+          "evidence_note": "체육교사 임용 정보 페이지가 정교사2급 자격증과 함께 한국사능력검정시험 3급 이상을 응시 필수요건으로 명시"
+        }
+      ]
+    },
+    {
+      "path_id": "soc-08",
+      "path_name": "체육교사(임용)",
+      "department": "체육교육학",
+      "certs": [
+        {
+          "name": "중등학교 2급 정교사 자격증(체육)",
+          "issuer": "교육부",
+          "scope": "domestic_national",
+          "cert_class": "professional_license",
+          "tier": "필수",
+          "why": "중등 체육교사 임용고시 응시의 전제조건이 되는 법정 교원자격이다.",
+          "official_url": "https://www.moe.go.kr",
+          "evidence_note": "나무위키 체육교사 항목이 체육교육과 졸업(교직이수 포함)을 통한 2급 정교사 자격 취득을 명시"
+        },
+        {
+          "name": "한국사능력검정시험 (3급 이상)",
+          "issuer": "국사편찬위원회",
+          "scope": "domestic_national",
+          "cert_class": "career_credential",
+          "tier": "필수",
+          "why": "체육 중등임용시험 응시에 정교사2급 자격증과 함께 필수 제출서류로 요구된다.",
+          "official_url": "https://www.historyexam.go.kr",
+          "evidence_note": "검색 결과가 임용고시 응시 필수요건으로 한국사능력검정시험 3급 이상을 구체적으로 명시"
+        }
+      ]
+    },
+    {
+      "path_id": "soc-09",
+      "path_name": "생활스포츠지도자",
+      "department": "체육교육학",
+      "certs": [
+        {
+          "name": "생활스포츠지도사 2급",
+          "issuer": "문화체육관광부/국민체육진흥공단",
+          "scope": "domestic_national",
+          "cert_class": "professional_license",
+          "tier": "우대",
+          "why": "공공·민간 체육시설, 학교 밖 생활체육 지도자 채용에서 기본 자격으로 통용된다.",
+          "official_url": "https://sqms.kspo.or.kr",
+          "evidence_note": "국민체육진흥공단 공식 페이지 및 검색결과가 응시절차·취업전망(체육시설·직장·동호회)을 설명"
+        },
+        {
+          "name": "생활스포츠지도사 1급",
+          "issuer": "문화체육관광부/국민체육진흥공단",
+          "scope": "domestic_national",
+          "cert_class": "professional_license",
+          "tier": "유용",
+          "why": "2급 취득 후 3년 이상 지도경력이 있어야 응시 가능한 상위 자격으로 관리자급 채용에 유리하다.",
+          "official_url": "https://sqms.kspo.or.kr",
+          "evidence_note": "검색 결과가 2급 선취득 및 3년 이상 지도경력 요건을 명시"
+        }
+      ]
+    },
+    {
+      "path_id": "soc-10",
+      "path_name": "평생교육사",
+      "department": "평생교육사과정",
+      "certs": [
+        {
+          "name": "평생교육사 2급",
+          "issuer": "교육부/국가평생교육진흥원",
+          "scope": "domestic_national",
+          "cert_class": "professional_license",
+          "tier": "필수",
+          "why": "평생교육사과정 자체가 이 자격 취득을 목적으로 개설되며, 평생학습관·지자체 평생교육 담당 채용의 기본 요건이다.",
+          "official_url": "https://lledu.nile.or.kr",
+          "evidence_note": "국가평생교육진흥원 자격관리 페이지가 등급별(1~3급) 학점·과목 이수 요건을 명시"
+        },
+        {
+          "name": "평생교육사 3급",
+          "issuer": "교육부/국가평생교육진흥원",
+          "scope": "domestic_national",
+          "cert_class": "professional_license",
+          "tier": "유용",
+          "why": "관련과목 21학점 이상 이수로 취득 가능한 입문 등급이며 경력 누적으로 2급 승급이 가능하다.",
+          "official_url": "https://lledu.nile.or.kr",
+          "evidence_note": "국가평생교육진흥원 등급별 자격요건 페이지가 3급 취득요건(21학점 이상)을 명시"
+        }
+      ]
+    },
+    {
+      "path_id": "soc-11",
+      "path_name": "실내건축 설계·시공 전문가",
+      "department": "실내건축학",
+      "certs": [
+        {
+          "name": "실내건축기사",
+          "issuer": "한국산업인력공단",
+          "scope": "domestic_national",
+          "cert_class": "professional_license",
+          "tier": "우대",
+          "why": "실내건축 분야 국가기술자격 중 최상위로, 건축설계사무소·인테리어전문업체 채용과 개업·프리랜서 활동의 신뢰도를 높인다.",
+          "official_url": "https://www.q-net.or.kr",
+          "evidence_note": "Q-Net 상세정보 및 나무위키가 실내건축 분야 별도 상위자격 없는 최고 등급 국가기술자격으로 설명"
+        },
+        {
+          "name": "실내건축산업기사",
+          "issuer": "한국산업인력공단",
+          "scope": "domestic_national",
+          "cert_class": "professional_license",
+          "tier": "유용",
+          "why": "기사 취득 전 단계로 실무 입문 및 초기 경력에 활용된다.",
+          "official_url": "https://www.q-net.or.kr",
+          "evidence_note": "검색 결과가 기사 대비 도면 규모·시험시간이 축소된 하위 등급임을 설명"
+        }
+      ]
+    },
+    {
+      "path_id": "soc-12",
+      "path_name": "한국어교원",
+      "department": "한국언어문화교육전공",
+      "certs": [
+        {
+          "name": "한국어교원자격증 2급",
+          "issuer": "문화체육관광부/국립국어원",
+          "scope": "domestic_national",
+          "cert_class": "professional_license",
+          "tier": "필수",
+          "why": "국내외 한국어교육기관에서 한국어 강사로 채용되기 위한 법정 필수 자격이며, 한국어교육 학위과정(주전공·복수전공) 이수 시 취득된다.",
+          "official_url": "https://kteacher.korean.go.kr",
+          "evidence_note": "국립국어원 한국어교원 자격 공식 페이지가 학사(주전공 48학점 이상) 취득 시 2급부터 부여됨을 명시"
+        },
+        {
+          "name": "한국어교원자격증 3급",
+          "issuer": "문화체육관광부/국립국어원",
+          "scope": "domestic_national",
+          "cert_class": "professional_license",
+          "tier": "유용",
+          "why": "부전공 이수나 양성과정 수료 후 검정시험 합격으로 취득 가능한 입문 등급이며, 경력 누적으로 2급 승급이 가능하다.",
+          "official_url": "https://kteacher.korean.go.kr",
+          "evidence_note": "국립국어원 공식 페이지가 부전공 학위 또는 양성과정 120시간+검정시험 경로와 3년/1200시간 승급요건을 명시"
+        }
+      ]
+    }
+  ],
+  "thin_paths": [
+    "언론홍보영상학 - 기자/PD/방송작가/홍보전문가: 표준 자격증 없이 언론사 자체 필기·논술·실무시험(언론고시) 중심으로 채용됨. 검색 결과도 '기본 스펙 외 자격증은 큰 의미 없다'는 취업준비생 의견이 확인됨 → Chrome 후속으로 실제 언론사 채용공고 우대조건 직접 확인 필요",
+    "행정학·글로벌행정학전공·공공리더십 - 행정직 공무원: 공무원채용시험(9급/7급/행정고시) 자체가 진입 관문이며 전공 연계성도 높지 않음. 한국사능력검정시험은 일부 직렬 가산점/응시자격용으로만 참고할 수준 → Chrome 후속으로 직렬별 가산점 자격증 목록(인사혁신처 공고) 확인 필요",
+    "정치외교학·국제관계학·외교통상학 - 외교관/국제기구 진출: 외교관후보자 선발시험(국립외교원, 국가고시)이 유일한 관문이며 표준 국가·민간 자격증이 없음. 대다수 졸업생은 일반기업 취업으로 귀결된다는 검색 결과 확인 → Chrome 후속으로 국제기구 채용 시 어학·직무 자격 요건 별도 확인 필요"
+  ]
+}

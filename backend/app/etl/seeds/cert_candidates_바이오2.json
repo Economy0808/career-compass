@@ -1,0 +1,230 @@
+{
+  "field": "보건바이오-의료기기보건정보",
+  "generated_at": "2026-09-07T00:00:00+09:00",
+  "paths": [
+    {
+      "path_id": "cp-05",
+      "path_name": "보건의료정보관리사",
+      "certs": [
+        {
+          "name": "보건의료정보관리사",
+          "issuer": "보건복지부(면허) / 한국보건의료인국가시험원(국가시험 시행)",
+          "scope": "domestic_national",
+          "cert_class": "professional_license",
+          "tier": "필수",
+          "why": "종합병원급 이상 의료기관에 법정 필수 배치 인력으로, 이 직업 자체가 국가시험 합격 후 보건복지부 면허를 받아야만 수행 가능한 법정 업무이다.",
+          "official_url": "http://www.q-net.or.kr/crf005.do?id=crf00503&jmCd=6187",
+          "evidence_note": "Q-net 국가자격 종목별 상세정보 및 대한보건의료정보관리사협회(khima.or.kr) 확인. 종합병원 이상 의무 배치, 요양병원은 보험심사 청구업무 때문에 필수 채용된다는 대학 학과 공식페이지 다수 확인."
+        },
+        {
+          "name": "병원행정사",
+          "issuer": "대한병원행정관리자협회 (국가공인 민간자격)",
+          "scope": "domestic_private",
+          "cert_class": "career_credential",
+          "tier": "우대",
+          "why": "국가공인 민간자격으로 취득 시 관련 국가자격 소지자와 동일한 채용·승진 우대를 받아, 보건의료정보관리사 면허와 함께 취득하면 원무·병원행정 부서 경쟁력을 높인다.",
+          "official_url": "",
+          "evidence_note": "단국대 등 대학 학과 공식 자격시험 안내문에서 \"국가공인 병원행정사\" 문구 확인. 발급기관 단일 공식 URL은 검증되지 않아 공란 처리."
+        }
+      ]
+    },
+    {
+      "path_id": "cp-06",
+      "path_name": "헬스케어 데이터 분석가",
+      "certs": [
+        {
+          "name": "ADsP (데이터분석 준전문가)",
+          "issuer": "한국데이터산업진흥원(K-Data)",
+          "scope": "domestic_national",
+          "cert_class": "career_credential",
+          "tier": "우대",
+          "why": "데이터 이해에 관한 기본 소양을 검증하는 입문형 국가공인 자격으로 헬스케어 데이터 분석 직무 지원 시 최소 역량 증빙 용도로 쓰이나, 자체만으로 취업을 결정짓지는 않는다는 평가가 일반적이다.",
+          "official_url": "https://www.dataq.or.kr/www/sub/a_06.do",
+          "evidence_note": "dataq.or.kr(한국데이터산업진흥원 공식) 및 코드잇 블로그 등에서 \"입문용\", \"취업을 결정짓는 요소는 아님\" 명시."
+        },
+        {
+          "name": "빅데이터분석기사",
+          "issuer": "한국산업인력공단",
+          "scope": "domestic_national",
+          "cert_class": "career_credential",
+          "tier": "유용",
+          "why": "ADsP보다 실무형으로 평가되는 자격으로 데이터 수집·처리·분석·시각화 전 과정을 다뤄 헬스케어 데이터 분석 직무 역량을 더 폭넓게 증명한다.",
+          "official_url": "https://www.dataq.or.kr/www/sub/a_06.do",
+          "evidence_note": "코드잇 비교 아티클에서 \"ADsP는 입문용, 빅데이터분석기사는 실무형\"으로 구분해 설명."
+        },
+        {
+          "name": "보건의료정보관리사",
+          "issuer": "보건복지부(면허) / 한국보건의료인국가시험원",
+          "scope": "domestic_national",
+          "cert_class": "professional_license",
+          "tier": "유용",
+          "why": "의료데이터 표준(진단분류, EMR 구조)에 대한 도메인 지식을 뒷받침하는 국가면허로, 병원 소속 데이터분석 부서 채용 시 도메인 이해도 증빙으로 작용한다.",
+          "official_url": "http://www.q-net.or.kr/crf005.do?id=crf00503&jmCd=6187",
+          "evidence_note": "cert_hint 원문의 \"의료정보관리사\"는 명칭변경 이력(2018.12 의무기록사→보건의료정보관리사, 나무위키 확인)상 동일 국가면허를 가리키는 것으로 판단해 통합."
+        }
+      ]
+    },
+    {
+      "path_id": "cp-07",
+      "path_name": "건강보험심사평가 전문가",
+      "certs": [
+        {
+          "name": "보건의료정보관리사",
+          "issuer": "보건복지부(면허) / 한국보건의료인국가시험원",
+          "scope": "domestic_national",
+          "cert_class": "professional_license",
+          "tier": "필수",
+          "why": "요양병원급 이상에서는 보험심사 청구업무를 위해 보건의료정보관리사 면허 소지자를 필수적으로 채용하는 것이 업계 관행이다.",
+          "official_url": "http://www.q-net.or.kr/crf005.do?id=crf00503&jmCd=6187",
+          "evidence_note": "대학 보건행정학과 공식페이지에서 \"요양병원은 보험심사 청구업무 때문에 보건의료정보관리사를 필수적으로 고용\" 명시."
+        },
+        {
+          "name": "보험심사평가사(1급/2급)",
+          "issuer": "관련 협회 발급 민간자격(발급처 다수, 표준화 미흡)",
+          "scope": "domestic_private",
+          "cert_class": "career_credential",
+          "tier": "우대",
+          "why": "진료비 심사·청구 실무 이해도를 보여주는 민간자격으로, 요양병원·심사평가 관련 채용에서 보조 스펙으로 활용된다.",
+          "official_url": "",
+          "evidence_note": "여러 대학 보건행정학과 공식페이지(실라대, 서울디지털대 등)에서 취업연계 민간자격으로 안내. 단일 공식 발급기관 URL이 확인되지 않아 공란 처리, 나무위키상 건강보험심사평가원(공공기관)과는 별개 민간자격임에 유의."
+        }
+      ]
+    },
+    {
+      "path_id": "cp-08",
+      "path_name": "보건행정가",
+      "certs": [
+        {
+          "name": "보건교육사(1~3급)",
+          "issuer": "보건복지부(관리: 국가자격보건교육사협회)",
+          "scope": "domestic_national",
+          "cert_class": "professional_license",
+          "tier": "우대",
+          "why": "보건소 등 공공기관 채용의 필수조건은 아니지만 일부 채용에서 가산점을 부여해 보건행정직 준비생의 경쟁력을 높인다.",
+          "official_url": "http://www.kaches.or.kr/",
+          "evidence_note": "국가자격보건교육사협회(kaches.or.kr) 공식 확인. 2024년 서울시 일부 보건소 채용에서 보건교육사 3급 이상 가산점 부여 사례가 대학 학과 페이지에 인용됨. \"필수조건은 아니며 경력·실습이 더 중요\"하다는 서술도 함께 확인."
+        },
+        {
+          "name": "병원행정사",
+          "issuer": "대한병원행정관리자협회 (국가공인 민간자격)",
+          "scope": "domestic_private",
+          "cert_class": "career_credential",
+          "tier": "유용",
+          "why": "병원 행정관리 부서로 진로를 잡을 경우 채용·승진 시 관련 국가자격과 동일 대우를 받는 국가공인 민간자격으로 실무역량을 보여줄 수 있다.",
+          "official_url": "",
+          "evidence_note": "대학 공식 자격시험 안내문에서 \"국가공인 병원행정사\" 확인. 보건행정가가 공공기관이 아닌 병원 행정 트랙으로 진출할 때만 유용함을 명시."
+        }
+      ]
+    },
+    {
+      "path_id": "cp-35",
+      "path_name": "바이오/의료기기 엔지니어",
+      "certs": [
+        {
+          "name": "일반기계기사",
+          "issuer": "한국산업인력공단",
+          "scope": "domestic_national",
+          "cert_class": "career_credential",
+          "tier": "우대",
+          "why": "4년제 기계공학과 커리큘럼과 흡사해 취득 부담이 낮고, 의료기기 제조·설계 직무 지원 시 기계공학 기본역량 증빙으로 널리 통용된다.",
+          "official_url": "https://namu.wiki/w/%EC%9D%BC%EB%B0%98%EA%B8%B0%EA%B3%84%EA%B8%B0%EC%82%AC",
+          "evidence_note": "대학 기계공학과 공식페이지 다수에서 표준 자격증으로 소개. 의료기기 산업과의 직접 연계 근거는 간접적(여러 제조업 분야 중 하나로 언급)이라는 점을 정직하게 명시함."
+        },
+        {
+          "name": "의료기기RA전문가(2급)",
+          "issuer": "한국의료기기안전정보원 (국가공인)",
+          "scope": "domestic_national",
+          "cert_class": "career_credential",
+          "tier": "유용",
+          "why": "설계·개발 이후 인허가·품질관리(GMP)로 진로를 넓히려는 기계공학 출신 엔지니어에게 규제과학 지식을 더해주는 국가공인 자격이다.",
+          "official_url": "",
+          "evidence_note": "식약처 발표 및 전북대 의생명공학부 공고문(한국의료기기안전정보원 공고 제2024-14호)에서 민간자격→국가공인 승격 확인. 기계공학 출신에게는 선택적 확장 자격으로, 필수는 아님."
+        }
+      ]
+    },
+    {
+      "path_id": "cp-65",
+      "path_name": "의료기기 개발 엔지니어",
+      "certs": [
+        {
+          "name": "의공기사",
+          "issuer": "한국산업인력공단",
+          "scope": "domestic_national",
+          "cert_class": "career_credential",
+          "tier": "우대",
+          "why": "의료기기의 구조·설치·안전성 검사 등 실무 지식을 검증하는 전자 분야 국가기술자격으로, 의료기기 제조업체 채용에서 실무역량 증빙으로 쓰인다.",
+          "official_url": "https://namu.wiki/w/%EC%9D%98%EA%B3%B5%EA%B8%B0%EC%82%AC",
+          "evidence_note": "나무위키 및 유스연합 카드뉴스에서 국가기술자격(전자 분야) 확인, 의료기기 제조·생산업체 수요 증가 서술 확인."
+        },
+        {
+          "name": "전자기사",
+          "issuer": "한국산업인력공단",
+          "scope": "domestic_national",
+          "cert_class": "career_credential",
+          "tier": "유용",
+          "why": "의료기기 내 전자회로·센서 설계 역량을 검증하는 범용 전자 분야 국가기술자격으로, 의공기사와 함께 취득하면 전자 하드웨어 개발 직무 지원에 도움이 된다.",
+          "official_url": "",
+          "evidence_note": "VERIFY 결과: cert_hint 원문의 \"의료전자기사\"라는 명칭은 검색으로 확인되지 않아 실재하지 않는 것으로 판단, 실제 존재하는 유사 국가기술자격인 \"전자기사\"로 대체함."
+        }
+      ]
+    },
+    {
+      "path_id": "cp-66",
+      "path_name": "의료영상 분석 전문가",
+      "certs": []
+    },
+    {
+      "path_id": "cp-67",
+      "path_name": "재활·바이오메카닉스 연구원",
+      "certs": []
+    },
+    {
+      "path_id": "cp-68",
+      "path_name": "의료기기 인허가/규제 전문가",
+      "certs": [
+        {
+          "name": "의료기기RA전문가(2급)",
+          "issuer": "한국의료기기안전정보원 (국가공인, 식약처 소관)",
+          "scope": "domestic_national",
+          "cert_class": "career_credential",
+          "tier": "필수",
+          "why": "시판 전 인허가·사후관리·품질관리(GMP)·임상·해외인허가를 모두 검정하는 업계 표준 자격으로, 최근 민간자격에서 국가공인으로 승격되며 이 직무의 사실상 대표 자격으로 자리잡았다.",
+          "official_url": "",
+          "evidence_note": "식약처 발표 보도(pharmnews, medifonews) 및 전북대 의생명공학부 공식 공고문(한국의료기기안전정보원 공고 제2024-14호)에서 국가공인 승격 확인. 법적으로 취업을 위해 반드시 필요한 면허는 아니지만, 직무명과 직결되는 표준 자격이라는 점에서 필수로 분류."
+        }
+      ]
+    },
+    {
+      "path_id": "cp-69",
+      "path_name": "생체재료 및 조직공학 연구원",
+      "certs": []
+    },
+    {
+      "path_id": "cp-70",
+      "path_name": "의공학 연구원",
+      "certs": []
+    }
+  ],
+  "thin_paths": [
+    {
+      "path_id": "cp-66",
+      "path_name": "의료영상 분석 전문가",
+      "reason": "학부 취업보다 대학원 진학(석/박사) 중심 경로. 검색으로 확인되는 것은 관련 자격증이 아니라 대학원 연구실·인턴십(코어라인소프트, 국립암센터 등) 경로뿐이며, 이 직무를 대표하는 자격증은 확인되지 않음."
+    },
+    {
+      "path_id": "cp-67",
+      "path_name": "재활·바이오메카닉스 연구원",
+      "reason": "재활공학·바이오메카닉스는 대학원 세부전공(바이오닉스 등) 중심으로 진행되는 연구 트랙이며, 학부 단계에서 통용되는 대표 자격증이 확인되지 않음."
+    },
+    {
+      "path_id": "cp-69",
+      "path_name": "생체재료 및 조직공학 연구원",
+      "reason": "연구원 진출에는 별도 자격증이 아니라 석사 이상 학력과 논문·연구 경력이 핵심 요건이라는 점이 직업백과 및 학과 공식페이지에서 일관되게 확인됨."
+    },
+    {
+      "path_id": "cp-70",
+      "path_name": "의공학 연구원",
+      "reason": "경로 설명 자체가 대학원 진학을 전제로 하며, 검색 결과에서도 특정 국가자격 없이 석사 이상 학력과 연구 경력이 핵심 요건으로 확인됨."
+    }
+  ]
+}

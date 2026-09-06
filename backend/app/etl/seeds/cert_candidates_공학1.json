@@ -1,0 +1,199 @@
+{
+  "field": "공학-기계재료산업",
+  "generated_at": "2026-09-07T00:00:00+00:00",
+  "paths": [
+    {
+      "path_id": "cp-10",
+      "path_name": "메카트로닉스/자동차 엔지니어",
+      "certs": [
+        {
+          "name": "메카트로닉스기사",
+          "issuer": "한국산업인력공단(Q-Net)",
+          "scope": "domestic_national",
+          "cert_class": "career_credential",
+          "tier": "우대",
+          "why": "메카트로닉스공학과 졸업생이 자동화·제어 분야 취업 경쟁력을 높이기 위해 실제로 취득하는 국가기술자격이다.",
+          "official_url": "",
+          "evidence_note": "동서대·경북과학대 등 메카트로닉스공학과 자격증 안내 페이지에서 취업 연계 자격증으로 공통 언급됨(2026-09 검색). Q-Net 종목 상세 링크는 검색으로 확정하지 못해 비워둠."
+        },
+        {
+          "name": "일반기계기사",
+          "issuer": "한국산업인력공단(Q-Net)",
+          "scope": "domestic_national",
+          "cert_class": "career_credential",
+          "tier": "우대",
+          "why": "자동차·기계 제조업 전반에서 기계설계·생산 직무 관련성을 증명하는 대표 국가기술자격이다.",
+          "official_url": "https://www.q-net.or.kr/crf005.do?id=crf00503&jmCd=1021",
+          "evidence_note": "나무위키·Q-Net 및 대학 자격증 안내에서 자동차·기계 제조업 채용 연계 자격증으로 다수 확인(2026-09 검색). 단, 자동차 엔지니어 채용은 경력·포트폴리오 비중이 크다는 지적도 있어 필수는 아님."
+        }
+      ]
+    },
+    {
+      "path_id": "cp-32",
+      "path_name": "기계설계 엔지니어",
+      "certs": [
+        {
+          "name": "일반기계기사",
+          "issuer": "한국산업인력공단(Q-Net)",
+          "scope": "domestic_national",
+          "cert_class": "career_credential",
+          "tier": "우대",
+          "why": "기계설계·생산기술 직무의 실무 연관성을 보여주는 기사급 국가기술자격으로, 공기업 기계직렬 채용에서 가산점 및 전공시험 기반으로도 쓰인다.",
+          "official_url": "https://www.q-net.or.kr/crf005.do?id=crf00503&jmCd=1021",
+          "evidence_note": "나무위키·국민원격교육관리센터 등에서 공기업 가산점·NCS 기계직렬 전공시험 연계 확인(2026-09 검색). 2024년 기계설계기사와 시험이 통합됨."
+        },
+        {
+          "name": "기계설계산업기사",
+          "issuer": "한국산업인력공단(Q-Net)",
+          "scope": "domestic_national",
+          "cert_class": "career_credential",
+          "tier": "유용",
+          "why": "학부 재학 중에도 응시 가능한 산업기사 등급으로 중소 설계·금형업체 채용에서 기본 자격으로 요구되는 경우가 있다.",
+          "official_url": "https://www.q-net.or.kr/crf005.do?id=crf00503&jmCd=2031",
+          "evidence_note": "나무위키 및 govjob 자격증 가이드에서 중소 제조·설계업체 채용 시 필수/우대 요건으로 언급(2026-09 검색). 일반기계기사보다 등급이 낮아 상급 자격 취득 시 대체되는 경향."
+        }
+      ]
+    },
+    {
+      "path_id": "cp-33",
+      "path_name": "열유체/에너지 엔지니어",
+      "certs": [
+        {
+          "name": "일반기계기사",
+          "issuer": "한국산업인력공단(Q-Net)",
+          "scope": "domestic_national",
+          "cert_class": "career_credential",
+          "tier": "우대",
+          "why": "2024년 개편 이후 열유체해석이 시험 필수 과목으로 포함되어 열유체 엔지니어 직무 연관성이 더 뚜렷해진 국가기술자격이다.",
+          "official_url": "https://www.q-net.or.kr/crf005.do?id=crf00503&jmCd=1021",
+          "evidence_note": "나무위키·우송대 등에서 시험과목에 열유체해석 포함 및 열유체 직무 연계 확인(2026-09 검색)."
+        },
+        {
+          "name": "에너지관리기사",
+          "issuer": "한국산업인력공단(Q-Net)",
+          "scope": "domestic_national",
+          "cert_class": "career_credential",
+          "tier": "우대",
+          "why": "시설관리·에너지관리 직무 및 공기업 채용에서 필수 또는 우대 자격으로 자주 요구되는 국가기술자격이다.",
+          "official_url": "",
+          "evidence_note": "나무위키·Indeed 채용공고 다수, 한국환경공단(cworknet) 등에서 자격 소지자 채용 확인(2026-09 검색). 하위 등급인 에너지관리산업기사의 1년 이내 취업률이 79.4%로 보도됨."
+        }
+      ]
+    },
+    {
+      "path_id": "cp-34",
+      "path_name": "생산/제조공정 엔지니어",
+      "certs": [
+        {
+          "name": "품질경영기사",
+          "issuer": "한국산업인력공단(Q-Net)",
+          "scope": "domestic_national",
+          "cert_class": "career_credential",
+          "tier": "우대",
+          "why": "중대형 제조기업의 품질관리·생산관리 부서에서 직무 전문성을 인정받는 국가기술자격으로 공무원 공업직렬 가산점도 있다.",
+          "official_url": "",
+          "evidence_note": "나무위키·블라인드·윈스펙 커뮤니티에서 자동차·발전·화학·식품 제조업 품질관리 부서 우대 확인, 7·9급 공업직렬 5% 가산점 언급(2026-09 검색)."
+        },
+        {
+          "name": "산업안전기사",
+          "issuer": "한국산업인력공단(Q-Net)",
+          "scope": "domestic_national",
+          "cert_class": "career_credential",
+          "tier": "우대",
+          "why": "법정 안전관리자 선임 요건과 연결되어 제조 현장 채용에서 실질적 채용 메리트가 있는 자격증이다.",
+          "official_url": "",
+          "evidence_note": "윈스펙 커뮤니티 등에서 법적 안전관리자 선임 의무와 연계된 채용 메리트 확인(2026-09 검색). 생산기술 직무에서는 안전관리 역량 보완용으로 활용됨."
+        },
+        {
+          "name": "생산자동화산업기사",
+          "issuer": "한국산업인력공단(Q-Net)",
+          "scope": "domestic_national",
+          "cert_class": "career_credential",
+          "tier": "유용",
+          "why": "생산 공정 자동화 관련 기초 지식을 인증하는 산업기사로, 생산기술 직무 지원 시 보조적 우대 요소로 쓰인다.",
+          "official_url": "",
+          "evidence_note": "메카트로닉스·기계공학과 자격증 안내 페이지에서 생산기술 관련 취득 자격증으로 공통 언급되나, 생산기술 채용공고 자체는 코딩·데이터분석 역량을 더 강조하는 경향이 확인됨(2026-09 검색). '6시그마'는 인증기관이 통일되지 않고 채용 우대 근거가 뚜렷하지 않아 제외."
+        }
+      ]
+    },
+    {
+      "path_id": "cp-36",
+      "path_name": "구조/해석 엔지니어(CAE)",
+      "certs": [
+        {
+          "name": "일반기계기사",
+          "issuer": "한국산업인력공단(Q-Net)",
+          "scope": "domestic_national",
+          "cert_class": "career_credential",
+          "tier": "우대",
+          "why": "2024년 개편으로 구조해석이 시험 필수 과목에 포함되어 CAE 구조해석 직무와의 연관성이 커진 국가기술자격이다.",
+          "official_url": "https://www.q-net.or.kr/crf005.do?id=crf00503&jmCd=1021",
+          "evidence_note": "나무위키·유튜브 강의 등에서 구조해석 실기 과제 포함 확인(2026-09 검색). 다만 실제 CAE 채용공고는 ANSYS·HyperWorks 등 해석 소프트웨어 숙련도와 석사 학위를 자격증보다 더 중시하는 경향이 뚜렷함."
+        }
+      ]
+    },
+    {
+      "path_id": "cp-44",
+      "path_name": "소재 연구원",
+      "certs": [
+        {
+          "name": "금속재료기사",
+          "issuer": "한국산업인력공단(Q-Net)",
+          "scope": "domestic_national",
+          "cert_class": "career_credential",
+          "tier": "우대",
+          "why": "철강·자동차·전자 소재 제조업체의 품질관리·연구개발 직무에서 국가기술자격법상 우대가 명시된 자격증이다.",
+          "official_url": "https://www.q-net.or.kr/crf005.do?id=crf00503&jmCd=1104",
+          "evidence_note": "실라대 신소재반도체공학과·배터리학과 자격증 안내, Q-Net에서 철강·자동차·조선 업체 우대 확인(2026-09 검색)."
+        },
+        {
+          "name": "세라믹기사",
+          "issuer": "한국산업인력공단(Q-Net)",
+          "scope": "domestic_national",
+          "cert_class": "career_credential",
+          "tier": "유용",
+          "why": "디스플레이·반도체용 세라믹 소재를 다루는 연구직에서 관련 전공지식을 증명하는 보조적 국가기술자격이다.",
+          "official_url": "https://www.q-net.or.kr/crf005.do?id=crf00503&jmCd=1520",
+          "evidence_note": "Q-Net 종목 상세는 확인되나 구체적 채용 우대 사례는 검색에서 뚜렷하게 확인되지 않아 낮은 확신도로 포함(2026-09 검색). '고분자산업기사'는 채용 연계 근거를 찾지 못해 제외."
+        }
+      ]
+    },
+    {
+      "path_id": "cp-62",
+      "path_name": "이차전지·에너지소재 연구원",
+      "certs": [
+        {
+          "name": "화공기사",
+          "issuer": "한국산업인력공단(Q-Net)",
+          "scope": "domestic_national",
+          "cert_class": "career_credential",
+          "tier": "우대",
+          "why": "이차전지 소재 생산·연구개발 직무 채용에서 화학공정 기초 역량을 증명하는 자격으로 우대 조건에 자주 등장한다.",
+          "official_url": "",
+          "evidence_note": "에코앤드림 등 이차전지 소재기업 채용공고에서 화공기사 보유자 우대 확인(2026-09 검색). cert_hints에는 없던 항목이나 검색으로 새로 확인됨."
+        },
+        {
+          "name": "위험물산업기사",
+          "issuer": "한국산업인력공단(Q-Net)",
+          "scope": "domestic_national",
+          "cert_class": "career_credential",
+          "tier": "우대",
+          "why": "전해액 등 위험물을 다루는 이차전지 소재 공정 특성상 안전관리 역량을 인정받는 자격으로 채용 우대에 반영된다.",
+          "official_url": "",
+          "evidence_note": "이차전지 소재기업 채용공고 및 대구가톨릭대 배터리공학과 안내에서 위험물산업기사 취득 권장 확인(2026-09 검색)."
+        },
+        {
+          "name": "화학분석기사",
+          "issuer": "한국산업인력공단(Q-Net)",
+          "scope": "domestic_national",
+          "cert_class": "career_credential",
+          "tier": "유용",
+          "why": "배터리 소재의 성분·품질 분석 업무(QC)에서 분석 역량을 인증하는 자격으로 QC 직무 채용에서 우대된다.",
+          "official_url": "https://www.q-net.or.kr/crf005.do?id=crf00503&jmCd=1563",
+          "evidence_note": "대구가톨릭대 배터리공학과 안내 및 이차전지 QC 채용공고에서 ICP-OES 경험자와 함께 화학분석기사 우대 언급(2026-09 검색)."
+        }
+      ]
+    }
+  ],
+  "thin_paths": []
+}
