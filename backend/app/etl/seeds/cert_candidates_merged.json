@@ -1,0 +1,542 @@
+{
+  "unique_count": 34,
+  "certs": [
+    {
+      "name": "공인회계사(CPA)",
+      "issuer": "금융감독원",
+      "scope": "domestic_national",
+      "cert_class": "professional_license",
+      "official_url": "https://cpa.fss.or.kr",
+      "uses": [
+        [
+          "회계/세무 전문가",
+          "필수"
+        ]
+      ],
+      "best": 0
+    },
+    {
+      "name": "보험계리사",
+      "issuer": "금융감독원 시험 / 한국계리사회 등록",
+      "scope": "domestic_national",
+      "cert_class": "professional_license",
+      "official_url": "https://www.actuary.or.kr/",
+      "uses": [
+        [
+          "보험계리사",
+          "필수"
+        ]
+      ],
+      "best": 0
+    },
+    {
+      "name": "세무사",
+      "issuer": "국세청",
+      "scope": "domestic_national",
+      "cert_class": "professional_license",
+      "official_url": "https://www.q-net.or.kr/site/semu",
+      "uses": [
+        [
+          "회계/세무 전문가",
+          "필수"
+        ],
+        [
+          "공공정책/공공기관 연구원",
+          "유용"
+        ]
+      ],
+      "best": 0
+    },
+    {
+      "name": "감정평가사",
+      "issuer": "국토교통부/한국산업인력공단",
+      "scope": "domestic_national",
+      "cert_class": "professional_license",
+      "official_url": "https://www.q-net.or.kr",
+      "uses": [
+        [
+          "부동산 개발 기획자",
+          "우대"
+        ]
+      ],
+      "best": 1
+    },
+    {
+      "name": "경영지도사(마케팅부문)",
+      "issuer": "중소벤처기업부/한국산업인력공단",
+      "scope": "domestic_national",
+      "cert_class": "professional_license",
+      "official_url": "https://www.q-net.or.kr",
+      "uses": [
+        [
+          "마케팅 기획/전략 전문가",
+          "유용"
+        ],
+        [
+          "경영컨설턴트",
+          "우대"
+        ]
+      ],
+      "best": 1
+    },
+    {
+      "name": "무역영어",
+      "issuer": "대한상공회의소",
+      "scope": "domestic_national",
+      "cert_class": "career_credential",
+      "official_url": "https://license.korcham.net",
+      "uses": [
+        [
+          "무역/국제통상 전문가",
+          "우대"
+        ]
+      ],
+      "best": 1
+    },
+    {
+      "name": "물류관리사",
+      "issuer": "국토교통부/한국산업인력공단",
+      "scope": "domestic_national",
+      "cert_class": "career_credential",
+      "official_url": "https://www.q-net.or.kr",
+      "uses": [
+        [
+          "공급망/물류 관리자",
+          "우대"
+        ]
+      ],
+      "best": 1
+    },
+    {
+      "name": "빅데이터분석기사",
+      "issuer": "한국데이터산업진흥원(K-DATA) 시행 / Q-Net 등록",
+      "scope": "domestic_national",
+      "cert_class": "career_credential",
+      "official_url": "https://www.q-net.or.kr/crf005.do?id=crf00503&jmCd=1324",
+      "uses": [
+        [
+          "데이터 사이언티스트/분석가",
+          "우대"
+        ],
+        [
+          "AI/머신러닝 엔지니어",
+          "유용"
+        ]
+      ],
+      "best": 1
+    },
+    {
+      "name": "정보보안기사",
+      "issuer": "한국방송통신전파진흥원(KCA), 과학기술정보통신부 주관",
+      "scope": "domestic_national",
+      "cert_class": "career_credential",
+      "official_url": "https://www.cq.or.kr/",
+      "uses": [
+        [
+          "정보보안 담당자",
+          "우대"
+        ]
+      ],
+      "best": 1
+    },
+    {
+      "name": "공인중개사",
+      "issuer": "한국산업인력공단",
+      "scope": "domestic_national",
+      "cert_class": "professional_license",
+      "official_url": "https://www.q-net.or.kr",
+      "uses": [
+        [
+          "부동산 개발 기획자",
+          "유용"
+        ]
+      ],
+      "best": 2
+    },
+    {
+      "name": "관세사",
+      "issuer": "관세청",
+      "scope": "domestic_national",
+      "cert_class": "professional_license",
+      "official_url": "https://www.q-net.or.kr",
+      "uses": [
+        [
+          "무역/국제통상 전문가",
+          "유용"
+        ]
+      ],
+      "best": 2
+    },
+    {
+      "name": "정보처리기사",
+      "issuer": "한국산업인력공단",
+      "scope": "domestic_national",
+      "cert_class": "career_credential",
+      "official_url": "https://www.q-net.or.kr",
+      "uses": [
+        [
+          "경영정보시스템(ERP) 컨설턴트",
+          "유용"
+        ],
+        [
+          "소프트웨어 개발자",
+          "유용"
+        ],
+        [
+          "컴퓨터구조·시스템 아키텍트",
+          "유용"
+        ]
+      ],
+      "best": 2
+    },
+    {
+      "name": "금융투자분석사",
+      "issuer": "금융투자협회(KOFIA)",
+      "scope": "domestic_private",
+      "cert_class": "career_credential",
+      "official_url": "https://license.kofia.or.kr/",
+      "uses": [
+        [
+          "증권·자산운용 애널리스트/PB",
+          "필수"
+        ]
+      ],
+      "best": 0
+    },
+    {
+      "name": "전산회계/전산세무",
+      "issuer": "한국세무사회",
+      "scope": "domestic_private",
+      "cert_class": "career_credential",
+      "official_url": "https://license.kacpta.or.kr",
+      "uses": [
+        [
+          "회계/세무 전문가",
+          "필수"
+        ]
+      ],
+      "best": 0
+    },
+    {
+      "name": "투자자산운용사",
+      "issuer": "금융투자협회(KOFIA)",
+      "scope": "domestic_private",
+      "cert_class": "career_credential",
+      "official_url": "https://license.kofia.or.kr/",
+      "uses": [
+        [
+          "증권·자산운용 애널리스트/PB",
+          "필수"
+        ]
+      ],
+      "best": 0
+    },
+    {
+      "name": "펀드투자권유자문인력",
+      "issuer": "금융투자협회(KOFIA)",
+      "scope": "domestic_private",
+      "cert_class": "career_credential",
+      "official_url": "https://license.kofia.or.kr/",
+      "uses": [
+        [
+          "증권·자산운용 애널리스트/PB",
+          "필수"
+        ]
+      ],
+      "best": 0
+    },
+    {
+      "name": "ADsP (데이터분석 준전문가)",
+      "issuer": "한국데이터산업진흥원(K-DATA)",
+      "scope": "domestic_private",
+      "cert_class": "career_credential",
+      "official_url": "https://www.dataq.or.kr/",
+      "uses": [
+        [
+          "데이터 사이언티스트/분석가",
+          "우대"
+        ],
+        [
+          "AI/머신러닝 엔지니어",
+          "유용"
+        ]
+      ],
+      "best": 1
+    },
+    {
+      "name": "AFPK",
+      "issuer": "한국FPSB",
+      "scope": "domestic_private",
+      "cert_class": "career_credential",
+      "official_url": "",
+      "uses": [
+        [
+          "증권·자산운용 애널리스트/PB",
+          "우대"
+        ]
+      ],
+      "best": 1
+    },
+    {
+      "name": "SQLD (SQL 개발자)",
+      "issuer": "한국데이터산업진흥원(K-DATA)",
+      "scope": "domestic_private",
+      "cert_class": "career_credential",
+      "official_url": "https://www.dataq.or.kr/",
+      "uses": [
+        [
+          "데이터 사이언티스트/분석가",
+          "우대"
+        ]
+      ],
+      "best": 1
+    },
+    {
+      "name": "국제무역사",
+      "issuer": "한국무역협회",
+      "scope": "domestic_private",
+      "cert_class": "career_credential",
+      "official_url": "https://www.kita.net",
+      "uses": [
+        [
+          "무역/국제통상 전문가",
+          "우대"
+        ]
+      ],
+      "best": 1
+    },
+    {
+      "name": "재무위험관리사",
+      "issuer": "금융투자협회(KOFIA)",
+      "scope": "domestic_private",
+      "cert_class": "career_credential",
+      "official_url": "https://license.kofia.or.kr/",
+      "uses": [
+        [
+          "퀀트·리스크/금융공학 (구 금융 리스크 분석가 cp-38 흡수)",
+          "우대"
+        ]
+      ],
+      "best": 1
+    },
+    {
+      "name": "ADP (데이터분석전문가)",
+      "issuer": "한국데이터산업진흥원(K-DATA)",
+      "scope": "domestic_private",
+      "cert_class": "career_credential",
+      "official_url": "https://www.dataq.or.kr/",
+      "uses": [
+        [
+          "데이터 사이언티스트/분석가",
+          "유용"
+        ]
+      ],
+      "best": 2
+    },
+    {
+      "name": "ERP정보관리사",
+      "issuer": "한국생산성본부",
+      "scope": "domestic_private",
+      "cert_class": "career_credential",
+      "official_url": "https://license.kpc.or.kr",
+      "uses": [
+        [
+          "경영정보시스템(ERP) 컨설턴트",
+          "유용"
+        ]
+      ],
+      "best": 2
+    },
+    {
+      "name": "컴플라이언스경영전문가(CCP)",
+      "issuer": "한국공정경쟁연합회",
+      "scope": "domestic_private",
+      "cert_class": "career_credential",
+      "official_url": "https://www.kfcf.or.kr",
+      "uses": [
+        [
+          "ESG/지속가능경영 담당자",
+          "유용"
+        ]
+      ],
+      "best": 2
+    },
+    {
+      "name": "FRM (Financial Risk Manager)",
+      "issuer": "GARP",
+      "scope": "international",
+      "cert_class": "career_credential",
+      "official_url": "https://www.garp.org/frm",
+      "uses": [
+        [
+          "퀀트·리스크/금융공학 (구 금융 리스크 분석가 cp-38 흡수)",
+          "필수"
+        ]
+      ],
+      "best": 0
+    },
+    {
+      "name": "CFA",
+      "issuer": "CFA Institute",
+      "scope": "international",
+      "cert_class": "career_credential",
+      "official_url": "https://www.cfainstitute.org/en/programs/cfa",
+      "uses": [
+        [
+          "퀀트·리스크/금융공학 (구 금융 리스크 분석가 cp-38 흡수)",
+          "우대"
+        ]
+      ],
+      "best": 1
+    },
+    {
+      "name": "CISSP (Certified Information Systems Security Professional)",
+      "issuer": "ISC2",
+      "scope": "international",
+      "cert_class": "professional_license",
+      "official_url": "https://www.isc2.org/certifications/cissp",
+      "uses": [
+        [
+          "정보보안 담당자",
+          "우대"
+        ]
+      ],
+      "best": 1
+    },
+    {
+      "name": "Google Analytics 자격증 (GA4 기반, 구 GAIQ)",
+      "issuer": "Google",
+      "scope": "international",
+      "cert_class": "career_credential",
+      "official_url": "https://skillshop.withgoogle.com",
+      "uses": [
+        [
+          "마케팅 기획/전략 전문가",
+          "우대"
+        ]
+      ],
+      "best": 1
+    },
+    {
+      "name": "Meta Blueprint",
+      "issuer": "Meta",
+      "scope": "international",
+      "cert_class": "career_credential",
+      "official_url": "https://www.facebookblueprint.com",
+      "uses": [
+        [
+          "마케팅 기획/전략 전문가",
+          "우대"
+        ]
+      ],
+      "best": 1
+    },
+    {
+      "name": "SAP 공인 자격증",
+      "issuer": "SAP SE",
+      "scope": "international",
+      "cert_class": "career_credential",
+      "official_url": "https://www.sap.com",
+      "uses": [
+        [
+          "경영정보시스템(ERP) 컨설턴트",
+          "우대"
+        ]
+      ],
+      "best": 1
+    },
+    {
+      "name": "AICPA(미국공인회계사)",
+      "issuer": "American Institute of CPAs",
+      "scope": "international",
+      "cert_class": "professional_license",
+      "official_url": "https://www.aicpa.org",
+      "uses": [
+        [
+          "회계/세무 전문가",
+          "유용"
+        ]
+      ],
+      "best": 2
+    },
+    {
+      "name": "AWS Certified Machine Learning – Specialty",
+      "issuer": "Amazon Web Services",
+      "scope": "international",
+      "cert_class": "career_credential",
+      "official_url": "https://aws.amazon.com/certification/certified-machine-learning-specialty/",
+      "uses": [
+        [
+          "AI/머신러닝 엔지니어",
+          "유용"
+        ]
+      ],
+      "best": 2
+    },
+    {
+      "name": "AWS Certified Solutions Architect – Associate",
+      "issuer": "Amazon Web Services",
+      "scope": "international",
+      "cert_class": "career_credential",
+      "official_url": "https://aws.amazon.com/certification/certified-solutions-architect-associate/",
+      "uses": [
+        [
+          "소프트웨어 개발자",
+          "유용"
+        ]
+      ],
+      "best": 2
+    },
+    {
+      "name": "PMP (Project Management Professional)",
+      "issuer": "Project Management Institute (PMI)",
+      "scope": "international",
+      "cert_class": "career_credential",
+      "official_url": "https://www.pmi.org/certifications/project-management-pmp",
+      "uses": [
+        [
+          "IT서비스 기획자",
+          "유용"
+        ]
+      ],
+      "best": 2
+    }
+  ],
+  "thin_paths": [
+    [
+      "",
+      "",
+      "cp-26: 스타트업 창업가 — 특정 업종 면허 외에는 창업에 표준적으로 요구/선호되는 자격증이 없다는 신호만 확인, 자격증보다 정부 지원사업 가산점 맥락이 강함 → Chrome 후속으로 정부지원사업 공고 직접 확인 필요"
+    ],
+    [
+      "",
+      "",
+      "cp-29: ESG/지속가능경영 담당자 — 전문 매체가 \"자격증 취업에 도움 안된다\"고 직접 반박할 만큼 신호가 약하고 경력자 채용이 압도적 → Chrome 후속으로 실제 채용공고 우대조건 표기 여부 확인 필요"
+    ],
+    [
+      "",
+      "",
+      "cp-23: 경영컨설턴트 — 경영지도사 외 검증 가능한 대체/보완 자격이 검색에서 추가로 확인되지 않음(검색 1회로 얕음) → Chrome 후속으로 대형 컨설팅펌 채용공고 자격 요건 확인 필요"
+    ],
+    [
+      "cp-24c",
+      "이코노미스트/경제분석 연구원",
+      "이코노미스트/경제분석가는 반드시 갖춰야 하는 자격증이 없고, 석사 이상 학위와 리서치·계량분석 역량이 채용의 핵심이다. 매경TEST·TESET 등 경제상식 테스트가 스펙으로 언급되나 이는 채용 필수 라이선스가 아니라 자기소개서 보강용 시험이라 career_credential로 포함하지 않았다."
+    ],
+    [
+      "cp-31",
+      "공공정책/공공기관 연구원",
+      "국책연구기관·공공기관 연구원 채용은 대부분 석·박사 학위(경제학·경영학 등)와 SCI급 논문 실적이 핵심 요건이며, 세무사를 제외하면 시장에서 뚜렷하게 통용되는 자격증이 확인되지 않았다. 세무사도 조세정책 관련 직무에만 국한된 우대 요소다."
+    ],
+    [
+      "cp-54",
+      "IT서비스 기획자",
+      "cert_hints가 원래 비어 있었고, 검색으로도 특정 자격증이 채용을 가른 사례를 찾지 못함. 기획 포트폴리오와 실행 경험이 압도적으로 중요하다는 현업자 평가가 일관됨."
+    ],
+    [
+      "cp-60",
+      "컴퓨터구조·시스템 아키텍트",
+      "컴퓨터 하드웨어/시스템 구조 설계를 정확히 겨냥한 국내 자격증이 없음. 정보처리기사는 일반 SW 소양 증빙일 뿐이고, AWS Solutions Architect류는 클라우드/엔터프라이즈 아키텍처로 도메인이 달라 억지로 매칭하지 않음. 이 경력은 대학원 진학·연구실 경험이 자격증보다 실질적인 경로로 보임."
+    ]
+  ]
+}

@@ -1,0 +1,466 @@
+{
+  "reviewed": true,
+  "reviewed_at": "2026-09-07",
+  "pilot_fields": [
+    "경영",
+    "경제",
+    "통계·데이터",
+    "컴퓨터·SW"
+  ],
+  "cert_count": 28,
+  "certs": [
+    {
+      "name": "공인회계사(CPA)",
+      "name_norm": "공인회계사cpa",
+      "issuer": "금융감독원",
+      "scope": "domestic_national",
+      "cert_class": "professional_license",
+      "tier": "필수",
+      "official_url": "https://cpa.fss.or.kr"
+    },
+    {
+      "name": "보험계리사",
+      "name_norm": "보험계리사",
+      "issuer": "금융감독원 시험 / 한국계리사회 등록",
+      "scope": "domestic_national",
+      "cert_class": "professional_license",
+      "tier": "필수",
+      "official_url": "https://www.actuary.or.kr/"
+    },
+    {
+      "name": "세무사",
+      "name_norm": "세무사",
+      "issuer": "국세청",
+      "scope": "domestic_national",
+      "cert_class": "professional_license",
+      "tier": "필수",
+      "official_url": "https://www.q-net.or.kr/site/semu"
+    },
+    {
+      "name": "감정평가사",
+      "name_norm": "감정평가사",
+      "issuer": "국토교통부/한국산업인력공단",
+      "scope": "domestic_national",
+      "cert_class": "professional_license",
+      "tier": "우대",
+      "official_url": "https://www.q-net.or.kr"
+    },
+    {
+      "name": "경영지도사(마케팅부문)",
+      "name_norm": "경영지도사마케팅부문",
+      "issuer": "중소벤처기업부/한국산업인력공단",
+      "scope": "domestic_national",
+      "cert_class": "professional_license",
+      "tier": "우대",
+      "official_url": "https://www.q-net.or.kr"
+    },
+    {
+      "name": "무역영어",
+      "name_norm": "무역영어",
+      "issuer": "대한상공회의소",
+      "scope": "domestic_national",
+      "cert_class": "career_credential",
+      "tier": "우대",
+      "official_url": "https://license.korcham.net"
+    },
+    {
+      "name": "물류관리사",
+      "name_norm": "물류관리사",
+      "issuer": "국토교통부/한국산업인력공단",
+      "scope": "domestic_national",
+      "cert_class": "career_credential",
+      "tier": "우대",
+      "official_url": "https://www.q-net.or.kr"
+    },
+    {
+      "name": "빅데이터분석기사",
+      "name_norm": "빅데이터분석기사",
+      "issuer": "한국데이터산업진흥원(K-DATA) 시행 / Q-Net 등록",
+      "scope": "domestic_national",
+      "cert_class": "career_credential",
+      "tier": "우대",
+      "official_url": "https://www.q-net.or.kr/crf005.do?id=crf00503&jmCd=1324"
+    },
+    {
+      "name": "정보보안기사",
+      "name_norm": "정보보안기사",
+      "issuer": "한국방송통신전파진흥원(KCA), 과학기술정보통신부 주관",
+      "scope": "domestic_national",
+      "cert_class": "career_credential",
+      "tier": "우대",
+      "official_url": "https://www.cq.or.kr/"
+    },
+    {
+      "name": "정보처리기사",
+      "name_norm": "정보처리기사",
+      "issuer": "한국산업인력공단",
+      "scope": "domestic_national",
+      "cert_class": "career_credential",
+      "tier": "유용",
+      "official_url": "https://www.q-net.or.kr"
+    },
+    {
+      "name": "금융투자분석사",
+      "name_norm": "금융투자분석사",
+      "issuer": "금융투자협회(KOFIA)",
+      "scope": "domestic_private",
+      "cert_class": "career_credential",
+      "tier": "필수",
+      "official_url": "https://license.kofia.or.kr/"
+    },
+    {
+      "name": "전산회계/전산세무",
+      "name_norm": "전산회계전산세무",
+      "issuer": "한국세무사회",
+      "scope": "domestic_private",
+      "cert_class": "career_credential",
+      "tier": "필수",
+      "official_url": "https://license.kacpta.or.kr"
+    },
+    {
+      "name": "투자자산운용사",
+      "name_norm": "투자자산운용사",
+      "issuer": "금융투자협회(KOFIA)",
+      "scope": "domestic_private",
+      "cert_class": "career_credential",
+      "tier": "필수",
+      "official_url": "https://license.kofia.or.kr/"
+    },
+    {
+      "name": "펀드투자권유자문인력",
+      "name_norm": "펀드투자권유자문인력",
+      "issuer": "금융투자협회(KOFIA)",
+      "scope": "domestic_private",
+      "cert_class": "career_credential",
+      "tier": "필수",
+      "official_url": "https://license.kofia.or.kr/"
+    },
+    {
+      "name": "ADsP (데이터분석 준전문가)",
+      "name_norm": "adsp데이터분석준전문가",
+      "issuer": "한국데이터산업진흥원(K-DATA)",
+      "scope": "domestic_private",
+      "cert_class": "career_credential",
+      "tier": "우대",
+      "official_url": "https://www.dataq.or.kr/"
+    },
+    {
+      "name": "AFPK",
+      "name_norm": "afpk",
+      "issuer": "한국FPSB",
+      "scope": "domestic_private",
+      "cert_class": "career_credential",
+      "tier": "우대",
+      "official_url": "https://www.fpsbkorea.org/"
+    },
+    {
+      "name": "SQLD (SQL 개발자)",
+      "name_norm": "sqldsql개발자",
+      "issuer": "한국데이터산업진흥원(K-DATA)",
+      "scope": "domestic_private",
+      "cert_class": "career_credential",
+      "tier": "우대",
+      "official_url": "https://www.dataq.or.kr/"
+    },
+    {
+      "name": "국제무역사",
+      "name_norm": "국제무역사",
+      "issuer": "한국무역협회",
+      "scope": "domestic_private",
+      "cert_class": "career_credential",
+      "tier": "우대",
+      "official_url": "https://www.kita.net"
+    },
+    {
+      "name": "재무위험관리사",
+      "name_norm": "재무위험관리사",
+      "issuer": "금융투자협회(KOFIA)",
+      "scope": "domestic_private",
+      "cert_class": "career_credential",
+      "tier": "우대",
+      "official_url": "https://license.kofia.or.kr/"
+    },
+    {
+      "name": "FRM (Financial Risk Manager)",
+      "name_norm": "frmfinancialriskmanager",
+      "issuer": "GARP",
+      "scope": "international",
+      "cert_class": "career_credential",
+      "tier": "필수",
+      "official_url": "https://www.garp.org/frm"
+    },
+    {
+      "name": "CFA",
+      "name_norm": "cfa",
+      "issuer": "CFA Institute",
+      "scope": "international",
+      "cert_class": "career_credential",
+      "tier": "우대",
+      "official_url": "https://www.cfainstitute.org/en/programs/cfa"
+    },
+    {
+      "name": "CISSP (Certified Information Systems Security Professional)",
+      "name_norm": "cisspcertifiedinformationsystemssecurityprofessional",
+      "issuer": "ISC2",
+      "scope": "international",
+      "cert_class": "professional_license",
+      "tier": "우대",
+      "official_url": "https://www.isc2.org/certifications/cissp"
+    },
+    {
+      "name": "Google Analytics 자격증 (GA4 기반, 구 GAIQ)",
+      "name_norm": "googleanalytics자격증ga4기반구gaiq",
+      "issuer": "Google",
+      "scope": "international",
+      "cert_class": "career_credential",
+      "tier": "우대",
+      "official_url": "https://skillshop.withgoogle.com"
+    },
+    {
+      "name": "Meta Blueprint",
+      "name_norm": "metablueprint",
+      "issuer": "Meta",
+      "scope": "international",
+      "cert_class": "career_credential",
+      "tier": "우대",
+      "official_url": "https://www.facebookblueprint.com"
+    },
+    {
+      "name": "SAP 공인 자격증",
+      "name_norm": "sap공인자격증",
+      "issuer": "SAP SE",
+      "scope": "international",
+      "cert_class": "career_credential",
+      "tier": "우대",
+      "official_url": "https://www.sap.com"
+    },
+    {
+      "name": "AICPA(미국공인회계사)",
+      "name_norm": "aicpa미국공인회계사",
+      "issuer": "American Institute of CPAs",
+      "scope": "international",
+      "cert_class": "professional_license",
+      "tier": "유용",
+      "official_url": "https://www.aicpa.org"
+    },
+    {
+      "name": "AWS Certified Machine Learning – Specialty",
+      "name_norm": "awscertifiedmachinelearningspecialty",
+      "issuer": "Amazon Web Services",
+      "scope": "international",
+      "cert_class": "career_credential",
+      "tier": "유용",
+      "official_url": "https://aws.amazon.com/certification/certified-machine-learning-specialty/"
+    },
+    {
+      "name": "AWS Certified Solutions Architect – Associate",
+      "name_norm": "awscertifiedsolutionsarchitectassociate",
+      "issuer": "Amazon Web Services",
+      "scope": "international",
+      "cert_class": "career_credential",
+      "tier": "유용",
+      "official_url": "https://aws.amazon.com/certification/certified-solutions-architect-associate/"
+    }
+  ],
+  "career_cert_map": {
+    "회계/세무 전문가": [
+      {
+        "name": "공인회계사(CPA)",
+        "tier": "필수"
+      },
+      {
+        "name": "세무사",
+        "tier": "필수"
+      },
+      {
+        "name": "전산회계/전산세무",
+        "tier": "필수"
+      },
+      {
+        "name": "AICPA(미국공인회계사)",
+        "tier": "유용"
+      }
+    ],
+    "보험계리사": [
+      {
+        "name": "보험계리사",
+        "tier": "필수"
+      }
+    ],
+    "공공정책/공공기관 연구원": [
+      {
+        "name": "세무사",
+        "tier": "유용"
+      }
+    ],
+    "부동산 개발 기획자": [
+      {
+        "name": "감정평가사",
+        "tier": "우대"
+      }
+    ],
+    "마케팅 기획/전략 전문가": [
+      {
+        "name": "경영지도사(마케팅부문)",
+        "tier": "유용"
+      },
+      {
+        "name": "Google Analytics 자격증 (GA4 기반, 구 GAIQ)",
+        "tier": "우대"
+      },
+      {
+        "name": "Meta Blueprint",
+        "tier": "우대"
+      }
+    ],
+    "경영컨설턴트": [
+      {
+        "name": "경영지도사(마케팅부문)",
+        "tier": "우대"
+      }
+    ],
+    "무역/국제통상 전문가": [
+      {
+        "name": "무역영어",
+        "tier": "우대"
+      },
+      {
+        "name": "국제무역사",
+        "tier": "우대"
+      }
+    ],
+    "공급망/물류 관리자": [
+      {
+        "name": "물류관리사",
+        "tier": "우대"
+      }
+    ],
+    "데이터 사이언티스트/분석가": [
+      {
+        "name": "빅데이터분석기사",
+        "tier": "우대"
+      },
+      {
+        "name": "ADsP (데이터분석 준전문가)",
+        "tier": "우대"
+      },
+      {
+        "name": "SQLD (SQL 개발자)",
+        "tier": "우대"
+      }
+    ],
+    "AI/머신러닝 엔지니어": [
+      {
+        "name": "빅데이터분석기사",
+        "tier": "유용"
+      },
+      {
+        "name": "ADsP (데이터분석 준전문가)",
+        "tier": "유용"
+      },
+      {
+        "name": "AWS Certified Machine Learning – Specialty",
+        "tier": "유용"
+      }
+    ],
+    "정보보안 담당자": [
+      {
+        "name": "정보보안기사",
+        "tier": "우대"
+      },
+      {
+        "name": "CISSP (Certified Information Systems Security Professional)",
+        "tier": "우대"
+      }
+    ],
+    "경영정보시스템(ERP) 컨설턴트": [
+      {
+        "name": "정보처리기사",
+        "tier": "유용"
+      },
+      {
+        "name": "SAP 공인 자격증",
+        "tier": "우대"
+      }
+    ],
+    "소프트웨어 개발자": [
+      {
+        "name": "정보처리기사",
+        "tier": "유용"
+      },
+      {
+        "name": "AWS Certified Solutions Architect – Associate",
+        "tier": "유용"
+      }
+    ],
+    "컴퓨터구조·시스템 아키텍트": [
+      {
+        "name": "정보처리기사",
+        "tier": "유용"
+      }
+    ],
+    "증권·자산운용 애널리스트/PB": [
+      {
+        "name": "금융투자분석사",
+        "tier": "필수"
+      },
+      {
+        "name": "투자자산운용사",
+        "tier": "필수"
+      },
+      {
+        "name": "펀드투자권유자문인력",
+        "tier": "필수"
+      },
+      {
+        "name": "AFPK",
+        "tier": "우대"
+      }
+    ],
+    "퀀트·리스크/금융공학 (구 금융 리스크 분석가 cp-38 흡수)": [
+      {
+        "name": "재무위험관리사",
+        "tier": "우대"
+      },
+      {
+        "name": "FRM (Financial Risk Manager)",
+        "tier": "필수"
+      },
+      {
+        "name": "CFA",
+        "tier": "우대"
+      }
+    ]
+  },
+  "cert_light_paths": [
+    {
+      "path_name": "스타트업 창업가",
+      "note": "정부 지원사업·실행 경험 중심, 표준 자격증 없음"
+    },
+    {
+      "path_name": "ESG/지속가능경영 담당자",
+      "note": "실증(하이브 공고): 학사+ESG 실무경력, 자격증 무관"
+    },
+    {
+      "path_name": "경영컨설턴트",
+      "note": "경력직·전략 역량 중심, 표준 자격증 없음"
+    },
+    {
+      "path_name": "이코노미스트/경제분석 연구원",
+      "note": "석사 이상 학위·리서치 역량 중심"
+    },
+    {
+      "path_name": "공공정책/공공기관 연구원",
+      "note": "실증(원티드 0건): 공공기관·석박사·논문 중심"
+    },
+    {
+      "path_name": "IT서비스 기획자",
+      "note": "기획 포트폴리오·실행 경험 중심"
+    },
+    {
+      "path_name": "컴퓨터구조·시스템 아키텍트",
+      "note": "대학원·연구 경험 중심, 정조준 국내 자격증 없음"
+    }
+  ],
+  "note": "취업 시장 신호(WebSearch + 실채용공고 확인)로 큐레이션한 검증 코어. 국가자격 공식 URL·시험일정은 Phase 3 로더가 Q-Net API로 보강. aggregator(링커리어 등) 미수집."
+}

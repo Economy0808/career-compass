@@ -1,0 +1,138 @@
+{
+  "field": "컴퓨터·SW",
+  "generated_at": "2026-09-06T00:00:00+09:00",
+  "paths": [
+    {
+      "path_id": "cp-01",
+      "path_name": "소프트웨어 개발자",
+      "certs": [
+        {
+          "name": "정보처리기사",
+          "issuer": "한국산업인력공단 (Q-Net)",
+          "scope": "domestic_national",
+          "cert_class": "career_credential",
+          "tier": "유용",
+          "why": "SI·공공·대기업 채용에서는 서류 가산점이나 우대사항으로 언급되지만, 스타트업·제품 회사의 개발 직군 채용에서는 포트폴리오와 실무 프로젝트 경험이 훨씬 결정적이라 '있으면 나쁘지 않은 스펙' 정도로 보는 것이 현실적이다.",
+          "official_url": "https://www.q-net.or.kr/",
+          "evidence_note": "국가기술자격(Q-Net 시행). 검색 스니펫(나무위키·개발자 커뮤니티 블로그)에서도 '취업 필수조건은 아니고 비전공자·신입의 기초 이해도 증빙용'이라는 논조가 다수였음."
+        },
+        {
+          "name": "AWS Certified Solutions Architect – Associate",
+          "issuer": "Amazon Web Services",
+          "scope": "international",
+          "cert_class": "career_credential",
+          "tier": "유용",
+          "why": "신규 서비스가 대부분 클라우드 위에서 기획·운영되는 만큼 백엔드 개발자에게 클라우드 이해도를 보여주는 우대 신호가 되지만, 취득 자체가 채용 필수조건인 경우는 드물고 역시 실무·사이드 프로젝트 경험이 우선이다.",
+          "official_url": "https://aws.amazon.com/certification/certified-solutions-architect-associate/",
+          "evidence_note": "AWS 공식 인증 페이지로 명칭·응시조건 확인. f-lab 등 국내 개발자 커리어 블로그 스니펫에서 '신입 백엔드에도 클라우드 자격증의 중요성이 커지고 있다'는 논조 확인."
+        }
+      ]
+    },
+    {
+      "path_id": "cp-04",
+      "path_name": "AI/머신러닝 엔지니어",
+      "certs": [
+        {
+          "name": "빅데이터분석기사",
+          "issuer": "한국산업인력공단 (Q-Net) / 한국데이터산업진흥원 주관",
+          "scope": "domestic_national",
+          "cert_class": "career_credential",
+          "tier": "유용",
+          "why": "대기업·금융권·공공기관 채용에서 데이터 전문 인력 지표로 우대사항에 등장하는 빈도가 늘고 있으나, 실제 채용 결정은 캐글·논문·실서비스 모델링 경험 쪽이 더 크게 작용하는 경우가 많다.",
+          "official_url": "https://www.q-net.or.kr/",
+          "evidence_note": "나무위키·모두의연구소 블로그 스니펫에서 국가기술자격으로서의 위상과 '자격증 단독보다 프로젝트 경험과 함께 제시할 때 효과적'이라는 논조를 확인."
+        },
+        {
+          "name": "ADsP (데이터분석 준전문가)",
+          "issuer": "한국데이터산업진흥원 (K-DATA)",
+          "scope": "domestic_private",
+          "cert_class": "career_credential",
+          "tier": "유용",
+          "why": "입문 난이도라 채용 경쟁력을 크게 높이기보다는, 비전공자가 데이터 개념을 이해하고 있다는 최소 신호 정도로 쓰인다. 실무 경쟁력은 빅데이터분석기사나 실제 프로젝트 쪽에서 나온다는 평가가 많다.",
+          "official_url": "https://www.dataq.or.kr/",
+          "evidence_note": "윈스펙·모두의연구소 등 스니펫에서 'ADsP는 입문용, 빅데이터분석기사는 실무용'이라는 구분을 반복적으로 확인. 발급기관 K-DATA는 dataq.or.kr에서 공식 확인."
+        },
+        {
+          "name": "AWS Certified Machine Learning – Specialty",
+          "issuer": "Amazon Web Services",
+          "scope": "international",
+          "cert_class": "career_credential",
+          "tier": "유용",
+          "why": "MLOps·서비스 배포 역량을 보여주는 국제 벤더 자격으로 클라우드 기반 ML 엔지니어링 직무에서 우대 신호가 되지만, 국내 채용에서 이 자격 하나로 서류가 통과되는 사례는 거의 없고 모델링·배포 경험이 우선이다.",
+          "official_url": "https://aws.amazon.com/certification/certified-machine-learning-specialty/",
+          "evidence_note": "AWS 공식 인증 페이지로 명칭 확인. 국내 채용 스니펫에서 클라우드 자격증 전반이 '있으면 우대, 없어도 무방'한 위치로 언급되는 경향과 동일선상."
+        }
+      ]
+    },
+    {
+      "path_id": "cp-54",
+      "path_name": "IT서비스 기획자",
+      "certs": [
+        {
+          "name": "PMP (Project Management Professional)",
+          "issuer": "Project Management Institute (PMI)",
+          "scope": "international",
+          "cert_class": "career_credential",
+          "tier": "유용",
+          "why": "일부 공고에서 우대사항으로 언급되지만, 실제 서비스 기획자·PM 채용은 기획 포트폴리오와 실행 경험으로 판단되며 자격증 소지 자체가 합격에 영향을 준 사례는 드물다는 것이 현업자들의 공통된 평가다.",
+          "official_url": "https://www.pmi.org/certifications/project-management-pmp",
+          "evidence_note": "prime-career.com 칼럼 스니펫에서 '여러 기획자를 채용해봤지만 특정 자격증 때문에 합격시킨 적은 없다. 다만 일부 공고는 PMP 유사 자격을 우대사항으로 제시한다'는 내용을 확인."
+        }
+      ]
+    },
+    {
+      "path_id": "cp-60",
+      "path_name": "컴퓨터구조·시스템 아키텍트",
+      "certs": [
+        {
+          "name": "정보처리기사",
+          "issuer": "한국산업인력공단 (Q-Net)",
+          "scope": "domestic_national",
+          "cert_class": "career_credential",
+          "tier": "유용",
+          "why": "컴퓨터 하드웨어/시스템 구조 설계 직무 자체를 겨냥한 국내 자격증은 따로 없고, 정보처리기사는 SW 전반의 기초 소양 증빙 정도로만 쓰인다. 이 직무는 자격증보다 대학원 진학·연구 경험이 진입 경로로 더 크게 작용하는 편이다.",
+          "official_url": "https://www.q-net.or.kr/",
+          "evidence_note": "검색으로 확인한 AWS Solutions Architect 계열 자격증은 클라우드/엔터프라이즈 아키텍처용으로, 반도체·컴퓨터구조 하드웨어 설계와는 도메인이 달라 이 경력 경로에 억지로 매칭하지 않았음(정직성 우선)."
+        }
+      ]
+    },
+    {
+      "path_id": "cp-64",
+      "path_name": "정보보안 담당자",
+      "certs": [
+        {
+          "name": "정보보안기사",
+          "issuer": "한국방송통신전파진흥원(KCA), 과학기술정보통신부 주관",
+          "scope": "domestic_national",
+          "cert_class": "career_credential",
+          "tier": "우대",
+          "why": "정보보안 직무는 개발 직군과 달리 자격증이 실질적으로 통용되는 분야로, 공공기관·금융권·대기업 채용에서 CISSP·CISA와 동등하게 우대사항 또는 자격요건으로 명시되는 경우가 많다. 다만 합격률이 낮아 난이도 대비 가치를 따져볼 필요는 있다.",
+          "official_url": "https://www.cq.or.kr/",
+          "evidence_note": "테크월드·보안뉴스(boannews) 등 스니펫에서 '정보보안기사는 공공·민간 채용 시 CISA, CISSP과 동일하게 우대제도가 있다'는 내용을 반복 확인. 시행기관 KCA의 자격검정 사이트(cq.or.kr)로 발급기관 확인."
+        },
+        {
+          "name": "CISSP (Certified Information Systems Security Professional)",
+          "issuer": "ISC2",
+          "scope": "international",
+          "cert_class": "professional_license",
+          "tier": "우대",
+          "why": "보안 관리·아키텍처·컴플라이언스 트랙의 글로벌 표준 자격으로 시니어급 채용에서 강하게 우대되지만, 유급 실무 경력 5년 요건이 있어 대학생·신입이 지금 바로 목표로 잡기엔 멀다. 신입 단계에서는 정보보안기사가 더 현실적인 출발점이다.",
+          "official_url": "https://www.isc2.org/certifications/cissp",
+          "evidence_note": "Theori 블로그·보안망고 스니펫에서 'CISSP은 실무 경력 5년 요건이 있어 입문자가 당장 취득 가능한 자격증은 아니다'라는 내용을 확인. 발급기관 ISC2 공식 페이지로 명칭 확인."
+        }
+      ]
+    }
+  ],
+  "thin_paths": [
+    {
+      "path_id": "cp-54",
+      "path_name": "IT서비스 기획자",
+      "reason": "cert_hints가 원래 비어 있었고, 검색으로도 특정 자격증이 채용을 가른 사례를 찾지 못함. 기획 포트폴리오와 실행 경험이 압도적으로 중요하다는 현업자 평가가 일관됨."
+    },
+    {
+      "path_id": "cp-60",
+      "path_name": "컴퓨터구조·시스템 아키텍트",
+      "reason": "컴퓨터 하드웨어/시스템 구조 설계를 정확히 겨냥한 국내 자격증이 없음. 정보처리기사는 일반 SW 소양 증빙일 뿐이고, AWS Solutions Architect류는 클라우드/엔터프라이즈 아키텍처로 도메인이 달라 억지로 매칭하지 않음. 이 경력은 대학원 진학·연구실 경험이 자격증보다 실질적인 경로로 보임."
+    }
+  ]
+}
