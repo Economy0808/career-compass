@@ -3,7 +3,9 @@
 Usage (backend/ 에서, .venv 활성화 후):
     python scripts/refresh_certifications.py
 
-DATA_GO_KR_SERVICE_KEY가 .env에 있어야 한다. Firestore Admin SDK를 통해
+DATA_GO_KR_API_KEY(종목 목록)와 DATA_GO_KR_SERVICE_KEY(시험일정)가 둘 다 .env에
+있어야 한다 - 두 Q-Net API는 공공데이터포털에 별도 등록된 키라 서로 바꿔 쓰면
+401/무응답이 난다(Phase 3 키 검증으로 확인). Firestore Admin SDK를 통해
 certifications/{jmcd}를 upsert한다 - 이 스크립트를 이 세션에서 실행하지 말 것
 (에뮬레이터/운영 데이터 오염 방지, 작업 브리핑의 하드 안전 규칙).
 
@@ -38,8 +40,8 @@ def main() -> None:
     parser.parse_args()
 
     settings = get_settings()
-    if not settings.data_go_kr_service_key:
-        print("에러: DATA_GO_KR_SERVICE_KEY가 설정되지 않았습니다.")
+    if not settings.data_go_kr_api_key or not settings.data_go_kr_service_key:
+        print("에러: DATA_GO_KR_API_KEY / DATA_GO_KR_SERVICE_KEY가 설정되지 않았습니다.")
         raise SystemExit(1)
 
     # 네트워크 호출 전에 출처 레지스트리 게이트를 통과해야 한다(보안 하드
@@ -56,7 +58,9 @@ def main() -> None:
     next_year = str(datetime.now().year + 1)
 
     with httpx.Client(timeout=30.0) as client:
-        xml_text = fetch_jongmok_list_xml(client, settings.data_go_kr_service_key)
+        # 종목 목록 = data_go_kr_api_key, 시험일정 = data_go_kr_service_key
+        # (별개로 발급된 키라 서로 바꾸면 안 된다 - 위 docstring 참고).
+        xml_text = fetch_jongmok_list_xml(client, settings.data_go_kr_api_key)
         master_items = parse_jongmok_list_xml(xml_text)
         print(f"종목 목록 {len(master_items)}건 수신")
 

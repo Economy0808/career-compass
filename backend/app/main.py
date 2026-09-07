@@ -6,6 +6,7 @@ from fastapi.middleware.cors import CORSMiddleware
 from fastapi.responses import JSONResponse
 
 from app.api.auth_sync import router as auth_sync_router
+from app.api.certifications import router as certifications_router
 from app.api.community import router as community_router
 from app.api.community_notes import router as community_notes_router
 from app.api.consents import router as consents_router
@@ -81,6 +82,7 @@ def create_app() -> FastAPI:
     app.include_router(constellation_router)
     app.include_router(constellation_intake_router)
     app.include_router(courses_router)
+    app.include_router(certifications_router)
     app.include_router(explore_router)
     app.include_router(profiles_router)
     app.include_router(posts_router)

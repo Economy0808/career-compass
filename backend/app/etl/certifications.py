@@ -73,9 +73,15 @@ def parse_jongmok_list_xml(xml_text: str) -> list[dict[str, str]]:
 
 
 def parse_exam_schedule_json(json_obj: dict[str, Any]) -> list[dict[str, Any]]:
-    """시험일정 API의 JSON 응답을 파싱해 item별 dict 리스트로 반환한다."""
-    body = json_obj.get("response", {}).get("body", {})
-    items = body.get("items", {}).get("item", [])
+    """시험일정 API의 JSON 응답을 파싱해 item별 dict 리스트로 반환한다.
+
+    실제 라이브 응답은 response 래핑이 아니라 최상위에 header/body가 오고,
+    body.items는 이미 리스트다(2026-09 Phase 3 키 검증으로 확인 - 이전 구현은
+    response.body.items.item을 가정했는데 틀렸다). 단건 응답이 dict 하나로
+    오는 경우도 방어적으로 리스트로 감싼다.
+    """
+    body = json_obj.get("body", {})
+    items = body.get("items", [])
     if isinstance(items, dict):
         items = [items]
     return items
@@ -174,11 +180,17 @@ def fetch_exam_schedule_page(
     *,
     impl_yy: str,
     page_no: int = 1,
-    num_of_rows: int = 100,
+    num_of_rows: int = 50,
     qualgb_cd: str | None = None,
     jm_cd: str | None = None,
 ) -> dict[str, Any]:
-    """시험일정 API를 1페이지 호출한다. totalCount로 페이지네이션은 호출부가 반복한다."""
+    """시험일정 API를 1페이지 호출한다. totalCount로 페이지네이션은 호출부가 반복한다.
+
+    numOfRows 기본값 50 - 이 API는 페이지당 최대 50건만 허용한다(2026-09 라이브
+    검증 - 100을 넘기면 header.resultCode="930"과 함께 body 자체가 없는 응답이
+    와서 items가 조용히 0건이 된다, 예외가 아니라 그냥 빈 리스트로 보이는
+    함정이었다).
+    """
     params: dict[str, Any] = {
         "serviceKey": service_key,
         "numOfRows": num_of_rows,
@@ -196,7 +208,7 @@ def fetch_exam_schedule_page(
 
 
 def fetch_all_exam_schedule(
-    client: httpx.Client, service_key: str, *, impl_yy: str, num_of_rows: int = 100
+    client: httpx.Client, service_key: str, *, impl_yy: str, num_of_rows: int = 50
 ) -> list[dict[str, Any]]:
     """implYy 한 해 전체 시험일정을 페이지네이션해 모두 가져온다."""
     all_items: list[dict[str, Any]] = []
@@ -207,7 +219,7 @@ def fetch_all_exam_schedule(
         )
         items = parse_exam_schedule_json(raw)
         all_items.extend(items)
-        total_count = raw.get("response", {}).get("body", {}).get("totalCount", 0)
+        total_count = raw.get("body", {}).get("totalCount", 0)
         if len(all_items) >= total_count or not items:
             break
         page_no += 1

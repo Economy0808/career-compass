@@ -47,7 +47,12 @@ _XML_FIXTURE = """<response>
 
 
 def _schedule_json(items: list[dict]) -> dict:
-    return {"response": {"body": {"items": {"item": items}, "totalCount": len(items)}}}
+    # 실제 라이브 응답 모양: 최상위 header/body, body.items는 이미 리스트
+    # (2026-09 Phase 3 키 검증으로 확인 - response 래핑이 아니다).
+    return {
+        "header": {"resultCode": "00", "resultMsg": "NORMAL SERVICE"},
+        "body": {"items": items, "totalCount": len(items)},
+    }
 
 
 def test_parse_jongmok_list_xml_maps_fields():
