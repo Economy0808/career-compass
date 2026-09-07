@@ -5,6 +5,21 @@
 # (root cause of the 2026-09-07 ContainerImageImportFailed deploys).
 # The Dockerfile only COPYs pyproject.toml, app/, alembic/, alembic.ini, so
 # nothing here is needed in the image.
+#
+# SECRETS - MUST stay excluded. Because this .gcloudignore exists, gcloud stops
+# consulting .gitignore, so .env is NOT auto-excluded here. The image is clean
+# either way (the Dockerfile never COPYs .env), but `gcloud run deploy --source`
+# uploads the whole source zip to a GCS bucket BEFORE the build - so a missing
+# .env exclusion leaked real keys into that private bucket (security a5,
+# 2026-09-07). Keep these first. (No `#!include:.gitignore`: backend/ has no
+# .gitignore, and gcloud errors on a missing include.)
+.env
+.env.*
+!.env.example
+*.pem
+*.key
+*-sa*.json
+var/
 .venv/
 node_modules/
 __pycache__/
