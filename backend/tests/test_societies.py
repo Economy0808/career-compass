@@ -16,6 +16,7 @@ from __future__ import annotations
 
 import os
 from collections.abc import Callable, Iterator
+from urllib.parse import quote
 
 import pytest
 import requests
@@ -72,9 +73,15 @@ def _client() -> AsyncClient:
     return AsyncClient(transport=ASGITransport(app=app), base_url="http://test")
 
 
+_VALID_CATEGORY = "학술·연구"
+# URL 경로 세그먼트용 - category에 "·"(가운뎃점)가 들어가 있어 경로에 그대로
+# 쓰면 안 되고 퍼센트 인코딩해야 한다(실제 프론트 fetch도 encodeURIComponent).
+_CATEGORY_PATH = quote(_VALID_CATEGORY, safe="")
+
+
 def _valid_payload(**overrides: object) -> dict:
     payload = {
-        "departmentId": "cse",
+        "category": _VALID_CATEGORY,
         "name": "알고리즘 연구회",
         "kind": "학회",
         "officialUrl": _VALID_URL,
@@ -86,12 +93,12 @@ def _valid_payload(**overrides: object) -> dict:
     return payload
 
 
-def _set_society_doc(department_id: str, doc_id: str, data: dict) -> None:
+def _set_society_doc(category: str, doc_id: str, data: dict) -> None:
     """리포지토리를 거치지 않고 raw Firestore 문서를 직접 세팅한다(GET 필터 테스트 전용)."""
     (
         get_firestore_client()
         .collection("academic_societies")
-        .document(department_id)
+        .document(category)
         .collection("societies")
         .document(doc_id)
         .set(data)
@@ -135,7 +142,7 @@ async def test_submit_valid_stores_as_pending(authed_as: Callable[[str], None]) 
     doc = (
         get_firestore_client()
         .collection("academic_societies")
-        .document("cse")
+        .document(_VALID_CATEGORY)
         .collection("societies")
         .document(body["id"])
         .get()
@@ -147,12 +154,13 @@ async def test_submit_valid_stores_as_pending(authed_as: Callable[[str], None]) 
 
 
 @pytest.mark.asyncio
-async def test_submit_rejects_department_id_with_slash(
+async def test_submit_rejects_category_outside_enum(
     authed_as: Callable[[str], None],
 ) -> None:
+    """14개 분야 enum 밖의 값(예: 옛 학과명)은 Pydantic Literal 검증으로 422."""
     authed_as("user-a")
     async with _client() as client:
-        resp = await client.post("/api/societies", json=_valid_payload(departmentId="cse/../other"))
+        resp = await client.post("/api/societies", json=_valid_payload(category="철학과"))
     assert resp.status_code == 422
 
 
@@ -223,7 +231,7 @@ async def test_submit_rejects_invalid_official_url(
 @pytest.mark.asyncio
 async def test_list_returns_only_approved_and_hides_submitter_uid() -> None:
     _set_society_doc(
-        "cse",
+        _VALID_CATEGORY,
         "approved-1",
         {
             "name": "승인된 학회",
@@ -238,7 +246,7 @@ async def test_list_returns_only_approved_and_hides_submitter_uid() -> None:
         },
     )
     _set_society_doc(
-        "cse",
+        _VALID_CATEGORY,
         "pending-1",
         {
             "name": "대기중인 학회",
@@ -250,7 +258,7 @@ async def test_list_returns_only_approved_and_hides_submitter_uid() -> None:
     )
 
     async with _client() as client:
-        resp = await client.get("/api/societies", params={"departmentId": "cse"})
+        resp = await client.get("/api/societies", params={"category": _VALID_CATEGORY})
 
     assert resp.status_code == 200
     items = resp.json()
@@ -262,13 +270,13 @@ async def test_list_returns_only_approved_and_hides_submitter_uid() -> None:
         assert "submitter_uid" not in item
 
 
-# --- POST /api/societies/{department_id}/{society_id}/report : 인증 게이트 ---
+# --- POST /api/societies/{category}/{society_id}/report : 인증 게이트 ---
 
 
 @pytest.mark.asyncio
 async def test_report_requires_auth() -> None:
     async with _client() as client:
-        resp = await client.post("/api/societies/cse/some-id/report")
+        resp = await client.post(f"/api/societies/{_CATEGORY_PATH}/some-id/report")
     assert resp.status_code == 401
 
 
@@ -278,12 +286,12 @@ async def test_report_requires_yonsei_verification() -> None:
     app.dependency_overrides[get_current_user] = lambda: token
     app.dependency_overrides[get_current_user_optional] = lambda: token
     async with _client() as client:
-        resp = await client.post("/api/societies/cse/some-id/report")
+        resp = await client.post(f"/api/societies/{_CATEGORY_PATH}/some-id/report")
     assert resp.status_code == 403
     assert resp.headers["X-Auth-Requirement"] == "yonsei-verified"
 
 
-# --- POST /api/societies/{department_id}/{society_id}/report : 임시조치 효과 ---
+# --- POST /api/societies/{category}/{society_id}/report : 임시조치 효과 ---
 
 
 @pytest.mark.asyncio
@@ -291,7 +299,7 @@ async def test_report_flips_approved_to_pending_and_drops_from_get(
     authed_as: Callable[[str], None],
 ) -> None:
     _set_society_doc(
-        "cse",
+        _VALID_CATEGORY,
         "report-target-1",
         {
             "name": "신고당할 학회",
@@ -304,18 +312,18 @@ async def test_report_flips_approved_to_pending_and_drops_from_get(
     )
     authed_as("reporter-a")
     async with _client() as client:
-        report_resp = await client.post("/api/societies/cse/report-target-1/report")
+        report_resp = await client.post(f"/api/societies/{_CATEGORY_PATH}/report-target-1/report")
         assert report_resp.status_code == 200
         assert report_resp.json() == {"status": "ok"}
 
-        list_resp = await client.get("/api/societies", params={"departmentId": "cse"})
+        list_resp = await client.get("/api/societies", params={"category": _VALID_CATEGORY})
     names = [item["name"] for item in list_resp.json()]
     assert "신고당할 학회" not in names
 
     doc = (
         get_firestore_client()
         .collection("academic_societies")
-        .document("cse")
+        .document(_VALID_CATEGORY)
         .collection("societies")
         .document("report-target-1")
         .get()
@@ -330,7 +338,7 @@ async def test_report_does_not_leak_reporter_identity(
     authed_as: Callable[[str], None],
 ) -> None:
     _set_society_doc(
-        "cse",
+        _VALID_CATEGORY,
         "report-target-2",
         {
             "name": "신고당할 학회2",
@@ -343,7 +351,7 @@ async def test_report_does_not_leak_reporter_identity(
     )
     authed_as("reporter-b")
     async with _client() as client:
-        resp = await client.post("/api/societies/cse/report-target-2/report")
+        resp = await client.post(f"/api/societies/{_CATEGORY_PATH}/report-target-2/report")
     assert resp.status_code == 200
     body = resp.json()
     assert "reportedBy" not in body
@@ -356,7 +364,7 @@ async def test_report_already_pending_is_noop_success(
     authed_as: Callable[[str], None],
 ) -> None:
     _set_society_doc(
-        "cse",
+        _VALID_CATEGORY,
         "report-target-3",
         {
             "name": "이미 대기중",
@@ -369,7 +377,7 @@ async def test_report_already_pending_is_noop_success(
     )
     authed_as("reporter-c")
     async with _client() as client:
-        resp = await client.post("/api/societies/cse/report-target-3/report")
+        resp = await client.post(f"/api/societies/{_CATEGORY_PATH}/report-target-3/report")
     assert resp.status_code == 200
     assert resp.json() == {"status": "ok"}
 
@@ -378,5 +386,5 @@ async def test_report_already_pending_is_noop_success(
 async def test_report_unknown_doc_returns_404(authed_as: Callable[[str], None]) -> None:
     authed_as("reporter-d")
     async with _client() as client:
-        resp = await client.post("/api/societies/cse/no-such-id/report")
+        resp = await client.post(f"/api/societies/{_CATEGORY_PATH}/no-such-id/report")
     assert resp.status_code == 404

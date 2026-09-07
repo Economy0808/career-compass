@@ -24,6 +24,7 @@ from app.core.rate_limit import rate_limit
 from app.firestore import society_repo
 from app.firestore.client import get_firestore_client
 from app.schemas.societies import (
+    SocietyCategory,
     SocietyCreateIn,
     SocietyOut,
     SocietyReportOut,
@@ -52,7 +53,7 @@ async def submit_society(
     assert_no_pii(payload.name, payload.description, payload.field_name, payload.recruit_season)
     result = society_repo.create_society(
         db,
-        department_id=payload.department_id,
+        category=payload.category,
         name=payload.name,
         kind=payload.kind,
         official_url=payload.official_url,
@@ -66,16 +67,17 @@ async def submit_society(
 
 @router.get("", response_model=list[SocietyOut])
 async def list_societies(
-    department_id: str, db: Client = Depends(get_firestore_client)
+    category: SocietyCategory, db: Client = Depends(get_firestore_client)
 ) -> list[SocietyOut]:
-    """department_id의 승인된 학회/동아리만 반환한다. 인증 불요(app/api/community.py의
-    list_board_posts와 동일하게 공개 열람 콘텐츠 목록으로 취급)."""
-    return [SocietyOut(**item) for item in society_repo.list_approved(db, department_id)]
+    """category의 승인된 학회/동아리만 반환한다. 인증 불요(app/api/community.py의
+    list_board_posts와 동일하게 공개 열람 콘텐츠 목록으로 취급). category가
+    14개 분야 enum 밖이면 FastAPI/Pydantic이 422로 거부한다."""
+    return [SocietyOut(**item) for item in society_repo.list_approved(db, category)]
 
 
-@router.post("/{department_id}/{society_id}/report", response_model=SocietyReportOut)
+@router.post("/{category}/{society_id}/report", response_model=SocietyReportOut)
 async def report_society(
-    department_id: str,
+    category: SocietyCategory,
     society_id: str,
     user: DecodedToken = Depends(require_yonsei_verified),
     db: Client = Depends(get_firestore_client),
@@ -90,7 +92,7 @@ async def report_society(
     응답에 포함하지 않는다.
     """
     found = society_repo.report_society(
-        db, department_id=department_id, doc_id=society_id, reporter_uid=user.uid
+        db, category=category, doc_id=society_id, reporter_uid=user.uid
     )
     if not found:
         raise _SOCIETY_NOT_FOUND

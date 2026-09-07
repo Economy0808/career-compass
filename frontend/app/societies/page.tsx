@@ -5,12 +5,11 @@
  * 연세 인증 유저가 직접 제보한 실데이터로 대체한다(지원요소 실DB grounding
  * §1, 백엔드 계약 03-code-78/a5).
  *
- * 학과 목록(드롭다운)은 lib/courses-api.ts의 getCourseTaxonomy를 재사용한다.
- * 이 엔드포인트는 로그인이 필요하다(app/api/courses.py의 get_current_user
- * 게이트, 익명은 401) - 반면 GET /api/societies 자체는 인증 불요(공개 열람).
- * 그래서 비로그인 방문자는 목록 열람 자체는 원칙적으로 가능하지만, 학과를
- * 고를 드롭다운이 못 뜬다 - 이 경우 화면을 죽이지 않고 로그인 유도 문구로
- * 대체한다(community 페이지의 "죽지 않는다" 원칙과 동일).
+ * 2026-09-07 1차 축을 학과 드롭다운 -> 분야 드롭다운으로 전환(사용자 지시:
+ * 학회 분류가 수업 taxonomy의 학과 목록과 뒤섞여 있던 걸 학회 전용 분야로
+ * 분리). SOCIETY_CATEGORIES(lib/api.ts, 14개 고정값)는 하드코딩 상수라
+ * lib/courses-api.ts의 getCourseTaxonomy·온보딩 학과 프리필 의존을 더 이상
+ * 쓰지 않는다 - 로그인 여부와 무관하게 항상 뜬다.
  *
  * 제보 폼은 연세 인증 유저 전용. 로그인 여부·인증 여부에 따라 폼 자리에
  * 안내문을 대신 보여준다(모달이 아니라 같은 자리에서 인라인 전환 - 사용자
@@ -27,13 +26,13 @@ import { Button, Chip, EmptyState, Field } from "@/components/ui";
 import { useAuth } from "@/lib/auth-context";
 import {
   ApiError,
-  getOnboardingStatus,
   getSocieties,
   submitSociety,
+  SOCIETY_CATEGORIES,
+  type SocietyCategory,
   type SocietyKind,
   type SocietyOut,
 } from "@/lib/api";
-import { getCourseTaxonomy } from "@/lib/courses-api";
 import { safeLinkHref } from "@/lib/markdown";
 
 const KIND_TONE: Record<SocietyKind, "goal" | "growth"> = {
@@ -112,13 +111,10 @@ function mapSubmitError(err: unknown): string {
 const EMPTY_FORM = { name: "", officialUrl: "", recruitSeason: "", fieldText: "", description: "" };
 
 export default function SocietiesPage() {
-  const { user, loading: authLoading } = useAuth();
+  const { user } = useAuth();
   const router = useRouter();
 
-  const [departments, setDepartments] = useState<string[]>([]);
-  const [departmentsLoading, setDepartmentsLoading] = useState(true);
-  const [departmentsError, setDepartmentsError] = useState(false);
-  const [department, setDepartment] = useState("");
+  const [category, setCategory] = useState<SocietyCategory | "">("");
 
   const [societies, setSocieties] = useState<SocietyOut[] | null>(null);
   const [societiesError, setSocietiesError] = useState(false);
@@ -130,60 +126,16 @@ export default function SocietiesPage() {
   const [submitError, setSubmitError] = useState<string | null>(null);
   const [submitSuccess, setSubmitSuccess] = useState(false);
 
-  // 학과 드롭다운 - 로그인 복원 전에 부르면 토큰 없이 401을 받는다(다른
-  // 화면과 동일한 레이스 방지 관례).
+  // 분야가 정해지면 승인된 목록을 조회한다. 인증 불요.
   useEffect(() => {
-    if (authLoading) return;
-    let cancelled = false;
-    setDepartmentsLoading(true);
-    setDepartmentsError(false);
-    getCourseTaxonomy()
-      .then((dto) => {
-        if (!cancelled) setDepartments(dto.departments);
-      })
-      .catch(() => {
-        if (!cancelled) setDepartmentsError(true);
-      })
-      .finally(() => {
-        if (!cancelled) setDepartmentsLoading(false);
-      });
-    return () => {
-      cancelled = true;
-    };
-  }, [authLoading]);
-
-  // 온보딩 때 저장한 학과를 초기 선택값으로 미리 채운다(사용자 지시) - 매번
-  // 드롭다운을 다시 고르지 않아도 되게. taxonomy 로드 완료 + 로그인 상태에서만
-  // 시도하고, 이미 뭔가 선택돼 있으면(유저가 손대기 시작) 덮어쓰지 않는다.
-  // 실패해도 화면을 죽이지 않고 기존 동작(수동 선택)으로 폴백한다.
-  useEffect(() => {
-    if (authLoading || !user || departmentsLoading || departments.length === 0) return;
-    let cancelled = false;
-    getOnboardingStatus()
-      .then((status) => {
-        if (cancelled || !status.department) return;
-        const dept = status.department;
-        setDepartment((current) => (current ? current : departments.includes(dept) ? dept : current));
-      })
-      .catch(() => {
-        // 온보딩 상태 조회 실패 - 기존 동작(수동 선택)으로 폴백
-      });
-    return () => {
-      cancelled = true;
-    };
-  }, [authLoading, user, departmentsLoading, departments]);
-
-  // 학과가 정해지면 승인된 목록을 조회한다. 인증 불요라 authLoading을 기다릴
-  // 필요는 없다.
-  useEffect(() => {
-    if (!department) {
+    if (!category) {
       setSocieties(null);
       return;
     }
     let cancelled = false;
     setSocieties(null);
     setSocietiesError(false);
-    getSocieties(department)
+    getSocieties(category)
       .then((list) => {
         if (!cancelled) setSocieties(list);
       })
@@ -196,7 +148,7 @@ export default function SocietiesPage() {
     return () => {
       cancelled = true;
     };
-  }, [department]);
+  }, [category]);
 
   function openForm() {
     setSubmitError(null);
@@ -205,12 +157,12 @@ export default function SocietiesPage() {
   }
 
   async function handleSubmit() {
-    if (!department || !form.name.trim() || !form.officialUrl.trim() || submitting) return;
+    if (!category || !form.name.trim() || !form.officialUrl.trim() || submitting) return;
     setSubmitting(true);
     setSubmitError(null);
     try {
       await submitSociety({
-        department_id: department,
+        category,
         name: form.name.trim(),
         kind,
         official_url: form.officialUrl.trim(),
@@ -232,43 +184,27 @@ export default function SocietiesPage() {
     <div className="mx-auto max-w-3xl px-4 py-10 md:px-8">
       <header className="mb-6 flex flex-col gap-1.5">
         <h1 className="font-serif text-display font-bold text-text-hi">학회 · 동아리</h1>
-        <p className="text-body-sm text-text-lo">학과별 실제 학회·동아리 정보를 학생들이 직접 채워요</p>
+        <p className="text-body-sm text-text-lo">분야별 실제 학회·동아리 정보를 학생들이 직접 채워요</p>
       </header>
 
-      {departmentsLoading ? (
-        <div className="h-[46px] animate-pulse rounded-md border border-rule bg-ink-800/70" aria-hidden />
-      ) : departmentsError ? (
-        <EmptyState
-          title="학과 목록을 불러오지 못했어요"
-          description={user ? "잠시 후 다시 시도해 주세요" : "로그인하면 학과를 고를 수 있어요"}
-          action={
-            !user ? (
-              <Button onClick={() => router.push(`/login?next=${encodeURIComponent("/societies")}`)}>
-                로그인
-              </Button>
-            ) : undefined
-          }
-        />
-      ) : (
-        <select
-          value={department}
-          onChange={(e) => setDepartment(e.target.value)}
-          aria-label="학과 선택"
-          className="w-full rounded-md border border-rule bg-ink-900/60 px-3.5 py-2.5 text-body text-text-hi focus:outline-none focus-visible:border-spec-b"
-        >
-          <option value="">학과를 선택하세요</option>
-          {departments.map((d) => (
-            <option key={d} value={d}>
-              {d}
-            </option>
-          ))}
-        </select>
-      )}
+      <select
+        value={category}
+        onChange={(e) => setCategory(e.target.value as SocietyCategory | "")}
+        aria-label="분야 선택"
+        className="w-full rounded-md border border-rule bg-ink-900/60 px-3.5 py-2.5 text-body text-text-hi focus:outline-none focus-visible:border-spec-b"
+      >
+        <option value="">분야를 선택하세요</option>
+        {SOCIETY_CATEGORIES.map((c) => (
+          <option key={c} value={c}>
+            {c}
+          </option>
+        ))}
+      </select>
 
-      {department && (
+      {category && (
         <>
           <div className="mb-2.5 mt-6 flex items-center justify-between gap-3">
-            <span className="font-mono text-caption tracking-[0.14em] text-text-lo">{department}</span>
+            <span className="font-mono text-caption tracking-[0.14em] text-text-lo">{category}</span>
             <Button size="sm" variant="secondary" onClick={openForm}>
               제보하기
             </Button>
@@ -315,7 +251,7 @@ export default function SocietiesPage() {
               ) : (
                 <div className="mt-3 flex flex-col gap-3.5">
                   <p className="text-caption text-text-lo">
-                    학과 <span className="font-semibold text-text-hi">{department}</span>
+                    분야 <span className="font-semibold text-text-hi">{category}</span>
                   </p>
                   <Field
                     id="society-name"
@@ -353,7 +289,7 @@ export default function SocietiesPage() {
                   />
                   <Field
                     id="society-field"
-                    label="분야 (선택)"
+                    label="세부 분야 (선택)"
                     value={form.fieldText}
                     onChange={(e) => setForm((f) => ({ ...f, fieldText: e.target.value }))}
                     maxLength={200}

@@ -215,12 +215,36 @@ export function postOverseasConsent(version: string): Promise<void> {
 // 대체한다(백엔드 03-code-78/a5 계약). 스크래핑 금지(Hard Rule) - 유저 동의 제보만.
 // 보안 경계(보안 세션): 담당자 연락처는 수집하지 않는다(폼에 필드 없음), official_url은
 // https만(서버가 http/mailto/IP/user:pass@ → 422), 목록 링크는 safeLinkHref로만 렌더.
+//
+// 2026-09-07 department_id -> category 전환(사용자 지시: 학회 분류가 수업 taxonomy의
+// 학과 목록과 뒤섞여 있던 걸 학회 전용 분야로 분리). SOCIETY_CATEGORIES는 백엔드
+// app/schemas/societies.py의 SocietyCategory Literal과 순서까지 정확히 일치시킨다.
 
 export type SocietyKind = "학회" | "동아리";
+
+/** 학회 전용 분야 목록(순서 유지) - 백엔드 SocietyCategory와 반드시 일치. */
+export const SOCIETY_CATEGORIES = [
+  "학술·연구",
+  "금융·투자",
+  "경영·컨설팅",
+  "개발·IT",
+  "데이터·AI",
+  "창업·벤처",
+  "마케팅·광고",
+  "공연·예술",
+  "체육·스포츠",
+  "봉사·사회공헌",
+  "언론·미디어",
+  "어학·국제교류",
+  "취미·교양",
+] as const;
+
+export type SocietyCategory = (typeof SOCIETY_CATEGORIES)[number];
 
 /** 승인된 학회/동아리 - GET 응답(제보자 uid 미포함). */
 export interface SocietyOut {
   id: string;
+  category: SocietyCategory;
   name: string;
   kind: SocietyKind;
   official_url: string;
@@ -231,7 +255,7 @@ export interface SocietyOut {
 
 /** 제보 입력 - 연락처란 없음(설계상 부재). */
 export interface SocietySubmitInput {
-  department_id: string;
+  category: SocietyCategory;
   name: string;
   kind: SocietyKind;
   official_url: string;
@@ -240,9 +264,9 @@ export interface SocietySubmitInput {
   description?: string;
 }
 
-/** 학과별 승인된 학회/동아리 조회 - 인증 불필요, approved만 반환. */
-export function getSocieties(departmentId: string): Promise<SocietyOut[]> {
-  return request(`/api/societies?department_id=${encodeURIComponent(departmentId)}`);
+/** 분야별 승인된 학회/동아리 조회 - 인증 불필요, approved만 반환. */
+export function getSocieties(category: SocietyCategory): Promise<SocietyOut[]> {
+  return request(`/api/societies?category=${encodeURIComponent(category)}`);
 }
 
 /** 학회/동아리 제보 - 연세 인증 필수. 201 {id, moderation_status:"pending"}.

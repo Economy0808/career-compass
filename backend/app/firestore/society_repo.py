@@ -2,9 +2,11 @@
 
 ## 컬렉션 레이아웃
 
-`academic_societies/{department_id}/societies/{doc_id}` - 학과별 서브컬렉션.
-문서 id는 story_repo.py와 동일하게 서버 생성 uuid4를 쓴다(department_id는
-사용자 입력이라 그대로 문서 id로 쓰면 충돌/문자 제약 문제가 생긴다).
+`academic_societies/{category}/societies/{doc_id}` - 분야별 서브컬렉션
+(2026-09-07 department_id -> category 전환, app/schemas/societies.py의
+SocietyCategory 참고). 문서 id는 story_repo.py와 동일하게 서버 생성 uuid4를
+쓴다(category는 고정 enum값이지만 그래도 문서 id로 재사용하지 않고 별도
+생성한다 - 같은 분야에 여러 문서가 쌓이는 구조라 애초에 겹칠 수 없다).
 
 ## Stage A 범위
 
@@ -32,14 +34,14 @@ _ROOT_COLLECTION = "academic_societies"
 _SUBCOLLECTION = "societies"
 
 
-def _collection(db: Client, department_id: str) -> Any:
-    return db.collection(_ROOT_COLLECTION).document(department_id).collection(_SUBCOLLECTION)
+def _collection(db: Client, category: str) -> Any:
+    return db.collection(_ROOT_COLLECTION).document(category).collection(_SUBCOLLECTION)
 
 
 def create_society(
     db: Client,
     *,
-    department_id: str,
+    category: str,
     name: str,
     kind: str,
     official_url: str,
@@ -63,20 +65,21 @@ def create_society(
         "moderation_status": "pending",
         "reviewed_at": None,
     }
-    _collection(db, department_id).document(doc_id).set(data)
+    _collection(db, category).document(doc_id).set(data)
     return {"id": doc_id, "moderation_status": "pending"}
 
 
-def list_approved(db: Client, department_id: str) -> list[dict[str, Any]]:
-    """department_id 아래 moderation_status == "approved" 문서만 반환한다.
+def list_approved(db: Client, category: str) -> list[dict[str, Any]]:
+    """category 아래 moderation_status == "approved" 문서만 반환한다.
 
     submitter_uid/moderation_status/제출 시각 등 내부 필드는 여기서 걸러내고
     공개해도 되는 필드만 dict로 다시 구성한다 - Firestore 원본 dict를 그대로
     돌려주면 나중에 내부 필드가 추가될 때마다 이 함수를 잊고 그대로 새어나갈
-    위험이 있다.
+    위험이 있다. category는 호출부가 이미 아는 값이지만 SocietyOut 계약에
+    맞춰 응답 항목에도 그대로 채운다.
     """
     docs = (
-        _collection(db, department_id)
+        _collection(db, category)
         .where(filter=FieldFilter("moderation_status", "==", "approved"))
         .stream()
     )
@@ -86,6 +89,7 @@ def list_approved(db: Client, department_id: str) -> list[dict[str, Any]]:
         results.append(
             {
                 "id": doc.id,
+                "category": category,
                 "name": data.get("name"),
                 "kind": data.get("kind"),
                 "official_url": data.get("official_url"),
@@ -97,7 +101,7 @@ def list_approved(db: Client, department_id: str) -> list[dict[str, Any]]:
     return results
 
 
-def report_society(db: Client, *, department_id: str, doc_id: str, reporter_uid: str) -> bool:
+def report_society(db: Client, *, category: str, doc_id: str, reporter_uid: str) -> bool:
     """신고 접수 = 임시조치. moderation_status를 "pending"으로 되돌려 즉시
     list_approved()에서 빠지게 한다(재검수 대기 상태로 노출 차단).
 
@@ -106,7 +110,7 @@ def report_society(db: Client, *, department_id: str, doc_id: str, reporter_uid:
     reported_by에 기록하지만 이 모듈의 다른 어떤 함수도(list_approved 등) 그
     필드를 GET 응답으로 돌려주지 않는다 - CLI 모더레이션(list_pending)에서만 본다.
     """
-    doc_ref = _collection(db, department_id).document(doc_id)
+    doc_ref = _collection(db, category).document(doc_id)
     snapshot = doc_ref.get()
     if not snapshot.exists:
         return False
@@ -124,7 +128,7 @@ def report_society(db: Client, *, department_id: str, doc_id: str, reporter_uid:
 
 
 def list_pending(db: Client) -> list[dict[str, Any]]:
-    """전체 학과의 pending 문서를 collection_group 쿼리로 나열한다 - CLI 모더레이션
+    """전체 분야의 pending 문서를 collection_group 쿼리로 나열한다 - CLI 모더레이션
     (scripts/moderate_societies.py) 전용. submitter_uid/reported_by를 포함하지만
     이 함수는 HTTP 라우터에서 절대 쓰지 않는다(founder 전용 CLI 경로만 호출)."""
     docs = db.collection_group(_SUBCOLLECTION).where(
@@ -136,7 +140,7 @@ def list_pending(db: Client) -> list[dict[str, Any]]:
         parent_doc = doc.reference.parent.parent
         results.append(
             {
-                "department_id": parent_doc.id if parent_doc is not None else "?",
+                "category": parent_doc.id if parent_doc is not None else "?",
                 "id": doc.id,
                 "name": data.get("name"),
                 "kind": data.get("kind"),
@@ -149,11 +153,11 @@ def list_pending(db: Client) -> list[dict[str, Any]]:
 
 
 def set_moderation_status(
-    db: Client, *, department_id: str, doc_id: str, status: Literal["approved", "rejected"]
+    db: Client, *, category: str, doc_id: str, status: Literal["approved", "rejected"]
 ) -> bool:
     """CLI 모더레이션 전용 - moderation_status를 확정하고 reviewed_at을 찍는다.
     문서가 없으면 False."""
-    doc_ref = _collection(db, department_id).document(doc_id)
+    doc_ref = _collection(db, category).document(doc_id)
     if not doc_ref.get().exists:
         return False
     doc_ref.update({"moderation_status": status, "reviewed_at": SERVER_TIMESTAMP})
