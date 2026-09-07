@@ -29,7 +29,7 @@ import Link from "next/link";
 import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
 import { cn } from "@/lib/cn";
-import { Button, Chip, EmptyState, Field } from "@/components/ui";
+import { Button, EmptyState, Field } from "@/components/ui";
 import { useAuth } from "@/lib/auth-context";
 import {
   ApiError,
@@ -42,25 +42,37 @@ import {
 } from "@/lib/api";
 import { safeLinkHref } from "@/lib/markdown";
 
-const KIND_TONE: Record<SocietyKind, "goal" | "growth"> = {
-  학회: "goal",
-  동아리: "growth",
+/** 잉크 섞은 붉은/성공색 - login·verify·onboarding의 PAPER_DANGER와 같은
+ * 이유(밝은 종이 위에서 spec-m/spec-b 원색은 대비가 모자란다). */
+const PAPER_DANGER = "color-mix(in srgb, var(--spec-m) 55%, var(--paper-ink))";
+const PAPER_SUCCESS = "color-mix(in srgb, var(--lit) 65%, var(--paper-ink))";
+
+/** 학회/동아리 구분 배지 색 - Chip(components/ui)을 여기서 쓰지 않는 이유는
+ * certifications의 VerifiedBadge와 같다(cn.ts가 clsx가 아니라 단순 join이라
+ * className으로 Chip의 내부 톤 색을 안정적으로 못 덮어쓴다). */
+const KIND_PAPER: Record<SocietyKind, { on: string; off: string }> = {
+  학회: { on: "border-paper-ink bg-paper-ink text-paper", off: "border-paper-line text-paper-lo" },
+  동아리: { on: "border-paper-ink bg-transparent text-paper-ink", off: "border-paper-line text-paper-lo" },
 };
+function kindPillClass(k: SocietyKind, active: boolean) {
+  return cn(
+    "inline-flex items-center whitespace-nowrap rounded-full border px-2.5 py-0.5 text-micro font-semibold transition-colors",
+    active ? KIND_PAPER[k].on : KIND_PAPER[k].off
+  );
+}
 
 function ListSkeleton() {
   return (
     <div className="flex flex-col gap-2.5" aria-hidden>
       {Array.from({ length: 4 }).map((_, i) => (
-        <div key={i} className="h-[92px] animate-pulse rounded-lg border border-rule bg-ink-800/70" />
+        <div key={i} className="h-[92px] animate-pulse rounded-lg border border-paper-line bg-paper-soft" />
       ))}
     </div>
   );
 }
 
-/** 분야 복수선택 토글 칩 - Chip(components/ui)을 안 쓰는 이유는 certifications
- * 의 VerifiedBadge와 같다(cn.ts가 clsx가 아니라 단순 join이라 className으로
- * Chip의 내부 톤 색을 안정적으로 못 덮어쓴다). 여기 자체는 새로 만드는
- * 마크업이라 처음부터 직접 그린다. */
+/** 분야 복수선택 토글 칩 - 새로 만드는 마크업이라 Chip을 거치지 않고 직접
+ * 그린다(위 kindPillClass와 같은 이유). */
 function CategoryToggle({ label, active, onClick }: { label: string; active: boolean; onClick: () => void }) {
   return (
     <button
@@ -69,7 +81,9 @@ function CategoryToggle({ label, active, onClick }: { label: string; active: boo
       aria-pressed={active}
       className={cn(
         "whitespace-nowrap rounded-full border px-3 py-1 text-caption font-semibold transition-colors",
-        active ? "border-rule bg-spec-b/18 text-spec-b" : "border-rule text-text-lo hover:bg-ink-700"
+        active
+          ? "border-paper-ink bg-paper-ink text-paper"
+          : "border-paper-line text-paper-lo hover:bg-paper-soft"
       )}
     >
       {label}
@@ -80,22 +94,20 @@ function CategoryToggle({ label, active, onClick }: { label: string; active: boo
 function SocietyCard({ society }: { society: SocietyOut }) {
   const href = safeLinkHref(society.officialUrl);
   return (
-    <div className="rounded-lg border border-rule bg-ink-800/70 p-4 backdrop-blur-[2px]">
+    <div className="rounded-lg border border-paper-line bg-paper-soft/80 p-4 backdrop-blur-[2px]">
       <div className="flex items-start justify-between gap-3">
-        <h3 className="font-sans text-body font-semibold text-text-hi">{society.name}</h3>
-        <Chip tone={KIND_TONE[society.kind]} size="sm" selected>
-          {society.kind}
-        </Chip>
+        <h3 className="font-sans text-body font-semibold text-paper-ink">{society.name}</h3>
+        <span className={kindPillClass(society.kind, true)}>{society.kind}</span>
       </div>
       {(society.field || society.recruitSeason) && (
-        <div className="mt-1.5 flex flex-wrap items-center gap-x-2 gap-y-0.5 text-caption text-text-lo">
+        <div className="mt-1.5 flex flex-wrap items-center gap-x-2 gap-y-0.5 text-caption text-paper-lo">
           {society.field && <span>{society.field}</span>}
           {society.field && society.recruitSeason && <span aria-hidden>·</span>}
           {society.recruitSeason && <span>모집 {society.recruitSeason}</span>}
         </div>
       )}
       {society.description && (
-        <p className="mt-2 whitespace-pre-wrap text-body-sm leading-relaxed text-text-lo">
+        <p className="mt-2 whitespace-pre-wrap text-body-sm leading-relaxed text-paper-lo">
           {society.description}
         </p>
       )}
@@ -104,7 +116,7 @@ function SocietyCard({ society }: { society: SocietyOut }) {
           href={href}
           target="_blank"
           rel="noopener noreferrer"
-          className="mt-2.5 inline-block text-body-sm font-semibold text-spec-b underline underline-offset-2 hover:text-text-hi"
+          className="mt-2.5 inline-block text-body-sm font-semibold text-paper-ink underline underline-offset-2 hover:opacity-70"
         >
           공식 링크 ↗
         </a>
@@ -224,26 +236,26 @@ export default function SocietiesPage() {
   }
 
   return (
-    <div className="mx-auto max-w-3xl px-4 py-10 md:px-8">
+    <div className="paper-surface mx-auto min-h-dvh max-w-3xl bg-paper px-4 py-10 md:px-8">
       <header className="mb-6 flex flex-col gap-1.5">
-        <h1 className="font-serif text-display font-bold text-text-hi">학회 · 동아리</h1>
-        <p className="text-body-sm text-text-lo">분야별 실제 학회·동아리 정보를 학생들이 직접 채워요</p>
+        <h1 className="font-serif text-display font-bold text-paper-ink">학회 · 동아리</h1>
+        <p className="text-body-sm text-paper-lo">분야별 실제 학회·동아리 정보를 학생들이 직접 채워요</p>
       </header>
 
       <div className="mb-2 flex items-center justify-between gap-3">
-        <p className="text-caption font-semibold text-text-lo">분야</p>
+        <p className="text-caption font-semibold text-paper-lo">분야</p>
         <div className="flex gap-3">
           <button
             type="button"
             onClick={() => setSelectedCategories(new Set(SOCIETY_CATEGORIES))}
-            className="text-caption font-semibold text-spec-b hover:underline"
+            className="text-caption font-semibold text-paper-ink hover:underline"
           >
             전체 선택
           </button>
           <button
             type="button"
             onClick={() => setSelectedCategories(new Set())}
-            className="text-caption font-semibold text-text-lo hover:underline"
+            className="text-caption font-semibold text-paper-lo hover:underline"
           >
             전체 해제
           </button>
@@ -256,25 +268,31 @@ export default function SocietiesPage() {
       </div>
 
       <div className="mb-2.5 mt-6 flex items-center justify-between gap-3">
-        <span className="font-mono text-caption tracking-[0.14em] text-text-lo">
+        <span className="font-mono text-caption tracking-[0.14em] text-paper-lo">
           {selectedCategories.size}개 분야
         </span>
-        <Button size="sm" variant="secondary" onClick={openForm}>
+        <Button
+          size="sm"
+          variant="secondary"
+          onClick={openForm}
+          className="!border-paper-ink/25 !bg-paper-soft !text-paper-ink hover:!bg-paper-line"
+        >
           제보하기
         </Button>
       </div>
 
       {selectedCategories.size === 0 ? (
-        <EmptyState title="분야를 하나 이상 선택하세요" />
+        <EmptyState paper title="분야를 하나 이상 선택하세요" />
       ) : societies === null ? (
         <ListSkeleton />
       ) : societies.length === 0 && !societiesError ? (
         <EmptyState
+          paper
           title="아직 등록된 학회가 없어요 — 첫 제보자가 되어주세요"
           action={<Button onClick={openForm}>제보하기</Button>}
         />
       ) : societiesError ? (
-        <EmptyState title="목록을 불러오지 못했어요" description="잠시 후 다시 시도해주세요" />
+        <EmptyState paper title="목록을 불러오지 못했어요" description="잠시 후 다시 시도해주세요" />
       ) : (
         <div className="grid grid-cols-1 gap-2.5 sm:grid-cols-2">
           {societies.map((s) => (
@@ -284,22 +302,22 @@ export default function SocietiesPage() {
       )}
 
       {formOpen && (
-        <div className="mt-4 rounded-lg border border-rule bg-ink-800/70 p-4">
-          <h2 className="font-sans text-body font-semibold text-text-hi">학회 · 동아리 제보</h2>
+        <div className="mt-4 rounded-lg border border-paper-line bg-paper-soft p-4">
+          <h2 className="font-sans text-body font-semibold text-paper-ink">학회 · 동아리 제보</h2>
 
           {!user ? (
             <div className="mt-3 flex flex-col items-start gap-2">
-              <p className="text-body-sm text-text-lo">로그인하면 제보할 수 있어요</p>
+              <p className="text-body-sm text-paper-lo">로그인하면 제보할 수 있어요</p>
               <Button onClick={() => router.push(`/login?next=${encodeURIComponent("/societies")}`)}>
                 로그인
               </Button>
             </div>
           ) : !user.yonseiVerified ? (
             <div className="mt-3 flex flex-col items-start gap-2">
-              <p className="text-body-sm text-text-lo">연세대 학부생 인증을 마치면 제보할 수 있어요</p>
+              <p className="text-body-sm text-paper-lo">연세대 학부생 인증을 마치면 제보할 수 있어요</p>
               <Link
                 href="/verify"
-                className="text-body-sm font-semibold text-spec-b underline underline-offset-2 hover:text-text-hi"
+                className="text-body-sm font-semibold text-paper-ink underline underline-offset-2 hover:opacity-70"
               >
                 인증하러 가기
               </Link>
@@ -309,7 +327,7 @@ export default function SocietiesPage() {
               <div>
                 <label
                   htmlFor="society-category"
-                  className="mb-1.5 block text-caption font-semibold text-text-lo"
+                  className="mb-1.5 block text-caption font-semibold text-paper-lo"
                 >
                   분야
                 </label>
@@ -317,7 +335,7 @@ export default function SocietiesPage() {
                   id="society-category"
                   value={formCategory}
                   onChange={(e) => setFormCategory(e.target.value as SocietyCategory | "")}
-                  className="w-full rounded-md border border-rule bg-ink-900/60 px-3.5 py-2.5 text-body text-text-hi focus:outline-none focus-visible:border-spec-b"
+                  className="w-full rounded-md border border-paper-line bg-paper px-3.5 py-2.5 text-body text-paper-ink focus:outline-none focus-visible:border-paper-ink"
                 >
                   <option value="">분야를 선택하세요</option>
                   {SOCIETY_CATEGORIES.map((c) => (
@@ -328,6 +346,7 @@ export default function SocietiesPage() {
                 </select>
               </div>
               <Field
+                paper
                 id="society-name"
                 label="이름"
                 value={form.name}
@@ -335,16 +354,23 @@ export default function SocietiesPage() {
                 maxLength={100}
               />
               <div>
-                <p className="mb-1.5 text-caption font-semibold text-text-lo">구분</p>
+                <p className="mb-1.5 text-caption font-semibold text-paper-lo">구분</p>
                 <div className="flex gap-2">
                   {(["학회", "동아리"] as const).map((k) => (
-                    <Chip key={k} tone={KIND_TONE[k]} selected={kind === k} interactive onClick={() => setKind(k)}>
+                    <button
+                      key={k}
+                      type="button"
+                      onClick={() => setKind(k)}
+                      aria-pressed={kind === k}
+                      className={cn(kindPillClass(k, kind === k), "px-4 py-1.5 text-caption")}
+                    >
                       {k}
-                    </Chip>
+                    </button>
                   ))}
                 </div>
               </div>
               <Field
+                paper
                 id="society-url"
                 label="공식 링크"
                 type="url"
@@ -354,6 +380,7 @@ export default function SocietiesPage() {
                 maxLength={500}
               />
               <Field
+                paper
                 id="society-season"
                 label="모집 시기 (선택)"
                 placeholder="예: 매 학기 초"
@@ -362,6 +389,7 @@ export default function SocietiesPage() {
                 maxLength={200}
               />
               <Field
+                paper
                 id="society-field"
                 label="세부 분야 (선택)"
                 value={form.fieldText}
@@ -369,6 +397,7 @@ export default function SocietiesPage() {
                 maxLength={200}
               />
               <Field
+                paper
                 id="society-description"
                 label="설명 (선택)"
                 multiline
@@ -377,11 +406,19 @@ export default function SocietiesPage() {
                 onChange={(e) => setForm((f) => ({ ...f, description: e.target.value }))}
                 maxLength={2000}
               />
-              <p className="text-micro text-text-lo">
+              <p className="text-micro text-paper-lo">
                 담당자 연락처는 적지 마세요. 공식 링크(https)만 남겨주세요.
               </p>
-              {submitError && <p className="text-caption text-spec-m">{submitError}</p>}
-              {submitSuccess && <p className="text-caption text-spec-b">제보 접수 — 검토 후 공개돼요</p>}
+              {submitError && (
+                <p className="text-caption" style={{ color: PAPER_DANGER }}>
+                  {submitError}
+                </p>
+              )}
+              {submitSuccess && (
+                <p className="text-caption" style={{ color: PAPER_SUCCESS }}>
+                  제보 접수 — 검토 후 공개돼요
+                </p>
+              )}
               <div className="flex gap-2">
                 <Button
                   className="flex-1"
@@ -390,7 +427,12 @@ export default function SocietiesPage() {
                 >
                   {submitting ? "제보하는 중…" : "제보하기"}
                 </Button>
-                <Button variant="ghost" onClick={() => setFormOpen(false)} disabled={submitting}>
+                <Button
+                  variant="ghost"
+                  onClick={() => setFormOpen(false)}
+                  disabled={submitting}
+                  className="!border-paper-line !text-paper-lo hover:!bg-paper-line/50 hover:!text-paper-ink"
+                >
                   닫기
                 </Button>
               </div>

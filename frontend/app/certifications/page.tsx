@@ -38,11 +38,16 @@ import {
 } from "@/lib/api";
 import { safeLinkHref } from "@/lib/markdown";
 
+/** 잉크 섞은 붉은/성공색 - login·verify·onboarding의 PAPER_DANGER와 같은
+ * 이유(밝은 종이 위에서 spec-m/spec-b 원색은 대비가 모자란다). */
+const PAPER_DANGER = "color-mix(in srgb, var(--spec-m) 55%, var(--paper-ink))";
+const PAPER_SUCCESS = "color-mix(in srgb, var(--lit) 65%, var(--paper-ink))";
+
 function ListSkeleton() {
   return (
     <div className="flex flex-col gap-2.5" aria-hidden>
       {Array.from({ length: 4 }).map((_, i) => (
-        <div key={i} className="h-[92px] animate-pulse rounded-lg border border-rule bg-ink-800/70" />
+        <div key={i} className="h-[92px] animate-pulse rounded-lg border border-paper-line bg-paper-soft" />
       ))}
     </div>
   );
@@ -87,13 +92,13 @@ function mapReportError(err: unknown): string {
 function VerifiedBadge({ verified }: { verified: boolean }) {
   if (verified) {
     return (
-      <span className="inline-flex shrink-0 items-center whitespace-nowrap rounded-full border border-lit bg-lit/15 px-2.5 py-0.5 text-micro font-semibold text-text-hi">
+      <span className="inline-flex shrink-0 items-center whitespace-nowrap rounded-full border border-lit bg-lit/25 px-2.5 py-0.5 text-micro font-semibold text-paper-ink">
         실존·공식
       </span>
     );
   }
   return (
-    <span className="inline-flex shrink-0 items-center whitespace-nowrap rounded-full border border-rule px-2.5 py-0.5 text-micro font-semibold text-text-lo">
+    <span className="inline-flex shrink-0 items-center whitespace-nowrap rounded-full border border-paper-line px-2.5 py-0.5 text-micro font-semibold text-paper-lo">
       커뮤니티 제보 · 미검증
     </span>
   );
@@ -121,20 +126,20 @@ function CertCard({ cert }: { cert: CertificationOut }) {
   }
 
   return (
-    <div className="rounded-lg border border-rule bg-ink-800/70 p-4 backdrop-blur-[2px]">
+    <div className="rounded-lg border border-paper-line bg-paper-soft/80 p-4 backdrop-blur-[2px]">
       <div className="flex items-start justify-between gap-3">
-        <h3 className="font-sans text-body font-semibold text-text-hi">{cert.name}</h3>
+        <h3 className="font-sans text-body font-semibold text-paper-ink">{cert.name}</h3>
         <VerifiedBadge verified={cert.verified} />
       </div>
       {(cert.issuer || metaBits.length > 0) && (
-        <div className="mt-1.5 flex flex-wrap items-center gap-x-2 gap-y-0.5 text-caption text-text-lo">
+        <div className="mt-1.5 flex flex-wrap items-center gap-x-2 gap-y-0.5 text-caption text-paper-lo">
           {cert.issuer && <span>{cert.issuer}</span>}
           {cert.issuer && metaBits.length > 0 && <span aria-hidden>·</span>}
           {metaBits.length > 0 && <span>{metaBits.join(" · ")}</span>}
         </div>
       )}
       {scheduleEntries.length > 0 && (
-        <p className="mt-2 text-caption text-text-lo">
+        <p className="mt-2 text-caption text-paper-lo">
           {scheduleEntries.map(([k, v]) => `${k} ${v}`).join(" · ")}
         </p>
       )}
@@ -144,18 +149,28 @@ function CertCard({ cert }: { cert: CertificationOut }) {
             href={href}
             target="_blank"
             rel="noopener noreferrer"
-            className="text-body-sm font-semibold text-spec-b underline underline-offset-2 hover:text-text-hi"
+            className="text-body-sm font-semibold text-paper-ink underline underline-offset-2 hover:opacity-70"
           >
             공식 링크 ↗
           </a>
         )}
         {!cert.verified && cert.id && (
-          <Button size="sm" variant="ghost" onClick={handleReport} disabled={reportState !== "idle"}>
+          <Button
+            size="sm"
+            variant="ghost"
+            onClick={handleReport}
+            disabled={reportState !== "idle"}
+            className="!border-paper-line !text-paper-lo hover:!bg-paper-line/50 hover:!text-paper-ink"
+          >
             {reportState === "done" ? "신고 접수" : "신고"}
           </Button>
         )}
       </div>
-      {reportError && <p className="mt-1.5 text-caption text-spec-m">{reportError}</p>}
+      {reportError && (
+        <p className="mt-1.5 text-caption" style={{ color: PAPER_DANGER }}>
+          {reportError}
+        </p>
+      )}
     </div>
   );
 }
@@ -229,14 +244,15 @@ export default function CertificationsPage() {
   }
 
   return (
-    <div className="mx-auto max-w-3xl px-4 py-10 md:px-8">
+    <div className="paper-surface mx-auto min-h-dvh max-w-3xl bg-paper px-4 py-10 md:px-8">
       <header className="mb-6 flex flex-col gap-1.5">
-        <h1 className="font-serif text-display font-bold text-text-hi">자격증</h1>
-        <p className="text-body-sm text-text-lo">공식 등재 자격증 + 학생들이 직접 채운 자격증을 함께 찾아요</p>
+        <h1 className="font-serif text-display font-bold text-paper-ink">자격증</h1>
+        <p className="text-body-sm text-paper-lo">공식 등재 자격증 + 학생들이 직접 채운 자격증을 함께 찾아요</p>
       </header>
 
       <div className="flex gap-2">
         <Field
+          paper
           id="cert-search"
           label="자격증 검색"
           placeholder="예: 정보처리기사"
@@ -255,10 +271,15 @@ export default function CertificationsPage() {
       </div>
 
       <div className="mb-2.5 mt-6 flex items-center justify-between gap-3">
-        <span className="font-mono text-caption tracking-[0.14em] text-text-lo">
+        <span className="font-mono text-caption tracking-[0.14em] text-paper-lo">
           {query.trim() ? `"${query.trim()}" 검색 결과` : "전체 자격증"}
         </span>
-        <Button size="sm" variant="secondary" onClick={openForm}>
+        <Button
+          size="sm"
+          variant="secondary"
+          onClick={openForm}
+          className="!border-paper-ink/25 !bg-paper-soft !text-paper-ink hover:!bg-paper-line"
+        >
           제보하기
         </Button>
       </div>
@@ -267,11 +288,12 @@ export default function CertificationsPage() {
         <ListSkeleton />
       ) : certs.length === 0 && !certsError ? (
         <EmptyState
+          paper
           title="찾는 자격증이 없어요 — 직접 제보해 주세요"
           action={<Button onClick={openForm}>제보하기</Button>}
         />
       ) : certsError ? (
-        <EmptyState title="목록을 불러오지 못했어요" description="잠시 후 다시 시도해주세요" />
+        <EmptyState paper title="목록을 불러오지 못했어요" description="잠시 후 다시 시도해주세요" />
       ) : (
         <div className="grid grid-cols-1 gap-2.5 sm:grid-cols-2">
           {certs.map((c) => (
@@ -281,24 +303,24 @@ export default function CertificationsPage() {
       )}
 
       {formOpen && (
-        <div className="mt-4 rounded-lg border border-rule bg-ink-800/70 p-4">
-          <h2 className="font-sans text-body font-semibold text-text-hi">자격증 제보</h2>
+        <div className="mt-4 rounded-lg border border-paper-line bg-paper-soft p-4">
+          <h2 className="font-sans text-body font-semibold text-paper-ink">자격증 제보</h2>
 
           {authLoading ? (
-            <div className="mt-3 h-9 w-40 animate-pulse rounded-sm bg-ink-700" />
+            <div className="mt-3 h-9 w-40 animate-pulse rounded-sm bg-paper-line" />
           ) : !user ? (
             <div className="mt-3 flex flex-col items-start gap-2">
-              <p className="text-body-sm text-text-lo">로그인하면 제보할 수 있어요</p>
+              <p className="text-body-sm text-paper-lo">로그인하면 제보할 수 있어요</p>
               <Button onClick={() => router.push(`/login?next=${encodeURIComponent("/certifications")}`)}>
                 로그인
               </Button>
             </div>
           ) : !user.yonseiVerified ? (
             <div className="mt-3 flex flex-col items-start gap-2">
-              <p className="text-body-sm text-text-lo">연세대 학부생 인증을 마치면 제보할 수 있어요</p>
+              <p className="text-body-sm text-paper-lo">연세대 학부생 인증을 마치면 제보할 수 있어요</p>
               <Link
                 href="/verify"
-                className="text-body-sm font-semibold text-spec-b underline underline-offset-2 hover:text-text-hi"
+                className="text-body-sm font-semibold text-paper-ink underline underline-offset-2 hover:opacity-70"
               >
                 인증하러 가기
               </Link>
@@ -306,6 +328,7 @@ export default function CertificationsPage() {
           ) : (
             <div className="mt-3 flex flex-col gap-3.5">
               <Field
+                paper
                 id="cert-name"
                 label="자격증 이름"
                 value={form.name}
@@ -313,6 +336,7 @@ export default function CertificationsPage() {
                 maxLength={100}
               />
               <Field
+                paper
                 id="cert-issuer"
                 label="발급 기관"
                 value={form.issuer}
@@ -320,6 +344,7 @@ export default function CertificationsPage() {
                 maxLength={100}
               />
               <Field
+                paper
                 id="cert-url"
                 label="공식 링크"
                 type="url"
@@ -328,11 +353,19 @@ export default function CertificationsPage() {
                 onChange={(e) => setForm((f) => ({ ...f, officialUrl: e.target.value }))}
                 maxLength={500}
               />
-              <p className="text-micro text-text-lo">
+              <p className="text-micro text-paper-lo">
                 연락처는 적지 마세요. 이름·기관·공식 링크(https)만 남겨주세요.
               </p>
-              {submitError && <p className="text-caption text-spec-m">{submitError}</p>}
-              {submitSuccess && <p className="text-caption text-spec-b">제보 접수 — 검토 후 공개돼요</p>}
+              {submitError && (
+                <p className="text-caption" style={{ color: PAPER_DANGER }}>
+                  {submitError}
+                </p>
+              )}
+              {submitSuccess && (
+                <p className="text-caption" style={{ color: PAPER_SUCCESS }}>
+                  제보 접수 — 검토 후 공개돼요
+                </p>
+              )}
               <div className="flex gap-2">
                 <Button
                   className="flex-1"
@@ -341,7 +374,12 @@ export default function CertificationsPage() {
                 >
                   {submitting ? "제보하는 중…" : "제보하기"}
                 </Button>
-                <Button variant="ghost" onClick={() => setFormOpen(false)} disabled={submitting}>
+                <Button
+                  variant="ghost"
+                  onClick={() => setFormOpen(false)}
+                  disabled={submitting}
+                  className="!border-paper-line !text-paper-lo hover:!bg-paper-line/50 hover:!text-paper-ink"
+                >
                   닫기
                 </Button>
               </div>
