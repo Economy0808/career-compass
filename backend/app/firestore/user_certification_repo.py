@@ -59,6 +59,7 @@ def list_approved(db: Client) -> list[dict[str, Any]]:
         data = doc.to_dict() or {}
         results.append(
             {
+                "id": doc.id,
                 "jmcd": "",
                 "name": data.get("name"),
                 "name_norm": data.get("name_norm"),

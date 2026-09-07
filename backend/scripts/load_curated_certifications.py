@@ -76,18 +76,40 @@ def build_qnet_index(qnet_docs: list[dict[str, Any]]) -> dict[str, dict[str, Any
     return {d["name_norm"]: d for d in qnet_docs}
 
 
+def build_search_terms_index(
+    career_cert_map: dict[str, list[dict[str, Any]]],
+) -> dict[str, list[str]]:
+    """career_cert_map(진로명 -> [{name,tier}])을 뒤집어 cert name_norm -> 진로명 목록으로 만든다.
+
+    app/api/certifications.py의 검색이 자격명뿐 아니라 그 자격이 속한 진로/
+    분야명("증권", "반도체" 등)으로도 걸리게 하기 위한 내부 필드(search_terms)의
+    소스. 정렬 + 중복 제거해 반환한다(한 자격이 여러 진로에 걸릴 수 있으므로).
+    """
+    index: dict[str, set[str]] = {}
+    for career_name, cert_refs in career_cert_map.items():
+        for ref in cert_refs:
+            key = normalize_cert_name(ref["name"])
+            index.setdefault(key, set()).add(career_name)
+    return {name_norm: sorted(career_names) for name_norm, career_names in index.items()}
+
+
 def doc_id_for(jmcd: str, name_norm: str) -> str:
     """Firestore 문서 id: jmcd가 있으면 그대로, 없으면 name_norm 슬러그(민간/국제 자격)."""
     return jmcd or f"cert-{name_norm}"
 
 
 def build_cert_doc(
-    cert: dict[str, Any], qnet_index: dict[str, dict[str, Any]]
+    cert: dict[str, Any],
+    qnet_index: dict[str, dict[str, Any]],
+    search_terms_index: dict[str, list[str]] | None = None,
 ) -> tuple[dict[str, Any], bool]:
     """curated 자격증 1건 -> Firestore 저장용 doc. (doc, unmatched) 반환.
 
     unmatched=True는 "국가자격인데 Q-Net 종목 목록에서 못 찾음"만 뜻한다(운영자
     보고용) - 민간/국제 자격은 애초에 매칭 대상이 아니므로 항상 False.
+
+    search_terms_index는 build_search_terms_index() 결과 - 없으면(테스트 등)
+    빈 목록으로 채운다.
     """
     match = qnet_index.get(cert["name_norm"]) if cert["scope"] == "domestic_national" else None
     jmcd = match["jmcd"] if match else ""
@@ -107,6 +129,7 @@ def build_cert_doc(
         "schedule": match["schedule"] if match else None,
         "source_type": "open_api" if match else "curated",
         "doc_id": doc_id_for(jmcd, cert["name_norm"]),
+        "search_terms": (search_terms_index or {}).get(cert["name_norm"], []),
     }
     unmatched = cert["scope"] == "domestic_national" and match is None
     return doc, unmatched
@@ -190,12 +213,13 @@ def main() -> None:
         print(f"에러: 소스 게이트 실패 - {exc}")
         raise SystemExit(1) from exc
     qnet_index = build_qnet_index(qnet_docs)
+    search_terms_index = build_search_terms_index(data.get("career_cert_map", {}))
 
     cert_docs: list[dict[str, Any]] = []
     cert_docs_by_name: dict[str, dict[str, Any]] = {}
     unmatched_names: list[str] = []
     for cert in data["certs"]:
-        doc, unmatched = build_cert_doc(cert, qnet_index)
+        doc, unmatched = build_cert_doc(cert, qnet_index, search_terms_index)
         cert_docs.append(doc)
         cert_docs_by_name[cert["name"]] = doc
         if unmatched:

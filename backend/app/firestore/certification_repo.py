@@ -75,7 +75,7 @@ def get_by_name_norm(db: Client, name_norm: str) -> dict[str, Any] | None:
 
 def list_all(db: Client) -> list[dict[str, Any]]:
     """certifications 전체를 반환한다."""
-    return [doc.to_dict() for doc in db.collection(_COLLECTION).stream()]
+    return [{**(doc.to_dict() or {}), "id": doc.id} for doc in db.collection(_COLLECTION).stream()]
 
 
 def upsert_career_paths(db: Client, docs: list[dict[str, Any]]) -> int:

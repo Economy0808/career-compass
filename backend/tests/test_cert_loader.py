@@ -147,6 +147,64 @@ class TestBuildCertDoc:
         assert doc["official_url"] == "https://www.cfainstitute.org"
         assert doc["source_type"] == "curated"
 
+    def test_attaches_search_terms_from_index(self) -> None:
+        qnet_index = mod.build_qnet_index([_qnet_doc("1320", "정보처리기사")])
+        search_terms_index = {"정보처리기사": ["소프트웨어 개발자"]}
+        cert = {
+            "name": "정보처리기사",
+            "name_norm": "정보처리기사",
+            "issuer": "한국산업인력공단",
+            "scope": "domestic_national",
+            "cert_class": "career_credential",
+            "tier": "우대",
+            "official_url": "",
+        }
+
+        doc, _ = mod.build_cert_doc(cert, qnet_index, search_terms_index)
+
+        assert doc["search_terms"] == ["소프트웨어 개발자"]
+
+    def test_search_terms_defaults_to_empty_list_when_index_absent(self) -> None:
+        cert = {
+            "name": "CFA",
+            "name_norm": "cfa",
+            "issuer": "CFA Institute",
+            "scope": "international",
+            "cert_class": "career_credential",
+            "tier": "우대",
+            "official_url": "https://www.cfainstitute.org",
+        }
+
+        doc, _ = mod.build_cert_doc(cert, {})
+
+        assert doc["search_terms"] == []
+
+
+class TestBuildSearchTermsIndex:
+    def test_reverses_career_cert_map_by_name_norm(self) -> None:
+        career_cert_map = {
+            "증권·자산운용 애널리스트/PB": [
+                {"name": "투자자산운용사", "tier": "필수"},
+                {"name": "금융투자분석사", "tier": "필수"},
+            ],
+            "퀀트·리스크/금융공학": [{"name": "CFA", "tier": "우대"}],
+        }
+
+        index = mod.build_search_terms_index(career_cert_map)
+
+        assert index[mod.normalize_cert_name("투자자산운용사")] == ["증권·자산운용 애널리스트/PB"]
+        assert index[mod.normalize_cert_name("cfa")] == ["퀀트·리스크/금융공학"]
+
+    def test_dedupes_and_sorts_multiple_careers_for_same_cert(self) -> None:
+        career_cert_map = {
+            "나중 진로": [{"name": "공통자격", "tier": "우대"}],
+            "먼저 진로": [{"name": "공통자격", "tier": "우대"}],
+        }
+
+        index = mod.build_search_terms_index(career_cert_map)
+
+        assert index[mod.normalize_cert_name("공통자격")] == ["나중 진로", "먼저 진로"]
+
 
 class TestDocIdFor:
     def test_uses_jmcd_when_present(self) -> None:

@@ -94,6 +94,83 @@ class TestFilterCertifications:
         assert result == []
 
 
+# search_terms(로더가 career_cert_map에서 붙이는 진로명 목록)를 통한 검색 -----
+
+
+_CAREER_CERTS: list[dict] = [
+    {
+        "name": "투자자산운용사",
+        "name_norm": "투자자산운용사",
+        "scope": "domestic_national",
+        "search_terms": ["증권·자산운용 애널리스트/PB"],
+    },
+    {
+        "name": "금융투자분석사",
+        "name_norm": "금융투자분석사",
+        "scope": "domestic_national",
+        "search_terms": ["증권·자산운용 애널리스트/PB"],
+    },
+    {
+        "name": "펀드투자권유자문인력",
+        "name_norm": "펀드투자권유자문인력",
+        "scope": "domestic_national",
+        "search_terms": ["증권·자산운용 애널리스트/PB"],
+    },
+    {
+        "name": "전자기사",
+        "name_norm": "전자기사",
+        "scope": "domestic_national",
+        "search_terms": ["반도체 공정/소자 엔지니어"],
+    },
+    {
+        "name": "CFA",
+        "name_norm": "cfa",
+        "scope": "international",
+        "search_terms": ["퀀트·리스크/금융공학"],
+    },
+    {
+        "name": "FRM",
+        "name_norm": "frm",
+        "scope": "international",
+        "search_terms": ["퀀트·리스크/금융공학"],
+    },
+    {
+        # 이름 자체에 "AI"가 부분문자열로 들어있는 케이스 - 짧은 ASCII 쿼리
+        # 오탐(#3)을 검증하기 위한 데이터. search_terms는 무관한 진로.
+        "name": "AICPA(미국공인회계사)",
+        "name_norm": "aicpa미국공인회계사",
+        "scope": "international",
+        "search_terms": ["회계/세무 전문가"],
+    },
+]
+
+
+class TestFilterCertificationsByCareerSearchTerms:
+    def test_q_matches_via_career_search_terms(self) -> None:
+        result = certifications_module.filter_certifications(_CAREER_CERTS, q="증권")
+        assert {c["name"] for c in result} == {
+            "투자자산운용사",
+            "금융투자분석사",
+            "펀드투자권유자문인력",
+        }
+
+    def test_q_matches_field_career_via_search_terms(self) -> None:
+        result = certifications_module.filter_certifications(_CAREER_CERTS, q="반도체")
+        assert [c["name"] for c in result] == ["전자기사"]
+
+    def test_q_matches_english_certs_via_korean_career_term(self) -> None:
+        result = certifications_module.filter_certifications(_CAREER_CERTS, q="금융")
+        assert {c["name"] for c in result} >= {"CFA", "FRM"}
+
+    def test_q_still_matches_by_name_no_regression(self) -> None:
+        result = certifications_module.filter_certifications(_CAREER_CERTS, q="투자")
+        assert "투자자산운용사" in {c["name"] for c in result}
+
+    def test_short_ascii_query_does_not_false_positive_match_substring(self) -> None:
+        result = certifications_module.filter_certifications(_CAREER_CERTS, q="AI")
+        assert "AICPA(미국공인회계사)" not in {c["name"] for c in result}
+
+
 # --- GET /api/certifications ---------------------------------------------
 
 

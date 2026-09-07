@@ -37,6 +37,7 @@ class CertificationOut(_CamelModel):
     격상되지 않는다는 하드 요구사항을 스키마 레벨에서도 드러낸다.
     """
 
+    id: str = ""
     jmcd: str = ""
     name: str
     name_norm: str

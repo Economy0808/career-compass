@@ -24,6 +24,7 @@ user_certification_repo.py의 user_certifications)에 쌓아 큐레이션 자격
 
 from __future__ import annotations
 
+import re
 import time
 from typing import Any
 
@@ -81,20 +82,53 @@ def _list_all_cached(db: Client) -> list[dict[str, Any]]:
     return _cache["certs"]  # type: ignore[no-any-return]
 
 
+# 3자 미만 + 순수 ASCII인 쿼리("AI" 등)는 원문 그대로 부분일치시키면 "AICPA" 같은
+# 다른 자격명 안에 우연히 포함된 문자열까지 잡아버린다("AI" in "AICPA"). 이런
+# 경우만 단어 경계(\b) 토큰 매칭으로 좁힌다 - 한글 쿼리는 애초에 짧아도(2자)
+# 오탐 빈도가 낮고 정규화(name_norm) substring이 이미 널리 쓰이는 방식이라 그대로
+# 둔다.
+_SHORT_ASCII_LEN = 3
+
+
+def _matches_short_ascii_query(q_stripped: str, name: str) -> bool:
+    """짧은 ASCII 쿼리를 name에 대해 단어 경계 매칭한다(부분일치 아님)."""
+    return re.search(rf"\b{re.escape(q_stripped.lower())}\b", name.lower()) is not None
+
+
 def filter_certifications(
     certs: list[dict[str, Any]], q: str = "", scope: str | None = None
 ) -> list[dict[str, Any]]:
-    """이름 부분일치(q) + scope 필터. 순수 함수 - Firestore/FastAPI 의존성 없음.
+    """이름/진로(search_terms) 부분일치(q) + scope 필터. 순수 함수 - Firestore/FastAPI 의존성 없음.
 
     q는 normalize_cert_name으로 정규화해 저장된 name_norm과 대조한다 - 공백/
     문장부호/대소문자 차이를 무시하기 위함(app/services/cert_match.py 재사용).
+    name_norm에 없어도 search_terms(로더가 career_cert_map에서 역인덱싱해 붙인
+    진로명 목록 - app/scripts/load_curated_certifications.py 참고)에 걸리면
+    매치로 친다 - "증권" 검색이 자격명이 아니라 그 자격이 속한 진로명으로
+    걸리게 하기 위함. 유저 제보 자격증(user_submitted)은 search_terms가 없어
+    이름으로만 매치된다.
+
+    짧은(3자 미만) 순수 ASCII 쿼리는 예외로, 부분일치 대신 name에 대한 단어
+    경계 매칭만 쓴다(위 _matches_short_ascii_query 참고) - "AI"가 "AICPA"를
+    잘못 맞히는 문제를 막는다.
     """
     results = certs
     if scope:
         results = [c for c in results if c.get("scope") == scope]
     if q:
-        q_norm = normalize_cert_name(q)
-        results = [c for c in results if q_norm in c.get("name_norm", "")]
+        q_stripped = q.strip()
+        if q_stripped.isascii() and len(q_stripped) < _SHORT_ASCII_LEN:
+            results = [
+                c for c in results if _matches_short_ascii_query(q_stripped, c.get("name", ""))
+            ]
+        else:
+            q_norm = normalize_cert_name(q)
+            results = [
+                c
+                for c in results
+                if q_norm in c.get("name_norm", "")
+                or any(q_norm in normalize_cert_name(term) for term in c.get("search_terms") or [])
+            ]
     return results
 
 
