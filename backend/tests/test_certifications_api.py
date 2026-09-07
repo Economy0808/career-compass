@@ -48,11 +48,17 @@ _CERTS: list[dict] = [
 
 @pytest.fixture(autouse=True)
 def _reset_cache_and_overrides() -> Iterator[None]:
-    """모듈 전역 TTL 캐시 + app 의존성 override를 테스트마다 초기화한다."""
+    """모듈 전역 TTL 캐시 + app 의존성 override를 테스트마다 초기화한다.
+
+    user_certification_repo.list_approved도 기본적으로 빈 목록으로 patch해둔다 -
+    db가 더미 object()라 실제 Firestore 호출은 무엇이든 터진다. 유저 제보 병합
+    동작 자체를 검증하는 테스트는 개별적으로 return_value를 바꿔 재-patch한다.
+    """
     certifications_module._cache["certs"] = None
     certifications_module._cache["at"] = 0.0
     app.dependency_overrides[get_firestore_client] = lambda: object()
-    yield
+    with patch("app.firestore.user_certification_repo.list_approved", return_value=[]):
+        yield
     certifications_module._cache["certs"] = None
     certifications_module._cache["at"] = 0.0
     app.dependency_overrides.clear()
@@ -97,8 +103,41 @@ async def test_search_returns_all_without_filters() -> None:
         async with _client() as client:
             resp = await client.get("/api/certifications")
     assert resp.status_code == 200
-    names = [c["name"] for c in resp.json()]
-    assert names == ["정보처리기사", "CFA"]
+    body = resp.json()
+    assert [c["name"] for c in body] == ["정보처리기사", "CFA"]
+    # 큐레이션/공식 자격증은 저장된 필드가 없어도 verified=True로 계산돼 내려간다.
+    assert all(c["verified"] is True for c in body)
+
+
+@pytest.mark.asyncio
+async def test_search_merges_approved_user_certification_as_unverified() -> None:
+    user_cert = {
+        "jmcd": "",
+        "name": "사내 데이터분석 자격",
+        "name_norm": "사내데이터분석자격",
+        "issuer": "제보자 본인",
+        "scope": "",
+        "cert_class": "",
+        "tier": "",
+        "official_url": "https://example.com/cert",
+        "schedule": None,
+        "source_type": "user_submitted",
+        "verified": False,
+    }
+    with (
+        patch("app.firestore.certification_repo.list_all", return_value=_CERTS),
+        patch("app.firestore.user_certification_repo.list_approved", return_value=[user_cert]),
+    ):
+        async with _client() as client:
+            resp = await client.get("/api/certifications")
+    assert resp.status_code == 200
+    body = resp.json()
+    names = {c["name"]: c for c in body}
+    assert "사내 데이터분석 자격" in names
+    submitted = names["사내 데이터분석 자격"]
+    assert submitted["verified"] is False
+    assert submitted["sourceType"] == "user_submitted"
+    assert "submitterUid" not in submitted
 
 
 @pytest.mark.asyncio
