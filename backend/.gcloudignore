@@ -1,0 +1,23 @@
+# Cloud Build upload context for `gcloud run deploy --source .` (backend/).
+# Without this file gcloud finds no .gcloudignore/.gitignore in backend/ and
+# uploads EVERYTHING - .venv, node_modules (93MB workerd.exe), __pycache__ -
+# bloating the context to ~200MB and making layer pushes slow/flaky
+# (root cause of the 2026-09-07 ContainerImageImportFailed deploys).
+# The Dockerfile only COPYs pyproject.toml, app/, alembic/, alembic.ini, so
+# nothing here is needed in the image.
+.venv/
+node_modules/
+__pycache__/
+*.pyc
+.pytest_cache/
+.ruff_cache/
+.git/
+tests/
+data/
+*.log
+# Intermediate cert-curation scratch with non-ASCII (Korean) filenames.
+# Already consolidated into certifications_curated.json and loaded from
+# Firestore at runtime - no code reads these. Their non-UTF-8/Windows-encoded
+# tar entry names make Cloud Run reject the image at import
+# (ContainerImageImportFailed, 2026-09-07). Keep them in the repo, out of the image.
+app/etl/seeds/cert_candidates_*
