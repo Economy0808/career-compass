@@ -65,7 +65,7 @@ function ListSkeleton() {
   return (
     <div className="flex flex-col gap-2.5" aria-hidden>
       {Array.from({ length: 4 }).map((_, i) => (
-        <div key={i} className="h-[92px] animate-pulse rounded-lg border border-paper-line bg-paper-soft" />
+        <div key={i} className="h-[92px] animate-pulse rounded-2xl border border-paper-line bg-paper-soft" />
       ))}
     </div>
   );
@@ -94,7 +94,7 @@ function CategoryToggle({ label, active, onClick }: { label: string; active: boo
 function SocietyCard({ society }: { society: SocietyOut }) {
   const href = safeLinkHref(society.officialUrl);
   return (
-    <div className="rounded-lg border border-paper-line bg-paper-soft/80 p-4 backdrop-blur-[2px]">
+    <div className="rounded-2xl border border-paper-line/60 bg-paper-soft/70 p-5 shadow-[0_1px_2px_rgba(28,28,45,0.04),0_6px_20px_-8px_rgba(28,28,45,0.08)] transition-shadow hover:shadow-[0_2px_4px_rgba(28,28,45,0.05),0_10px_28px_-8px_rgba(28,28,45,0.10)]">
       <div className="flex items-start justify-between gap-3">
         <h3 className="font-sans text-body font-semibold text-paper-ink">{society.name}</h3>
         <span className={kindPillClass(society.kind, true)}>{society.kind}</span>
@@ -302,7 +302,7 @@ export default function SocietiesPage() {
       )}
 
       {formOpen && (
-        <div className="mt-4 rounded-lg border border-paper-line bg-paper-soft p-4">
+        <div className="mt-4 rounded-2xl border border-paper-line bg-paper-soft p-4">
           <h2 className="font-sans text-body font-semibold text-paper-ink">학회 · 동아리 제보</h2>
 
           {!user ? (
@@ -335,7 +335,7 @@ export default function SocietiesPage() {
                   id="society-category"
                   value={formCategory}
                   onChange={(e) => setFormCategory(e.target.value as SocietyCategory | "")}
-                  className="w-full rounded-md border border-paper-line bg-paper px-3.5 py-2.5 text-body text-paper-ink focus:outline-none focus-visible:border-paper-ink"
+                  className="w-full rounded-xl border border-paper-line bg-paper px-3.5 py-2.5 text-body text-paper-ink focus:outline-none focus-visible:border-paper-ink"
                 >
                   <option value="">분야를 선택하세요</option>
                   {SOCIETY_CATEGORIES.map((c) => (

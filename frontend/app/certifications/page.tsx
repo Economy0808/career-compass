@@ -47,7 +47,7 @@ function ListSkeleton() {
   return (
     <div className="flex flex-col gap-2.5" aria-hidden>
       {Array.from({ length: 4 }).map((_, i) => (
-        <div key={i} className="h-[92px] animate-pulse rounded-lg border border-paper-line bg-paper-soft" />
+        <div key={i} className="h-[92px] animate-pulse rounded-2xl border border-paper-line bg-paper-soft" />
       ))}
     </div>
   );
@@ -126,7 +126,7 @@ function CertCard({ cert }: { cert: CertificationOut }) {
   }
 
   return (
-    <div className="rounded-lg border border-paper-line bg-paper-soft/80 p-4 backdrop-blur-[2px]">
+    <div className="rounded-2xl border border-paper-line/60 bg-paper-soft/70 p-5 shadow-[0_1px_2px_rgba(28,28,45,0.04),0_6px_20px_-8px_rgba(28,28,45,0.08)] transition-shadow hover:shadow-[0_2px_4px_rgba(28,28,45,0.05),0_10px_28px_-8px_rgba(28,28,45,0.10)]">
       <div className="flex items-start justify-between gap-3">
         <h3 className="font-sans text-body font-semibold text-paper-ink">{cert.name}</h3>
         <VerifiedBadge verified={cert.verified} />
@@ -303,7 +303,7 @@ export default function CertificationsPage() {
       )}
 
       {formOpen && (
-        <div className="mt-4 rounded-lg border border-paper-line bg-paper-soft p-4">
+        <div className="mt-4 rounded-2xl border border-paper-line bg-paper-soft p-4">
           <h2 className="font-sans text-body font-semibold text-paper-ink">자격증 제보</h2>
 
           {authLoading ? (
