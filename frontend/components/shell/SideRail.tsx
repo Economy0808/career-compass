@@ -47,6 +47,30 @@ export function SideRail() {
         </button>
       ))}
 
+      {/* 지원요소 - 학회/동아리·자격증 크라우드소싱 디렉터리(실DB grounding).
+          예전엔 프로필·로그아웃과 같은 하단 유틸리티 뭉치에 잔글씨로 묻혀
+          있었으나, 실제 콘텐츠 기능이라 메인 탭 바로 밑 별도 섹션으로 승격
+          (사용자 지시 2026-09-07 "메인 탭 밑 별도 섹션"). */}
+      <div className="mt-2 border-t border-paper-line pt-2">
+        <p className="px-3 pb-0.5 text-micro font-semibold tracking-[.08em] text-paper-lo">
+          지원요소
+        </p>
+        <button
+          type="button"
+          onClick={() => router.push("/societies")}
+          className={cn(ITEM, pathname.startsWith("/societies") ? ITEM_ACTIVE : ITEM_INACTIVE)}
+        >
+          학회·동아리
+        </button>
+        <button
+          type="button"
+          onClick={() => router.push("/certifications")}
+          className={cn(ITEM, pathname.startsWith("/certifications") ? ITEM_ACTIVE : ITEM_INACTIVE)}
+        >
+          자격증
+        </button>
+      </div>
+
       <div className="mt-3 border-t border-paper-line pt-3">
         {loading ? (
           <div className="h-9 w-full animate-pulse rounded-sm bg-paper-soft" />
@@ -64,25 +88,6 @@ export function SideRail() {
                 </span>
               )}
             </Link>
-            {/* 학회/동아리 - 크라우드소싱 디렉터리 진입점(지원요소 실DB
-                grounding §1). 요금제 버튼과 같은 자리·같은 스타일, 모달이
-                아니라 페이지 이동이라 router.push만 다르다. */}
-            <button
-              type="button"
-              onClick={() => router.push("/societies")}
-              className="rounded-sm px-3 py-1.5 text-left text-caption text-paper-lo transition-colors hover:bg-paper-soft hover:text-paper-ink"
-            >
-              학회/동아리
-            </button>
-            {/* 자격증 - 학회/동아리와 같은 크라우드소싱 디렉터리 진입점
-                (지원요소 실DB grounding). 같은 자리·같은 스타일. */}
-            <button
-              type="button"
-              onClick={() => router.push("/certifications")}
-              className="rounded-sm px-3 py-1.5 text-left text-caption text-paper-lo transition-colors hover:bg-paper-soft hover:text-paper-ink"
-            >
-              자격증
-            </button>
             {/* 요금제 - 상시 진입점. 무료권/크레딧 잔량 배선은 백엔드 quota
                 엔드포인트 나오면 붙는다(지금은 잔량 없이 열려 "기본 제공" 표시). */}
             <button
