@@ -236,7 +236,7 @@ export default function SocietiesPage() {
   }
 
   return (
-    <div className="paper-surface mx-auto min-h-dvh max-w-3xl bg-paper px-4 py-10 md:px-8">
+    <div className="paper-surface mx-auto max-w-3xl rounded-3xl border border-paper-line/60 bg-paper px-4 py-10 shadow-[0_2px_8px_rgba(20,20,40,0.06),0_24px_56px_-28px_rgba(20,20,40,0.28)] md:px-10 md:py-12">
       <header className="mb-6 flex flex-col gap-1.5">
         <h1 className="font-serif text-display font-bold text-paper-ink">학회 · 동아리</h1>
         <p className="text-body-sm text-paper-lo">분야별 실제 학회·동아리 정보를 학생들이 직접 채워요</p>
