@@ -51,7 +51,7 @@ function ListSkeleton() {
 }
 
 function SocietyCard({ society }: { society: SocietyOut }) {
-  const href = safeLinkHref(society.official_url);
+  const href = safeLinkHref(society.officialUrl);
   return (
     <div className="rounded-lg border border-rule bg-ink-800/70 p-4 backdrop-blur-[2px]">
       <div className="flex items-start justify-between gap-3">
@@ -60,11 +60,11 @@ function SocietyCard({ society }: { society: SocietyOut }) {
           {society.kind}
         </Chip>
       </div>
-      {(society.field || society.recruit_season) && (
+      {(society.field || society.recruitSeason) && (
         <div className="mt-1.5 flex flex-wrap items-center gap-x-2 gap-y-0.5 text-caption text-text-lo">
           {society.field && <span>{society.field}</span>}
-          {society.field && society.recruit_season && <span aria-hidden>·</span>}
-          {society.recruit_season && <span>모집 {society.recruit_season}</span>}
+          {society.field && society.recruitSeason && <span aria-hidden>·</span>}
+          {society.recruitSeason && <span>모집 {society.recruitSeason}</span>}
         </div>
       )}
       {society.description && (

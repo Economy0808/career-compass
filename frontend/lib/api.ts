@@ -247,8 +247,11 @@ export interface SocietyOut {
   category: SocietyCategory;
   name: string;
   kind: SocietyKind;
-  official_url: string;
-  recruit_season?: string;
+  // 백엔드는 _CamelModel이라 camelCase로 응답한다 - snake_case로 읽으면 undefined가
+  // 되어 safeLinkHref(undefined)에서 크래시한다(학회 0건일 땐 카드가 안 그려져 잠복,
+  // 데이터가 쌓이자 터졌다 - 2026-09-07).
+  officialUrl: string;
+  recruitSeason?: string;
   field?: string;
   description?: string;
 }
