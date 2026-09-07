@@ -180,3 +180,4 @@
 | `1b50d5b` (백엔드) | Phase 3 자격증 로더+검색 API, Q-Net 파싱/키 수정 | **PASS** | 로더 `assert_reviewed`(`is True`만 통과), 기본 dry-run·`--commit` 필수(Phase 3 조건 충족). 공개 검색의 `verified`는 컬렉션 기준 계산(큐레이션 True / 유저 제보 False 고정), 키는 settings에서만. |
 | `0300b1f` (백엔드) | 큐레이션 자격증 별칭 2건 보정(데이터) | **PASS** | URL 변경 0. |
 | `eeaefe3` (백엔드) | 유저 제보 자격증(Stage B): 제출·신고·CLI 모더레이션 | **PASS** | verified+rate_limit, `assert_no_pii(name, issuer)`, 입력 스키마 name/issuer/official_url뿐(verified·source_type 클라 불가), 저장소가 user_submitted/verified=False/pending 고정, 큐레이션 충돌 409, submitter_uid 미노출, 신고=pending 임시조치·큐레이션 400, 모더레이션 CLI 전용. 정보성: 병합 캐시 60초라 신고 반영 최대 60초 지연(조치 불요). |
+| `7a6b8db` (프론트) | 자격증 검색·제보 페이지·SideRail 진입점·api 바인딩 | **PASS** | 앵커는 `safeLinkHref` 통과분만(`noopener noreferrer`), 배지는 서버 계산 `verified`로만 분기(유저 제보는 "커뮤니티 제보 · 미검증" 고정), 폼 이름·기관·공식 링크뿐(연락처 없음·안내 중립), 제보자 식별자 렌더 0, HTML·스토리지 싱크 0, 클라 URL 조립 0, 신고는 `!verified && id` 게이트. |
