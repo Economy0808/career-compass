@@ -273,7 +273,7 @@ export default function CertificationsPage() {
       ) : certsError ? (
         <EmptyState title="목록을 불러오지 못했어요" description="잠시 후 다시 시도해주세요" />
       ) : (
-        <div className="flex flex-col gap-2.5">
+        <div className="grid grid-cols-1 gap-2.5 sm:grid-cols-2">
           {certs.map((c) => (
             <CertCard key={c.id ?? c.jmcd ?? c.nameNorm} cert={c} />
           ))}

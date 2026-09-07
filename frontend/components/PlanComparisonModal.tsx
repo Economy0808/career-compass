@@ -13,6 +13,7 @@
  */
 
 import { useEffect } from "react";
+import { createPortal } from "react-dom";
 import { cn } from "@/lib/cn";
 import { CloseIcon } from "@/components/ui/icons";
 import { PLAN_TIERS, pricePerCycle, type PlanTier } from "@/lib/plans";
@@ -60,8 +61,12 @@ export function PlanComparisonModal({
   }, [open, onClose]);
 
   if (!open) return null;
+  // SideRail(부모)의 backdrop-blur-md가 fixed의 컨테이닝 블록을 만들어 이
+  // 모달을 사이드바 폭 안에 가둔다(열이 겹쳐 뭉개짐) - document.body로 포탈
+  // 렌더링해 그 blur 조상 밖, 뷰포트 기준으로 뜨게 한다.
+  if (typeof document === "undefined") return null;
 
-  return (
+  return createPortal(
     <div
       role="dialog"
       aria-modal="true"
@@ -107,7 +112,8 @@ export function PlanComparisonModal({
           결제 기능은 준비 중이에요. 지금은 가입 시 드리는 무료 1개로 체험할 수 있어요.
         </p>
       </div>
-    </div>
+    </div>,
+    document.body
   );
 }
 

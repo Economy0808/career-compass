@@ -11,6 +11,12 @@
  * lib/courses-api.ts의 getCourseTaxonomy·온보딩 학과 프리필 의존을 더 이상
  * 쓰지 않는다 - 로그인 여부와 무관하게 항상 뜬다.
  *
+ * 2026-09-07 단일 드롭다운 -> 분야 복수선택 토글로 전환(사용자 지시: 단일
+ * select라 뭘 고르기 전엔 첫 화면이 비어 보인다). 첫 로드는 13개 전부
+ * 선택된 상태로 시작해 Promise.all로 병렬 조회 후 병합 - 첫 화면이 절대
+ * 비지 않는다. 제보 폼은 이제 목록 필터와 분리된 자체 분야 select를 갖는다
+ * (제출 API가 category 하나를 받으므로).
+ *
  * 제보 폼은 연세 인증 유저 전용. 로그인 여부·인증 여부에 따라 폼 자리에
  * 안내문을 대신 보여준다(모달이 아니라 같은 자리에서 인라인 전환 - 사용자
  * 지시: "CTA that opens/reveals the submit form").
@@ -22,6 +28,7 @@
 import Link from "next/link";
 import { useEffect, useState } from "react";
 import { useRouter } from "next/navigation";
+import { cn } from "@/lib/cn";
 import { Button, Chip, EmptyState, Field } from "@/components/ui";
 import { useAuth } from "@/lib/auth-context";
 import {
@@ -47,6 +54,26 @@ function ListSkeleton() {
         <div key={i} className="h-[92px] animate-pulse rounded-lg border border-rule bg-ink-800/70" />
       ))}
     </div>
+  );
+}
+
+/** 분야 복수선택 토글 칩 - Chip(components/ui)을 안 쓰는 이유는 certifications
+ * 의 VerifiedBadge와 같다(cn.ts가 clsx가 아니라 단순 join이라 className으로
+ * Chip의 내부 톤 색을 안정적으로 못 덮어쓴다). 여기 자체는 새로 만드는
+ * 마크업이라 처음부터 직접 그린다. */
+function CategoryToggle({ label, active, onClick }: { label: string; active: boolean; onClick: () => void }) {
+  return (
+    <button
+      type="button"
+      onClick={onClick}
+      aria-pressed={active}
+      className={cn(
+        "whitespace-nowrap rounded-full border px-3 py-1 text-caption font-semibold transition-colors",
+        active ? "border-rule bg-spec-b/18 text-spec-b" : "border-rule text-text-lo hover:bg-ink-700"
+      )}
+    >
+      {label}
+    </button>
   );
 }
 
@@ -114,30 +141,36 @@ export default function SocietiesPage() {
   const { user } = useAuth();
   const router = useRouter();
 
-  const [category, setCategory] = useState<SocietyCategory | "">("");
+  // 목록 필터 - 13개 분야 복수선택, 첫 로드는 전부 선택(첫 화면이 비지 않게).
+  const [selectedCategories, setSelectedCategories] = useState<Set<SocietyCategory>>(
+    () => new Set(SOCIETY_CATEGORIES)
+  );
 
   const [societies, setSocieties] = useState<SocietyOut[] | null>(null);
   const [societiesError, setSocietiesError] = useState(false);
 
   const [formOpen, setFormOpen] = useState(false);
+  const [formCategory, setFormCategory] = useState<SocietyCategory | "">("");
   const [kind, setKind] = useState<SocietyKind>("학회");
   const [form, setForm] = useState(EMPTY_FORM);
   const [submitting, setSubmitting] = useState(false);
   const [submitError, setSubmitError] = useState<string | null>(null);
   const [submitSuccess, setSubmitSuccess] = useState(false);
 
-  // 분야가 정해지면 승인된 목록을 조회한다. 인증 불요.
+  // 선택된 분야들을 병렬 조회 후 병합한다. 인증 불요. selectedCategories는
+  // 토글할 때마다 새 Set 인스턴스라 여기 의존성으로 안전하게 쓸 수 있다.
   useEffect(() => {
-    if (!category) {
-      setSocieties(null);
+    if (selectedCategories.size === 0) {
+      setSocieties([]);
+      setSocietiesError(false);
       return;
     }
     let cancelled = false;
     setSocieties(null);
     setSocietiesError(false);
-    getSocieties(category)
-      .then((list) => {
-        if (!cancelled) setSocieties(list);
+    Promise.all(Array.from(selectedCategories).map((c) => getSocieties(c)))
+      .then((lists) => {
+        if (!cancelled) setSocieties(lists.flat());
       })
       .catch(() => {
         if (!cancelled) {
@@ -148,7 +181,16 @@ export default function SocietiesPage() {
     return () => {
       cancelled = true;
     };
-  }, [category]);
+  }, [selectedCategories]);
+
+  function toggleCategory(c: SocietyCategory) {
+    setSelectedCategories((prev) => {
+      const next = new Set(prev);
+      if (next.has(c)) next.delete(c);
+      else next.add(c);
+      return next;
+    });
+  }
 
   function openForm() {
     setSubmitError(null);
@@ -157,12 +199,12 @@ export default function SocietiesPage() {
   }
 
   async function handleSubmit() {
-    if (!category || !form.name.trim() || !form.officialUrl.trim() || submitting) return;
+    if (!formCategory || !form.name.trim() || !form.officialUrl.trim() || submitting) return;
     setSubmitting(true);
     setSubmitError(null);
     try {
       await submitSociety({
-        category,
+        category: formCategory,
         name: form.name.trim(),
         kind,
         official_url: form.officialUrl.trim(),
@@ -173,6 +215,7 @@ export default function SocietiesPage() {
       setSubmitSuccess(true);
       setForm(EMPTY_FORM);
       setKind("학회");
+      setFormCategory("");
     } catch (err) {
       setSubmitError(mapSubmitError(err));
     } finally {
@@ -187,144 +230,173 @@ export default function SocietiesPage() {
         <p className="text-body-sm text-text-lo">분야별 실제 학회·동아리 정보를 학생들이 직접 채워요</p>
       </header>
 
-      <select
-        value={category}
-        onChange={(e) => setCategory(e.target.value as SocietyCategory | "")}
-        aria-label="분야 선택"
-        className="w-full rounded-md border border-rule bg-ink-900/60 px-3.5 py-2.5 text-body text-text-hi focus:outline-none focus-visible:border-spec-b"
-      >
-        <option value="">분야를 선택하세요</option>
+      <div className="mb-2 flex items-center justify-between gap-3">
+        <p className="text-caption font-semibold text-text-lo">분야</p>
+        <div className="flex gap-3">
+          <button
+            type="button"
+            onClick={() => setSelectedCategories(new Set(SOCIETY_CATEGORIES))}
+            className="text-caption font-semibold text-spec-b hover:underline"
+          >
+            전체 선택
+          </button>
+          <button
+            type="button"
+            onClick={() => setSelectedCategories(new Set())}
+            className="text-caption font-semibold text-text-lo hover:underline"
+          >
+            전체 해제
+          </button>
+        </div>
+      </div>
+      <div className="flex flex-wrap gap-1.5">
         {SOCIETY_CATEGORIES.map((c) => (
-          <option key={c} value={c}>
-            {c}
-          </option>
+          <CategoryToggle key={c} label={c} active={selectedCategories.has(c)} onClick={() => toggleCategory(c)} />
         ))}
-      </select>
+      </div>
 
-      {category && (
-        <>
-          <div className="mb-2.5 mt-6 flex items-center justify-between gap-3">
-            <span className="font-mono text-caption tracking-[0.14em] text-text-lo">{category}</span>
-            <Button size="sm" variant="secondary" onClick={openForm}>
-              제보하기
-            </Button>
-          </div>
+      <div className="mb-2.5 mt-6 flex items-center justify-between gap-3">
+        <span className="font-mono text-caption tracking-[0.14em] text-text-lo">
+          {selectedCategories.size}개 분야
+        </span>
+        <Button size="sm" variant="secondary" onClick={openForm}>
+          제보하기
+        </Button>
+      </div>
 
-          {societies === null ? (
-            <ListSkeleton />
-          ) : societies.length === 0 && !societiesError ? (
-            <EmptyState
-              title="아직 등록된 학회가 없어요 — 첫 제보자가 되어주세요"
-              action={<Button onClick={openForm}>제보하기</Button>}
-            />
-          ) : societiesError ? (
-            <EmptyState title="목록을 불러오지 못했어요" description="잠시 후 다시 시도해주세요" />
+      {selectedCategories.size === 0 ? (
+        <EmptyState title="분야를 하나 이상 선택하세요" />
+      ) : societies === null ? (
+        <ListSkeleton />
+      ) : societies.length === 0 && !societiesError ? (
+        <EmptyState
+          title="아직 등록된 학회가 없어요 — 첫 제보자가 되어주세요"
+          action={<Button onClick={openForm}>제보하기</Button>}
+        />
+      ) : societiesError ? (
+        <EmptyState title="목록을 불러오지 못했어요" description="잠시 후 다시 시도해주세요" />
+      ) : (
+        <div className="grid grid-cols-1 gap-2.5 sm:grid-cols-2">
+          {societies.map((s) => (
+            <SocietyCard key={s.id} society={s} />
+          ))}
+        </div>
+      )}
+
+      {formOpen && (
+        <div className="mt-4 rounded-lg border border-rule bg-ink-800/70 p-4">
+          <h2 className="font-sans text-body font-semibold text-text-hi">학회 · 동아리 제보</h2>
+
+          {!user ? (
+            <div className="mt-3 flex flex-col items-start gap-2">
+              <p className="text-body-sm text-text-lo">로그인하면 제보할 수 있어요</p>
+              <Button onClick={() => router.push(`/login?next=${encodeURIComponent("/societies")}`)}>
+                로그인
+              </Button>
+            </div>
+          ) : !user.yonseiVerified ? (
+            <div className="mt-3 flex flex-col items-start gap-2">
+              <p className="text-body-sm text-text-lo">연세대 학부생 인증을 마치면 제보할 수 있어요</p>
+              <Link
+                href="/verify"
+                className="text-body-sm font-semibold text-spec-b underline underline-offset-2 hover:text-text-hi"
+              >
+                인증하러 가기
+              </Link>
+            </div>
           ) : (
-            <div className="flex flex-col gap-2.5">
-              {societies.map((s) => (
-                <SocietyCard key={s.id} society={s} />
-              ))}
+            <div className="mt-3 flex flex-col gap-3.5">
+              <div>
+                <label
+                  htmlFor="society-category"
+                  className="mb-1.5 block text-caption font-semibold text-text-lo"
+                >
+                  분야
+                </label>
+                <select
+                  id="society-category"
+                  value={formCategory}
+                  onChange={(e) => setFormCategory(e.target.value as SocietyCategory | "")}
+                  className="w-full rounded-md border border-rule bg-ink-900/60 px-3.5 py-2.5 text-body text-text-hi focus:outline-none focus-visible:border-spec-b"
+                >
+                  <option value="">분야를 선택하세요</option>
+                  {SOCIETY_CATEGORIES.map((c) => (
+                    <option key={c} value={c}>
+                      {c}
+                    </option>
+                  ))}
+                </select>
+              </div>
+              <Field
+                id="society-name"
+                label="이름"
+                value={form.name}
+                onChange={(e) => setForm((f) => ({ ...f, name: e.target.value }))}
+                maxLength={100}
+              />
+              <div>
+                <p className="mb-1.5 text-caption font-semibold text-text-lo">구분</p>
+                <div className="flex gap-2">
+                  {(["학회", "동아리"] as const).map((k) => (
+                    <Chip key={k} tone={KIND_TONE[k]} selected={kind === k} interactive onClick={() => setKind(k)}>
+                      {k}
+                    </Chip>
+                  ))}
+                </div>
+              </div>
+              <Field
+                id="society-url"
+                label="공식 링크"
+                type="url"
+                placeholder="https://..."
+                value={form.officialUrl}
+                onChange={(e) => setForm((f) => ({ ...f, officialUrl: e.target.value }))}
+                maxLength={500}
+              />
+              <Field
+                id="society-season"
+                label="모집 시기 (선택)"
+                placeholder="예: 매 학기 초"
+                value={form.recruitSeason}
+                onChange={(e) => setForm((f) => ({ ...f, recruitSeason: e.target.value }))}
+                maxLength={200}
+              />
+              <Field
+                id="society-field"
+                label="세부 분야 (선택)"
+                value={form.fieldText}
+                onChange={(e) => setForm((f) => ({ ...f, fieldText: e.target.value }))}
+                maxLength={200}
+              />
+              <Field
+                id="society-description"
+                label="설명 (선택)"
+                multiline
+                rows={4}
+                value={form.description}
+                onChange={(e) => setForm((f) => ({ ...f, description: e.target.value }))}
+                maxLength={2000}
+              />
+              <p className="text-micro text-text-lo">
+                담당자 연락처는 적지 마세요. 공식 링크(https)만 남겨주세요.
+              </p>
+              {submitError && <p className="text-caption text-spec-m">{submitError}</p>}
+              {submitSuccess && <p className="text-caption text-spec-b">제보 접수 — 검토 후 공개돼요</p>}
+              <div className="flex gap-2">
+                <Button
+                  className="flex-1"
+                  onClick={handleSubmit}
+                  disabled={submitting || !formCategory || !form.name.trim() || !form.officialUrl.trim()}
+                >
+                  {submitting ? "제보하는 중…" : "제보하기"}
+                </Button>
+                <Button variant="ghost" onClick={() => setFormOpen(false)} disabled={submitting}>
+                  닫기
+                </Button>
+              </div>
             </div>
           )}
-
-          {formOpen && (
-            <div className="mt-4 rounded-lg border border-rule bg-ink-800/70 p-4">
-              <h2 className="font-sans text-body font-semibold text-text-hi">학회 · 동아리 제보</h2>
-
-              {!user ? (
-                <div className="mt-3 flex flex-col items-start gap-2">
-                  <p className="text-body-sm text-text-lo">로그인하면 제보할 수 있어요</p>
-                  <Button onClick={() => router.push(`/login?next=${encodeURIComponent("/societies")}`)}>
-                    로그인
-                  </Button>
-                </div>
-              ) : !user.yonseiVerified ? (
-                <div className="mt-3 flex flex-col items-start gap-2">
-                  <p className="text-body-sm text-text-lo">연세대 학부생 인증을 마치면 제보할 수 있어요</p>
-                  <Link
-                    href="/verify"
-                    className="text-body-sm font-semibold text-spec-b underline underline-offset-2 hover:text-text-hi"
-                  >
-                    인증하러 가기
-                  </Link>
-                </div>
-              ) : (
-                <div className="mt-3 flex flex-col gap-3.5">
-                  <p className="text-caption text-text-lo">
-                    분야 <span className="font-semibold text-text-hi">{category}</span>
-                  </p>
-                  <Field
-                    id="society-name"
-                    label="이름"
-                    value={form.name}
-                    onChange={(e) => setForm((f) => ({ ...f, name: e.target.value }))}
-                    maxLength={100}
-                  />
-                  <div>
-                    <p className="mb-1.5 text-caption font-semibold text-text-lo">구분</p>
-                    <div className="flex gap-2">
-                      {(["학회", "동아리"] as const).map((k) => (
-                        <Chip key={k} tone={KIND_TONE[k]} selected={kind === k} interactive onClick={() => setKind(k)}>
-                          {k}
-                        </Chip>
-                      ))}
-                    </div>
-                  </div>
-                  <Field
-                    id="society-url"
-                    label="공식 링크"
-                    type="url"
-                    placeholder="https://..."
-                    value={form.officialUrl}
-                    onChange={(e) => setForm((f) => ({ ...f, officialUrl: e.target.value }))}
-                    maxLength={500}
-                  />
-                  <Field
-                    id="society-season"
-                    label="모집 시기 (선택)"
-                    placeholder="예: 매 학기 초"
-                    value={form.recruitSeason}
-                    onChange={(e) => setForm((f) => ({ ...f, recruitSeason: e.target.value }))}
-                    maxLength={200}
-                  />
-                  <Field
-                    id="society-field"
-                    label="세부 분야 (선택)"
-                    value={form.fieldText}
-                    onChange={(e) => setForm((f) => ({ ...f, fieldText: e.target.value }))}
-                    maxLength={200}
-                  />
-                  <Field
-                    id="society-description"
-                    label="설명 (선택)"
-                    multiline
-                    rows={4}
-                    value={form.description}
-                    onChange={(e) => setForm((f) => ({ ...f, description: e.target.value }))}
-                    maxLength={2000}
-                  />
-                  <p className="text-micro text-text-lo">
-                    담당자 연락처는 적지 마세요. 공식 링크(https)만 남겨주세요.
-                  </p>
-                  {submitError && <p className="text-caption text-spec-m">{submitError}</p>}
-                  {submitSuccess && <p className="text-caption text-spec-b">제보 접수 — 검토 후 공개돼요</p>}
-                  <div className="flex gap-2">
-                    <Button
-                      className="flex-1"
-                      onClick={handleSubmit}
-                      disabled={submitting || !form.name.trim() || !form.officialUrl.trim()}
-                    >
-                      {submitting ? "제보하는 중…" : "제보하기"}
-                    </Button>
-                    <Button variant="ghost" onClick={() => setFormOpen(false)} disabled={submitting}>
-                      닫기
-                    </Button>
-                  </div>
-                </div>
-              )}
-            </div>
-          )}
-        </>
+        </div>
       )}
     </div>
   );
