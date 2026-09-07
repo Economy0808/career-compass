@@ -1058,6 +1058,18 @@
       {
         "name": "AFPK",
         "tier": "우대"
+      },
+      {
+        "name": "CFA",
+        "tier": "우대"
+      },
+      {
+        "name": "FRM (Financial Risk Manager)",
+        "tier": "우대"
+      },
+      {
+        "name": "재무위험관리사",
+        "tier": "우대"
       }
     ],
     "퀀트·리스크/금융공학 (구 금융 리스크 분석가 cp-38 흡수)": [
