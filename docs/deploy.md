@@ -238,6 +238,26 @@ gcloud run deploy ourlab-backend \
 curl https://<cloud-run-url>/health
 ```
 
+> **함정: 비-ASCII 파일명이 이미지에 섞이면 `Container import failed` (2026-09-07 실측).**
+> 빌드는 성공하는데 리비전 생성이 `ContainerImageImportFailed`("Container import
+> failed."만 표시, 감사로그에도 원문 없음)로 계속 실패하면, `COPY app ./app`에
+> 딸려 들어간 파일 중 **tar 엔트리 이름이 유효한 UTF-8이 아닌 파일**을 의심할 것.
+> Cloud Run 이미지 임포트는 그런 레이어를 거부한다(Docker build는 통과시킴). 당시
+> 원인은 `app/etl/seeds/cert_candidates_*.json`(cp949로 만들어진 한글 파일명) —
+> `backend/.gcloudignore`로 이미지에서 제외해 해결. 진단법: 옛(정상) 이미지를
+> `--image <digest> --no-traffic`로 배포해 임포트되면 인프라는 정상 → 새 이미지
+> 콘텐츠 문제. `find app -type f | python -c "import sys;[print(repr(l)) for l in
+> sys.stdin if any(ord(c)>127 for c in l)]"`로 비-ASCII 파일명을 찾는다.
+>
+> **함정: `backend/`에 `.gcloudignore`가 없으면 `.venv`·`node_modules`(93MB
+> workerd.exe)·`__pycache__`까지 통째로 업로드된다.** cwd가 `backend/`라 루트
+> `.gitignore`가 적용되지 않기 때문. `backend/.gcloudignore`가 이를 막는다.
+>
+> **함정: `--no-traffic` 배포는 트래픽을 그 시점 리비전에 이름으로 고정한다.**
+> 이후 일반 배포로 새 리비전이 떠도 트래픽이 안 옮겨간다(spec.traffic이
+> `revisionName`으로 박힘). `gcloud run services update-traffic ourlab-backend
+> --to-latest`로 최신 리비전에 트래픽을 되돌린다.
+
 ## 6. Cloud Run 배포 (프론트)
 
 ```bash
