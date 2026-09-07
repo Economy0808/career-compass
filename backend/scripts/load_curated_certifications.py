@@ -33,6 +33,7 @@ from __future__ import annotations
 
 import argparse
 import json
+import os
 import sys
 from datetime import datetime
 from pathlib import Path
@@ -41,6 +42,8 @@ from typing import Any
 sys.path.insert(0, str(Path(__file__).resolve().parents[1]))
 
 import httpx  # noqa: E402
+from google.cloud import firestore  # noqa: E402
+from google.oauth2.credentials import Credentials  # noqa: E402
 
 from app.config import get_settings  # noqa: E402
 from app.etl.certifications import (  # noqa: E402
@@ -190,6 +193,34 @@ def fetch_qnet_docs(settings: Any) -> list[dict[str, Any]]:
     return build_certification_docs(master_items, schedule_items)
 
 
+def _resolve_commit_client(project: str | None) -> Any:
+    """--commit 시 쓸 Firestore 클라이언트를 고른다.
+
+    --project를 주면 운영 경로다: 로컬 gcloud 세션의 GCLOUD_ACCESS_TOKEN으로
+    인증해 그 프로젝트에 직접 쓴다(backfill_profile_embeddings.py와 동일 패턴 -
+    서비스 계정 키 파일 없이, 사용자 자신의 gcloud 토큰만 사용). 실수로 운영에
+    쓰지 않도록 project는 폴백 기본값이 없고, 에뮬레이터 host가 켜진 채로
+    운영 프로젝트를 지정하면 즉시 거부한다.
+
+    --project가 없으면 get_firestore_client()로 폴백한다(에뮬레이터/데모).
+    """
+    if project is None:
+        return get_firestore_client()
+    if os.environ.get("FIRESTORE_EMULATOR_HOST"):
+        raise SystemExit(
+            "ERROR: FIRESTORE_EMULATOR_HOST가 켜진 채로 --project를 줬습니다. "
+            "운영 적재 시에는 에뮬레이터 host를 끄고 실행하세요."
+        )
+    token = os.environ.get("GCLOUD_ACCESS_TOKEN")
+    if not token:
+        raise SystemExit(
+            "ERROR: GCLOUD_ACCESS_TOKEN이 없습니다. "
+            "export GCLOUD_ACCESS_TOKEN=$(gcloud auth print-access-token) 후 재실행하세요."
+        )
+    credentials = Credentials(token=token).with_quota_project(project)
+    return firestore.Client(project=project, credentials=credentials)
+
+
 def main() -> None:
     parser = argparse.ArgumentParser(description="load curated certifications into Firestore")
     parser.add_argument(
@@ -199,6 +230,15 @@ def main() -> None:
     )
     parser.add_argument(
         "--dry-run", action="store_true", help="dry-run 명시(기본값과 동일, 문서화용)"
+    )
+    parser.add_argument(
+        "--project",
+        default=None,
+        help=(
+            "운영 Firestore 프로젝트 id(예: ourlab-0808). 주면 로컬 gcloud 세션의 "
+            "GCLOUD_ACCESS_TOKEN으로 인증해 그 프로젝트에 쓴다(backfill 스크립트와 동일 "
+            "패턴). 안 주면 get_firestore_client()로 폴백(에뮬레이터/데모)."
+        ),
     )
     args = parser.parse_args()
 
@@ -245,7 +285,7 @@ def main() -> None:
         )
         return
 
-    db = get_firestore_client()
+    db = _resolve_commit_client(args.project)
     written_certs = upsert_certifications(db, cert_docs)
     written_careers = upsert_career_paths(db, career_docs)
     print(f"certifications {written_certs}건 / career_paths {written_careers}건 upsert 완료")
