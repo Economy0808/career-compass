@@ -222,7 +222,9 @@ async def test_submit_rejects_invalid_official_url(
     async with _client() as client:
         resp = await client.post("/api/societies", json=_valid_payload(officialUrl=bad_url))
     assert resp.status_code == 422
-    assert "https" in resp.json()["detail"]
+    # Pydantic field_validator 에러라 detail은 문자열이 아니라 에러 객체 리스트다
+    # (라우터 HTTPException의 문자열 detail과 다름) - str()로 눌러 메시지를 검사한다.
+    assert "https" in str(resp.json()["detail"])
 
 
 # --- GET /api/societies : 승인된 문서만, submitter_uid 비노출 ---
