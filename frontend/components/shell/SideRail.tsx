@@ -74,6 +74,15 @@ export function SideRail() {
             >
               학회/동아리
             </button>
+            {/* 자격증 - 학회/동아리와 같은 크라우드소싱 디렉터리 진입점
+                (지원요소 실DB grounding). 같은 자리·같은 스타일. */}
+            <button
+              type="button"
+              onClick={() => router.push("/certifications")}
+              className="rounded-sm px-3 py-1.5 text-left text-caption text-paper-lo transition-colors hover:bg-paper-soft hover:text-paper-ink"
+            >
+              자격증
+            </button>
             {/* 요금제 - 상시 진입점. 무료권/크레딧 잔량 배선은 백엔드 quota
                 엔드포인트 나오면 붙는다(지금은 잔량 없이 열려 "기본 제공" 표시). */}
             <button

@@ -183,8 +183,10 @@ export function postProfileOnboarding(
 
 /** 온보딩(프로필) 완료 여부 - 로그인 후 미완이면 /onboarding으로 되돌리기 위한
  * 신호(백엔드 03-code-78, GET /api/profiles/me/onboarding). user_private 문서
- * 존재 여부로 판정. */
-export function getOnboardingStatus(): Promise<{ onboardingComplete: boolean }> {
+ * 존재 여부로 판정. department는 온보딩에서 저장한 학과 - 학회/동아리 등
+ * 학과 드롭다운이 있는 화면에서 초기 선택값으로 재사용한다(값이 taxonomy
+ * 목록에 없으면 호출부가 무시하고 기존 동작으로 폴백). */
+export function getOnboardingStatus(): Promise<{ onboardingComplete: boolean; department?: string }> {
   return request("/api/profiles/me/onboarding");
 }
 
@@ -249,6 +251,84 @@ export function submitSociety(
   input: SocietySubmitInput
 ): Promise<{ id: string; moderation_status: string }> {
   return request("/api/societies", jsonInit("POST", input));
+}
+
+// ---------- 자격증 검색 + 제보 (지원요소 실DB grounding) ----------
+// 인테이크가 LLM으로 지어내던 자격증 정보를, 큐레이션(Q-Net 등 공식 원천) 자격증 +
+// 연세 인증 유저 제보로 대체한다(백엔드 app/api/certifications.py 계약, 학회/동아리와
+// 같은 신뢰 체계). GET은 인증 불요(공개 열람 - 자격증 마스터는 공공 데이터).
+// 보안 경계: 연락처 필드 없음, official_url은 safeLinkHref로만 렌더(호출부 책임),
+// 유저 제보는 승인돼도 verified=true로 격상되지 않는다(하드 요구사항).
+
+/** GET /api/certifications 응답 항목 - 큐레이션/공식과 유저 제보가 병합된 결과.
+ *
+ * id는 백엔드 app/schemas/certifications.py의 CertificationOut에 필드 자체가
+ * 없다(직접 확인함) - user_certification_repo.list_approved()도 Firestore
+ * 문서 id를 응답에 안 채운다. 즉 지금 이 엔드포인트로는 유저 제보 항목을 신고할
+ * 방법이 없다(백엔드 쪽 계약 공백 - 별도로 플래그함). id를 optional로 남겨두어
+ * 백엔드가 나중에 채워주면 그대로 동작하게 하고, 프론트는 id가 있을 때만
+ * 신고 버튼을 노출한다. */
+export interface CertificationOut {
+  jmcd: string;
+  name: string;
+  nameNorm: string;
+  issuer: string;
+  scope: string;
+  certClass: string;
+  tier: string;
+  officialUrl: string;
+  schedule: Record<string, string> | null;
+  sourceType: string;
+  verified: boolean;
+  id?: string;
+}
+
+/** career_paths 문서 안의 자격증 참조 - name/tier/certId만 있고 CertificationOut
+ * 전체가 아니다(백엔드 app/schemas/certifications.py CareerCertRefOut). */
+export interface CareerCertRefOut {
+  name: string;
+  tier: string;
+  certId: string;
+}
+
+/** GET /api/certifications/by-career 응답 - CertificationOut이 아니라
+ * CareerPathOut(진로명 + 자격증 참조 목록)이다. */
+export interface CareerPathOut {
+  name: string;
+  certs: CareerCertRefOut[];
+}
+
+/** 자격증 검색 - q(이름 부분일치)/scope 둘 다 선택이며, 둘 다 비면 전체 목록. */
+export function getCertifications(q: string, scope?: string): Promise<CertificationOut[]> {
+  const qs = new URLSearchParams();
+  if (q) qs.set("q", q);
+  if (scope) qs.set("scope", scope);
+  const suffix = qs.toString();
+  return request(`/api/certifications${suffix ? `?${suffix}` : ""}`);
+}
+
+/** 진로명으로 관련 자격증 참조 목록을 조회한다. 404면 해당 진로 데이터가 없다는 뜻. */
+export function getCertificationsByCareer(career: string): Promise<CareerPathOut> {
+  return request(`/api/certifications/by-career?career=${encodeURIComponent(career)}`);
+}
+
+export interface CertificationSubmitInput {
+  name: string;
+  issuer: string;
+  officialUrl: string;
+}
+
+/** 자격증 제보 - 연세 인증 필수. 201 {id, moderationStatus:"pending"}.
+ * 409 이름 중복(큐레이션과 충돌)·422 PII/URL·401·403·429는 ApiError로 온다. */
+export function submitCertification(
+  input: CertificationSubmitInput
+): Promise<{ id: string; moderationStatus: string }> {
+  return request("/api/certifications", jsonInit("POST", input));
+}
+
+/** 유저 제보 자격증 신고 - 큐레이션/공식 자격증이면 400, 없으면 404. */
+export function reportCertification(id: string): Promise<{ status: string }> {
+  return request(`/api/certifications/${encodeURIComponent(id)}/report`, { method: "POST" });
 }
 
 export function postSchoolEmailRequest(email: string): Promise<{ detail: string }> {

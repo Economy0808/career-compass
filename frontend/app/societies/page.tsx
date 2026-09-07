@@ -27,6 +27,7 @@ import { Button, Chip, EmptyState, Field } from "@/components/ui";
 import { useAuth } from "@/lib/auth-context";
 import {
   ApiError,
+  getOnboardingStatus,
   getSocieties,
   submitSociety,
   type SocietyKind,
@@ -150,6 +151,27 @@ export default function SocietiesPage() {
       cancelled = true;
     };
   }, [authLoading]);
+
+  // 온보딩 때 저장한 학과를 초기 선택값으로 미리 채운다(사용자 지시) - 매번
+  // 드롭다운을 다시 고르지 않아도 되게. taxonomy 로드 완료 + 로그인 상태에서만
+  // 시도하고, 이미 뭔가 선택돼 있으면(유저가 손대기 시작) 덮어쓰지 않는다.
+  // 실패해도 화면을 죽이지 않고 기존 동작(수동 선택)으로 폴백한다.
+  useEffect(() => {
+    if (authLoading || !user || departmentsLoading || departments.length === 0) return;
+    let cancelled = false;
+    getOnboardingStatus()
+      .then((status) => {
+        if (cancelled || !status.department) return;
+        const dept = status.department;
+        setDepartment((current) => (current ? current : departments.includes(dept) ? dept : current));
+      })
+      .catch(() => {
+        // 온보딩 상태 조회 실패 - 기존 동작(수동 선택)으로 폴백
+      });
+    return () => {
+      cancelled = true;
+    };
+  }, [authLoading, user, departmentsLoading, departments]);
 
   // 학과가 정해지면 승인된 목록을 조회한다. 인증 불요라 authLoading을 기다릴
   // 필요는 없다.
