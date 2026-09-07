@@ -1,13 +1,8 @@
 {
   "reviewed": true,
   "reviewed_at": "2026-09-07",
-  "pilot_fields": [
-    "경영",
-    "경제",
-    "통계·데이터",
-    "컴퓨터·SW"
-  ],
-  "cert_count": 28,
+  "cert_count": 100,
+  "note": "취업 시장 신호(WebSearch + 실채용공고 확인)로 큐레이션한 검증 코어. 국가자격 공식 URL·시험일정은 Phase 3 로더가 Q-Net API로 보강. aggregator(링커리어 등) 미수집. +2026-09-07 확장: 공학·보건바이오·의약보건·사회교육 72개 추가(유용11+민간2 컷).",
   "certs": [
     {
       "name": "공인회계사(CPA)",
@@ -260,6 +255,654 @@
       "cert_class": "career_credential",
       "tier": "유용",
       "official_url": "https://aws.amazon.com/certification/certified-solutions-architect-associate/"
+    },
+    {
+      "name": "간호사 면허",
+      "name_norm": "간호사면허",
+      "issuer": "보건복지부장관(시행: 한국보건의료인국가시험원)",
+      "scope": "domestic_national",
+      "cert_class": "professional_license",
+      "tier": "필수",
+      "official_url": "https://www.kuksiwon.or.kr"
+    },
+    {
+      "name": "건설안전기사",
+      "name_norm": "건설안전기사",
+      "issuer": "한국산업인력공단(Q-Net)",
+      "scope": "domestic_national",
+      "cert_class": "career_credential",
+      "tier": "필수",
+      "official_url": "https://www.q-net.or.kr/crf005.do?id=crf00503&jmCd=1440"
+    },
+    {
+      "name": "건축기사",
+      "name_norm": "건축기사",
+      "issuer": "한국산업인력공단(Q-Net)",
+      "scope": "domestic_national",
+      "cert_class": "career_credential",
+      "tier": "필수",
+      "official_url": "http://www.q-net.or.kr/crf005.do?id=crf00503&jmCd=1630"
+    },
+    {
+      "name": "건축설비기사",
+      "name_norm": "건축설비기사",
+      "issuer": "한국산업인력공단(Q-Net)",
+      "scope": "domestic_national",
+      "cert_class": "career_credential",
+      "tier": "필수",
+      "official_url": "http://www.q-net.or.kr/crf005.do?id=crf00503&jmCd=1632"
+    },
+    {
+      "name": "교통기사",
+      "name_norm": "교통기사",
+      "issuer": "한국산업인력공단(Q-Net)",
+      "scope": "domestic_national",
+      "cert_class": "career_credential",
+      "tier": "필수",
+      "official_url": "https://www.q-net.or.kr"
+    },
+    {
+      "name": "대기환경기사",
+      "name_norm": "대기환경기사",
+      "issuer": "한국산업인력공단(Q-Net)",
+      "scope": "domestic_national",
+      "cert_class": "career_credential",
+      "tier": "필수",
+      "official_url": "https://q-net.or.kr/crf005.do?id=crf00503&jmCd=1661"
+    },
+    {
+      "name": "도시계획기사",
+      "name_norm": "도시계획기사",
+      "issuer": "한국산업인력공단(Q-Net), 국토교통부",
+      "scope": "domestic_national",
+      "cert_class": "career_credential",
+      "tier": "필수",
+      "official_url": "https://www.q-net.or.kr"
+    },
+    {
+      "name": "물리치료사 면허",
+      "name_norm": "물리치료사면허",
+      "issuer": "보건복지부장관(시행: 한국보건의료인국가시험원)",
+      "scope": "domestic_national",
+      "cert_class": "professional_license",
+      "tier": "필수",
+      "official_url": "https://www.kuksiwon.or.kr"
+    },
+    {
+      "name": "방사선사 면허",
+      "name_norm": "방사선사면허",
+      "issuer": "보건복지부장관(시행: 한국보건의료인국가시험원)",
+      "scope": "domestic_national",
+      "cert_class": "professional_license",
+      "tier": "필수",
+      "official_url": "https://www.kuksiwon.or.kr"
+    },
+    {
+      "name": "변리사",
+      "name_norm": "변리사",
+      "issuer": "특허청(시행: 한국산업인력공단 Q-Net)",
+      "scope": "domestic_national",
+      "cert_class": "professional_license",
+      "tier": "필수",
+      "official_url": "http://www.q-net.or.kr/crf005.do?id=crf00505&jmCd=9737"
+    },
+    {
+      "name": "보건의료정보관리사",
+      "name_norm": "보건의료정보관리사",
+      "issuer": "보건복지부(면허) / 한국보건의료인국가시험원(국가시험 시행)",
+      "scope": "domestic_national",
+      "cert_class": "career_credential",
+      "tier": "필수",
+      "official_url": "http://www.q-net.or.kr/crf005.do?id=crf00503&jmCd=6187"
+    },
+    {
+      "name": "보육교사 2급",
+      "name_norm": "보육교사2급",
+      "issuer": "보건복지부/한국보육진흥원",
+      "scope": "domestic_national",
+      "cert_class": "career_credential",
+      "tier": "필수",
+      "official_url": "https://chrd.childcare.go.kr"
+    },
+    {
+      "name": "사회복지사 2급",
+      "name_norm": "사회복지사2급",
+      "issuer": "보건복지부/한국사회복지사협회",
+      "scope": "domestic_national",
+      "cert_class": "career_credential",
+      "tier": "필수",
+      "official_url": "https://www.welfare.net"
+    },
+    {
+      "name": "수질환경기사",
+      "name_norm": "수질환경기사",
+      "issuer": "한국산업인력공단(Q-Net)",
+      "scope": "domestic_national",
+      "cert_class": "career_credential",
+      "tier": "필수",
+      "official_url": "https://namu.wiki/w/%EC%88%98%EC%A7%88%ED%99%98%EA%B2%BD%EA%B8%B0%EC%82%AC"
+    },
+    {
+      "name": "영양사",
+      "name_norm": "영양사",
+      "issuer": "한국보건의료인국가시험원(면허)",
+      "scope": "domestic_national",
+      "cert_class": "career_credential",
+      "tier": "필수",
+      "official_url": "https://www.kuksiwon.or.kr/subcnt/c_2020/1/view.do?seq=7&itm_seq=07"
+    },
+    {
+      "name": "위생사",
+      "name_norm": "위생사",
+      "issuer": "한국보건의료인국가시험원(면허)",
+      "scope": "domestic_national",
+      "cert_class": "career_credential",
+      "tier": "필수",
+      "official_url": "https://www.kuksiwon.or.kr/subcnt/c_2021/1/view.do?seq=7&itm_seq=21"
+    },
+    {
+      "name": "위험물산업기사",
+      "name_norm": "위험물산업기사",
+      "issuer": "한국산업인력공단(Q-Net)",
+      "scope": "domestic_national",
+      "cert_class": "career_credential",
+      "tier": "필수",
+      "official_url": "https://www.q-net.or.kr/crf005.do?id=crf00503"
+    },
+    {
+      "name": "의료기기RA전문가(2급)",
+      "name_norm": "의료기기ra전문가2급",
+      "issuer": "한국의료기기안전정보원 (국가공인)",
+      "scope": "domestic_national",
+      "cert_class": "career_credential",
+      "tier": "필수",
+      "official_url": ""
+    },
+    {
+      "name": "의사 면허",
+      "name_norm": "의사면허",
+      "issuer": "보건복지부장관(시행: 한국보건의료인국가시험원)",
+      "scope": "domestic_national",
+      "cert_class": "professional_license",
+      "tier": "필수",
+      "official_url": "https://www.kuksiwon.or.kr"
+    },
+    {
+      "name": "임상병리사",
+      "name_norm": "임상병리사",
+      "issuer": "한국보건의료인국가시험원(면허)",
+      "scope": "domestic_national",
+      "cert_class": "career_credential",
+      "tier": "필수",
+      "official_url": "https://www.kuksiwon.or.kr/subcnt/c_2012/1/view.do?seq=7&itm_seq=08"
+    },
+    {
+      "name": "작업치료사 면허",
+      "name_norm": "작업치료사면허",
+      "issuer": "보건복지부장관(시행: 한국보건의료인국가시험원)",
+      "scope": "domestic_national",
+      "cert_class": "professional_license",
+      "tier": "필수",
+      "official_url": "https://www.kuksiwon.or.kr"
+    },
+    {
+      "name": "전기기사",
+      "name_norm": "전기기사",
+      "issuer": "한국산업인력공단",
+      "scope": "domestic_national",
+      "cert_class": "career_credential",
+      "tier": "필수",
+      "official_url": "https://www.q-net.or.kr/"
+    },
+    {
+      "name": "정사서 2급",
+      "name_norm": "정사서2급",
+      "issuer": "문화체육관광부/한국도서관협회",
+      "scope": "domestic_national",
+      "cert_class": "career_credential",
+      "tier": "필수",
+      "official_url": "https://www.kla.kr"
+    },
+    {
+      "name": "중등학교 2급 정교사 자격증(교직이수)",
+      "name_norm": "중등학교2급정교사자격증교직이수",
+      "issuer": "교육부",
+      "scope": "domestic_national",
+      "cert_class": "career_credential",
+      "tier": "필수",
+      "official_url": "https://www.moe.go.kr"
+    },
+    {
+      "name": "측량및지형공간정보기사",
+      "name_norm": "측량및지형공간정보기사",
+      "issuer": "한국산업인력공단(Q-Net)",
+      "scope": "domestic_national",
+      "cert_class": "career_credential",
+      "tier": "필수",
+      "official_url": "https://www.q-net.or.kr"
+    },
+    {
+      "name": "치과위생사 면허",
+      "name_norm": "치과위생사면허",
+      "issuer": "보건복지부장관(시행: 한국보건의료인국가시험원)",
+      "scope": "domestic_national",
+      "cert_class": "professional_license",
+      "tier": "필수",
+      "official_url": "https://www.kuksiwon.or.kr"
+    },
+    {
+      "name": "치과의사 면허",
+      "name_norm": "치과의사면허",
+      "issuer": "보건복지부장관(시행: 한국보건의료인국가시험원)",
+      "scope": "domestic_national",
+      "cert_class": "professional_license",
+      "tier": "필수",
+      "official_url": "https://www.kuksiwon.or.kr"
+    },
+    {
+      "name": "토목기사",
+      "name_norm": "토목기사",
+      "issuer": "한국산업인력공단(Q-Net)",
+      "scope": "domestic_national",
+      "cert_class": "career_credential",
+      "tier": "필수",
+      "official_url": "https://www.q-net.or.kr"
+    },
+    {
+      "name": "토양환경기사",
+      "name_norm": "토양환경기사",
+      "issuer": "한국산업인력공단(Q-Net)",
+      "scope": "domestic_national",
+      "cert_class": "career_credential",
+      "tier": "필수",
+      "official_url": "https://namu.wiki/w/%ED%86%A0%EC%96%91%ED%99%98%EA%B2%BD%EA%B8%B0%EC%82%AC"
+    },
+    {
+      "name": "평생교육사 2급",
+      "name_norm": "평생교육사2급",
+      "issuer": "교육부/국가평생교육진흥원",
+      "scope": "domestic_national",
+      "cert_class": "career_credential",
+      "tier": "필수",
+      "official_url": "https://lledu.nile.or.kr"
+    },
+    {
+      "name": "폐기물처리기사",
+      "name_norm": "폐기물처리기사",
+      "issuer": "한국산업인력공단(Q-Net)",
+      "scope": "domestic_national",
+      "cert_class": "career_credential",
+      "tier": "필수",
+      "official_url": "http://www.q-net.or.kr/crf005.do?id=crf00503&jmCd=1950"
+    },
+    {
+      "name": "한국사능력검정시험 (3급 이상)",
+      "name_norm": "한국사능력검정시험3급이상",
+      "issuer": "국사편찬위원회",
+      "scope": "domestic_national",
+      "cert_class": "career_credential",
+      "tier": "필수",
+      "official_url": "https://www.historyexam.go.kr"
+    },
+    {
+      "name": "한국어교원자격증 2급",
+      "name_norm": "한국어교원자격증2급",
+      "issuer": "문화체육관광부/국립국어원",
+      "scope": "domestic_national",
+      "cert_class": "career_credential",
+      "tier": "필수",
+      "official_url": "https://kteacher.korean.go.kr"
+    },
+    {
+      "name": "화공기사",
+      "name_norm": "화공기사",
+      "issuer": "한국산업인력공단(Q-Net)",
+      "scope": "domestic_national",
+      "cert_class": "career_credential",
+      "tier": "필수",
+      "official_url": "https://www.q-net.or.kr/crf005.do?id=crf00503"
+    },
+    {
+      "name": "환경영향평가사",
+      "name_norm": "환경영향평가사",
+      "issuer": "한국환경산업기술원(KEITI)",
+      "scope": "domestic_national",
+      "cert_class": "career_credential",
+      "tier": "필수",
+      "official_url": "https://www.keiti.re.kr"
+    },
+    {
+      "name": "건축구조기술사",
+      "name_norm": "건축구조기술사",
+      "issuer": "한국산업인력공단(Q-Net)",
+      "scope": "domestic_national",
+      "cert_class": "professional_license",
+      "tier": "우대",
+      "official_url": "https://www.q-net.or.kr/crf005.do?id=crf00503&jmCd=0490"
+    },
+    {
+      "name": "건축기계설비기술사",
+      "name_norm": "건축기계설비기술사",
+      "issuer": "한국산업인력공단(Q-Net)",
+      "scope": "domestic_national",
+      "cert_class": "professional_license",
+      "tier": "우대",
+      "official_url": "https://www.q-net.or.kr"
+    },
+    {
+      "name": "건축물에너지평가사",
+      "name_norm": "건축물에너지평가사",
+      "issuer": "한국에너지공단",
+      "scope": "domestic_national",
+      "cert_class": "career_credential",
+      "tier": "우대",
+      "official_url": "https://min24.energy.or.kr/nbea/"
+    },
+    {
+      "name": "건축시공기술사",
+      "name_norm": "건축시공기술사",
+      "issuer": "한국산업인력공단(Q-Net)",
+      "scope": "domestic_national",
+      "cert_class": "professional_license",
+      "tier": "우대",
+      "official_url": "https://namu.wiki/w/%EA%B1%B4%EC%B6%95%EC%8B%9C%EA%B3%B5%EA%B8%B0%EC%88%A0%EC%82%AC"
+    },
+    {
+      "name": "건축전기설비기술사",
+      "name_norm": "건축전기설비기술사",
+      "issuer": "한국산업인력공단(Q-Net)",
+      "scope": "domestic_national",
+      "cert_class": "professional_license",
+      "tier": "우대",
+      "official_url": "https://www.q-net.or.kr"
+    },
+    {
+      "name": "교통안전관리자(도로)",
+      "name_norm": "교통안전관리자도로",
+      "issuer": "TS한국교통안전공단",
+      "scope": "domestic_national",
+      "cert_class": "career_credential",
+      "tier": "우대",
+      "official_url": "https://lic.kotsa.or.kr"
+    },
+    {
+      "name": "금속재료기사",
+      "name_norm": "금속재료기사",
+      "issuer": "한국산업인력공단(Q-Net)",
+      "scope": "domestic_national",
+      "cert_class": "career_credential",
+      "tier": "우대",
+      "official_url": "https://www.q-net.or.kr/crf005.do?id=crf00503&jmCd=1104"
+    },
+    {
+      "name": "도시계획기술사",
+      "name_norm": "도시계획기술사",
+      "issuer": "한국산업인력공단(Q-Net)",
+      "scope": "domestic_national",
+      "cert_class": "professional_license",
+      "tier": "우대",
+      "official_url": "https://www.q-net.or.kr/crf005.do?id=crf00503&jmCd=0650"
+    },
+    {
+      "name": "메카트로닉스기사",
+      "name_norm": "메카트로닉스기사",
+      "issuer": "한국산업인력공단(Q-Net)",
+      "scope": "domestic_national",
+      "cert_class": "career_credential",
+      "tier": "우대",
+      "official_url": "https://www.q-net.or.kr/"
+    },
+    {
+      "name": "바이오화학제품제조기사(구 생물공학기사)",
+      "name_norm": "바이오화학제품제조기사구생물공학기사",
+      "issuer": "한국산업인력공단(Q-Net)",
+      "scope": "domestic_national",
+      "cert_class": "career_credential",
+      "tier": "우대",
+      "official_url": "https://www.q-net.or.kr/crf005.do?id=crf00503&jmCd=1800"
+    },
+    {
+      "name": "보건교육사(1~3급)",
+      "name_norm": "보건교육사13급",
+      "issuer": "보건복지부(관리: 국가자격보건교육사협회)",
+      "scope": "domestic_national",
+      "cert_class": "career_credential",
+      "tier": "우대",
+      "official_url": "http://www.kaches.or.kr/"
+    },
+    {
+      "name": "사회조사분석사 2급",
+      "name_norm": "사회조사분석사2급",
+      "issuer": "한국산업인력공단",
+      "scope": "domestic_national",
+      "cert_class": "career_credential",
+      "tier": "우대",
+      "official_url": "https://www.q-net.or.kr"
+    },
+    {
+      "name": "산업안전기사",
+      "name_norm": "산업안전기사",
+      "issuer": "한국산업인력공단(Q-Net)",
+      "scope": "domestic_national",
+      "cert_class": "career_credential",
+      "tier": "우대",
+      "official_url": ""
+    },
+    {
+      "name": "상하수도기술사",
+      "name_norm": "상하수도기술사",
+      "issuer": "한국산업인력공단(Q-Net)",
+      "scope": "domestic_national",
+      "cert_class": "professional_license",
+      "tier": "우대",
+      "official_url": ""
+    },
+    {
+      "name": "생활스포츠지도사 2급",
+      "name_norm": "생활스포츠지도사2급",
+      "issuer": "문화체육관광부/국민체육진흥공단",
+      "scope": "domestic_national",
+      "cert_class": "career_credential",
+      "tier": "우대",
+      "official_url": "https://sqms.kspo.or.kr"
+    },
+    {
+      "name": "수자원개발기술사",
+      "name_norm": "수자원개발기술사",
+      "issuer": "한국산업인력공단(Q-Net)",
+      "scope": "domestic_national",
+      "cert_class": "professional_license",
+      "tier": "우대",
+      "official_url": "https://www.q-net.or.kr"
+    },
+    {
+      "name": "식품기사",
+      "name_norm": "식품기사",
+      "issuer": "한국산업인력공단(Q-Net)",
+      "scope": "domestic_national",
+      "cert_class": "career_credential",
+      "tier": "우대",
+      "official_url": "http://www.q-net.or.kr/crf005.do?id=crf00503&jmCd=1530&gSite=Q"
+    },
+    {
+      "name": "신재생에너지발전설비기사(태양광)",
+      "name_norm": "신재생에너지발전설비기사태양광",
+      "issuer": "한국산업인력공단(Q-Net)",
+      "scope": "domestic_national",
+      "cert_class": "career_credential",
+      "tier": "우대",
+      "official_url": "http://www.q-net.or.kr/crf005.do?id=crf00503&jmCd=1114"
+    },
+    {
+      "name": "실내건축기사",
+      "name_norm": "실내건축기사",
+      "issuer": "한국산업인력공단",
+      "scope": "domestic_national",
+      "cert_class": "career_credential",
+      "tier": "우대",
+      "official_url": "https://www.q-net.or.kr"
+    },
+    {
+      "name": "에너지관리기사",
+      "name_norm": "에너지관리기사",
+      "issuer": "한국산업인력공단(Q-Net)",
+      "scope": "domestic_national",
+      "cert_class": "career_credential",
+      "tier": "우대",
+      "official_url": ""
+    },
+    {
+      "name": "의공기사",
+      "name_norm": "의공기사",
+      "issuer": "한국산업인력공단",
+      "scope": "domestic_national",
+      "cert_class": "career_credential",
+      "tier": "우대",
+      "official_url": "https://namu.wiki/w/%EC%9D%98%EA%B3%B5%EA%B8%B0%EC%82%AC"
+    },
+    {
+      "name": "일반기계기사",
+      "name_norm": "일반기계기사",
+      "issuer": "한국산업인력공단(Q-Net)",
+      "scope": "domestic_national",
+      "cert_class": "career_credential",
+      "tier": "우대",
+      "official_url": "https://www.q-net.or.kr/crf005.do?id=crf00503&jmCd=1021"
+    },
+    {
+      "name": "임상심리사 2급",
+      "name_norm": "임상심리사2급",
+      "issuer": "한국산업인력공단",
+      "scope": "domestic_national",
+      "cert_class": "career_credential",
+      "tier": "우대",
+      "official_url": "https://www.q-net.or.kr"
+    },
+    {
+      "name": "전기산업기사",
+      "name_norm": "전기산업기사",
+      "issuer": "한국산업인력공단",
+      "scope": "domestic_national",
+      "cert_class": "career_credential",
+      "tier": "우대",
+      "official_url": "https://www.q-net.or.kr/"
+    },
+    {
+      "name": "전자기사",
+      "name_norm": "전자기사",
+      "issuer": "한국산업인력공단",
+      "scope": "domestic_national",
+      "cert_class": "career_credential",
+      "tier": "우대",
+      "official_url": "http://www.q-net.or.kr/crf005.do?id=crf00503&jmCd=1170"
+    },
+    {
+      "name": "정보통신기사",
+      "name_norm": "정보통신기사",
+      "issuer": "한국산업인력공단",
+      "scope": "domestic_national",
+      "cert_class": "career_credential",
+      "tier": "우대",
+      "official_url": "https://www.q-net.or.kr/"
+    },
+    {
+      "name": "정신건강임상심리사",
+      "name_norm": "정신건강임상심리사",
+      "issuer": "보건복지부",
+      "scope": "domestic_national",
+      "cert_class": "career_credential",
+      "tier": "우대",
+      "official_url": "https://www.mohw.go.kr"
+    },
+    {
+      "name": "청소년상담사",
+      "name_norm": "청소년상담사",
+      "issuer": "여성가족부/한국청소년상담복지개발원",
+      "scope": "domestic_national",
+      "cert_class": "career_credential",
+      "tier": "우대",
+      "official_url": "https://www.youthcounselor.or.kr"
+    },
+    {
+      "name": "측량및지형공간정보기술사",
+      "name_norm": "측량및지형공간정보기술사",
+      "issuer": "한국산업인력공단(Q-Net)",
+      "scope": "domestic_national",
+      "cert_class": "professional_license",
+      "tier": "우대",
+      "official_url": "https://www.q-net.or.kr"
+    },
+    {
+      "name": "토목구조기술사",
+      "name_norm": "토목구조기술사",
+      "issuer": "한국산업인력공단(Q-Net)",
+      "scope": "domestic_national",
+      "cert_class": "professional_license",
+      "tier": "우대",
+      "official_url": "https://www.q-net.or.kr"
+    },
+    {
+      "name": "토질및기초기술사",
+      "name_norm": "토질및기초기술사",
+      "issuer": "한국산업인력공단(Q-Net)",
+      "scope": "domestic_national",
+      "cert_class": "professional_license",
+      "tier": "우대",
+      "official_url": "http://www.kric.go.kr/jsp/board/portal/sub04/lic/certifiDetail.jsp?board_seq=49"
+    },
+    {
+      "name": "품질경영기사",
+      "name_norm": "품질경영기사",
+      "issuer": "한국산업인력공단(Q-Net)",
+      "scope": "domestic_national",
+      "cert_class": "career_credential",
+      "tier": "우대",
+      "official_url": ""
+    },
+    {
+      "name": "화공기술사",
+      "name_norm": "화공기술사",
+      "issuer": "한국산업인력공단(Q-Net)",
+      "scope": "domestic_national",
+      "cert_class": "professional_license",
+      "tier": "우대",
+      "official_url": "https://namu.wiki/w/%ED%99%94%EA%B3%B5%EA%B8%B0%EC%88%A0%EC%82%AC"
+    },
+    {
+      "name": "화학분석기사",
+      "name_norm": "화학분석기사",
+      "issuer": "한국산업인력공단(Q-Net)",
+      "scope": "domestic_national",
+      "cert_class": "career_credential",
+      "tier": "우대",
+      "official_url": "https://www.q-net.or.kr/crf005.do?id=crf00503&jmCd=1563"
+    },
+    {
+      "name": "BIM전문가(1급/2급)",
+      "name_norm": "bim전문가1급2급",
+      "issuer": "한국BIM평가원",
+      "scope": "domestic_private",
+      "cert_class": "career_credential",
+      "tier": "우대",
+      "official_url": "https://www.bimkorea.or.kr"
+    },
+    {
+      "name": "건설사업관리사",
+      "name_norm": "건설사업관리사",
+      "issuer": "한국CM협회",
+      "scope": "domestic_private",
+      "cert_class": "career_credential",
+      "tier": "우대",
+      "official_url": "https://cmkorea.org"
+    },
+    {
+      "name": "상담심리사(한국상담심리학회)",
+      "name_norm": "상담심리사한국상담심리학회",
+      "issuer": "한국상담심리학회",
+      "scope": "domestic_private",
+      "cert_class": "career_credential",
+      "tier": "우대",
+      "official_url": "https://krcpa.or.kr"
     }
   ],
   "career_cert_map": {
@@ -430,6 +1073,626 @@
         "name": "CFA",
         "tier": "우대"
       }
+    ],
+    "간호사": [
+      {
+        "name": "간호사 면허",
+        "tier": "필수"
+      },
+      {
+        "name": "보건교육사(1~3급)",
+        "tier": "우대"
+      }
+    ],
+    "건설관리(CM/PM) 전문가": [
+      {
+        "name": "건설안전기사",
+        "tier": "필수"
+      },
+      {
+        "name": "건축기사",
+        "tier": "필수"
+      },
+      {
+        "name": "건축시공기술사",
+        "tier": "우대"
+      },
+      {
+        "name": "건설사업관리사",
+        "tier": "우대"
+      }
+    ],
+    "건축시공·공정 관리자": [
+      {
+        "name": "건설안전기사",
+        "tier": "우대"
+      },
+      {
+        "name": "건축기사",
+        "tier": "필수"
+      },
+      {
+        "name": "건축시공기술사",
+        "tier": "우대"
+      }
+    ],
+    "구조 엔지니어": [
+      {
+        "name": "건축기사",
+        "tier": "필수"
+      },
+      {
+        "name": "건축구조기술사",
+        "tier": "우대"
+      },
+      {
+        "name": "토목구조기술사",
+        "tier": "우대"
+      }
+    ],
+    "친환경 건축 컨설턴트": [
+      {
+        "name": "건축기사",
+        "tier": "필수"
+      },
+      {
+        "name": "건축물에너지평가사",
+        "tier": "우대"
+      }
+    ],
+    "건축설비 엔지니어": [
+      {
+        "name": "건축설비기사",
+        "tier": "필수"
+      },
+      {
+        "name": "건축기계설비기술사",
+        "tier": "우대"
+      },
+      {
+        "name": "건축전기설비기술사",
+        "tier": "우대"
+      }
+    ],
+    "교통계획 전문가": [
+      {
+        "name": "교통기사",
+        "tier": "필수"
+      },
+      {
+        "name": "교통안전관리자(도로)",
+        "tier": "우대"
+      }
+    ],
+    "에너지·환경공학 엔지니어": [
+      {
+        "name": "대기환경기사",
+        "tier": "필수"
+      },
+      {
+        "name": "수질환경기사",
+        "tier": "우대"
+      }
+    ],
+    "대기환경 엔지니어": [
+      {
+        "name": "대기환경기사",
+        "tier": "필수"
+      },
+      {
+        "name": "수질환경기사",
+        "tier": "우대"
+      }
+    ],
+    "환경영향평가/컨설턴트": [
+      {
+        "name": "대기환경기사",
+        "tier": "유용"
+      },
+      {
+        "name": "환경영향평가사",
+        "tier": "필수"
+      }
+    ],
+    "도시계획가": [
+      {
+        "name": "도시계획기사",
+        "tier": "필수"
+      },
+      {
+        "name": "도시계획기술사",
+        "tier": "우대"
+      }
+    ],
+    "도시설계가": [
+      {
+        "name": "도시계획기사",
+        "tier": "우대"
+      }
+    ],
+    "물리치료사": [
+      {
+        "name": "물리치료사 면허",
+        "tier": "필수"
+      }
+    ],
+    "방사선사": [
+      {
+        "name": "방사선사 면허",
+        "tier": "필수"
+      }
+    ],
+    "생명공학 특허·기술사업화 전문가": [
+      {
+        "name": "변리사",
+        "tier": "필수"
+      }
+    ],
+    "보건의료정보관리사": [
+      {
+        "name": "보건의료정보관리사",
+        "tier": "필수"
+      }
+    ],
+    "헬스케어 데이터 분석가": [
+      {
+        "name": "보건의료정보관리사",
+        "tier": "유용"
+      }
+    ],
+    "건강보험심사평가 전문가": [
+      {
+        "name": "보건의료정보관리사",
+        "tier": "필수"
+      }
+    ],
+    "보건의료정보관리사(의무기록관리)": [
+      {
+        "name": "보건의료정보관리사",
+        "tier": "필수"
+      }
+    ],
+    "헬스케어 데이터분석·디지털헬스 기획": [
+      {
+        "name": "보건의료정보관리사",
+        "tier": "유용"
+      }
+    ],
+    "보육교사/아동복지 실무자": [
+      {
+        "name": "보육교사 2급",
+        "tier": "필수"
+      },
+      {
+        "name": "사회복지사 2급",
+        "tier": "우대"
+      }
+    ],
+    "사회복지사": [
+      {
+        "name": "사회복지사 2급",
+        "tier": "필수"
+      }
+    ],
+    "수자원·환경공학 기술자": [
+      {
+        "name": "수질환경기사",
+        "tier": "필수"
+      },
+      {
+        "name": "토목기사",
+        "tier": "필수"
+      },
+      {
+        "name": "수자원개발기술사",
+        "tier": "우대"
+      }
+    ],
+    "수질/상하수도 엔지니어": [
+      {
+        "name": "수질환경기사",
+        "tier": "필수"
+      },
+      {
+        "name": "상하수도기술사",
+        "tier": "우대"
+      }
+    ],
+    "토양·지하수 환경 전문가": [
+      {
+        "name": "수질환경기사",
+        "tier": "우대"
+      },
+      {
+        "name": "토양환경기사",
+        "tier": "필수"
+      }
+    ],
+    "식품 연구개발자": [
+      {
+        "name": "영양사",
+        "tier": "유용"
+      },
+      {
+        "name": "식품기사",
+        "tier": "우대"
+      }
+    ],
+    "영양사": [
+      {
+        "name": "영양사",
+        "tier": "필수"
+      },
+      {
+        "name": "식품기사",
+        "tier": "우대"
+      }
+    ],
+    "바이오 안전성·독성 평가 전문가": [
+      {
+        "name": "위생사",
+        "tier": "유용"
+      }
+    ],
+    "위생사(식품·환경위생 관리)": [
+      {
+        "name": "위생사",
+        "tier": "필수"
+      }
+    ],
+    "이차전지·에너지소재 연구원": [
+      {
+        "name": "위험물산업기사",
+        "tier": "우대"
+      },
+      {
+        "name": "화공기사",
+        "tier": "우대"
+      },
+      {
+        "name": "화학분석기사",
+        "tier": "유용"
+      }
+    ],
+    "화학공정 엔지니어": [
+      {
+        "name": "위험물산업기사",
+        "tier": "필수"
+      },
+      {
+        "name": "화공기사",
+        "tier": "필수"
+      },
+      {
+        "name": "화공기술사",
+        "tier": "우대"
+      }
+    ],
+    "바이오/의료기기 엔지니어": [
+      {
+        "name": "의료기기RA전문가(2급)",
+        "tier": "유용"
+      },
+      {
+        "name": "일반기계기사",
+        "tier": "우대"
+      }
+    ],
+    "의료기기 인허가/규제 전문가": [
+      {
+        "name": "의료기기RA전문가(2급)",
+        "tier": "필수"
+      }
+    ],
+    "의사": [
+      {
+        "name": "의사 면허",
+        "tier": "필수"
+      }
+    ],
+    "진단·검사 전문 연구원": [
+      {
+        "name": "임상병리사",
+        "tier": "우대"
+      }
+    ],
+    "임상병리사": [
+      {
+        "name": "임상병리사",
+        "tier": "필수"
+      }
+    ],
+    "작업치료사": [
+      {
+        "name": "작업치료사 면허",
+        "tier": "필수"
+      }
+    ],
+    "반도체 공정/소자 엔지니어": [
+      {
+        "name": "전기기사",
+        "tier": "우대"
+      },
+      {
+        "name": "화공기사",
+        "tier": "우대"
+      },
+      {
+        "name": "전자기사",
+        "tier": "우대"
+      },
+      {
+        "name": "화학분석기사",
+        "tier": "우대"
+      }
+    ],
+    "제어시스템 엔지니어": [
+      {
+        "name": "전기기사",
+        "tier": "우대"
+      }
+    ],
+    "전력계통 엔지니어": [
+      {
+        "name": "전기기사",
+        "tier": "필수"
+      },
+      {
+        "name": "전기산업기사",
+        "tier": "우대"
+      }
+    ],
+    "사서": [
+      {
+        "name": "정사서 2급",
+        "tier": "필수"
+      }
+    ],
+    "중등학교 교사(교직이수)": [
+      {
+        "name": "중등학교 2급 정교사 자격증(교직이수)",
+        "tier": "필수"
+      },
+      {
+        "name": "한국사능력검정시험 (3급 이상)",
+        "tier": "필수"
+      }
+    ],
+    "체육교사(임용)": [
+      {
+        "name": "중등학교 2급 정교사 자격증(교직이수)",
+        "tier": "필수"
+      },
+      {
+        "name": "한국사능력검정시험 (3급 이상)",
+        "tier": "필수"
+      }
+    ],
+    "측량 및 공간정보 기술자": [
+      {
+        "name": "측량및지형공간정보기사",
+        "tier": "필수"
+      },
+      {
+        "name": "측량및지형공간정보기술사",
+        "tier": "우대"
+      }
+    ],
+    "치과위생사": [
+      {
+        "name": "치과위생사 면허",
+        "tier": "필수"
+      }
+    ],
+    "치과의사": [
+      {
+        "name": "치과의사 면허",
+        "tier": "필수"
+      }
+    ],
+    "지반·기초 엔지니어": [
+      {
+        "name": "토목기사",
+        "tier": "필수"
+      },
+      {
+        "name": "토질및기초기술사",
+        "tier": "우대"
+      }
+    ],
+    "스마트 건설/BIM 전문가": [
+      {
+        "name": "토목기사",
+        "tier": "필수"
+      },
+      {
+        "name": "BIM전문가(1급/2급)",
+        "tier": "우대"
+      }
+    ],
+    "평생교육 프로그램 기획자": [
+      {
+        "name": "평생교육사 2급",
+        "tier": "우대"
+      }
+    ],
+    "평생교육사": [
+      {
+        "name": "평생교육사 2급",
+        "tier": "필수"
+      }
+    ],
+    "폐기물·자원순환 엔지니어": [
+      {
+        "name": "폐기물처리기사",
+        "tier": "필수"
+      }
+    ],
+    "한국어교원": [
+      {
+        "name": "한국어교원자격증 2급",
+        "tier": "필수"
+      }
+    ],
+    "환경·방재 정책 전문가": [
+      {
+        "name": "환경영향평가사",
+        "tier": "필수"
+      }
+    ],
+    "소재 연구원": [
+      {
+        "name": "금속재료기사",
+        "tier": "우대"
+      }
+    ],
+    "메카트로닉스/자동차 엔지니어": [
+      {
+        "name": "메카트로닉스기사",
+        "tier": "우대"
+      },
+      {
+        "name": "일반기계기사",
+        "tier": "우대"
+      }
+    ],
+    "화장품 연구개발자": [
+      {
+        "name": "바이오화학제품제조기사(구 생물공학기사)",
+        "tier": "유용"
+      }
+    ],
+    "발효·미생물 공정 연구원": [
+      {
+        "name": "바이오화학제품제조기사(구 생물공학기사)",
+        "tier": "우대"
+      }
+    ],
+    "바이오의약품 연구원": [
+      {
+        "name": "바이오화학제품제조기사(구 생물공학기사)",
+        "tier": "우대"
+      }
+    ],
+    "보건행정가": [
+      {
+        "name": "보건교육사(1~3급)",
+        "tier": "우대"
+      }
+    ],
+    "병원행정·보건직 공무원": [
+      {
+        "name": "보건교육사(1~3급)",
+        "tier": "우대"
+      }
+    ],
+    "사회조사/리서치 전문가": [
+      {
+        "name": "사회조사분석사 2급",
+        "tier": "우대"
+      }
+    ],
+    "생산/제조공정 엔지니어": [
+      {
+        "name": "산업안전기사",
+        "tier": "우대"
+      },
+      {
+        "name": "품질경영기사",
+        "tier": "우대"
+      }
+    ],
+    "생활스포츠지도자": [
+      {
+        "name": "생활스포츠지도사 2급",
+        "tier": "우대"
+      }
+    ],
+    "신재생에너지 엔지니어": [
+      {
+        "name": "신재생에너지발전설비기사(태양광)",
+        "tier": "우대"
+      }
+    ],
+    "실내건축 설계·시공 전문가": [
+      {
+        "name": "실내건축기사",
+        "tier": "우대"
+      }
+    ],
+    "열유체/에너지 엔지니어": [
+      {
+        "name": "에너지관리기사",
+        "tier": "우대"
+      },
+      {
+        "name": "일반기계기사",
+        "tier": "우대"
+      }
+    ],
+    "의료기기 개발 엔지니어": [
+      {
+        "name": "의공기사",
+        "tier": "우대"
+      },
+      {
+        "name": "전자기사",
+        "tier": "유용"
+      }
+    ],
+    "기계설계 엔지니어": [
+      {
+        "name": "일반기계기사",
+        "tier": "우대"
+      }
+    ],
+    "구조/해석 엔지니어(CAE)": [
+      {
+        "name": "일반기계기사",
+        "tier": "우대"
+      }
+    ],
+    "임상심리·상담 전문가": [
+      {
+        "name": "임상심리사 2급",
+        "tier": "우대"
+      },
+      {
+        "name": "정신건강임상심리사",
+        "tier": "우대"
+      },
+      {
+        "name": "청소년상담사",
+        "tier": "우대"
+      },
+      {
+        "name": "상담심리사(한국상담심리학회)",
+        "tier": "우대"
+      }
+    ],
+    "디스플레이 회로설계 엔지니어": [
+      {
+        "name": "전자기사",
+        "tier": "유용"
+      }
+    ],
+    "디지털/아날로그 IC 설계자": [
+      {
+        "name": "전자기사",
+        "tier": "유용"
+      }
+    ],
+    "신호처리 엔지니어": [
+      {
+        "name": "정보통신기사",
+        "tier": "유용"
+      }
+    ],
+    "통신시스템 엔지니어": [
+      {
+        "name": "정보통신기사",
+        "tier": "우대"
+      }
     ]
   },
   "cert_light_paths": [
@@ -460,7 +1723,82 @@
     {
       "path_name": "컴퓨터구조·시스템 아키텍트",
       "note": "대학원·연구 경험 중심, 정조준 국내 자격증 없음"
+    },
+    {
+      "path_name": "양자·에너지 융합 연구원",
+      "note": "[공학-전자반도체물리] 국가기술자격 형태의 관련 인증이 존재하지 않는다. KAIST/성균관대 등 양자대학원이 박사급 인력을 4년 과정으로 양성하는 구조이며, 진로는 학위·연구경험(인턴십, 프로젝트) 중심으로 자격증이 개입할 여지가 거의 없"
+    },
+    {
+      "path_name": "전산 시뮬레이션 연구원",
+      "note": "[공학-전자반도체물리] 관련 자격증이 확인되지 않는다. 채용은 석·박사 학위(전자기 시뮬레이션 등 세부 전공)와 연구실 프로젝트 경험을 요구하며, 자격증에 대한 언급은 검색 결과에서 발견되지 않았다."
+    },
+    {
+      "path_name": "소재 연구원",
+      "note": "[공학-화공환경] 화공생명공학이 related_departments에 포함되어 대상에 넣었으나, R&D 연구직 특성상 시장 신호가 자격증보다 학위(석·박사)에 강하게 쏠려 있음이 검색으로 확인됨. 원본 cert_hints(금속재료기사"
+    },
+    {
+      "path_name": "바이오헬스케어 산업 기획자",
+      "note": "[보건바이오-생명제약식품] 보건복지부·한국보건산업진흥원(KHIDI)의 '바이오헬스 기업 인재수요 가이드북'에서도 직무별 요구 역량·기술을 안내하지만, 기획 직무 특성상 국가/민간 자격증보다 산업 이해도와 MBA 등 경영 관련 학위가 중요하며 "
+    },
+    {
+      "path_name": "바이오 안전성·독성 평가 전문가",
+      "note": "[보건바이오-생명제약식품] 학부 졸업 시점에 실질적으로 취득 가능한 전문자격이 거의 없음. 위생사는 업무 성격이 다르고, 한국독성학회 독성전문가 인증은 석·박사 학위와 실무경력을 요구해 대학원 이후에나 접근 가능한 커리어 목표에 해당."
+    },
+    {
+      "path_name": "생명정보분석가",
+      "note": "[보건바이오-생명제약식품] cert_hint의 '생물정보분석사'는 국가/민간 자격 목록에서 실재를 확인할 수 없었음. 채용공고 대다수가 생명과학·통계·컴퓨터공학 석박사 학위와 Python/R 등 프로그래밍 능력, 논문 실적을 요구하는 대학원 "
+    },
+    {
+      "path_name": "세포·조직공학 연구원",
+      "note": "[보건바이오-생명제약식품] 경희대·가톨릭대 등 관련 연구실 모집공고에서 박사학위, 동물실험·중개연구 경험, 논문·특허 실적을 요구하는 대학원 이후 연구직으로 확인되며, 대표되는 국가/민간 자격증을 찾지 못함."
+    },
+    {
+      "path_name": "바이오·의료소재 연구원",
+      "note": "[보건바이오-생명제약식품] 금속재료기사·세라믹기사 등 신소재 분야 일반 국가자격은 존재하나(한국재료연구원 바이오·헬스재료연구본부 등에서 관련 연구 수행), '의료·바이오소재'에 특화된 자격증은 확인되지 않았고 채용은 대학원 학위와 재료분석 연"
+    },
+    {
+      "path_name": "의료영상 분석 전문가",
+      "note": "[보건바이오-의료기기보건정보] 학부 취업보다 대학원 진학(석/박사) 중심 경로. 검색으로 확인되는 것은 관련 자격증이 아니라 대학원 연구실·인턴십(코어라인소프트, 국립암센터 등) 경로뿐이며, 이 직무를 대표하는 자격증은 확인되지 않음."
+    },
+    {
+      "path_name": "재활·바이오메카닉스 연구원",
+      "note": "[보건바이오-의료기기보건정보] 재활공학·바이오메카닉스는 대학원 세부전공(바이오닉스 등) 중심으로 진행되는 연구 트랙이며, 학부 단계에서 통용되는 대표 자격증이 확인되지 않음."
+    },
+    {
+      "path_name": "생체재료 및 조직공학 연구원",
+      "note": "[보건바이오-의료기기보건정보] 연구원 진출에는 별도 자격증이 아니라 석사 이상 학력과 논문·연구 경력이 핵심 요건이라는 점이 직업백과 및 학과 공식페이지에서 일관되게 확인됨."
+    },
+    {
+      "path_name": "의공학 연구원",
+      "note": "[보건바이오-의료기기보건정보] 경로 설명 자체가 대학원 진학을 전제로 하며, 검색 결과에서도 특정 국가자격 없이 석사 이상 학력과 연구 경력이 핵심 요건으로 확인됨."
+    },
+    {
+      "path_name": "물리치료사",
+      "note": "[의약·보건(미추론)] 국가면허 1건 외에 시장에서 통용되는 확인된 2차 자격이 없어 국가면허만 등재함."
+    },
+    {
+      "path_name": "임상병리사",
+      "note": "[의약·보건(미추론)] 국가면허 1건 외에 시장에서 통용되는 확인된 2차 자격이 없어 국가면허만 등재함."
+    },
+    {
+      "path_name": "작업치료사",
+      "note": "[의약·보건(미추론)] 국가면허 1건 외에 시장에서 통용되는 확인된 2차 자격이 없어 국가면허만 등재함."
+    },
+    {
+      "path_name": "치과위생사",
+      "note": "[의약·보건(미추론)] 국가면허 1건 외에 시장에서 통용되는 확인된 2차 자격이 없어 국가면허만 등재함."
+    },
+    {
+      "path_name": "언론홍보영상학 - 기자/PD/방송작가/홍보전문가: 표준 자격증 없이 언론사 자체 필기·논술·실무시험(언론고시) 중심으로 채용됨. 검색 결과도 '기본 스펙 외 자격증은 큰 의미 없다'는 취업준비생 의견이 확인됨 → Chrome 후속으로 실제 언론사 채용공고 우대조건 직접 확인 필요",
+      "note": "[사회·교육(미추론)] "
+    },
+    {
+      "path_name": "행정학·글로벌행정학전공·공공리더십 - 행정직 공무원: 공무원채용시험(9급/7급/행정고시) 자체가 진입 관문이며 전공 연계성도 높지 않음. 한국사능력검정시험은 일부 직렬 가산점/응시자격용으로만 참고할 수준 → Chrome 후속으로 직렬별 가산점 자격증 목록(인사혁신처 공고) 확인 필요",
+      "note": "[사회·교육(미추론)] "
+    },
+    {
+      "path_name": "정치외교학·국제관계학·외교통상학 - 외교관/국제기구 진출: 외교관후보자 선발시험(국립외교원, 국가고시)이 유일한 관문이며 표준 국가·민간 자격증이 없음. 대다수 졸업생은 일반기업 취업으로 귀결된다는 검색 결과 확인 → Chrome 후속으로 국제기구 채용 시 어학·직무 자격 요건 별도 확인 필요",
+      "note": "[사회·교육(미추론)] "
     }
-  ],
-  "note": "취업 시장 신호(WebSearch + 실채용공고 확인)로 큐레이션한 검증 코어. 국가자격 공식 URL·시험일정은 Phase 3 로더가 Q-Net API로 보강. aggregator(링커리어 등) 미수집."
+  ]
 }
