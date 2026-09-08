@@ -23,6 +23,24 @@
 - **pytest `SAWarning`(커넥션 미반납)** — 121개 전부 통과하지만 경고가 남는다. `CLAUDE.md`에 적힌
   "healthcheck 수준을 넘어서면 per-test transaction rollback fixture로 이행" 항목과 같은 뿌리다.
 
+## 런칭 전 필수 (보안) — 2026-09-08 사용자 결정
+
+- **API 키 전면 로테이션 — 실사용자 배포(런칭) 직전에 실행.** 사용자 지시: "교체는 나중에
+  실제 유저들한테 배포할 때 하자." 배경: 2026-09-07 `backend/.gcloudignore`(318b143) 도입으로
+  gcloud가 `.gitignore`를 안 봐 `.env`가 Cloud Build 소스 zip에 포함됨(L-1). 실측상 백엔드
+  소스 zip **24개 전부** `.env` 포함, 노출 창 2026-08-31~09-07, 범위는 프로젝트 프라이빗
+  버킷(외부 노출 없음). 조치 완료: 코드 봉합 `27875bd`(보안 PASS), zip 24개 삭제(09-08, 잔여 0,
+  보안 독립 실측 `02bb857`). 이미지 자체는 항상 깨끗(Dockerfile이 .env를 COPY 안 함).
+- 로테이션 범위: **ANTHROPIC_API_KEY**(유출 키 = Secret Manager v3 현재 라이브 키와 동일 —
+  가장 중요), RESEND_API_KEY, OPENAI_API_KEY, DATA_GO_KR_API_KEY / DATA_GO_KR_SERVICE_KEY,
+  SOLAPI_API_KEY/SECRET. **SECRET_KEY(페퍼)는 로컬값≠운영값이라 손대지 말 것.**
+- 무중단 절차(보안 a5 확정): Anthropic 콘솔 새 키 발급 → Secret Manager `ANTHROPIC_API_KEY`
+  새 버전 추가 → **새 Cloud Run 리비전 생성**(기존 인스턴스는 `latest`를 시작 시점에만 읽음) →
+  스모크 → 구 버전 disable + 구 키 Anthropic 측 폐기 → 로컬 `.env` 갱신. Secret Manager 밖 키
+  (Resend·OpenAI·data.go.kr·Solapi)는 각 서비스 콘솔에서 재발급·폐기 후 env/.env 교체.
+- 완료 시 보안 세션에 리비전명 통보 → SM 활성 버전·리비전·최신 zip(.env 없음, L-1 ④) 실측으로
+  L-1 완전 종결.
+
 ## 로컬 환경 메모
 
 - **Mock LLM 기동**: `$env:ANTHROPIC_API_KEY = "mock-no-real-key"` 를 넣고
