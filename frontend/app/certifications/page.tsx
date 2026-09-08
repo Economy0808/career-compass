@@ -245,6 +245,13 @@ export default function CertificationsPage() {
 
   return (
     <div className="paper-surface mx-auto max-w-3xl rounded-3xl border border-paper-line/60 bg-paper px-4 py-10 shadow-[0_2px_8px_rgba(20,20,40,0.06),0_24px_56px_-28px_rgba(20,20,40,0.28)] md:px-10 md:py-12">
+      {/* 탐색 허브로 돌아가기 - /explore 통합에 맞춘 뒤로가기(학우 화면과 동일). */}
+      <Link
+        href="/explore"
+        className="mb-4 inline-block text-caption font-semibold text-paper-lo underline underline-offset-2 hover:text-paper-ink"
+      >
+        ← 탐색
+      </Link>
       <header className="mb-6 flex flex-col gap-1.5">
         <h1 className="font-serif text-display font-bold text-paper-ink">자격증</h1>
         <p className="text-body-sm text-paper-lo">공식 등재 자격증 + 학생들이 직접 채운 자격증을 함께 찾아요</p>
