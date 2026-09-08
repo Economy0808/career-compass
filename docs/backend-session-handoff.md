@@ -1143,6 +1143,19 @@ Firestore 실 데이터 카운트(7,109건 등)는 라이브 조회가 필요해
 
 ---
 
+## 31차 (2026-09-08) — dongari 학회 벌크 적재 결정 기록 (보안 조건 ③)
+
+- 2026-09-07 dongari(학생 개인 GitHub Pages, 원본 url 전부 everytime.kr) 학회/동아리 **594건**을
+  `academic_societies/{category}/societies`에 적재(source_type=`import:dongari`,
+  submitter_uid=`import:dongari`, moderation_status=`approved`, official_url·모집날짜 미저장,
+  PII 스캔 0건). 현재 학회 DB 전체가 이 데이터(실유저 제보 0).
+- 보안 판정 **FAIL·제거 권고**(저작권법 §93 DB제작자권·부정경쟁방지법) → 사용자 **유지 결정
+  (리스크 수용)**, 감사 정본 `b8c0985`.
+- 유지 조건: ①출처 고지 라벨 프론트 `9298870`(재게이트 PASS, 문구 변경 금지)
+  ②적재 스크립트는 리포에 커밋하지 않고 폐기 ③이 기록 ④롤백 경로 유지 =
+  `collection_group("societies")`에서 `source_type == "import:dongari"` 일괄 삭제(필터 인덱스
+  없으면 13개 카테고리 순회). **재적재 금지.**
+
 ## 검증 방법 요약 (재현용)
 
 `git log --oneline -30` / `ls backend/app/api backend/app/llm backend/app/firestore
