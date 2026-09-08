@@ -281,6 +281,13 @@ export default function SocietiesPage() {
         </Button>
       </div>
 
+      {/* 출처 안내(보안 확정 문구 - 한 글자도 바꾸지 말 것). 외부 학생 자료 기반
+          자동정리분이 섞여 있음을 목록 상단에 고지한다 - 사용자 "유지(A)" 결정의
+          완화 조건. 저대비로 숨기지 않는다(본문 가독성 수준, text-paper-lo). */}
+      <p className="mb-4 rounded-xl border border-paper-line/60 bg-paper-soft/60 px-4 py-2.5 text-body-sm leading-relaxed text-paper-lo">
+        학회·동아리 정보 일부는 외부 학생 자료를 바탕으로 자동 정리한 것으로, 각 단체가 직접 제공한 공식 정보가 아니며 정확하지 않을 수 있어요. 잘못된 내용은 신고해 주세요.
+      </p>
+
       {selectedCategories.size === 0 ? (
         <EmptyState paper title="분야를 하나 이상 선택하세요" />
       ) : societies === null ? (
